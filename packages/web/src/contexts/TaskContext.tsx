@@ -1,0 +1,255 @@
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
+
+export interface Task {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category?: string;
+  due_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTaskData {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  category?: string;
+  dueDate?: string;
+}
+
+export interface UpdateTaskData {
+  title?: string;
+  description?: string;
+  completed?: boolean;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  category?: string;
+  dueDate?: string;
+}
+
+interface TaskContextType {
+  tasks: Task[];
+  isLoading: boolean;
+  error: string | null;
+  fetchTasks: () => Promise<void>;
+  createTask: (taskData: CreateTaskData) => Promise<void>;
+  updateTask: (taskId: string, taskData: UpdateTaskData) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  toggleTaskCompletion: (taskId: string) => Promise<void>;
+}
+
+const TaskContext = createContext<TaskContextType | undefined>(undefined);
+
+export const useTasks = () => {
+  const context = useContext(TaskContext);
+  if (context === undefined) {
+    throw new Error('useTasks must be used within a TaskProvider');
+  }
+  return context;
+};
+
+interface TaskProviderProps {
+  children: ReactNode;
+}
+
+export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { token } = useAuth();
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+  const fetchTasks = async () => {
+    if (!token) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // For test token, we'll make real API calls since backend now supports it
+      
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch tasks');
+      }
+
+      const tasksData = await response.json();
+      setTasks(tasksData);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      setError('Failed to fetch tasks');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createTask = async (taskData: CreateTaskData) => {
+    if (!token) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...taskData,
+          dueDate: taskData.dueDate,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create task');
+      }
+
+      const newTask = await response.json();
+      setTasks(prev => [newTask, ...prev]);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      setError('Failed to create task');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateTask = async (taskId: string, taskData: UpdateTaskData) => {
+    if (!token) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...taskData,
+          dueDate: taskData.dueDate,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update task');
+      }
+
+      const updatedTask = await response.json();
+      setTasks(prev => prev.map(task => 
+        task.id === taskId ? updatedTask : task
+      ));
+    } catch (error) {
+      console.error('Error updating task:', error);
+      setError('Failed to update task');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    if (!token) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete task');
+      }
+
+      setTasks(prev => prev.filter(task => task.id !== taskId));
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      setError('Failed to delete task');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleTaskCompletion = async (taskId: string) => {
+    if (!token) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle task completion');
+      }
+
+      const updatedTask = await response.json();
+      setTasks(prev => prev.map(task => 
+        task.id === taskId ? updatedTask : task
+      ));
+    } catch (error) {
+      console.error('Error toggling task completion:', error);
+      setError('Failed to toggle task completion');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch tasks when token changes
+  useEffect(() => {
+    if (token) {
+      fetchTasks();
+    } else {
+      setTasks([]);
+    }
+  }, [token]);
+
+  const value: TaskContextType = {
+    tasks,
+    isLoading,
+    error,
+    fetchTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    toggleTaskCompletion,
+  };
+
+  return (
+    <TaskContext.Provider value={value}>
+      {children}
+    </TaskContext.Provider>
+  );
+};

@@ -1,0 +1,71 @@
+{
+  "name": "jarvi-app",
+  "version": "1.0.0",
+  "description": "Aplicativo completo de tarefas, notas, finanças e hábitos",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "cd packages/web && npm run dev",
+    "dev:mobile": "cd packages/mobile && npm start",
+    "mobile:ios": "cd packages/mobile && npm run ios",
+    "mobile:android": "cd packages/mobile && npm run android",
+    "mobile:web": "cd packages/mobile && npm run web",
+    "dev:backend": "cd packages/backend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:web\"",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\"",
+    "build": "npm run build --workspaces",
+    "build:shared": "cd packages/shared && npm run build",
+    "build:backend": "cd packages/backend && npm run build",
+    "build:web": "cd packages/web && npm run build",
+    "test": "npm run test --workspaces",
+    "test:unit": "npm run test:unit --workspaces",
+    "test:e2e": "npm run test:e2e --workspaces",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint:fix --workspaces",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"packages/**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "rm -rf node_modules packages/*/node_modules packages/*/dist packages/*/.expo packages/*/coverage",
+    "clean:cache": "npm run clean && npm cache clean --force",
+    "install:all": "npm install && npm install --workspaces",
+    "setup": "npm run install:all && npm run build:shared && npm run build:backend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "db:migrate": "cd packages/backend && npm run db:migrate",
+    "db:seed": "cd packages/backend && npm run db:seed",
+    "type-check": "npm run type-check --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "prettier": "^3.1.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "@react-navigation/bottom-tabs": "^7.4.6"
+  },
+  "overrides": {
+    "react-native": "0.74.5"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}
