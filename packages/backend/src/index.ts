@@ -11,7 +11,10 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*', // Em desenvolvimento permite tudo, produção será restrito
+  credentials: true
+}));
 app.use(morgan('combined'));
 app.use(express.json());
 
