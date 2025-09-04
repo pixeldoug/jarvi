@@ -11,7 +11,7 @@ export const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login, register, loginWithGoogle } = useAuth();
+  const { login, register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,14 +38,7 @@ export const Login: React.FC = () => {
       setIsLoading(true);
       setError('');
       
-      // Simulate login with test user
-      const testUser = {
-        id: 'test-user-123',
-        email: 'test@jarvi.com',
-        name: 'Usuário Teste',
-        avatar: 'https://via.placeholder.com/150'
-      };
-      
+      // Simulate login with test user  
       const testToken = 'test-jwt-token-123';
       
       // Store in localStorage (same as AuthContext expects)

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Task, CreateTaskData, UpdateTaskData } from '../contexts/TaskContext';
+import { Task, CreateTaskData } from '../contexts/TaskContext';
 
 export const Tasks: React.FC = () => {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
