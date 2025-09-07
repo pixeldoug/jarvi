@@ -19,6 +19,9 @@ export default {
       bundleIdentifier: 'com.jarvi.app',
       buildNumber: '1.0.0',
       jsEngine: 'jsc',
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      }
     },
     android: {
       adaptiveIcon: {

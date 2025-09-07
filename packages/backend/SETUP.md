@@ -77,3 +77,5 @@ Para produção:
 | `GOOGLE_CLIENT_ID` | Google OAuth ID | `123...googleusercontent.com` |
 | `CORS_ORIGIN` | Origem permitida | `http://localhost:3000` |
 
+
+

@@ -105,3 +105,5 @@ echo ""
 echo -e "${GREEN}🎉 Projeto pronto para produção!${NC}"
 echo -e "${BLUE}📚 Consulte README.md para detalhes completos${NC}"
 
+
+
