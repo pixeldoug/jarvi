@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { OAuth2Client } from 'google-auth-library';
-import { getDatabase } from '../database';
+import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { generateToken } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
@@ -39,42 +39,83 @@ export const googleAuth = async (
       return;
     }
 
-    const db = getDatabase();
     const now = new Date().toISOString();
+    let user;
 
-    // Check if user exists
-    let user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Check if user exists
+        const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
 
-    if (!user) {
-      // Create new user
-      const userId = uuidv4();
-      await db.run(
-        `
-        INSERT INTO users (id, email, name, password, avatar, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
-        [
-          userId,
-          email,
-          name || 'User',
-          'google-auth',
-          picture || null,
-          now,
-          now,
-        ]
-      );
+        if (result.rows.length === 0) {
+          // Create new user
+          const userId = uuidv4();
+          await client.query(
+            `INSERT INTO users (id, email, name, password, avatar, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              userId,
+              email,
+              name || 'User',
+              'google-auth',
+              picture || null,
+              now,
+              now,
+            ]
+          );
 
-      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+          const newUserResult = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+          user = newUserResult.rows[0];
+        } else {
+          user = result.rows[0];
+          // Update existing user
+          await client.query(
+            `UPDATE users 
+             SET name = $1, avatar = $2, updated_at = $3
+             WHERE email = $4`,
+            [name || user.name, picture || user.avatar, now, email]
+          );
+        }
+      } finally {
+        client.release();
+      }
     } else {
-      // Update existing user
-      await db.run(
-        `
-        UPDATE users 
-        SET name = ?, avatar = ?, updated_at = ?
-        WHERE email = ?
-      `,
-        [name || user.name, picture || user.avatar, now, email]
-      );
+      // SQLite
+      const db = getDatabase();
+      
+      // Check if user exists
+      user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+
+      if (!user) {
+        // Create new user
+        const userId = uuidv4();
+        await db.run(
+          `INSERT INTO users (id, email, name, password, avatar, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            userId,
+            email,
+            name || 'User',
+            'google-auth',
+            picture || null,
+            now,
+            now,
+          ]
+        );
+
+        user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+      } else {
+        // Update existing user
+        await db.run(
+          `UPDATE users 
+           SET name = ?, avatar = ?, updated_at = ?
+           WHERE email = ?`,
+          [name || user.name, picture || user.avatar, now, email]
+        );
+      }
     }
 
     // Generate JWT token

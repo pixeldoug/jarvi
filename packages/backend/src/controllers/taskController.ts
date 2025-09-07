@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getDatabase } from '../database';
+import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 
 export const createTask = async (
@@ -20,29 +20,57 @@ export const createTask = async (
       return;
     }
 
-    const db = getDatabase();
     const taskId = uuidv4();
     const now = new Date().toISOString();
+    let newTask;
 
-    await db.run(
-      `
-      INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-      [
-        taskId,
-        userId,
-        title,
-        description || null,
-        priority || 'medium',
-        category || null,
-        dueDate || null,
-        now,
-        now,
-      ]
-    );
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query(
+          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            taskId,
+            userId,
+            title,
+            description || null,
+            priority || 'medium',
+            category || null,
+            dueDate || null,
+            now,
+            now,
+          ]
+        );
 
-    const newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
+        const result = await client.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
+        newTask = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+      await db.run(
+        `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          taskId,
+          userId,
+          title,
+          description || null,
+          priority || 'medium',
+          category || null,
+          dueDate || null,
+          now,
+          now,
+        ]
+      );
+
+      newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
+    }
 
     res.status(201).json(newTask);
   } catch (error) {
@@ -60,15 +88,33 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const db = getDatabase();
-    const tasks = await db.all(
-      `
-      SELECT * FROM tasks 
-      WHERE user_id = ? 
-      ORDER BY created_at DESC
-    `,
-      [userId]
-    );
+    let tasks;
+
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          `SELECT * FROM tasks 
+           WHERE user_id = $1 
+           ORDER BY created_at DESC`,
+          [userId]
+        );
+        tasks = result.rows;
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+      tasks = await db.all(
+        `SELECT * FROM tasks 
+         WHERE user_id = ? 
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+    }
 
     res.json(tasks);
   } catch (error) {
@@ -92,40 +138,85 @@ export const updateTask = async (
       return;
     }
 
-    const db = getDatabase();
     const now = new Date().toISOString();
+    let existingTask;
+    let updatedTask;
 
-    // Check if task exists and belongs to user
-    const existingTask = await db.get(
-      'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
-      [id, userId]
-    );
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Check if task exists and belongs to user
+        const existingResult = await client.query(
+          'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+          [id, userId]
+        );
 
-    if (!existingTask) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
+        if (existingResult.rows.length === 0) {
+          res.status(404).json({ error: 'Task not found' });
+          return;
+        }
+
+        existingTask = existingResult.rows[0];
+
+        await client.query(
+          `UPDATE tasks 
+           SET title = $1, description = $2, completed = $3, priority = $4, category = $5, due_date = $6, updated_at = $7
+           WHERE id = $8 AND user_id = $9`,
+          [
+            title || existingTask.title,
+            description !== undefined ? description : existingTask.description,
+            completed !== undefined ? completed : existingTask.completed,
+            priority || existingTask.priority,
+            category !== undefined ? category : existingTask.category,
+            dueDate !== undefined ? dueDate : existingTask.due_date,
+            now,
+            id,
+            userId,
+          ]
+        );
+
+        const result = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
+        updatedTask = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+      
+      // Check if task exists and belongs to user
+      existingTask = await db.get(
+        'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+        [id, userId]
+      );
+
+      if (!existingTask) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+      }
+
+      await db.run(
+        `UPDATE tasks 
+         SET title = ?, description = ?, completed = ?, priority = ?, category = ?, due_date = ?, updated_at = ?
+         WHERE id = ? AND user_id = ?`,
+        [
+          title || existingTask.title,
+          description !== undefined ? description : existingTask.description,
+          completed !== undefined ? completed : existingTask.completed,
+          priority || existingTask.priority,
+          category !== undefined ? category : existingTask.category,
+          dueDate !== undefined ? dueDate : existingTask.due_date,
+          now,
+          id,
+          userId,
+        ]
+      );
+
+      updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
     }
 
-    await db.run(
-      `
-      UPDATE tasks 
-      SET title = ?, description = ?, completed = ?, priority = ?, category = ?, due_date = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?
-    `,
-      [
-        title || existingTask.title,
-        description !== undefined ? description : existingTask.description,
-        completed !== undefined ? completed : existingTask.completed,
-        priority || existingTask.priority,
-        category !== undefined ? category : existingTask.category,
-        dueDate !== undefined ? dueDate : existingTask.due_date,
-        now,
-        id,
-        userId,
-      ]
-    );
-
-    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
     res.json(updatedTask);
   } catch (error) {
     console.error('Error updating task:', error);
@@ -146,20 +237,48 @@ export const deleteTask = async (
       return;
     }
 
-    const db = getDatabase();
+    let existingTask;
 
-    // Check if task exists and belongs to user
-    const existingTask = await db.get(
-      'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
-      [id, userId]
-    );
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Check if task exists and belongs to user
+        const existingResult = await client.query(
+          'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+          [id, userId]
+        );
 
-    if (!existingTask) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
+        if (existingResult.rows.length === 0) {
+          res.status(404).json({ error: 'Task not found' });
+          return;
+        }
+
+        await client.query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [
+          id,
+          userId,
+        ]);
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+
+      // Check if task exists and belongs to user
+      existingTask = await db.get(
+        'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+        [id, userId]
+      );
+
+      if (!existingTask) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+      }
+
+      await db.run('DELETE FROM tasks WHERE id = ? AND user_id = ?', [id, userId]);
     }
-
-    await db.run('DELETE FROM tasks WHERE id = ? AND user_id = ?', [id, userId]);
 
     res.status(204).send();
   } catch (error) {
