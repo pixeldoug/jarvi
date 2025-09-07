@@ -19,16 +19,24 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
   const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    if (!clientId) return;
+    console.log('🔧 GoogleLogin useEffect triggered');
+    console.log('🔑 Client ID:', clientId ? 'Present' : 'Missing');
+    
+    if (!clientId) {
+      console.error('❌ No Google Client ID found');
+      return;
+    }
 
     let attempts = 0;
     const maxAttempts = 50; // 5 segundos máximo
 
     const initializeGoogle = () => {
       attempts++;
+      console.log(`🔄 Attempt ${attempts}/${maxAttempts} to initialize Google`);
 
       // Verifica se Google APIs estão disponíveis
       if (window.google?.accounts?.id) {
+        console.log('✅ Google APIs found, initializing...');
         try {
           // Inicializa o Google Sign-In
           window.google.accounts.id.initialize({
@@ -42,6 +50,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
           setTimeout(() => {
             const buttonElement = document.getElementById('google-signin-button');
             if (buttonElement) {
+              console.log('🎯 Rendering Google button...');
               window.google.accounts.id.renderButton(buttonElement, {
                 theme: 'outline',
                 size: 'large',
@@ -51,18 +60,23 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
                 width: 350,
               });
               setIsReady(true);
+              console.log('🎉 Google Sign-In button ready!');
+            } else {
+              console.error('❌ Button element not found');
+              setHasError(true);
             }
           }, 100);
         } catch (error) {
-          console.error('Google Sign-In initialization failed:', error);
+          console.error('❌ Google Sign-In initialization failed:', error);
           setHasError(true);
         }
       } else if (attempts < maxAttempts) {
+        console.log(`⏳ Google APIs not ready, retrying in 100ms...`);
         // Tenta novamente em 100ms
         setTimeout(initializeGoogle, 100);
       } else {
         // Deu timeout - mostra erro
-        console.error('Google Sign-In script failed to load');
+        console.error('❌ Google Sign-In script failed to load after 5 seconds');
         setHasError(true);
       }
     };
