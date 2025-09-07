@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 declare global {
@@ -17,6 +17,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     console.log('🔧 GoogleLogin useEffect triggered');
@@ -48,7 +49,9 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
 
           // Aguarda um pouco para garantir que está totalmente inicializado
           setTimeout(() => {
-            const buttonElement = document.getElementById('google-signin-button');
+            const buttonElement = buttonRef.current;
+            console.log('🔍 Looking for button element:', buttonElement ? 'Found' : 'Not found');
+            
             if (buttonElement) {
               console.log('🎯 Rendering Google button...');
               window.google.accounts.id.renderButton(buttonElement, {
@@ -62,10 +65,29 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
               setIsReady(true);
               console.log('🎉 Google Sign-In button ready!');
             } else {
-              console.error('❌ Button element not found');
-              setHasError(true);
+              console.error('❌ Button element not found in DOM');
+              // Tenta novamente em mais 200ms
+              setTimeout(() => {
+                const retryElement = buttonRef.current;
+                if (retryElement) {
+                  console.log('🎯 Retry: Rendering Google button...');
+                  window.google.accounts.id.renderButton(retryElement, {
+                    theme: 'outline',
+                    size: 'large',
+                    text: 'signin_with',
+                    shape: 'rectangular',
+                    logo_alignment: 'left',
+                    width: 350,
+                  });
+                  setIsReady(true);
+                  console.log('🎉 Google Sign-In button ready on retry!');
+                } else {
+                  console.error('❌ Button element still not found after retry');
+                  setHasError(true);
+                }
+              }, 200);
             }
-          }, 100);
+          }, 150);
         } catch (error) {
           console.error('❌ Google Sign-In initialization failed:', error);
           setHasError(true);
@@ -122,7 +144,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
           <span className="text-gray-700">Loading Sign in with Google...</span>
         </div>
       ) : (
-        <div id="google-signin-button"></div>
+        <div ref={buttonRef}></div>
       )}
     </div>
   );
