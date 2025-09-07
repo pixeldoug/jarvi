@@ -42,13 +42,13 @@ app.get('/debug/database', async (req, res) => {
         const tables = tablesResult.rows.map(row => row.table_name);
         
         // Count records in each table
-        const tableCounts = {};
+        const tableCounts: Record<string, any> = {};
         for (const tableName of tables) {
           try {
             const countResult = await client.query(`SELECT COUNT(*) as count FROM ${tableName}`);
             tableCounts[tableName] = countResult.rows[0].count;
-          } catch (err) {
-            tableCounts[tableName] = `Error: ${err.message}`;
+          } catch (err: any) {
+            tableCounts[tableName] = `Error: ${err?.message || 'Unknown error'}`;
           }
         }
         
@@ -69,11 +69,11 @@ app.get('/debug/database', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Database debug error:', error);
     res.status(500).json({ 
       error: 'Database debug failed', 
-      message: error.message,
+      message: error?.message || 'Unknown error',
       timestamp: new Date().toISOString()
     });
   }
