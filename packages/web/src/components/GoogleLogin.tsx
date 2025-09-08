@@ -20,24 +20,16 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
   const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log('🔧 GoogleLogin useEffect triggered');
-    console.log('🔑 Client ID:', clientId ? 'Present' : 'Missing');
-    
-    if (!clientId) {
-      console.error('❌ No Google Client ID found');
-      return;
-    }
+    if (!clientId) return;
 
     let attempts = 0;
     const maxAttempts = 50; // 5 segundos máximo
 
     const initializeGoogle = () => {
       attempts++;
-      console.log(`🔄 Attempt ${attempts}/${maxAttempts} to initialize Google`);
 
       // Verifica se Google APIs estão disponíveis
       if (window.google?.accounts?.id) {
-        console.log('✅ Google APIs found, initializing...');
         try {
           // Inicializa o Google Sign-In
           window.google.accounts.id.initialize({
@@ -50,10 +42,8 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
           // Aguarda um pouco para garantir que está totalmente inicializado
           setTimeout(() => {
             const buttonElement = buttonRef.current;
-            console.log('🔍 Looking for button element:', buttonElement ? 'Found' : 'Not found');
             
             if (buttonElement) {
-              console.log('🎯 Rendering Google button...');
               window.google.accounts.id.renderButton(buttonElement, {
                 theme: 'outline',
                 size: 'large',
@@ -63,14 +53,11 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
                 width: 350,
               });
               setIsReady(true);
-              console.log('🎉 Google Sign-In button ready!');
             } else {
-              console.error('❌ Button element not found in DOM');
               // Tenta novamente em mais 200ms
               setTimeout(() => {
                 const retryElement = buttonRef.current;
                 if (retryElement) {
-                  console.log('🎯 Retry: Rendering Google button...');
                   window.google.accounts.id.renderButton(retryElement, {
                     theme: 'outline',
                     size: 'large',
@@ -80,25 +67,22 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
                     width: 350,
                   });
                   setIsReady(true);
-                  console.log('🎉 Google Sign-In button ready on retry!');
                 } else {
-                  console.error('❌ Button element still not found after retry');
                   setHasError(true);
                 }
               }, 200);
             }
           }, 150);
         } catch (error) {
-          console.error('❌ Google Sign-In initialization failed:', error);
+          console.error('Google Sign-In initialization failed:', error);
           setHasError(true);
         }
       } else if (attempts < maxAttempts) {
-        console.log(`⏳ Google APIs not ready, retrying in 100ms...`);
         // Tenta novamente em 100ms
         setTimeout(initializeGoogle, 100);
       } else {
         // Deu timeout - mostra erro
-        console.error('❌ Google Sign-In script failed to load after 5 seconds');
+        console.error('Google Sign-In script failed to load after timeout');
         setHasError(true);
       }
     };
