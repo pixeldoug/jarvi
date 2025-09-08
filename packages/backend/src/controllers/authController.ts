@@ -152,30 +152,55 @@ export const register = async (
       return;
     }
 
-    const db = getDatabase();
     const now = new Date().toISOString();
-
-    // Check if user already exists
-    const existingUser = await db.get('SELECT * FROM users WHERE email = ?', [email]);
-    if (existingUser) {
-      res.status(400).json({ error: 'User already exists' });
-      return;
-    }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create new user
     const userId = uuidv4();
-    await db.run(
-      `
-      INSERT INTO users (id, email, name, password, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `,
-      [userId, email, name, hashedPassword, now, now]
-    );
+    let newUser;
 
-    const newUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Check if user already exists
+        const existingResult = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (existingResult.rows.length > 0) {
+          res.status(400).json({ error: 'User already exists' });
+          return;
+        }
+
+        // Create new user
+        await client.query(
+          `INSERT INTO users (id, email, name, password, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [userId, email, name, hashedPassword, now, now]
+        );
+
+        const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        newUser = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+
+      // Check if user already exists
+      const existingUser = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+      if (existingUser) {
+        res.status(400).json({ error: 'User already exists' });
+        return;
+      }
+
+      // Create new user
+      await db.run(
+        `INSERT INTO users (id, email, name, password, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [userId, email, name, hashedPassword, now, now]
+      );
+
+      newUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    }
 
     // Generate JWT token
     const token = generateToken({
@@ -211,10 +236,24 @@ export const login = async (
       return;
     }
 
-    const db = getDatabase();
+    let user;
 
-    // Find user by email
-    const user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        user = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+      user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+    }
+
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
@@ -267,8 +306,26 @@ export const getProfile = async (
       return;
     }
 
-    const db = getDatabase();
-    const user = await db.get('SELECT id, email, name, avatar, created_at FROM users WHERE id = ?', [userId]);
+    let user;
+
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          'SELECT id, email, name, avatar, created_at FROM users WHERE id = $1',
+          [userId]
+        );
+        user = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+      user = await db.get('SELECT id, email, name, avatar, created_at FROM users WHERE id = ?', [userId]);
+    }
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });
