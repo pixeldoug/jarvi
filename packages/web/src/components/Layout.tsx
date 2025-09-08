@@ -67,7 +67,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
               </nav>
             </div>
             <div className='flex-shrink-0 flex border-t border-gray-200 p-4'>
-              <div className='flex items-center justify-between w-full'>
+              <div className='flex flex-col w-full space-y-3'>
+                {/* User info */}
                 <div className='flex items-center'>
                   <div className='flex-shrink-0'>
                     {user?.avatar ? (
@@ -89,12 +90,14 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
                     </p>
                   </div>
                 </div>
+                
+                {/* Logout button */}
                 <button
                   onClick={handleLogout}
-                  className='ml-3 p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500'
-                  title='Sair'
+                  className='flex items-center justify-center w-full px-3 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors'
                 >
-                  <LogOut className='h-5 w-5' />
+                  <LogOut className='h-4 w-4 mr-2' />
+                  Sair
                 </button>
               </div>
             </div>
