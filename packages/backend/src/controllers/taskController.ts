@@ -300,32 +300,68 @@ export const toggleTaskCompletion = async (
       return;
     }
 
-    const db = getDatabase();
+    const now = new Date().toISOString();
+    let existingTask;
+    let updatedTask;
 
-    // Check if task exists and belongs to user
-    const existingTask = await db.get(
-      'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
-      [id, userId]
-    );
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Check if task exists and belongs to user
+        const existingResult = await client.query(
+          'SELECT * FROM tasks WHERE id = $1 AND user_id = $2',
+          [id, userId]
+        );
 
-    if (!existingTask) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
+        if (existingResult.rows.length === 0) {
+          res.status(404).json({ error: 'Task not found' });
+          return;
+        }
+
+        existingTask = existingResult.rows[0];
+        const newCompletedStatus = !existingTask.completed;
+
+        await client.query(
+          `UPDATE tasks 
+           SET completed = $1, updated_at = $2
+           WHERE id = $3 AND user_id = $4`,
+          [newCompletedStatus, now, id, userId]
+        );
+
+        const result = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
+        updatedTask = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+
+      // Check if task exists and belongs to user
+      existingTask = await db.get(
+        'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+        [id, userId]
+      );
+
+      if (!existingTask) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+      }
+
+      const newCompletedStatus = !existingTask.completed;
+
+      await db.run(
+        `UPDATE tasks 
+         SET completed = ?, updated_at = ?
+         WHERE id = ? AND user_id = ?`,
+        [newCompletedStatus, now, id, userId]
+      );
+
+      updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
     }
 
-    const newCompletedStatus = !existingTask.completed;
-    const now = new Date().toISOString();
-
-    await db.run(
-      `
-      UPDATE tasks 
-      SET completed = ?, updated_at = ?
-      WHERE id = ? AND user_id = ?
-    `,
-      [newCompletedStatus, now, id, userId]
-    );
-
-    const updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
     res.json(updatedTask);
   } catch (error) {
     console.error('Error toggling task completion:', error);
