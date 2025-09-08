@@ -33,26 +33,6 @@ export const Login: React.FC = () => {
     }
   };
 
-  const handleTestLogin = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      
-      // Simulate login with test user  
-      const testToken = 'test-jwt-token-123';
-      
-      // Store in localStorage (same as AuthContext expects)
-      localStorage.setItem('jarvi_token', testToken);
-      
-      // Manually set the user and token in the auth context
-      // We'll need to modify the auth context to accept this
-      window.location.href = '/tasks'; // Force page reload to trigger auth check
-      
-    } catch (error) {
-      setError('Erro no login de teste');
-      setIsLoading(false);
-    }
-  };
 
 
 
@@ -150,22 +130,11 @@ export const Login: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-6">
               <GoogleLogin
                 onSuccess={() => navigate('/')}
                 onError={(error) => setError(error)}
               />
-              
-              <button
-                onClick={handleTestLogin}
-                disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-indigo-600 rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
-                Login de Teste
-              </button>
             </div>
           </div>
 

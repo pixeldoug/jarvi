@@ -51,19 +51,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const fetchUserProfile = async (authToken: string) => {
     try {
-      // Handle test token
-      if (authToken === 'test-jwt-token-123') {
-        const testUser = {
-          id: 'test-user-123',
-          email: 'test@jarvi.com',
-          name: 'Usuário Teste',
-          avatar: 'https://via.placeholder.com/150'
-        };
-        setUser(testUser);
-        setToken(authToken);
-        return;
-      }
-
       const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,

@@ -29,16 +29,6 @@ export const authenticateToken = (
     return;
   }
 
-  // Handle test token
-  if (token === 'test-jwt-token-123') {
-    req.user = {
-      id: 'test-user-123',
-      email: 'test@jarvi.com',
-      name: 'Usuário Teste'
-    };
-    next();
-    return;
-  }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as {
