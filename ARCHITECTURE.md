@@ -457,3 +457,132 @@ main (production) ←── develop ←── feature/task-sync
 ```
 
 This architecture provides a solid foundation for a scalable, maintainable, and secure productivity application with real-time synchronization across all platforms.
+
+## 🎨 Design System Architecture
+
+### Overview
+The Jarvi Design System provides a centralized token-based approach to maintain visual consistency across Web and Mobile platforms. It integrates seamlessly with Figma for design-to-code workflows.
+
+### Structure
+```
+packages/shared/src/design-system/
+├── tokens/
+│   └── index.ts              # Core design tokens
+├── figma/
+│   └── index.ts              # Figma integration utilities
+└── index.ts                  # Main exports
+```
+
+### Design Tokens
+The design system includes 6 main token categories:
+
+#### 1. Colors (44 tokens)
+- **Primary**: Blue palette (50-950) - Main brand colors
+- **Secondary**: Purple palette (50-950) - Accent colors  
+- **Neutral**: Gray palette (0-950) - Text and backgrounds
+- **Semantic**: Success, warning, error, info states
+
+#### 2. Typography (32 tokens)
+- **Font Family**: Sans, mono, display stacks
+- **Font Size**: 13 sizes (xs to 9xl)
+- **Font Weight**: 9 weights (thin to black)
+- **Line Height**: 6 values (none to loose)
+- **Letter Spacing**: 6 values (tighter to widest)
+
+#### 3. Spacing (12 tokens)
+Semantic spacing scale: none, px, xs, sm, md, lg, xl, 2xl, 3xl, 4xl, 5xl, 6xl
+
+#### 4. Effects (15 tokens)
+- **Border Radius**: 8 values (none to full)
+- **Box Shadow**: 7 shadow variations
+
+#### 5. Animation (12 tokens)
+- **Duration**: 8 timing values (75ms to 1000ms)
+- **Timing Function**: 4 easing functions
+
+#### 6. Z-Index (11 tokens)
+Layered z-index system: 0, 10, 20, 30, 40, 50, dropdown, sticky, fixed, modal, popover, tooltip, toast
+
+### Figma Integration
+
+#### Workflow: Code → Figma
+```bash
+# Generate tokens for Figma import
+npm run generate:design-tokens
+```
+- Outputs: `dist/tokens/design-tokens-standard.json`
+- Compatible with Design Tokens Manager plugin
+- Import directly into Figma
+
+#### Workflow: Figma → Code
+```bash
+# Import tokens from Figma export
+npm run import:figma figma-export.json
+npm run build
+```
+- Import JSON exported from Design Tokens Manager
+- Automatically updates design system
+- Rebuilds shared package
+
+### Usage in Projects
+
+#### Web (React + TailwindCSS)
+```typescript
+import { designTokens } from '@jarvi/shared';
+
+// Direct usage
+const primaryColor = designTokens.colors.primary[600];
+const spacing = designTokens.spacing.md;
+
+// CSS Variables (generated)
+:root {
+  --color-primary-600: #0284c7;
+  --spacing-md: 1rem;
+}
+```
+
+#### Mobile (React Native + NativeWind)
+```typescript
+import { designTokens } from '@jarvi/shared';
+
+// Direct usage
+const primaryColor = designTokens.colors.primary[600];
+const fontSize = designTokens.typography.fontSize.lg;
+
+// NativeWind classes
+<Text className="text-primary-600 text-lg">Hello</Text>
+```
+
+### File Structure
+```
+packages/shared/
+├── src/design-system/
+│   ├── tokens/index.ts           # Core tokens definition
+│   ├── figma/index.ts           # Figma integration
+│   └── index.ts                 # Main exports
+├── scripts/
+│   ├── generate-design-tokens-standard.js  # Code → Figma
+│   └── import-figma-tokens.js              # Figma → Code
+└── dist/tokens/
+    └── design-tokens-standard.json         # Generated tokens
+```
+
+### Commands
+```bash
+# Generate tokens for Figma
+npm run generate:design-tokens
+
+# Import tokens from Figma
+npm run import:figma [file.json]
+
+# Build shared package
+npm run build
+```
+
+### Benefits
+- **Consistency**: Single source of truth for all design decisions
+- **Scalability**: Easy to add new tokens and platforms
+- **Maintainability**: Centralized updates propagate everywhere
+- **Design-Dev Sync**: Seamless Figma integration
+- **Type Safety**: Full TypeScript support
+- **Performance**: Optimized for both web and mobile

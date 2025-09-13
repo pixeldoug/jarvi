@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+// import { Button } from './ui';
 
 declare global {
   interface Window {
@@ -15,12 +16,18 @@ interface GoogleLoginProps {
 export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) => {
   const { loginWithGoogle } = useAuth();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  const [isReady, setIsReady] = useState(false);
+  // const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!clientId) return;
+    console.log('🔍 GoogleLogin Debug:', { clientId, hasClientId: !!clientId });
+    
+    if (!clientId) {
+      console.error('❌ Client ID não encontrado!');
+      return;
+    }
 
     let attempts = 0;
     const maxAttempts = 50; // 5 segundos máximo
@@ -52,7 +59,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
                 logo_alignment: 'left',
                 width: 350,
               });
-              setIsReady(true);
+              // setIsReady(true);
             } else {
               // Tenta novamente em mais 200ms
               setTimeout(() => {
@@ -66,7 +73,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
                     logo_alignment: 'left',
                     width: 350,
                   });
-                  setIsReady(true);
+                  // setIsReady(true);
                 } else {
                   setHasError(true);
                 }
@@ -93,6 +100,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
 
   const handleCredentialResponse = async (response: any) => {
     try {
+      // setIsLoading(true);
       if (response.credential) {
         await loginWithGoogle(response.credential);
         onSuccess?.();
@@ -102,8 +110,16 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
     } catch (error) {
       console.error('Google login error:', error);
       onError?.(error instanceof Error ? error.message : 'Google login failed');
+    } finally {
+      // setIsLoading(false);
     }
   };
+
+  // const handleCustomGoogleLogin = () => {
+  //   if (isReady && window.google?.accounts?.id) {
+  //     window.google.accounts.id.prompt();
+  //   }
+  // };
 
   if (!clientId) {
     return (
@@ -113,6 +129,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
     );
   }
 
+
   return (
     <div className="w-full flex justify-center">
       {hasError ? (
@@ -120,22 +137,11 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
           <span className="text-red-600">Failed to load Google Sign-In</span>
         </div>
       ) : (
-        <div className="relative">
-          {/* Loading overlay - sempre renderizado quando não está pronto */}
-          {!isReady && (
-            <div className="flex items-center justify-center py-3 px-4 border border-gray-300 rounded-md w-full max-w-sm">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span className="text-gray-700">Loading Sign in with Google...</span>
-            </div>
-          )}
-          
-          {/* Button container - sempre renderizado para o useRef funcionar */}
+        <div className="w-full max-w-sm">
+          {/* Botão original do Google Sign-In */}
           <div 
             ref={buttonRef} 
-            className={!isReady ? "opacity-0 absolute" : "opacity-100"}
+            className="w-full"
           ></div>
         </div>
       )}

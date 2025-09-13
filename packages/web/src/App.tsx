@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
+import { ThemeProvider } from './hooks/useTheme';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -97,14 +98,16 @@ const AppRoutes: React.FC = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TaskProvider>
-          <div className="min-h-screen bg-gray-50">
-            <AppRoutes />
-            <Toaster position="top-right" />
-          </div>
-        </TaskProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <TaskProvider>
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+              <AppRoutes />
+              <Toaster position="top-right" />
+            </div>
+          </TaskProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
