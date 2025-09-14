@@ -163,6 +163,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('jarvi_token');
+    // Force redirect to login page
+    window.location.href = '/login';
   };
 
   const value: AuthContextType = {
