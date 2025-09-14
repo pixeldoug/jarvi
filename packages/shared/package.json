@@ -7,7 +7,10 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
-    "generate:design-tokens": "node scripts/generate-design-tokens-standard.js",
+    "generate:design-tokens": "node scripts/generate-tokens-simple.js",
+    "generate:figma-tokens": "node scripts/generate-figma-compatible-tokens.js",
+    "generate:semantic-variables": "node scripts/generate-semantic-variables.js",
+    "generate:button-variants": "node scripts/generate-button-variants.js",
     "import:figma": "node scripts/import-figma-tokens.js",
     "test:design-tokens": "node scripts/test-design-tokens.js",
     "test:theme-system": "node scripts/test-theme-system.js"

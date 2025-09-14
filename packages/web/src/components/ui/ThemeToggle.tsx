@@ -5,7 +5,7 @@
  */
 
 // import React from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon } from 'phosphor-react';
 import { useThemeWeb } from '../../hooks/useTheme';
 
 // ============================================================================

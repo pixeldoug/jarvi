@@ -13,8 +13,8 @@ export const colors = {
   white: '#ffffff',
   black: '#000000',
   
-  // Cinzas
-  gray: {
+  // Neutras
+  neutral: {
     50: '#f9fafb',
     100: '#f3f4f6',
     200: '#e5e7eb',
@@ -28,7 +28,7 @@ export const colors = {
   },
   
   // Cores primárias
-  blue: {
+  primary: {
     50: '#eff6ff',
     100: '#dbeafe',
     200: '#bfdbfe',
@@ -43,7 +43,7 @@ export const colors = {
   },
   
   // Cores secundárias
-  purple: {
+  secondary: {
     50: '#faf5ff',
     100: '#f3e8ff',
     200: '#e9d5ff',
@@ -105,7 +105,7 @@ export const semanticColors = {
   success: colors.green[500],
   warning: colors.yellow[500],
   error: colors.red[500],
-  info: colors.blue[500],
+  info: colors.primary[500],
 } as const;
 
 // ============================================================================
@@ -116,39 +116,39 @@ export const lightTheme = {
   // Backgrounds
   background: {
     primary: colors.white,
-    secondary: colors.gray[50],
-    tertiary: colors.gray[100],
+    secondary: colors.neutral[50],
+    tertiary: colors.neutral[100],
   },
   
   // Surfaces
   surface: {
     primary: colors.white,
-    secondary: colors.gray[50],
-    tertiary: colors.gray[100],
+    secondary: colors.neutral[50],
+    tertiary: colors.neutral[100],
     elevated: colors.white,
   },
   
   // Text
   text: {
-    primary: colors.gray[900],
-    secondary: colors.gray[600],
-    tertiary: colors.gray[500],
+    primary: colors.neutral[900],
+    secondary: colors.neutral[600],
+    tertiary: colors.neutral[500],
     inverse: colors.white,
-    disabled: colors.gray[400],
+    disabled: colors.neutral[400],
   },
   
   // Borders
   border: {
-    primary: colors.gray[200],
-    secondary: colors.gray[300],
-    focus: colors.blue[500],
+    primary: colors.neutral[200],
+    secondary: colors.neutral[300],
+    focus: colors.primary[500],
     error: colors.red[500],
   },
   
   // Brand
   brand: {
-    primary: colors.blue[500],
-    secondary: colors.purple[500],
+    primary: colors.primary[500],
+    secondary: colors.secondary[500],
   },
   
   // Semantic
@@ -156,47 +156,47 @@ export const lightTheme = {
     success: colors.green[500],
     warning: colors.yellow[500],
     error: colors.red[500],
-    info: colors.blue[500],
+    info: colors.primary[500],
   },
 } as const;
 
 export const darkTheme = {
   // Backgrounds
   background: {
-    primary: colors.gray[900],
-    secondary: colors.gray[800],
-    tertiary: colors.gray[700],
+    primary: colors.neutral[900],
+    secondary: colors.neutral[800],
+    tertiary: colors.neutral[700],
   },
   
   // Surfaces
   surface: {
-    primary: colors.gray[800],
-    secondary: colors.gray[700],
-    tertiary: colors.gray[600],
-    elevated: colors.gray[700],
+    primary: colors.neutral[800],
+    secondary: colors.neutral[700],
+    tertiary: colors.neutral[600],
+    elevated: colors.neutral[700],
   },
   
   // Text
   text: {
-    primary: colors.gray[100],
-    secondary: colors.gray[300],
-    tertiary: colors.gray[400],
-    inverse: colors.gray[900],
-    disabled: colors.gray[500],
+    primary: colors.neutral[100],
+    secondary: colors.neutral[300],
+    tertiary: colors.neutral[400],
+    inverse: colors.neutral[900],
+    disabled: colors.neutral[500],
   },
   
   // Borders
   border: {
-    primary: colors.gray[600],
-    secondary: colors.gray[500],
-    focus: colors.blue[400],
+    primary: colors.neutral[600],
+    secondary: colors.neutral[500],
+    focus: colors.primary[400],
     error: colors.red[400],
   },
   
   // Brand
   brand: {
-    primary: colors.blue[400],
-    secondary: colors.purple[400],
+    primary: colors.primary[400],
+    secondary: colors.secondary[400],
   },
   
   // Semantic
@@ -204,7 +204,7 @@ export const darkTheme = {
     success: colors.green[400],
     warning: colors.yellow[400],
     error: colors.red[400],
-    info: colors.blue[400],
+    info: colors.primary[400],
   },
 } as const;
 
@@ -212,7 +212,7 @@ export const darkTheme = {
 // TIPOS
 // ============================================================================
 
-export type ColorScale = typeof colors.gray;
+export type ColorScale = typeof colors.neutral;
 export type ThemeColors = typeof lightTheme;
 export type SemanticColor = keyof typeof semanticColors;
 

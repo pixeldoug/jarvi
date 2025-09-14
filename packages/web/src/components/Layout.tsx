@@ -1,22 +1,22 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Home,
+  House,
   CheckSquare,
   FileText,
-  DollarSign,
+  CurrencyDollar,
   Target,
   User,
-  LogOut,
-} from 'lucide-react';
+  SignOut,
+} from 'phosphor-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ThemeToggle } from './ui';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Dashboard', href: '/', icon: House },
   { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
   { name: 'Notas', href: '/notes', icon: FileText },
-  { name: 'Finanças', href: '/finances', icon: DollarSign },
+  { name: 'Finanças', href: '/finances', icon: CurrencyDollar },
   { name: 'Hábitos', href: '/habits', icon: Target },
 ];
 
@@ -98,7 +98,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
                   onClick={handleLogout}
                   className='flex items-center justify-center w-full px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 hover:border-red-300 dark:hover:border-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors'
                 >
-                  <LogOut className='h-4 w-4 mr-2' />
+                  <SignOut className='h-4 w-4 mr-2' />
                   Sair
                 </button>
               </div>

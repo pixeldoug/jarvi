@@ -3,7 +3,7 @@ import { useTasks } from '../contexts/TaskContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Card, Badge } from '../components/ui';
-import { Edit, Trash2, Plus } from 'lucide-react';
+import { PencilSimple, Trash, Plus } from 'phosphor-react';
 
 export const Tasks: React.FC = () => {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
@@ -114,7 +114,8 @@ export const Tasks: React.FC = () => {
         </div>
         <Button
           onClick={() => setShowCreateModal(true)}
-          leftIcon={<Plus className="w-4 h-4" />}
+          icon={Plus}
+          iconPosition="left"
         >
           Nova Tarefa
         </Button>
@@ -191,7 +192,7 @@ export const Tasks: React.FC = () => {
                     onClick={() => openEditModal(task)}
                     className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
-                    <Edit className="w-4 h-4" />
+                    <PencilSimple className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -199,7 +200,7 @@ export const Tasks: React.FC = () => {
                     onClick={() => handleDeleteTask(task.id)}
                     className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash className="w-4 h-4" />
                   </Button>
                 </div>
               </div>

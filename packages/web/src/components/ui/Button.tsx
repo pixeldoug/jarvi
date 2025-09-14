@@ -1,25 +1,32 @@
 /**
  * Button Component - Jarvi Web
  * 
- * Componente Button otimizado para web com design tokens
+ * Componente Button otimizado para web com design tokens e suporte a ícones Phosphor
  */
 
 import React from 'react';
 import { useThemeClasses } from '../../hooks/useTheme';
+import { IconProps } from 'phosphor-react';
 
 // ============================================================================
 // TIPOS
 // ============================================================================
 
+// Tipo para ícones Phosphor
+type PhosphorIcon = React.ComponentType<IconProps>;
+
 export interface ButtonProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   disabled?: boolean;
   loading?: boolean;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
+  // Suporte a ícones Phosphor
+  icon?: PhosphorIcon;
+  iconPosition?: 'left' | 'right' | 'icon-only';
+  // Acessibilidade
+  ariaLabel?: string;
   onClick?: () => void;
   className?: string;
   type?: 'button' | 'submit' | 'reset';
@@ -36,13 +43,19 @@ export function Button({
   fullWidth = false,
   disabled = false,
   loading = false,
-  leftIcon,
-  rightIcon,
+  icon: Icon,
+  iconPosition = 'left',
+  ariaLabel,
   onClick,
   className = '',
   type = 'button',
 }: ButtonProps) {
   const { isDark } = useThemeClasses();
+
+  // Validação para icon-only
+  if (iconPosition === 'icon-only' && !ariaLabel) {
+    console.warn('Button com icon-only deve ter ariaLabel para acessibilidade');
+  }
 
   // Classes base
   const baseClasses = [
@@ -52,11 +65,32 @@ export function Button({
     className,
   ].filter(Boolean).join(' ');
 
-  // Classes de tamanho
+  // Classes de tamanho (usando tokens de spacing)
   const sizeClasses = {
-    sm: 'px-3 py-2 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-2 py-1 text-sm', // spacing.2 (8px), spacing.1 (4px)
+    md: 'px-3 py-2 text-base', // spacing.3 (12px), spacing.2 (8px)
+    lg: 'px-4 py-3 text-lg', // spacing.4 (16px), spacing.3 (12px)
+  };
+
+  // Tamanhos de ícones baseados no tamanho do botão
+  const iconSizes = {
+    sm: 16, // 16px
+    md: 20, // 20px
+    lg: 24, // 24px
+  };
+
+  // Espaçamento entre ícone e texto
+  const iconSpacing = {
+    sm: 'mr-1', // spacing.1 (4px)
+    md: 'mr-2', // spacing.2 (8px)
+    lg: 'mr-3', // spacing.3 (12px)
+  };
+
+  // Classes para icon-only
+  const iconOnlyClasses = {
+    sm: 'p-2', // spacing.2 (8px) em todos os lados
+    md: 'p-3', // spacing.3 (12px) em todos os lados
+    lg: 'p-4', // spacing.4 (16px) em todos os lados
   };
 
   // Classes de variante
@@ -78,12 +112,35 @@ export function Button({
       : 'bg-red-500 border-red-500 text-white hover:bg-red-600 focus:ring-red-500',
   };
 
+  // Determinar classes de tamanho baseado na posição do ícone
+  const getSizeClasses = () => {
+    if (iconPosition === 'icon-only') {
+      return iconOnlyClasses[size];
+    }
+    return sizeClasses[size];
+  };
+
   // Classes finais
   const buttonClasses = [
     baseClasses,
-    sizeClasses[size],
+    getSizeClasses(),
     variantClasses[variant],
   ].join(' ');
+
+  // Renderizar ícone
+  const renderIcon = (position: 'left' | 'right') => {
+    if (!Icon || iconPosition !== position) return null;
+    
+    const spacingClass = position === 'left' ? iconSpacing[size] : `ml-${size === 'sm' ? '1' : size === 'md' ? '2' : '3'}`;
+    
+    return (
+      <Icon 
+        size={iconSizes[size]} 
+        className={spacingClass}
+        aria-hidden="true"
+      />
+    );
+  };
 
   return (
     <button
@@ -91,6 +148,7 @@ export function Button({
       className={buttonClasses}
       onClick={onClick}
       disabled={disabled || loading}
+      aria-label={iconPosition === 'icon-only' ? ariaLabel : undefined}
     >
       {loading ? (
         <>
@@ -98,13 +156,13 @@ export function Button({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          {children}
+          {iconPosition !== 'icon-only' && children}
         </>
       ) : (
         <>
-          {leftIcon && <span className="mr-2">{leftIcon}</span>}
-          {children}
-          {rightIcon && <span className="ml-2">{rightIcon}</span>}
+          {renderIcon('left')}
+          {iconPosition !== 'icon-only' && children}
+          {renderIcon('right')}
         </>
       )}
     </button>
@@ -134,3 +192,96 @@ export function GhostButton(props: Omit<ButtonProps, 'variant'>) {
 export function DangerButton(props: Omit<ButtonProps, 'variant'>) {
   return <Button {...props} variant="danger" />;
 }
+
+// ============================================================================
+// COMPONENTES COM ÍCONES
+// ============================================================================
+
+// Botão com ícone à esquerda
+export function ButtonWithLeftIcon(props: Omit<ButtonProps, 'iconPosition'>) {
+  return <Button {...props} iconPosition="left" />;
+}
+
+// Botão com ícone à direita
+export function ButtonWithRightIcon(props: Omit<ButtonProps, 'iconPosition'>) {
+  return <Button {...props} iconPosition="right" />;
+}
+
+// Botão apenas com ícone
+export function IconOnlyButton(props: Omit<ButtonProps, 'iconPosition' | 'children'>) {
+  return <Button {...props} iconPosition="icon-only" />;
+}
+
+// ============================================================================
+// EXEMPLOS DE USO
+// ============================================================================
+
+/*
+// Exemplos de uso com ícones Phosphor:
+
+import { Plus, ArrowRight, Edit, Trash, Save, Search, User, Settings } from 'phosphor-react';
+
+// Botão com ícone à esquerda
+<Button icon={Plus} iconPosition="left">
+  Adicionar Item
+</Button>
+
+// Botão com ícone à direita
+<Button icon={ArrowRight} iconPosition="right">
+  Próximo
+</Button>
+
+// Botão apenas com ícone
+<Button 
+  icon={Edit} 
+  iconPosition="icon-only"
+  ariaLabel="Editar item"
+  variant="ghost"
+  size="medium"
+/>
+
+// Botão de perigo com ícone
+<Button 
+  icon={Trash} 
+  iconPosition="left"
+  variant="danger"
+>
+  Excluir
+</Button>
+
+// Botão de salvar
+<Button 
+  icon={Save} 
+  iconPosition="left"
+  variant="primary"
+  size="large"
+>
+  Salvar Alterações
+</Button>
+
+// Botão de busca
+<Button 
+  icon={Search} 
+  iconPosition="icon-only"
+  ariaLabel="Buscar"
+  variant="outline"
+/>
+
+// Botão de perfil
+<Button 
+  icon={User} 
+  iconPosition="left"
+  variant="secondary"
+>
+  Meu Perfil
+</Button>
+
+// Botão de configurações
+<Button 
+  icon={Settings} 
+  iconPosition="icon-only"
+  ariaLabel="Configurações"
+  variant="ghost"
+  size="small"
+/>
+*/

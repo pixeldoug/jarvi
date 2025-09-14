@@ -5,7 +5,30 @@ const path = require('path');
 require('dotenv').config();
 
 // Importar tokens do design system
-const { designTokens } = require('../dist/design-system/tokens');
+const { colors, semanticColors, lightTheme, darkTheme } = require('../dist/design-tokens/colors');
+const { fonts, fontSizes, fontWeights, lineHeights, letterSpacings } = require('../dist/design-tokens/typography');
+const { spacing, borderRadius, boxShadow, zIndex } = require('../dist/design-tokens/spacing');
+
+// Construir designTokens manualmente
+const designTokens = {
+  colors: {
+    ...colors,
+    semantic: semanticColors,
+    light: lightTheme,
+    dark: darkTheme,
+  },
+  typography: {
+    fonts,
+    sizes: fontSizes,
+    weights: fontWeights,
+    lineHeights,
+    letterSpacings,
+  },
+  spacing,
+  borderRadius,
+  boxShadow,
+  zIndex,
+};
 
 /**
  * Converte cor hex para formato padrão Design Tokens
