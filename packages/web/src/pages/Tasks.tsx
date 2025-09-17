@@ -3,7 +3,8 @@ import { useTasks } from '../contexts/TaskContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
-import { Trash, Plus, PencilSimple } from 'phosphor-react';
+import { TaskItem } from '../components/TaskItem';
+import { Trash, Plus } from 'phosphor-react';
 import {
   DndContext,
   closestCenter,
@@ -12,17 +13,18 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  useSortable,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import {
+  useDroppable,
+} from '@dnd-kit/core';
 
-export const Tasks: React.FC = () => {
+
+export function Tasks() {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
   const { user } = useAuth();
 
@@ -33,7 +35,7 @@ export const Tasks: React.FC = () => {
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
-    priority: 'medium',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     category: '',
     dueDate: '',
   });
@@ -50,8 +52,8 @@ export const Tasks: React.FC = () => {
     e.preventDefault();
     try {
       await createTask(formData);
-      setShowCreateModal(false);
       setFormData({ title: '', description: '', priority: 'medium', category: '', dueDate: '' });
+      setShowCreateModal(false);
     } catch (error) {
       console.error('Failed to create task:', error);
     }
@@ -71,7 +73,7 @@ export const Tasks: React.FC = () => {
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
+    if (window.confirm('Tem certeza que deseja excluir esta tarefa?')) {
       try {
         await deleteTask(taskId);
       } catch (error) {
@@ -97,100 +99,98 @@ export const Tasks: React.FC = () => {
     setFormData({ title: '', description: '', priority: 'medium', category: '', dueDate: '' });
   };
 
+  const handleSetDate = async (taskId: string, date: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updateData = {
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      category: task.category,
+      completed: task.completed,
+      dueDate: date,
+    };
+
+    try {
+      await updateTask(taskId, updateData, false);
+    } catch (error) {
+      console.error('Erro ao definir data:', error);
+    }
+  };
+
   // Função para lidar com drag and drop
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (!over || !active.data.current) {
+    if (!over || active.id === over.id) {
       return;
     }
 
-    const activeTask = active.data.current.task as Task;
-    const sourceSection = active.data.current.section as string;
-    
-    // Determinar seção de destino
-    let targetSection: string | null = null;
-    
-    // Se o drop foi diretamente em uma seção
-    if (over.data.current?.section) {
-      targetSection = over.data.current.section;
-    }
-    // Se o drop foi em uma tarefa, determinar a seção baseada na tarefa de destino
-    else if (over.data.current?.task) {
-      const targetTask = over.data.current.task as Task;
-      
-      // Determinar a seção da tarefa de destino baseada na data
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-      
-      const todayStr = today.toISOString().split('T')[0];
-      const tomorrowStr = tomorrow.toISOString().split('T')[0];
-      
-      if (!targetTask.due_date) {
-        targetSection = 'algumDia';
-      } else {
-        const dueDate = new Date(targetTask.due_date + 'T00:00:00').toISOString().split('T')[0];
-        
-        if (dueDate === todayStr) {
-          targetSection = 'hoje';
-        } else if (dueDate === tomorrowStr) {
-          targetSection = 'amanha';
-        } else if (dueDate > tomorrowStr) {
-          targetSection = 'eventosFuturos';
-        } else {
-          targetSection = 'vencidas';
-        }
-      }
-    }
+    const activeTask = active.data.current?.task;
+    const overSection = over.data.current?.section;
 
-    // Se a tarefa foi movida para a mesma seção, não faz nada
-    if (sourceSection === targetSection || !targetSection) {
+    if (!activeTask || !overSection) {
       return;
     }
 
-    // Determinar nova data baseada na seção de destino
+    // Determinar nova data baseada na seção
     let newDueDate: string | null = null;
-
-    // Usar as mesmas datas que o useMemo para consistência
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // Usar data local para evitar problemas de fuso horário
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0');
+    
     const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const futureDate = new Date(today);
-    futureDate.setDate(today.getDate() + 2);
-
-    switch (targetSection) {
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.getFullYear() + '-' + 
+      String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(tomorrow.getDate()).padStart(2, '0');
+    
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const nextWeekStr = nextWeek.getFullYear() + '-' + 
+      String(nextWeek.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(nextWeek.getDate()).padStart(2, '0');
+    
+    switch (overSection) {
       case 'hoje':
-        newDueDate = today.toISOString().split('T')[0];
+        newDueDate = todayStr;
         break;
       case 'amanha':
-        newDueDate = tomorrow.toISOString().split('T')[0];
+        newDueDate = tomorrowStr;
         break;
-      case 'eventosFuturos':
-        newDueDate = futureDate.toISOString().split('T')[0];
+      case 'proxima-semana':
+        newDueDate = nextWeekStr;
         break;
-      case 'algumDia':
-        newDueDate = null; // Remove a data
+      case 'eventos-futuros':
+        // Para eventos futuros, vamos usar uma data 30 dias no futuro
+        const futureDate = new Date(today);
+        futureDate.setDate(futureDate.getDate() + 30);
+        newDueDate = futureDate.getFullYear() + '-' + 
+          String(futureDate.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(futureDate.getDate()).padStart(2, '0');
         break;
-      case 'vencidas':
-        // Se mover para vencidas, define como ontem
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-        newDueDate = yesterday.toISOString().split('T')[0];
+      case 'algum-dia':
+        newDueDate = null;
         break;
+      default:
+        return;
     }
 
-    // Atualizar a tarefa com nova data (sem loading para drag-and-drop)
+    const updateData = {
+      title: activeTask.title,
+      description: activeTask.description,
+      priority: activeTask.priority,
+      category: activeTask.category,
+      completed: activeTask.completed,
+      dueDate: newDueDate === null ? undefined : newDueDate, // Use undefined for null
+    };
+    
     try {
-      await updateTask(activeTask.id, {
-        title: activeTask.title,
-        description: activeTask.description,
-        priority: activeTask.priority,
-        category: activeTask.category,
-        completed: activeTask.completed,
-        dueDate: newDueDate === null ? undefined : newDueDate,
-      }, false); // false = não mostrar loading
+      await updateTask(activeTask.id, updateData, false);
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);
     }
@@ -198,86 +198,57 @@ export const Tasks: React.FC = () => {
 
   // Função para categorizar tarefas por período
   const categorizedTasks = useMemo(() => {
-    
-    // Criar datas normalizadas para evitar problemas de timezone
+    // Usar data local sem problemas de fuso horário
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
     
-    // Normalizar datas para comparação (YYYY-MM-DD)
-    const todayStr = today.toISOString().split('T')[0];
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    
-    
-    const categorized = {
+
+    const categories = {
+      vencidas: [] as Task[],
       hoje: [] as Task[],
       amanha: [] as Task[],
+      proximaSemana: [] as Task[],
       eventosFuturos: [] as Task[],
-      vencidas: [] as Task[],
       algumDia: [] as Task[],
     };
 
     tasks.forEach(task => {
       if (!task.due_date) {
-        categorized.algumDia.push(task);
+        categories.algumDia.push(task);
+        return;
+      }
+
+      // Parse da data da tarefa de forma segura
+      const taskDateStr = task.due_date.split('T')[0]; // Remove timezone info
+      const [year, month, day] = taskDateStr.split('-').map(Number);
+      const taskDateOnly = new Date(year, month - 1, day); // month é 0-indexed
+      
+      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const tomorrowOnly = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
+      const nextWeekOnly = new Date(nextWeek.getFullYear(), nextWeek.getMonth(), nextWeek.getDate());
+
+      if (taskDateOnly < todayOnly) {
+        categories.vencidas.push(task);
+      } else if (taskDateOnly.getTime() === todayOnly.getTime()) {
+        categories.hoje.push(task);
+      } else if (taskDateOnly.getTime() === tomorrowOnly.getTime()) {
+        categories.amanha.push(task);
+      } else if (taskDateOnly <= nextWeekOnly) {
+        categories.proximaSemana.push(task);
       } else {
-        // Normalizar a data da tarefa para YYYY-MM-DD
-        let dueDate: string;
-        try {
-          // Tentar diferentes formatos de data
-          let taskDate: Date;
-          if (task.due_date.includes('T')) {
-            // Se já tem formato ISO, usar diretamente
-            taskDate = new Date(task.due_date);
-          } else {
-            // Se não tem formato ISO, adicionar T00:00:00
-            taskDate = new Date(task.due_date + 'T00:00:00');
-          }
-          
-          // Verificar se a data é válida
-          if (isNaN(taskDate.getTime())) {
-            console.error('Invalid date in categorization:', task.due_date);
-            categorized.algumDia.push(task);
-            return;
-          }
-          
-          dueDate = taskDate.toISOString().split('T')[0];
-        } catch (error) {
-          console.error('Erro ao processar data da tarefa:', task.due_date, error);
-          categorized.algumDia.push(task);
-          return;
-        }
-        
-        
-        const isToday = dueDate === todayStr;
-        const isTomorrow = dueDate === tomorrowStr;
-        const isFuture = dueDate > tomorrowStr;
-        const isOverdue = dueDate < todayStr;
-        
-        
-        // Lógica de categorização baseada em datas
-        
-        if (isOverdue) {
-          // Tarefas vencidas vão para seção específica
-          categorized.vencidas.push(task);
-        } else if (isToday) {
-          categorized.hoje.push(task);
-        } else if (isTomorrow) {
-          categorized.amanha.push(task);
-        } else if (isFuture) {
-          categorized.eventosFuturos.push(task);
-        } else {
-          // Fallback - não deveria acontecer
-          categorized.algumDia.push(task);
-        }
+        // Tarefas com data posterior à próxima semana vão para "Eventos Futuros"
+        categories.eventosFuturos.push(task);
       }
     });
 
-    return categorized;
+    return categories;
   }, [tasks]);
 
-  // Componente para seção que aceita drop
+  // Componente para seção droppable
   const DroppableSection: React.FC<{ 
     title: string, 
     tasks: Task[], 
@@ -318,10 +289,14 @@ export const Tasks: React.FC = () => {
           {tasks.length > 0 ? (
             <SortableContext items={tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
               {tasks.map((task) => (
-                <SortableTaskItem 
+                <TaskItem 
                   key={task.id} 
                   task={task} 
                   section={sectionId}
+                  onToggleCompletion={toggleTaskCompletion}
+                  onEdit={openEditModal}
+                  onUpdateTask={updateTask}
+                  onSetDate={handleSetDate}
                 />
               ))}
             </SortableContext>
@@ -339,179 +314,6 @@ export const Tasks: React.FC = () => {
     );
   };
 
-  const renderTaskSection = (title: string, tasks: Task[], emptyMessage: string, sectionId: string) => {
-    return (
-      <DroppableSection
-        title={title}
-        tasks={tasks}
-        emptyMessage={emptyMessage}
-        sectionId={sectionId}
-      />
-    );
-  };
-
-
-  const getPriorityVariant = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'danger';
-      case 'high': return 'warning';
-      case 'medium': return 'info';
-      case 'low': return 'success';
-      default: return 'default';
-    }
-  };
-
-  const getPriorityLabel = (priority: string) => {
-    const labels = {
-      urgent: 'Urgente',
-      high: 'Alta',
-      medium: 'Média',
-      low: 'Baixa',
-    };
-    return labels[priority as keyof typeof labels] || priority;
-  };
-
-  // Componente para tarefa arrastável
-  const SortableTaskItem: React.FC<{ task: Task; section: string }> = ({ task, section }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ 
-      id: task.id,
-      data: {
-        task: task,
-        section: section,
-      },
-    });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      opacity: isDragging ? 0.5 : 1,
-    };
-
-    // A cor da tag agora é baseada na seção, não na data individual
-    const isOverdue = section === 'vencidas'; // Vermelho apenas para seção vencidas
-
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className="flex items-center justify-between py-2 px-3 transition-all duration-200 hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm"
-      >
-        {/* Círculo de Conclusão + Título */}
-        <div className="flex items-center space-x-3 flex-1 min-w-0">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation(); // Evita abrir o modal ao clicar no círculo
-              toggleTaskCompletion(task.id);
-            }}
-            className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ease-in-out hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
-              task.completed
-                ? 'bg-blue-600 border-blue-600 hover:bg-blue-700 hover:border-blue-700 shadow-sm'
-                : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm'
-            }`}
-            aria-label={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
-          >
-            {task.completed ? (
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 13l4 4L19 7" />
-              </svg>
-            ) : null}
-          </button>
-          <div 
-            className="flex-1 min-w-0 cursor-grab active:cursor-grabbing"
-            {...attributes}
-            {...listeners}
-          >
-            <h3 className={`font-medium truncate ${
-              task.completed 
-                ? 'line-through text-gray-500 dark:text-gray-400' 
-                : 'text-gray-900 dark:text-gray-100'
-            }`}>
-              {task.title}
-            </h3>
-          </div>
-        </div>
-
-        {/* Badges - Prioridade, Categoria, Data */}
-        <div className="flex items-center space-x-2 flex-shrink-0">
-          <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
-            {getPriorityLabel(task.priority)}
-          </Badge>
-          
-          {task.category && (
-            <Badge variant="default" className="text-xs">
-              {task.category}
-            </Badge>
-          )}
-          
-          {task.due_date && (
-            <div className="flex items-center space-x-1">
-              <span className={`text-xs px-2 py-1 rounded-full ${
-                isOverdue 
-                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200' 
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}>
-                {(() => {
-                  try {
-                    // Tentar diferentes formatos de data
-                    let date: Date;
-                    if (task.due_date.includes('T')) {
-                      // Se já tem formato ISO, usar diretamente
-                      date = new Date(task.due_date);
-                    } else {
-                      // Se não tem formato ISO, adicionar T00:00:00
-                      date = new Date(task.due_date + 'T00:00:00');
-                    }
-                    
-                    // Verificar se a data é válida
-                    if (isNaN(date.getTime())) {
-                      console.error('Invalid date:', task.due_date);
-                      return 'Data inválida';
-                    }
-                    
-                    const day = date.getDate();
-                    const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
-                    return `${day} ${month}`;
-                  } catch (error) {
-                    console.error('Erro ao processar data da tarefa:', task.due_date, error);
-                    return 'Data inválida';
-                  }
-                })()}
-              </span>
-            </div>
-          )}
-          
-          {/* Ícone de Edição */}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              openEditModal(task);
-            }}
-            className="cursor-pointer p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-            title="Editar tarefa"
-          >
-            <PencilSimple className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   const priorityOptions = [
     { value: 'low', label: 'Baixa' },
     { value: 'medium', label: 'Média' },
@@ -519,10 +321,18 @@ export const Tasks: React.FC = () => {
     { value: 'urgent', label: 'Urgente' },
   ];
 
-  if (!user) {
+  if (isLoading) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500 dark:text-gray-400">Por favor, faça login para ver suas tarefas.</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Carregando tarefas...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-500">Erro: {error}</div>
       </div>
     );
   }
@@ -533,213 +343,133 @@ export const Tasks: React.FC = () => {
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tarefas</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">Gerencie suas tarefas e mantenha-se organizado</p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+              Tarefas
+            </h1>
+            <Button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Nova Tarefa</span>
+            </Button>
+          </div>
+
+          <div className="space-y-6">
+            <DroppableSection
+              title="Vencidas"
+              tasks={categorizedTasks.vencidas}
+              emptyMessage="Nenhuma tarefa vencida"
+              sectionId="vencidas"
+            />
+
+            <DroppableSection
+              title="Hoje"
+              tasks={categorizedTasks.hoje}
+              emptyMessage="Nenhuma tarefa para hoje"
+              sectionId="hoje"
+            />
+
+            <DroppableSection
+              title="Amanhã"
+              tasks={categorizedTasks.amanha}
+              emptyMessage="Nenhuma tarefa para amanhã"
+              sectionId="amanha"
+            />
+
+            <DroppableSection
+              title="Próxima Semana"
+              tasks={categorizedTasks.proximaSemana}
+              emptyMessage="Nenhuma tarefa para próxima semana"
+              sectionId="proxima-semana"
+            />
+
+            <DroppableSection
+              title="Eventos Futuros"
+              tasks={categorizedTasks.eventosFuturos}
+              emptyMessage="Nenhum evento futuro"
+              sectionId="eventos-futuros"
+            />
+
+            <DroppableSection
+              title="Algum Dia"
+              tasks={categorizedTasks.algumDia}
+              emptyMessage="Nenhuma tarefa para algum dia"
+              sectionId="algum-dia"
+            />
+          </div>
         </div>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          icon={Plus}
-          iconPosition="left"
+
+        {/* Modal de Criação */}
+        <Modal
+          isOpen={showCreateModal}
+          onClose={closeModals}
+          title="Nova Tarefa"
         >
-          Nova Tarefa
-        </Button>
-      </div>
+          <form onSubmit={handleCreateTask} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Título
+              </label>
+              <Input
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Digite o título da tarefa"
+                required
+              />
+            </div>
 
-      {error && (
-        <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Descrição
+              </label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Digite a descrição da tarefa"
+                rows={3}
+              />
+            </div>
 
-      {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-500 dark:text-gray-400">Carregando tarefas...</p>
-        </div>
-      ) : tasks.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-gray-400 dark:text-gray-500 text-6xl mb-4">📝</div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhuma tarefa ainda</h3>
-          <p className="text-gray-500 dark:text-gray-400">Crie sua primeira tarefa para começar!</p>
-        </div>
-      ) : (
-        <div className="space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Prioridade
+                </label>
+                <Select
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+                  options={priorityOptions}
+                />
+              </div>
 
-          {/* Seção Tarefas Vencidas */}
-          {renderTaskSection(
-            "Tarefas Vencidas", 
-            categorizedTasks.vencidas, 
-            "Nenhuma tarefa vencida",
-            "vencidas"
-          )}
-          
-          {/* Seção Hoje */}
-          {renderTaskSection(
-            "Hoje", 
-            categorizedTasks.hoje, 
-            "Nenhuma tarefa para hoje",
-            "hoje"
-          )}
-          
-          {/* Seção Amanhã */}
-          {renderTaskSection(
-            "Amanhã", 
-            categorizedTasks.amanha, 
-            "Nenhuma tarefa para amanhã",
-            "amanha"
-          )}
-          
-          {/* Seção Eventos Futuros */}
-          {renderTaskSection(
-            "Eventos Futuros", 
-            categorizedTasks.eventosFuturos, 
-            "Nenhum evento futuro agendado",
-            "eventosFuturos"
-          )}
-          
-          {/* Seção Algum Dia */}
-          {renderTaskSection(
-            "Algum Dia", 
-            categorizedTasks.algumDia, 
-            "Nenhuma tarefa sem prazo",
-            "algumDia"
-          )}
-          
-        </div>
-      )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Categoria
+                </label>
+                <Input
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="Ex: Trabalho, Pessoal"
+                />
+              </div>
+            </div>
 
-      {/* Create Task Modal */}
-      <Modal
-        isOpen={showCreateModal}
-        onClose={closeModals}
-        title="Criar Nova Tarefa"
-        size="md"
-      >
-        <form onSubmit={handleCreateTask} className="space-y-4">
-          <Input
-            label="Título"
-            required
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            placeholder="Digite o título da tarefa"
-          />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data de Vencimento
+              </label>
+              <Input
+                type="date"
+                value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+              />
+            </div>
 
-          <Textarea
-            label="Descrição"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Digite a descrição da tarefa"
-            rows={3}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Prioridade"
-              value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-              options={priorityOptions}
-            />
-
-            <Input
-              label="Categoria"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              placeholder="Ex: Trabalho, Pessoal"
-            />
-          </div>
-
-          <Input
-            label="Data de Vencimento"
-            type="date"
-            value={formData.dueDate}
-            onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-          />
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={closeModals}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-            >
-              Criar Tarefa
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Edit Task Modal */}
-      <Modal
-        isOpen={!!editingTask}
-        onClose={closeModals}
-        title="Editar Tarefa"
-        size="md"
-      >
-        <form onSubmit={handleUpdateTask} className="space-y-4">
-          <Input
-            label="Título"
-            required
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            placeholder="Digite o título da tarefa"
-          />
-
-          <Textarea
-            label="Descrição"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Digite a descrição da tarefa"
-            rows={3}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Prioridade"
-              value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-              options={priorityOptions}
-            />
-
-            <Input
-              label="Categoria"
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              placeholder="Ex: Trabalho, Pessoal"
-            />
-          </div>
-
-          <Input
-            label="Data de Vencimento"
-            type="date"
-            value={formData.dueDate}
-            onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-          />
-
-          <div className="flex justify-between items-center pt-4">
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => {
-                if (editingTask && window.confirm('Tem certeza que deseja excluir esta tarefa?')) {
-                  handleDeleteTask(editingTask.id);
-                  closeModals();
-                }
-              }}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
-            >
-              <Trash className="w-4 h-4 mr-2" />
-              Excluir Tarefa
-            </Button>
-            
-            <div className="flex space-x-3">
+            <div className="flex justify-end space-x-3">
               <Button
                 type="button"
                 variant="outline"
@@ -747,17 +477,106 @@ export const Tasks: React.FC = () => {
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                variant="primary"
-              >
-                Atualizar Tarefa
+              <Button type="submit">
+                Criar Tarefa
               </Button>
             </div>
-          </div>
-        </form>
-      </Modal>
+          </form>
+        </Modal>
+
+        {/* Modal de Edição */}
+        <Modal
+          isOpen={!!editingTask}
+          onClose={closeModals}
+          title="Editar Tarefa"
+        >
+          <form onSubmit={handleUpdateTask} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Título
+              </label>
+              <Input
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Digite o título da tarefa"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Descrição
+              </label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Digite a descrição da tarefa"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Prioridade
+                </label>
+                <Select
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
+                  options={priorityOptions}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Categoria
+                </label>
+                <Input
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  placeholder="Ex: Trabalho, Pessoal"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data de Vencimento
+              </label>
+              <Input
+                type="date"
+                value={formData.dueDate}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+              />
+            </div>
+
+            <div className="flex justify-between">
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => editingTask && handleDeleteTask(editingTask.id)}
+                className="flex items-center space-x-2"
+              >
+                <Trash className="w-4 h-4" />
+                <span>Excluir</span>
+              </Button>
+
+              <div className="flex space-x-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeModals}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit">
+                  Salvar Alterações
+                </Button>
+              </div>
+            </div>
+          </form>
+        </Modal>
       </div>
     </DndContext>
   );
-};
+}

@@ -1,0 +1,307 @@
+import React, { useState, useRef } from 'react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Task } from '../contexts/TaskContext';
+import { Badge } from './ui';
+import { PencilSimple, DotsSixVertical, Calendar } from 'phosphor-react';
+import { DatePickerPopover } from './DatePickerPopover';
+
+interface TaskItemProps {
+  task: Task;
+  section: string;
+  onToggleCompletion: (taskId: string) => void;
+  onEdit: (task: Task) => void;
+  onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
+  onSetDate?: (taskId: string, date: string) => Promise<void>;
+}
+
+export const TaskItem: React.FC<TaskItemProps> = ({
+  task,
+  section,
+  onToggleCompletion,
+  onEdit,
+  onUpdateTask,
+  onSetDate,
+}) => {
+  const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
+  const [inlineEditValue, setInlineEditValue] = useState('');
+  const [isHovered, setIsHovered] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const datePickerTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ 
+    id: task.id,
+    data: {
+      task: task,
+      section: section,
+    },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const isOverdue = section === 'vencidas';
+
+  const startInlineEdit = (task: Task) => {
+    setEditingInlineTaskId(task.id);
+    setInlineEditValue(task.title);
+  };
+
+  const cancelInlineEdit = () => {
+    setEditingInlineTaskId(null);
+    setInlineEditValue('');
+  };
+
+  const saveInlineEdit = async (taskId: string) => {
+    const trimmedTitle = inlineEditValue.trim();
+    if (!trimmedTitle) {
+      cancelInlineEdit();
+      return;
+    }
+
+    // Fechar o modo de edição imediatamente para feedback visual
+    setEditingInlineTaskId(null);
+    setInlineEditValue('');
+
+    try {
+      // Buscar a tarefa atual para preservar outros campos
+      const currentTask = task;
+
+      // Preparar dados para atualização - apenas campos necessários
+      const updateData: any = { 
+        title: trimmedTitle,
+        description: currentTask.description,
+        priority: currentTask.priority,
+        category: currentTask.category,
+        completed: currentTask.completed
+      };
+
+      // Só incluir dueDate se existir - otimizado
+      if (currentTask.due_date) {
+        updateData.dueDate = currentTask.due_date.split('T')[0]; // Mais rápido que new Date()
+      }
+
+      // Atualizar com loading desabilitado para ser mais rápido
+      await onUpdateTask(taskId, updateData);
+    } catch (error) {
+      console.error('Failed to update task title:', error);
+      // Reverter o estado se houver erro
+      setEditingInlineTaskId(taskId);
+      setInlineEditValue(trimmedTitle);
+    }
+  };
+
+  const getPriorityVariant = (priority: string): 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' => {
+    const variants = {
+      urgent: 'danger' as const,
+      high: 'warning' as const,
+      medium: 'default' as const,
+      low: 'info' as const,
+    };
+    return variants[priority as keyof typeof variants] || 'default';
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    const labels = {
+      urgent: 'Urgente',
+      high: 'Alta',
+      medium: 'Média',
+      low: 'Baixa',
+    };
+    return labels[priority as keyof typeof labels] || priority;
+  };
+
+  const handleDateSelect = async (date: string) => {
+    if (onSetDate) {
+      try {
+        await onSetDate(task.id, date);
+      } catch (error) {
+        console.error('Erro ao definir data:', error);
+      }
+    }
+  };
+
+  return (
+    <>
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="relative flex items-center py-2 px-3 transition-all duration-200 hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm group"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+      {/* DRAG HANDLE - Fora do task item (absolute position) */}
+      <div 
+        className={`absolute -left-8 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing transition-all duration-200 ${
+          isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+        }`}
+        {...attributes}
+        {...listeners}
+      >
+        <div className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+          <DotsSixVertical className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+        </div>
+      </div>
+
+      {/* Círculo de Conclusão */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleCompletion(task.id);
+        }}
+        className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ease-in-out hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+          task.completed
+            ? 'bg-blue-600 border-blue-600 hover:bg-blue-700 hover:border-blue-700 shadow-sm'
+            : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm'
+        }`}
+        aria-label={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+      >
+        {task.completed ? (
+          <svg
+            className="w-4 h-4 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+        ) : null}
+      </button>
+      
+      {/* Título - Edição inline */}
+      <div className="flex-1 min-w-0 mx-3">
+        {editingInlineTaskId === task.id ? (
+          <input
+            key={`${task.id}-inline-edit`}
+            type="text"
+            value={inlineEditValue}
+            onChange={(e) => setInlineEditValue(e.target.value)}
+            onBlur={() => saveInlineEdit(task.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                saveInlineEdit(task.id);
+              } else if (e.key === 'Escape') {
+                cancelInlineEdit();
+              }
+              e.stopPropagation();
+            }}
+            className="w-full bg-white dark:bg-gray-800 border border-blue-400 rounded px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+            autoFocus
+          />
+        ) : (
+          <h3 
+            className={`font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${
+              task.completed 
+                ? 'line-through text-gray-500 dark:text-gray-400' 
+                : 'text-gray-900 dark:text-gray-100'
+            }`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              startInlineEdit(task);
+            }}
+            title="Clique para editar o título"
+          >
+            {task.title}
+          </h3>
+        )}
+      </div>
+      
+      {/* Tags + Botão de Edição */}
+      <div className="flex items-center space-x-2 flex-shrink-0">
+        <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
+          {getPriorityLabel(task.priority)}
+        </Badge>
+        
+        {task.category && (
+          <Badge variant="default" className="text-xs">
+            {task.category}
+          </Badge>
+        )}
+        
+        {task.due_date ? (
+          <div className="flex items-center space-x-1">
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              isOverdue 
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200' 
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}>
+              {(() => {
+                try {
+                  let date: Date;
+                  if (task.due_date.includes('T')) {
+                    date = new Date(task.due_date);
+                  } else {
+                    date = new Date(task.due_date + 'T00:00:00');
+                  }
+                  
+                  if (isNaN(date.getTime())) {
+                    console.error('Invalid date:', task.due_date);
+                    return 'Data inválida';
+                  }
+                  
+                  const day = date.getDate();
+                  const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
+                  return `${day} ${month}`;
+                } catch (error) {
+                  console.error('Erro ao processar data da tarefa:', task.due_date, error);
+                  return 'Data inválida';
+                }
+              })()}
+            </span>
+          </div>
+        ) : section === 'algum-dia' ? (
+          <button
+            ref={datePickerTriggerRef}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsDatePickerOpen(true);
+            }}
+            className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            <Calendar className="w-3 h-3" />
+            <span>Definir</span>
+          </button>
+        ) : null}
+        
+        {/* Botão de Edição */}
+        <button 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onEdit(task);
+          }}
+          className="cursor-pointer p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0"
+          title="Editar tarefa"
+        >
+          <PencilSimple className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+        </button>
+      </div>
+      </div>
+      
+      {/* Date Picker Popover - Fora do container relativo */}
+      <DatePickerPopover
+        isOpen={isDatePickerOpen}
+        onClose={() => setIsDatePickerOpen(false)}
+        onDateSelect={handleDateSelect}
+        triggerRef={datePickerTriggerRef}
+      />
+    </>
+  );
+};
