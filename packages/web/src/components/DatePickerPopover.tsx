@@ -28,15 +28,12 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   // Permitir fechar apenas após um pequeno delay para evitar fechamento imediato
   useEffect(() => {
     if (isOpen) {
-      console.log('DatePickerPopover opened');
       setCanClose(false);
       const timer = setTimeout(() => {
         setCanClose(true);
-        console.log('DatePickerPopover can now be closed');
       }, 100);
       return () => clearTimeout(timer);
     } else {
-      console.log('DatePickerPopover closed');
     }
   }, [isOpen]);
 
@@ -71,7 +68,6 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   };
 
   const handleConfirm = () => {
-    console.log('DatePickerPopover handleConfirm called');
     if (selectedDate) {
       onDateSelect(selectedDate);
       setSelectedDate('');
@@ -80,7 +76,6 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   };
 
   const handleCancel = () => {
-    console.log('DatePickerPopover handleCancel called');
     setSelectedDate('');
     onClose();
   };
@@ -121,19 +116,15 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
               }
         }
         onClick={(e) => {
-          console.log('Popover clicked, stopping propagation');
           e.stopPropagation();
         }}
         onMouseDown={(e) => {
-          console.log('Popover mousedown, stopping propagation');
           e.stopPropagation();
         }}
         onMouseEnter={() => {
-          console.log('Mouse entered popover');
           onMouseEnter?.();
         }}
         onMouseLeave={() => {
-          console.log('Mouse left popover');
           onMouseLeave?.();
         }}
       >

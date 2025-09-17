@@ -46,7 +46,6 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
     }
   };
 
-  // console.log('QuickTaskCreator render:', { sectionId, isVisible });
 
   return (
     <div className={`py-2 px-3 flex items-center transition-opacity duration-200 ${

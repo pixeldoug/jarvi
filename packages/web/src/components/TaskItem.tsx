@@ -134,12 +134,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         className="relative flex items-center py-2 px-3 transition-all duration-200 hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm group"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onMouseDown={(e) => {
-          console.log('TaskItem container mousedown');
-        }}
-        onClick={(e) => {
-          console.log('TaskItem container clicked');
-        }}
       >
       {/* DRAG HANDLE - Fora do task item (absolute position) */}
       <div 
@@ -280,17 +274,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           <div
             ref={datePickerTriggerRef}
             onMouseDown={(e) => {
-              console.log('Definir div mousedown');
               e.preventDefault();
               e.stopPropagation();
             }}
             onMouseUp={(e) => {
-              console.log('Definir div mouseup');
               e.preventDefault();
               e.stopPropagation();
             }}
             onClick={(e) => {
-              console.log('Definir div clicked');
               e.preventDefault();
               e.stopPropagation();
               if (onOpenDatePicker) {
@@ -298,7 +289,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               }
             }}
             onPointerDown={(e) => {
-              console.log('Definir div pointerdown');
               e.preventDefault();
               e.stopPropagation();
             }}

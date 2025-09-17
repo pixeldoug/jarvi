@@ -37,7 +37,6 @@ export function Tasks() {
   const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
   
-  console.log('Tasks Component - Render:', { tasks: tasks.length, isLoading, error, user: user?.email, hoveredSection });
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -127,7 +126,6 @@ export function Tasks() {
   };
 
   const handleOpenDatePicker = (task: Task, triggerElement?: HTMLElement) => {
-    console.log('Opening date picker for task:', task.id);
     setDatePickerTask(task);
     
     if (triggerElement) {
@@ -378,14 +376,8 @@ export function Tasks() {
     return (
       <div 
         className="mb-1"
-        onMouseEnter={() => {
-          console.log('Mouse enter section:', sectionId);
-          setHoveredSection(sectionId);
-        }}
-        onMouseLeave={() => {
-          console.log('Mouse leave section:', sectionId);
-          setHoveredSection(null);
-        }}
+        onMouseEnter={() => setHoveredSection(sectionId)}
+        onMouseLeave={() => setHoveredSection(null)}
       >
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
           {title}
