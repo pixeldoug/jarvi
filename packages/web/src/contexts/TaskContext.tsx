@@ -36,7 +36,7 @@ interface TaskContextType {
   isLoading: boolean;
   error: string | null;
   fetchTasks: () => Promise<void>;
-  createTask: (taskData: CreateTaskData) => Promise<void>;
+  createTask: (taskData: CreateTaskData) => Promise<Task>;
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
@@ -95,8 +95,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
-  const createTask = async (taskData: CreateTaskData) => {
-    if (!token) return;
+  const createTask = async (taskData: CreateTaskData): Promise<Task> => {
+    if (!token) throw new Error('No authentication token');
 
     try {
       setIsLoading(true);
@@ -121,6 +121,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       const newTask = await response.json();
       setTasks(prev => [newTask, ...prev]);
+      return newTask;
     } catch (error) {
       console.error('Error creating task:', error);
       setError('Failed to create task');

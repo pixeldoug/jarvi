@@ -5,7 +5,6 @@ interface DateInputBRProps {
   onChange: (value: string) => void; // Retorna YYYY-MM-DD
   className?: string;
   placeholder?: string;
-  min?: string;
   disabled?: boolean;
 }
 
@@ -14,7 +13,6 @@ export const DateInputBR: React.FC<DateInputBRProps> = ({
   onChange,
   className = '',
   placeholder = 'DD/MM/YYYY',
-  min,
   disabled = false,
 }) => {
   const [displayValue, setDisplayValue] = useState('');

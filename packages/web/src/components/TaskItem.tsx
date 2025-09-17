@@ -1,10 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../contexts/TaskContext';
 import { Badge } from './ui';
 import { PencilSimple, DotsSixVertical, Calendar } from 'phosphor-react';
-import { DatePickerPopover } from './DatePickerPopover';
 
 interface TaskItemProps {
   task: Task;
@@ -12,7 +11,6 @@ interface TaskItemProps {
   onToggleCompletion: (taskId: string) => void;
   onEdit: (task: Task) => void;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
-  onSetDate?: (taskId: string, date: string) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
 }
 
@@ -22,13 +20,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onToggleCompletion,
   onEdit,
   onUpdateTask,
-  onSetDate,
   onOpenDatePicker,
 }) => {
   const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const datePickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const datePickerTriggerRef = useRef<HTMLDivElement>(null);
 
   const {
     attributes,
