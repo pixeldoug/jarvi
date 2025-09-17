@@ -33,7 +33,7 @@ import {
 
 
 export function Tasks() {
-  const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
+  const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion, reorderTasks } = useTasks();
   const { categories, addCategory } = useCategories();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -261,23 +261,26 @@ export function Tasks() {
 
   // Função para lidar com drag over (mostrar linha de inserção)
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    
-    if (!over || !active.data.current?.task) {
-      setInsertionIndicator(null);
-      return;
-    }
+    try {
+      const { active, over } = event;
+      
+      if (!over || !active.data.current?.task) {
+        setInsertionIndicator(null);
+        return;
+      }
 
     const overTask = over.data.current?.task;
     const overSection = over.data.current?.section;
     
     if (overTask && overSection) {
       // Estamos sobre uma task específica
-      const sectionTasks = categorizedTasks[overSection as keyof typeof categorizedTasks];
-      const overIndex = sectionTasks.findIndex(task => task.id === overTask.id);
-      
-      // Permitir indicador apenas em seções que permitem reordenação
+      // Mostrar linha de inserção para:
+      // 1. Reordenação dentro da mesma seção (exceto seções temporais)
+      // 2. Mudança para outra seção (exceto seções temporais)
       if (!['proxima-semana', 'eventos-futuros'].includes(overSection)) {
+        const sectionTasks = categorizedTasks[overSection as keyof typeof categorizedTasks];
+        const overIndex = sectionTasks.findIndex(task => task.id === overTask.id);
+        
         setInsertionIndicator({
           sectionId: overSection,
           index: overIndex,
@@ -285,8 +288,8 @@ export function Tasks() {
       } else {
         setInsertionIndicator(null);
       }
-    } else if (overSection) {
-      // Estamos sobre uma seção vazia
+    } else if (overSection && !['proxima-semana', 'eventos-futuros'].includes(overSection)) {
+      // Estamos sobre uma seção vazia (que permite inserção manual)
       setInsertionIndicator({
         sectionId: overSection,
         index: 0,
@@ -294,17 +297,22 @@ export function Tasks() {
     } else {
       setInsertionIndicator(null);
     }
+    } catch (error) {
+      console.error('Erro no drag over:', error);
+      setInsertionIndicator(null);
+    }
   };
 
   // Função para lidar com drag and drop
   const handleDragEnd = async (event: DragEndEvent) => {
-    setActiveTask(null); // Limpar o activeTask
-    setInsertionIndicator(null); // Limpar a linha de inserção
-    const { active, over } = event;
+    try {
+      setActiveTask(null); // Limpar o activeTask
+      setInsertionIndicator(null); // Limpar a linha de inserção
+      const { active, over } = event;
 
-    if (!over || active.id === over.id) {
-      return;
-    }
+      if (!over || active.id === over.id) {
+        return;
+      }
 
     const activeTask = active.data.current?.task;
     const overSection = over.data.current?.section;
@@ -318,6 +326,14 @@ export function Tasks() {
     if (overTask && activeTask.id !== overTask.id) {
       const currentSection = active.data.current?.section;
       
+      console.log('Reorder attempt:', {
+        currentSection,
+        overSection,
+        activeTaskId: activeTask.id,
+        overTaskId: overTask.id,
+        canReorder: !['proxima-semana', 'eventos-futuros'].includes(currentSection)
+      });
+      
       // Permitir reordenação apenas em seções que não são baseadas em tempo
       if (currentSection === overSection && 
           !['proxima-semana', 'eventos-futuros'].includes(currentSection)) {
@@ -328,12 +344,31 @@ export function Tasks() {
         const oldIndex = sectionTasks.findIndex(task => task.id === activeTask.id);
         const newIndex = sectionTasks.findIndex(task => task.id === overTask.id);
         
+        console.log('Section tasks found:', {
+          oldIndex,
+          newIndex,
+          sectionTasksLength: sectionTasks.length
+        });
+        
         if (oldIndex !== -1 && newIndex !== -1) {
-          // Reordenar localmente (otimistic update)
-          arrayMove(sectionTasks, oldIndex, newIndex);
+          console.log('Attempting reorder in main tasks array');
           
-          // Aqui você poderia implementar uma API call para salvar a nova ordem
-          // Por enquanto, apenas a reordenação visual funciona
+          // Encontrar os índices no array principal de tarefas
+          const allTasks = [...tasks];
+          const activeTaskIndex = allTasks.findIndex(t => t.id === activeTask.id);
+          const overTaskIndex = allTasks.findIndex(t => t.id === overTask.id);
+          
+          console.log('Main array indices:', { activeTaskIndex, overTaskIndex });
+          
+          if (activeTaskIndex !== -1 && overTaskIndex !== -1) {
+            console.log('Reordering tasks, new order will be applied');
+            
+            // Reordenar diretamente usando a função do contexto
+            const reorderedTasks = arrayMove(allTasks, activeTaskIndex, overTaskIndex);
+            reorderTasks(reorderedTasks);
+            
+            console.log('Tasks reordered successfully');
+          }
         }
         
         return; // Não continuar com a lógica de mudança de seção
@@ -400,10 +435,16 @@ export function Tasks() {
       dueDate: newDueDate === null ? undefined : newDueDate, // Use undefined for null
     };
     
-    try {
-      await updateTask(activeTask.id, updateData, false);
+      try {
+        await updateTask(activeTask.id, updateData, false);
+      } catch (error) {
+        console.error('Erro ao atualizar tarefa:', error);
+      }
     } catch (error) {
-      console.error('Erro ao atualizar tarefa:', error);
+      console.error('Erro no drag and drop:', error);
+      // Resetar estados em caso de erro
+      setActiveTask(null);
+      setInsertionIndicator(null);
     }
   };
 
@@ -474,15 +515,8 @@ export function Tasks() {
         // Para outras seções: manter ordem manual (não forçar ordenação automática)
         // Usuário pode reordenar manualmente via drag and drop
         // Apenas ordenação inicial por data de criação, mas preserva reordenações manuais
-        if (true) { // Sempre aplicar ordenação inicial
-          // Se não há ordem manual definida, usar ordem de criação como fallback
-          categories[categoryKey].sort((a, b) => {
-            if (a.created_at && b.created_at) {
-              return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-            }
-            return a.id.localeCompare(b.id);
-          });
-        }
+        // Para outras seções: manter ordem do array principal (permite reordenação manual)
+        // Não aplicar ordenação automática para preservar reordenações manuais
       }
     });
 
@@ -504,11 +538,7 @@ export function Tasks() {
     });
 
     return (
-      <div 
-        className="mb-1"
-        onMouseEnter={() => setHoveredSection(sectionId)}
-        onMouseLeave={() => setHoveredSection(null)}
-      >
+      <div className="mb-1">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
           {title}
           <Badge variant="default" className="ml-2">
@@ -521,12 +551,12 @@ export function Tasks() {
             tasks.length > 0 
               ? `min-h-[50px] p-1 ${
                   isOver 
-                    ? 'bg-blue-50/50 dark:bg-blue-900/10 rounded-lg' 
+                    ? 'bg-blue-50/20 dark:bg-blue-900/5 rounded-lg' 
                     : ''
                 }`
               : `${
                   isOver 
-                    ? 'min-h-[60px] p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-2 border-dashed border-blue-300/50 dark:border-blue-600/50' 
+                    ? 'min-h-[60px] p-3 bg-blue-50/30 dark:bg-blue-900/5 rounded-lg border border-dashed border-blue-300/30 dark:border-blue-600/30' 
                     : 'h-0 p-0 hover:h-auto hover:min-h-[4px] hover:bg-gray-50/10 dark:hover:bg-gray-800/10'
                 }`
           }`}
@@ -563,7 +593,11 @@ export function Tasks() {
         
         {/* Quick Task Creator - só renderiza quando necessário */}
         {(hoveredSection === sectionId || tasks.length > 0) && (
-          <div className={tasks.length > 0 ? "min-h-[40px]" : ""}>
+          <div 
+            className={tasks.length > 0 ? "min-h-[40px]" : ""}
+            onMouseEnter={() => setHoveredSection(sectionId)}
+            onMouseLeave={() => setHoveredSection(null)}
+          >
             <QuickTaskCreator
               sectionId={sectionId}
               onQuickCreate={handleQuickCreate}
@@ -588,6 +622,7 @@ export function Tasks() {
       setNewCategoryName('');
     }
   };
+
 
   if (isLoading) {
     return (
@@ -921,9 +956,14 @@ export function Tasks() {
       </div>
       
       {/* Drag Overlay - Mostra a task sendo arrastada */}
-      <DragOverlay>
+      <DragOverlay
+        dropAnimation={{
+          duration: 150,
+          easing: 'ease-out',
+        }}
+      >
         {activeTask ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 py-2 px-3 opacity-95">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border-2 border-blue-300 dark:border-blue-600 py-2 px-3 transform-gpu" style={{ zIndex: 9999 }}>
             <div className="flex items-center space-x-3">
               {/* Círculo de Conclusão */}
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${

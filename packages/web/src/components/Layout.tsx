@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  House,
   CheckSquare,
   FileText,
   CurrencyDollar,
@@ -13,8 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ThemeToggle } from './ui';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: House },
-  { name: 'Tarefas', href: '/tasks', icon: CheckSquare },
+  { name: 'Tarefas', href: '/', icon: CheckSquare },
   { name: 'Notas', href: '/notes', icon: FileText },
   { name: 'Finanças', href: '/finances', icon: CurrencyDollar },
   { name: 'Hábitos', href: '/habits', icon: Target },

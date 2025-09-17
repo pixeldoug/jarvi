@@ -7,7 +7,6 @@ import { TaskProvider } from './contexts/TaskContext';
 import { ThemeProvider } from './hooks/useTheme';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
 import { Notes } from './pages/Notes';
 import { Finances } from './pages/Finances';
@@ -42,16 +41,6 @@ const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route
           path="/"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/tasks"
           element={
             <ProtectedRoute>
               <Layout>
