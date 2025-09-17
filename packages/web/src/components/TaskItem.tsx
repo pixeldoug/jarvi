@@ -3,7 +3,8 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../contexts/TaskContext';
 import { Badge } from './ui';
-import { PencilSimple, DotsSixVertical, Calendar } from 'phosphor-react';
+import { PencilSimple, DotsSixVertical, Calendar, Fire } from 'phosphor-react';
+import { useCategories } from '../hooks/useCategories';
 
 interface TaskItemProps {
   task: Task;
@@ -12,6 +13,7 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
+  showInsertionLine?: boolean;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -21,11 +23,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onEdit,
   onUpdateTask,
   onOpenDatePicker,
+  showInsertionLine = false,
 }) => {
   const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
   const [isHovered, setIsHovered] = useState(false);
   const datePickerTriggerRef = useRef<HTMLDivElement>(null);
+  const { getCategoryVariant } = useCategories();
 
   const {
     attributes,
@@ -45,7 +49,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.9 : 1,
+    zIndex: isDragging ? 1000 : 'auto',
   };
 
   // Removido - não precisamos mais da lógica complexa do popover
@@ -101,47 +106,37 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
-  const getPriorityVariant = (priority: string): 'default' | 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' => {
-    const variants = {
-      urgent: 'danger' as const,
-      high: 'warning' as const,
-      medium: 'default' as const,
-      low: 'info' as const,
-    };
-    return variants[priority as keyof typeof variants] || 'default';
-  };
-
-  const getPriorityLabel = (priority: string) => {
-    const labels = {
-      urgent: 'Urgente',
-      high: 'Alta',
-      medium: 'Média',
-      low: 'Baixa',
-    };
-    return labels[priority as keyof typeof labels] || priority;
-  };
 
   // handleDateSelect removido - agora é feito em Tasks.tsx
 
   return (
     <>
+      {/* Linha de inserção */}
+      {showInsertionLine && (
+        <div className="h-0.5 bg-blue-500 mx-3 rounded-full animate-pulse" />
+      )}
+      
       <div
         ref={setNodeRef}
         style={style}
-        className="relative flex items-center py-2 px-3 transition-all duration-200 hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm group"
+        className={`relative flex items-center py-2 px-3 transition-all duration-200 group ${
+          isDragging 
+            ? 'bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600' 
+            : 'hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm'
+        }`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-      {/* DRAG HANDLE - Fora do task item (absolute position) */}
+      {/* DRAG HANDLE - Colado no lado esquerdo do task item */}
       <div 
-        className={`absolute -left-8 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing transition-all duration-200 ${
+        className={`absolute -left-8 top-0 bottom-0 flex items-center justify-center w-8 px-1 cursor-grab active:cursor-grabbing transition-all duration-200 ${
           isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
         }`}
         style={{ pointerEvents: 'auto' }}
         {...attributes}
         {...listeners}
       >
-        <div className="w-5 h-5 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+        <div className="w-6 h-6 rounded bg-gray-200 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
           <DotsSixVertical className="w-4 h-4 text-gray-600 dark:text-gray-300" />
         </div>
       </div>
@@ -176,6 +171,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : null}
       </button>
       
+      {/* Ícone de Importante */}
+      {task.important && (
+        <Fire 
+          className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" 
+          weight="fill"
+        />
+      )}
+      
       {/* Título - Edição inline */}
       <div className="flex-1 min-w-0 mx-3">
         {editingInlineTaskId === task.id ? (
@@ -193,12 +196,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               }
               e.stopPropagation();
             }}
-            className="w-full bg-white dark:bg-gray-800 border border-blue-400 rounded px-2 py-1 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-white dark:bg-gray-800 border border-blue-400 rounded px-2 py-1 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-blue-500"
             autoFocus
           />
         ) : (
           <h3 
-            className={`font-medium cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${
+            className={`font-normal cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 transition-colors ${
               task.completed 
                 ? 'line-through text-gray-500 dark:text-gray-400' 
                 : 'text-gray-900 dark:text-gray-100'
@@ -217,23 +220,24 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       
       {/* Tags + Botão de Edição */}
       <div className="flex items-center space-x-2 flex-shrink-0">
-        <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
-          {getPriorityLabel(task.priority)}
-        </Badge>
-        
         {task.category && (
-          <Badge variant="default" className="text-xs">
+          <Badge variant={getCategoryVariant(task.category)} className="text-xs">
             {task.category}
           </Badge>
         )}
         
+        
         {task.due_date ? (
           <button
             onClick={(e) => {
+              console.log('Date tag clicked for task:', task.id);
               e.preventDefault();
               e.stopPropagation();
               if (onOpenDatePicker) {
+                console.log('Calling onOpenDatePicker');
                 onOpenDatePicker(task, e.currentTarget as HTMLElement);
+              } else {
+                console.log('onOpenDatePicker not available');
               }
             }}
             onMouseDown={(e) => e.stopPropagation()}

@@ -9,6 +9,7 @@ export interface Task {
   completed: boolean;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;
+  important?: boolean;
   due_date?: string;
   created_at: string;
   updated_at: string;
@@ -19,6 +20,7 @@ export interface CreateTaskData {
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;
+  important?: boolean;
   dueDate?: string;
 }
 
@@ -28,6 +30,7 @@ export interface UpdateTaskData {
   completed?: boolean;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;
+  important?: boolean;
   dueDate?: string;
 }
 
@@ -102,16 +105,21 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       setIsLoading(true);
       setError(null);
 
+      const requestData = {
+        ...taskData,
+        dueDate: taskData.dueDate,
+        important: taskData.important || false,
+      };
+      
+      console.log('Creating task with data:', requestData);
+
       const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...taskData,
-          dueDate: taskData.dueDate,
-        }),
+        body: JSON.stringify(requestData),
       });
 
       if (!response.ok) {
@@ -145,16 +153,21 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         task.id === taskId ? { ...task, ...taskData } : task
       ));
 
+      const requestData = {
+        ...taskData,
+        dueDate: taskData.dueDate === undefined ? null : taskData.dueDate,
+        important: taskData.important !== undefined ? taskData.important : false,
+      };
+      
+      console.log('Updating task with data:', requestData);
+
       const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...taskData,
-          dueDate: taskData.dueDate === undefined ? null : taskData.dueDate,
-        }),
+        body: JSON.stringify(requestData),
       });
 
       if (!response.ok) {

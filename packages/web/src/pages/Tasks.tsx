@@ -6,7 +6,8 @@ import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { DatePickerPopover } from '../components/DatePickerPopover';
 import { DateInputBR } from '../components/DateInputBR';
-import { Trash, Plus } from 'phosphor-react';
+import { useCategories } from '../hooks/useCategories';
+import { Trash, Plus, Fire } from 'phosphor-react';
 import {
   DndContext,
   closestCenter,
@@ -15,11 +16,15 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  DragOverEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
+  arrayMove,
 } from '@dnd-kit/sortable';
 import {
   useDroppable,
@@ -28,18 +33,23 @@ import {
 
 export function Tasks() {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
+  const { categories, addCategory } = useCategories();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState('');
   
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
-    category: '',
+    category: 'Trabalho', // Categoria padrão
+    important: false,
     dueDate: '',
   });
 
@@ -55,7 +65,7 @@ export function Tasks() {
     e.preventDefault();
     try {
       await createTask(formData);
-      setFormData({ title: '', description: '', priority: 'medium', category: '', dueDate: '' });
+      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, dueDate: '' });
       setShowCreateModal(false);
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -69,7 +79,7 @@ export function Tasks() {
     try {
       await updateTask(editingTask.id, formData);
       setEditingTask(null);
-      setFormData({ title: '', description: '', priority: 'medium', category: '', dueDate: '' });
+      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, dueDate: '' });
     } catch (error) {
       console.error('Failed to update task:', error);
     }
@@ -91,7 +101,8 @@ export function Tasks() {
       title: task.title,
       description: task.description || '',
       priority: task.priority,
-      category: task.category || '',
+      category: task.category || 'Trabalho',
+      important: task.important || false,
       dueDate: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
     });
   };
@@ -99,7 +110,7 @@ export function Tasks() {
   const closeModals = () => {
     setShowCreateModal(false);
     setEditingTask(null);
-    setFormData({ title: '', description: '', priority: 'medium', category: '', dueDate: '' });
+    setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, dueDate: '' });
   };
 
   const handleSetDate = async (taskId: string, date: string) => {
@@ -124,6 +135,7 @@ export function Tasks() {
   };
 
   const handleOpenDatePicker = (task: Task, triggerElement?: HTMLElement) => {
+    console.log('handleOpenDatePicker called with task:', task.id);
     setDatePickerTask(task);
     
     if (triggerElement) {
@@ -183,7 +195,7 @@ export function Tasks() {
         title: title,
         description: '',
         priority: 'medium',
-        category: '',
+        category: 'Trabalho', // Categoria padrão
         dueDate: dueDate,
       });
 
@@ -201,8 +213,54 @@ export function Tasks() {
     }
   };
 
+  // Função para lidar com início do drag
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const task = tasks.find(t => t.id === active.id);
+    setActiveTask(task || null);
+  };
+
+  // Função para lidar com drag over (mostrar linha de inserção)
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event;
+    
+    if (!over || !active.data.current?.task) {
+      setInsertionIndicator(null);
+      return;
+    }
+
+    const overTask = over.data.current?.task;
+    const overSection = over.data.current?.section;
+    
+    if (overTask && overSection) {
+      // Estamos sobre uma task específica
+      const sectionTasks = categorizedTasks[overSection as keyof typeof categorizedTasks];
+      const overIndex = sectionTasks.findIndex(task => task.id === overTask.id);
+      
+      // Permitir indicador apenas em seções que permitem reordenação
+      if (!['proxima-semana', 'eventos-futuros'].includes(overSection)) {
+        setInsertionIndicator({
+          sectionId: overSection,
+          index: overIndex,
+        });
+      } else {
+        setInsertionIndicator(null);
+      }
+    } else if (overSection) {
+      // Estamos sobre uma seção vazia
+      setInsertionIndicator({
+        sectionId: overSection,
+        index: 0,
+      });
+    } else {
+      setInsertionIndicator(null);
+    }
+  };
+
   // Função para lidar com drag and drop
   const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveTask(null); // Limpar o activeTask
+    setInsertionIndicator(null); // Limpar a linha de inserção
     const { active, over } = event;
 
     if (!over || active.id === over.id) {
@@ -211,8 +269,42 @@ export function Tasks() {
 
     const activeTask = active.data.current?.task;
     const overSection = over.data.current?.section;
+    const overTask = over.data.current?.task;
 
-    if (!activeTask || !overSection) {
+    if (!activeTask) {
+      return;
+    }
+
+    // Se estamos reordenando dentro da mesma seção
+    if (overTask && activeTask.id !== overTask.id) {
+      const currentSection = active.data.current?.section;
+      
+      // Permitir reordenação apenas em seções que não são baseadas em tempo
+      if (currentSection === overSection && 
+          !['proxima-semana', 'eventos-futuros'].includes(currentSection)) {
+        
+        console.log('Reordering within section:', currentSection);
+        
+        // Encontrar as tarefas da seção atual
+        const sectionTasks = categorizedTasks[currentSection as keyof typeof categorizedTasks];
+        const oldIndex = sectionTasks.findIndex(task => task.id === activeTask.id);
+        const newIndex = sectionTasks.findIndex(task => task.id === overTask.id);
+        
+        if (oldIndex !== -1 && newIndex !== -1) {
+          // Reordenar localmente (otimistic update)
+          const reorderedTasks = arrayMove(sectionTasks, oldIndex, newIndex);
+          
+          // Aqui você poderia implementar uma API call para salvar a nova ordem
+          // Por enquanto, apenas a reordenação visual funciona
+          console.log('New order:', reorderedTasks.map(t => t.title));
+        }
+        
+        return; // Não continuar com a lógica de mudança de seção
+      }
+    }
+
+    // Lógica existente para mudança de seção
+    if (!overSection) {
       return;
     }
 
@@ -342,15 +434,18 @@ export function Tasks() {
           return dateA.getTime() - dateB.getTime();
         });
       } else {
-        // Para outras seções: ordenar por data de criação (mais recentes por último)
-        categories[categoryKey].sort((a, b) => {
-          // Ordenar por created_at se disponível, senão por id (que geralmente é sequencial)
-          if (a.created_at && b.created_at) {
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          }
-          // Fallback para ordenação por ID (assumindo que IDs são sequenciais)
-          return a.id.localeCompare(b.id);
-        });
+        // Para outras seções: manter ordem manual (não forçar ordenação automática)
+        // Usuário pode reordenar manualmente via drag and drop
+        // Apenas ordenação inicial por data de criação, mas preserva reordenações manuais
+        if (true) { // Sempre aplicar ordenação inicial
+          // Se não há ordem manual definida, usar ordem de criação como fallback
+          categories[categoryKey].sort((a, b) => {
+            if (a.created_at && b.created_at) {
+              return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            }
+            return a.id.localeCompare(b.id);
+          });
+        }
       }
     });
 
@@ -401,7 +496,7 @@ export function Tasks() {
         >
           {tasks.length > 0 ? (
             <SortableContext items={tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
-              {tasks.map((task) => (
+              {tasks.map((task, index) => (
                 <TaskItem 
                   key={task.id} 
                   task={task} 
@@ -410,6 +505,10 @@ export function Tasks() {
                   onEdit={openEditModal}
                   onUpdateTask={updateTask}
                   onOpenDatePicker={(task, element) => handleOpenDatePicker(task, element)}
+                  showInsertionLine={
+                    insertionIndicator?.sectionId === sectionId && 
+                    insertionIndicator?.index === index
+                  }
                 />
               ))}
             </SortableContext>
@@ -439,12 +538,18 @@ export function Tasks() {
     );
   };
 
-  const priorityOptions = [
-    { value: 'low', label: 'Baixa' },
-    { value: 'medium', label: 'Média' },
-    { value: 'high', label: 'Alta' },
-    { value: 'urgent', label: 'Urgente' },
-  ];
+
+  const categoryOptions = categories.map(cat => ({
+    value: cat.name,
+    label: cat.name,
+  }));
+
+  const handleAddCategory = () => {
+    if (newCategoryName.trim()) {
+      addCategory(newCategoryName.trim());
+      setNewCategoryName('');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -466,6 +571,8 @@ export function Tasks() {
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -476,7 +583,7 @@ export function Tasks() {
             </h1>
             <Button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 font-normal"
             >
               <Plus className="w-5 h-5" />
               <span>Nova Tarefa</span>
@@ -559,28 +666,48 @@ export function Tasks() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Prioridade
-                </label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Categoria
+              </label>
+              <div className="space-y-2">
                 <Select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
-                  options={priorityOptions}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Categoria
-                </label>
-                <Input
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  placeholder="Ex: Trabalho, Pessoal"
+                  options={categoryOptions}
                 />
+                
+                {/* Adicionar nova categoria */}
+                <div className="flex space-x-2">
+                    <Input
+                      placeholder="Nova categoria..."
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="flex-1"
+                    />
+                  <Button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryName.trim()}
+                    className="px-3"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <input
+                  type="checkbox"
+                  checked={formData.important || false}
+                  onChange={(e) => setFormData({ ...formData, important: e.target.checked })}
+                  className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <Fire className="w-4 h-4 text-red-500" weight="fill" />
+                <span>Marcar como importante</span>
+              </label>
             </div>
 
             <div>
@@ -640,28 +767,48 @@ export function Tasks() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Prioridade
-                </label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Categoria
+              </label>
+              <div className="space-y-2">
                 <Select
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent' })}
-                  options={priorityOptions}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Categoria
-                </label>
-                <Input
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  placeholder="Ex: Trabalho, Pessoal"
+                  options={categoryOptions}
                 />
+                
+                {/* Adicionar nova categoria */}
+                <div className="flex space-x-2">
+                    <Input
+                      placeholder="Nova categoria..."
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="flex-1"
+                    />
+                  <Button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryName.trim()}
+                    className="px-3"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <input
+                  type="checkbox"
+                  checked={formData.important || false}
+                  onChange={(e) => setFormData({ ...formData, important: e.target.checked })}
+                  className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <Fire className="w-4 h-4 text-red-500" weight="fill" />
+                <span>Marcar como importante</span>
+              </label>
             </div>
 
             <div>
@@ -706,10 +853,12 @@ export function Tasks() {
         <DatePickerPopover
           isOpen={!!datePickerTask}
           onClose={() => {
+            console.log('DatePickerPopover onClose called');
             setDatePickerTask(null);
             setDatePickerPosition(null);
           }}
           onDateSelect={(date) => {
+            console.log('DatePickerPopover onDateSelect called with:', date);
             if (datePickerTask) {
               handleSetDate(datePickerTask.id, date);
             }
@@ -718,6 +867,45 @@ export function Tasks() {
           initialDate={datePickerTask?.due_date || ''}
         />
       </div>
+      
+      {/* Drag Overlay - Mostra a task sendo arrastada */}
+      <DragOverlay>
+        {activeTask ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 py-2 px-3 opacity-95">
+            <div className="flex items-center space-x-3">
+              {/* Círculo de Conclusão */}
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                activeTask.completed
+                  ? 'bg-green-500 border-green-500'
+                  : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700'
+              }`}>
+                {activeTask.completed && (
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              
+              {/* Ícone de Importante */}
+              {activeTask.important && (
+                <Fire 
+                  className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" 
+                  weight="fill"
+                />
+              )}
+              
+              {/* Título */}
+              <span className={`font-normal ${
+                activeTask.completed 
+                  ? 'line-through text-gray-500 dark:text-gray-400' 
+                  : 'text-gray-900 dark:text-gray-100'
+              }`}>
+                {activeTask.title}
+              </span>
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

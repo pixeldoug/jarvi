@@ -7,7 +7,7 @@ export const createTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, priority, category, dueDate } = req.body;
+    const { title, description, priority, category, important, dueDate } = req.body;
     const userId = req.user?.id; // Will come from auth middleware
 
     if (!userId) {
@@ -30,8 +30,8 @@ export const createTask = async (
       const client = await pool.connect();
       try {
         await client.query(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          `INSERT INTO tasks (id, user_id, title, description, priority, category, important, due_date, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
             taskId,
             userId,
@@ -39,6 +39,7 @@ export const createTask = async (
             description || null,
             priority || 'medium',
             category || null,
+            important || false,
             dueDate || null,
             now,
             now,
@@ -54,8 +55,8 @@ export const createTask = async (
       // SQLite
       const db = getDatabase();
       await db.run(
-        `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, user_id, title, description, priority, category, important, due_date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           taskId,
           userId,
@@ -63,6 +64,7 @@ export const createTask = async (
           description || null,
           priority || 'medium',
           category || null,
+          important || false,
           dueDate || null,
           now,
           now,
@@ -129,7 +131,7 @@ export const updateTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, completed, priority, category, dueDate } =
+    const { title, description, completed, priority, category, important, dueDate } =
       req.body;
     const userId = req.user?.id;
 
@@ -162,14 +164,15 @@ export const updateTask = async (
 
         await client.query(
           `UPDATE tasks 
-           SET title = $1, description = $2, completed = $3, priority = $4, category = $5, due_date = $6, updated_at = $7
-           WHERE id = $8 AND user_id = $9`,
+           SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, due_date = $7, updated_at = $8
+           WHERE id = $9 AND user_id = $10`,
           [
             title || existingTask.title,
             description !== undefined ? description : existingTask.description,
             completed !== undefined ? completed : existingTask.completed,
             priority || existingTask.priority,
             category !== undefined ? category : existingTask.category,
+            important !== undefined ? important : existingTask.important,
             dueDate !== undefined ? dueDate : existingTask.due_date,
             now,
             id,
@@ -199,7 +202,7 @@ export const updateTask = async (
 
       await db.run(
         `UPDATE tasks 
-         SET title = ?, description = ?, completed = ?, priority = ?, category = ?, due_date = ?, updated_at = ?
+         SET title = ?, description = ?, completed = ?, priority = ?, category = ?, important = ?, due_date = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
         [
           title || existingTask.title,
@@ -207,6 +210,7 @@ export const updateTask = async (
           completed !== undefined ? completed : existingTask.completed,
           priority || existingTask.priority,
           category !== undefined ? category : existingTask.category,
+          important !== undefined ? important : existingTask.important,
           dueDate !== undefined ? dueDate : existingTask.due_date,
           now,
           id,

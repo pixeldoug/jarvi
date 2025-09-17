@@ -63,6 +63,7 @@ const createTables = async (): Promise<void> => {
       completed ${booleanType} DEFAULT FALSE,
       priority TEXT DEFAULT 'medium',
       category TEXT,
+      important ${booleanType} DEFAULT FALSE,
       due_date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       created_at ${timestampType},
       updated_at ${timestampType}
