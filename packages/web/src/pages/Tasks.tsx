@@ -1,9 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Card, Badge } from '../components/ui';
 import { PencilSimple, Trash, Plus } from 'phosphor-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useDroppable,
+} from '@dnd-kit/core';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export const Tasks: React.FC = () => {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
@@ -18,6 +41,14 @@ export const Tasks: React.FC = () => {
     category: '',
     dueDate: '',
   });
+
+  // Configurar sensores para drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +101,244 @@ export const Tasks: React.FC = () => {
     setFormData({ title: '', description: '', priority: 'medium', category: '', dueDate: '' });
   };
 
+  // Função para lidar com drag and drop
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || !active.data.current) {
+      return;
+    }
+
+    const activeTask = active.data.current.task as Task;
+    const sourceSection = active.data.current.section as string;
+    
+    // Determinar seção de destino
+    let targetSection: string | null = null;
+    
+    // Se o drop foi diretamente em uma seção
+    if (over.data.current?.section) {
+      targetSection = over.data.current.section;
+    }
+    // Se o drop foi em uma tarefa, determinar a seção baseada na tarefa de destino
+    else if (over.data.current?.task) {
+      const targetTask = over.data.current.task as Task;
+      
+      // Determinar a seção da tarefa de destino baseada na data
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      
+      const todayStr = today.toISOString().split('T')[0];
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      
+      if (!targetTask.due_date) {
+        targetSection = 'algumDia';
+      } else {
+        const dueDate = new Date(targetTask.due_date + 'T00:00:00').toISOString().split('T')[0];
+        
+        if (dueDate === todayStr) {
+          targetSection = 'hoje';
+        } else if (dueDate === tomorrowStr) {
+          targetSection = 'amanha';
+        } else if (dueDate > tomorrowStr) {
+          targetSection = 'eventosFuturos';
+        } else {
+          targetSection = 'vencidas';
+        }
+      }
+    }
+
+    // Se a tarefa foi movida para a mesma seção, não faz nada
+    if (sourceSection === targetSection || !targetSection) {
+      return;
+    }
+
+    // Determinar nova data baseada na seção de destino
+    let newDueDate: string | null = null;
+
+    // Usar as mesmas datas que o useMemo para consistência
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const futureDate = new Date(today);
+    futureDate.setDate(today.getDate() + 2);
+
+    switch (targetSection) {
+      case 'hoje':
+        newDueDate = today.toISOString().split('T')[0];
+        break;
+      case 'amanha':
+        newDueDate = tomorrow.toISOString().split('T')[0];
+        break;
+      case 'eventosFuturos':
+        newDueDate = futureDate.toISOString().split('T')[0];
+        break;
+      case 'algumDia':
+        newDueDate = null; // Remove a data
+        break;
+      case 'vencidas':
+        // Se mover para vencidas, define como ontem
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        newDueDate = yesterday.toISOString().split('T')[0];
+        break;
+    }
+
+    // Atualizar a tarefa com nova data
+    try {
+      await updateTask(activeTask.id, {
+        title: activeTask.title,
+        description: activeTask.description,
+        priority: activeTask.priority,
+        category: activeTask.category,
+        completed: activeTask.completed,
+        dueDate: newDueDate, // Usar dueDate ao invés de due_date
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar tarefa:', error);
+    }
+  };
+
+  // Função para categorizar tarefas por período
+  const categorizedTasks = useMemo(() => {
+    
+    // Criar datas normalizadas para evitar problemas de timezone
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    // Normalizar datas para comparação (YYYY-MM-DD)
+    const todayStr = today.toISOString().split('T')[0];
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    
+    const categorized = {
+      hoje: [] as Task[],
+      amanha: [] as Task[],
+      eventosFuturos: [] as Task[],
+      vencidas: [] as Task[],
+      algumDia: [] as Task[],
+    };
+
+    tasks.forEach(task => {
+      if (!task.due_date) {
+        categorized.algumDia.push(task);
+      } else {
+        // Normalizar a data da tarefa para YYYY-MM-DD
+        let dueDate: string;
+        try {
+          // Adicionar 'T00:00:00' para evitar problemas de timezone
+          const taskDate = new Date(task.due_date + 'T00:00:00');
+          dueDate = taskDate.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Erro ao processar data da tarefa:', task.due_date, error);
+          categorized.algumDia.push(task);
+          return;
+        }
+        
+        
+        const isToday = dueDate === todayStr;
+        const isTomorrow = dueDate === tomorrowStr;
+        const isFuture = dueDate > tomorrowStr;
+        const isOverdue = dueDate < todayStr;
+        
+        
+        // Lógica de categorização baseada em datas
+        
+        if (isToday) {
+          categorized.hoje.push(task);
+        } else if (isTomorrow) {
+          categorized.amanha.push(task);
+        } else if (isFuture) {
+          categorized.eventosFuturos.push(task);
+        } else if (isOverdue) {
+          // Tarefas vencidas vão para seção específica
+          categorized.vencidas.push(task);
+        } else {
+          // Fallback - não deveria acontecer
+          categorized.algumDia.push(task);
+        }
+      }
+    });
+
+
+    return categorized;
+  }, [tasks]);
+
+  // Componente para seção que aceita drop
+  const DroppableSection: React.FC<{ 
+    title: string, 
+    tasks: Task[], 
+    emptyMessage: string, 
+    sectionId: string 
+  }> = ({ title, tasks, emptyMessage, sectionId }) => {
+    const { setNodeRef, isOver } = useDroppable({
+      id: sectionId,
+      data: {
+        section: sectionId,
+      },
+    });
+
+    return (
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center">
+          {title}
+          <Badge variant="default" className="ml-2">
+            {tasks.length}
+          </Badge>
+        </h2>
+        <div 
+          ref={setNodeRef}
+          className={`space-y-1 rounded-lg border-2 border-dashed transition-all duration-200 ease-in-out ${
+            tasks.length > 0 
+              ? `min-h-[50px] p-1 ${
+                  isOver 
+                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+                    : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                }`
+              : `${
+                  isOver 
+                    ? 'min-h-[62px] p-4 border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+                    : 'min-h-0 p-0 border-transparent'
+                }`
+          }`}
+        >
+          {tasks.length > 0 ? (
+            <SortableContext items={tasks.map(task => task.id)} strategy={verticalListSortingStrategy}>
+              {tasks.map((task) => (
+                <SortableTaskItem 
+                  key={task.id} 
+                  task={task} 
+                  section={sectionId}
+                />
+              ))}
+            </SortableContext>
+          ) : (
+            <div className={`flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm transition-all duration-200 overflow-hidden ${
+              isOver ? 'h-[62px]' : 'h-0'
+            }`}>
+              {emptyMessage}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTaskSection = (title: string, tasks: Task[], emptyMessage: string, sectionId: string) => {
+    return (
+      <DroppableSection
+        title={title}
+        tasks={tasks}
+        emptyMessage={emptyMessage}
+        sectionId={sectionId}
+      />
+    );
+  };
+
+
   const getPriorityVariant = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'danger';
@@ -90,6 +359,107 @@ export const Tasks: React.FC = () => {
     return labels[priority as keyof typeof labels] || priority;
   };
 
+  // Componente para tarefa arrastável
+  const SortableTaskItem: React.FC<{ task: Task; section: string }> = ({ task, section }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ 
+      id: task.id,
+      data: {
+        task: task,
+        section: section,
+      },
+    });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    // Verificar se a tarefa está vencida (comparando apenas as datas, não horas)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const taskDateStr = task.due_date ? new Date(task.due_date + 'T00:00:00').toISOString().split('T')[0] : null;
+    
+    const isOverdue = task.due_date && taskDateStr && taskDateStr < todayStr;
+    const isToday = task.due_date && taskDateStr === todayStr;
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={`flex items-center justify-between py-2 px-1 transition-colors cursor-grab active:cursor-grabbing hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
+          task.completed 
+            ? 'bg-green-50 dark:bg-green-900/10' 
+            : 'bg-transparent'
+        }`}
+        onClick={(e) => {
+          // Só abre o modal se não estiver arrastando
+          if (!isDragging) {
+            openEditModal(task);
+          }
+        }}
+      >
+        {/* Radio Button + Título */}
+        <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <input
+            type="radio"
+            checked={task.completed}
+            onChange={(e) => {
+              e.stopPropagation(); // Evita abrir o modal ao clicar no radio
+              toggleTaskCompletion(task.id);
+            }}
+            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
+          />
+          <h3 className={`font-medium truncate ${
+            task.completed 
+              ? 'line-through text-gray-500 dark:text-gray-400' 
+              : 'text-gray-900 dark:text-gray-100'
+          }`}>
+            {task.title}
+          </h3>
+        </div>
+
+        {/* Badges - Prioridade, Categoria, Data */}
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          <Badge variant={getPriorityVariant(task.priority)} className="text-xs">
+            {getPriorityLabel(task.priority)}
+          </Badge>
+          
+          {task.category && (
+            <Badge variant="default" className="text-xs">
+              {task.category}
+            </Badge>
+          )}
+          
+          {task.due_date && (
+            <div className="flex items-center space-x-1">
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                isOverdue 
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200' 
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}>
+                {(() => {
+                  const date = new Date(task.due_date + 'T00:00:00');
+                  const day = date.getDate();
+                  const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
+                  return `${day} ${month}`;
+                })()}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const priorityOptions = [
     { value: 'low', label: 'Baixa' },
     { value: 'medium', label: 'Média' },
@@ -106,7 +476,12 @@ export const Tasks: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tarefas</h1>
@@ -139,73 +514,48 @@ export const Tasks: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400">Crie sua primeira tarefa para começar!</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tasks.map((task) => (
-            <Card
-              key={task.id}
-              className={`p-6 border-l-4 ${
-                task.completed ? 'border-green-500 opacity-75' : 'border-blue-500'
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={task.completed}
-                      onChange={() => toggleTaskCompletion(task.id)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                    />
-                    <h3 className={`font-medium ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                      {task.title}
-                    </h3>
-                  </div>
-                  
-                  {task.description && (
-                    <p className={`text-sm mb-3 ${task.completed ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-300'}`}>
-                      {task.description}
-                    </p>
-                  )}
+        <div className="space-y-8">
 
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <Badge variant={getPriorityVariant(task.priority)}>
-                      {getPriorityLabel(task.priority)}
-                    </Badge>
-                    {task.category && (
-                      <Badge variant="default">
-                        {task.category}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {task.due_date && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                      Vencimento: {new Date(task.due_date).toLocaleDateString('pt-BR')}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditModal(task)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    <PencilSimple className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteTask(task.id)}
-                    className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                  >
-                    <Trash className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
+          {/* Seção Tarefas Vencidas */}
+          {renderTaskSection(
+            "Tarefas Vencidas", 
+            categorizedTasks.vencidas, 
+            "Nenhuma tarefa vencida",
+            "vencidas"
+          )}
+          
+          {/* Seção Hoje */}
+          {renderTaskSection(
+            "Hoje", 
+            categorizedTasks.hoje, 
+            "Nenhuma tarefa para hoje",
+            "hoje"
+          )}
+          
+          {/* Seção Amanhã */}
+          {renderTaskSection(
+            "Amanhã", 
+            categorizedTasks.amanha, 
+            "Nenhuma tarefa para amanhã",
+            "amanha"
+          )}
+          
+          {/* Seção Eventos Futuros */}
+          {renderTaskSection(
+            "Eventos Futuros", 
+            categorizedTasks.eventosFuturos, 
+            "Nenhum evento futuro agendado",
+            "eventosFuturos"
+          )}
+          
+          {/* Seção Algum Dia */}
+          {renderTaskSection(
+            "Algum Dia", 
+            categorizedTasks.algumDia, 
+            "Nenhuma tarefa sem prazo",
+            "algumDia"
+          )}
+          
         </div>
       )}
 
@@ -321,23 +671,41 @@ export const Tasks: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
           />
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-between items-center pt-4">
             <Button
               type="button"
-              variant="outline"
-              onClick={closeModals}
+              variant="danger"
+              onClick={() => {
+                if (editingTask && window.confirm('Tem certeza que deseja excluir esta tarefa?')) {
+                  handleDeleteTask(editingTask.id);
+                  closeModals();
+                }
+              }}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
             >
-              Cancelar
+              <Trash className="w-4 h-4 mr-2" />
+              Excluir Tarefa
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-            >
-              Atualizar Tarefa
-            </Button>
+            
+            <div className="flex space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeModals}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+              >
+                Atualizar Tarefa
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>
-    </div>
+      </div>
+    </DndContext>
   );
 };
