@@ -21,9 +21,22 @@ export const DateInputBR: React.FC<DateInputBRProps> = ({
   useEffect(() => {
     if (value) {
       try {
-        const [year, month, day] = value.split('-');
-        setDisplayValue(`${day}/${month}/${year}`);
+        // Verificar se é uma data ISO completa (com T)
+        let dateStr = value;
+        if (value.includes('T')) {
+          dateStr = value.split('T')[0]; // Pegar apenas a parte da data
+        }
+        
+        // Verificar se está no formato YYYY-MM-DD
+        if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const [year, month, day] = dateStr.split('-');
+          const formattedValue = `${day}/${month}/${year}`;
+          setDisplayValue(formattedValue);
+        } else {
+          setDisplayValue('');
+        }
       } catch (error) {
+        console.error('DateInputBR conversion error:', error);
         setDisplayValue('');
       }
     } else {

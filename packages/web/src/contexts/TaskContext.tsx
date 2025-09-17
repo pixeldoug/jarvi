@@ -10,6 +10,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;
   important?: boolean;
+  time?: string;
   due_date?: string;
   created_at: string;
   updated_at: string;
@@ -21,6 +22,7 @@ export interface CreateTaskData {
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;
   important?: boolean;
+  time?: string;
   dueDate?: string;
 }
 
@@ -31,6 +33,7 @@ export interface UpdateTaskData {
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;
   important?: boolean;
+  time?: string;
   dueDate?: string;
 }
 
@@ -43,6 +46,7 @@ interface TaskContextType {
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
+  reorderTasks: (reorderedTasks: Task[]) => void;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -283,6 +287,10 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
+  const reorderTasks = (reorderedTasks: Task[]) => {
+    setTasks(reorderedTasks);
+  };
+
   // Fetch tasks when token changes
   useEffect(() => {
     if (token) {
@@ -301,6 +309,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     updateTask,
     deleteTask,
     toggleTaskCompletion,
+    reorderTasks,
   };
 
   return (

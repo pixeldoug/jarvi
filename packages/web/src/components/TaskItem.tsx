@@ -51,8 +51,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.9 : 1,
-    zIndex: isDragging ? 1000 : 'auto',
+    opacity: isDragging ? 0 : 1, // Invisível durante drag para evitar duplicação
+    zIndex: isDragging ? -1 : 'auto', // Atrás durante drag
   };
 
   // Removido - não precisamos mais da lógica complexa do popover
@@ -278,7 +278,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 
                 const day = date.getDate();
                 const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
-                return `${day} ${month}`;
+                const dateStr = `${day} ${month}`;
+                
+                // Adicionar horário se disponível
+                if (task.time) {
+                  return `${dateStr} ${task.time}`;
+                }
+                
+                return dateStr;
               } catch (error) {
                 console.error('Erro ao processar data da tarefa:', task.due_date, error);
                 return 'Data inválida';

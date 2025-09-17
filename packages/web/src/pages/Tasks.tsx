@@ -4,9 +4,8 @@ import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
 import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
-import { DatePickerPopover } from '../components/DatePickerPopover';
+import { DateTimePickerPopover } from '../components/DateTimePickerPopover';
 import { CategoryPickerPopover } from '../components/CategoryPickerPopover';
-import { DateInputBR } from '../components/DateInputBR';
 import { useCategories } from '../hooks/useCategories';
 import { Trash, Plus, Fire } from 'phosphor-react';
 import {
@@ -53,6 +52,7 @@ export function Tasks() {
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     category: 'Trabalho', // Categoria padrão
     important: false,
+    time: '',
     dueDate: '',
   });
 
@@ -68,7 +68,7 @@ export function Tasks() {
     e.preventDefault();
     try {
       await createTask(formData);
-      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, dueDate: '' });
+      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, time: '', dueDate: '' });
       setShowCreateModal(false);
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -82,7 +82,7 @@ export function Tasks() {
     try {
       await updateTask(editingTask.id, formData);
       setEditingTask(null);
-      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, dueDate: '' });
+      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, time: '', dueDate: '' });
     } catch (error) {
       console.error('Failed to update task:', error);
     }
@@ -106,6 +106,7 @@ export function Tasks() {
       priority: task.priority,
       category: task.category || 'Trabalho',
       important: task.important || false,
+      time: task.time || '',
       dueDate: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
     });
   };
@@ -113,10 +114,22 @@ export function Tasks() {
   const closeModals = () => {
     setShowCreateModal(false);
     setEditingTask(null);
-    setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, dueDate: '' });
+    setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, time: '', dueDate: '' });
   };
 
-  const handleSetDate = async (taskId: string, date: string) => {
+  const handleSetDate = async (taskId: string, date: string, time?: string) => {
+    // Se é uma task sendo editada no modal, atualizar apenas o formData
+    if (editingTask && taskId === editingTask.id) {
+      setFormData(prev => ({
+        ...prev,
+        dueDate: date,
+        time: time || '',
+      }));
+      setDatePickerTask(null);
+      return;
+    }
+
+    // Caso contrário, atualizar a task diretamente
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
@@ -125,7 +138,9 @@ export function Tasks() {
       description: task.description,
       priority: task.priority,
       category: task.category,
+      important: task.important,
       completed: task.completed,
+      time: time || task.time,
       dueDate: date,
     };
 
@@ -326,13 +341,6 @@ export function Tasks() {
     if (overTask && activeTask.id !== overTask.id) {
       const currentSection = active.data.current?.section;
       
-      console.log('Reorder attempt:', {
-        currentSection,
-        overSection,
-        activeTaskId: activeTask.id,
-        overTaskId: overTask.id,
-        canReorder: !['proxima-semana', 'eventos-futuros'].includes(currentSection)
-      });
       
       // Permitir reordenação apenas em seções que não são baseadas em tempo
       if (currentSection === overSection && 
@@ -344,30 +352,21 @@ export function Tasks() {
         const oldIndex = sectionTasks.findIndex(task => task.id === activeTask.id);
         const newIndex = sectionTasks.findIndex(task => task.id === overTask.id);
         
-        console.log('Section tasks found:', {
-          oldIndex,
-          newIndex,
-          sectionTasksLength: sectionTasks.length
-        });
         
         if (oldIndex !== -1 && newIndex !== -1) {
-          console.log('Attempting reorder in main tasks array');
           
           // Encontrar os índices no array principal de tarefas
           const allTasks = [...tasks];
           const activeTaskIndex = allTasks.findIndex(t => t.id === activeTask.id);
           const overTaskIndex = allTasks.findIndex(t => t.id === overTask.id);
           
-          console.log('Main array indices:', { activeTaskIndex, overTaskIndex });
           
           if (activeTaskIndex !== -1 && overTaskIndex !== -1) {
-            console.log('Reordering tasks, new order will be applied');
             
             // Reordenar diretamente usando a função do contexto
             const reorderedTasks = arrayMove(allTasks, activeTaskIndex, overTaskIndex);
             reorderTasks(reorderedTasks);
             
-            console.log('Tasks reordered successfully');
           }
         }
         
@@ -785,14 +784,43 @@ export function Tasks() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Data de Vencimento
+                Data e Horário
               </label>
-              <DateInputBR
-                value={formData.dueDate || ''}
-                onChange={(date) => setFormData({ ...formData, dueDate: date })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  // Criar uma task temporária para o modal
+                  const tempTask = {
+                    ...editingTask,
+                    due_date: formData.dueDate,
+                    time: formData.time,
+                  } as Task;
+                  
+                  handleOpenDatePicker(tempTask, e.currentTarget as HTMLElement);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-left hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                {formData.dueDate ? (
+                  <span>
+                    {(() => {
+                      try {
+                        const date = new Date(formData.dueDate + 'T00:00:00');
+                        const dateStr = date.toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                        });
+                        return formData.time ? `${dateStr} às ${formData.time}` : dateStr;
+                      } catch {
+                        return 'Data inválida';
+                      }
+                    })()}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500">Clique para definir data e horário</span>
+                )}
+              </button>
+            </div>
 
             <div className="flex justify-end space-x-3">
             <Button
@@ -886,14 +914,43 @@ export function Tasks() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Data de Vencimento
+                Data e Horário
               </label>
-              <DateInputBR
-                value={formData.dueDate || ''}
-                onChange={(date) => setFormData({ ...formData, dueDate: date })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
-          </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  // Criar uma task temporária para o modal
+                  const tempTask = {
+                    ...editingTask,
+                    due_date: formData.dueDate,
+                    time: formData.time,
+                  } as Task;
+                  
+                  handleOpenDatePicker(tempTask, e.currentTarget as HTMLElement);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-left hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                {formData.dueDate ? (
+                  <span>
+                    {(() => {
+                      try {
+                        const date = new Date(formData.dueDate + 'T00:00:00');
+                        const dateStr = date.toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+                        });
+                        return formData.time ? `${dateStr} às ${formData.time}` : dateStr;
+                      } catch {
+                        return 'Data inválida';
+                      }
+                    })()}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500">Clique para definir data e horário</span>
+                )}
+              </button>
+            </div>
 
             <div className="flex justify-between">
             <Button
@@ -922,20 +979,21 @@ export function Tasks() {
         </form>
       </Modal>
         
-        {/* Date Picker Popover - Global */}
-        <DatePickerPopover
+        {/* Date Time Picker Popover - Global */}
+        <DateTimePickerPopover
           isOpen={!!datePickerTask}
           onClose={() => {
             setDatePickerTask(null);
             setDatePickerPosition(null);
           }}
-          onDateSelect={(date) => {
+          onDateTimeSelect={(date, time) => {
             if (datePickerTask) {
-              handleSetDate(datePickerTask.id, date);
+              handleSetDate(datePickerTask.id, date, time);
             }
           }}
           position={datePickerPosition}
           initialDate={datePickerTask?.due_date || ''}
+          initialTime={datePickerTask?.time || ''}
         />
         
         {/* Category Picker Popover - Global */}
