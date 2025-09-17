@@ -225,8 +225,23 @@ export const Tasks: React.FC = () => {
         // Normalizar a data da tarefa para YYYY-MM-DD
         let dueDate: string;
         try {
-          // Adicionar 'T00:00:00' para evitar problemas de timezone
-          const taskDate = new Date(task.due_date + 'T00:00:00');
+          // Tentar diferentes formatos de data
+          let taskDate: Date;
+          if (task.due_date.includes('T')) {
+            // Se já tem formato ISO, usar diretamente
+            taskDate = new Date(task.due_date);
+          } else {
+            // Se não tem formato ISO, adicionar T00:00:00
+            taskDate = new Date(task.due_date + 'T00:00:00');
+          }
+          
+          // Verificar se a data é válida
+          if (isNaN(taskDate.getTime())) {
+            console.error('Invalid date in categorization:', task.due_date);
+            categorized.algumDia.push(task);
+            return;
+          }
+          
           dueDate = taskDate.toISOString().split('T')[0];
         } catch (error) {
           console.error('Erro ao processar data da tarefa:', task.due_date, error);
@@ -380,9 +395,26 @@ export const Tasks: React.FC = () => {
 
     // Verificar se a tarefa está vencida (comparando apenas as datas, não horas)
     const todayStr = new Date().toISOString().split('T')[0];
-    const taskDateStr = task.due_date ? new Date(task.due_date + 'T00:00:00').toISOString().split('T')[0] : null;
+    let taskDateStr: string | null = null;
+    let isOverdue = false;
     
-    const isOverdue = task.due_date && taskDateStr && taskDateStr < todayStr;
+    if (task.due_date) {
+      try {
+        let date: Date;
+        if (task.due_date.includes('T')) {
+          date = new Date(task.due_date);
+        } else {
+          date = new Date(task.due_date + 'T00:00:00');
+        }
+        
+        if (!isNaN(date.getTime())) {
+          taskDateStr = date.toISOString().split('T')[0];
+          isOverdue = taskDateStr < todayStr;
+        }
+      } catch (error) {
+        console.error('Erro ao processar data da tarefa:', task.due_date, error);
+      }
+    }
 
     return (
       <div
@@ -442,10 +474,30 @@ export const Tasks: React.FC = () => {
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
               }`}>
                 {(() => {
-                  const date = new Date(task.due_date + 'T00:00:00');
-                  const day = date.getDate();
-                  const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
-                  return `${day} ${month}`;
+                  try {
+                    // Tentar diferentes formatos de data
+                    let date: Date;
+                    if (task.due_date.includes('T')) {
+                      // Se já tem formato ISO, usar diretamente
+                      date = new Date(task.due_date);
+                    } else {
+                      // Se não tem formato ISO, adicionar T00:00:00
+                      date = new Date(task.due_date + 'T00:00:00');
+                    }
+                    
+                    // Verificar se a data é válida
+                    if (isNaN(date.getTime())) {
+                      console.error('Invalid date:', task.due_date);
+                      return 'Data inválida';
+                    }
+                    
+                    const day = date.getDate();
+                    const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
+                    return `${day} ${month}`;
+                  } catch (error) {
+                    console.error('Erro ao processar data da tarefa:', task.due_date, error);
+                    return 'Data inválida';
+                  }
                 })()}
               </span>
             </div>
