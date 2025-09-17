@@ -2,8 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
-import { Button, Input, Textarea, Select, Modal, Card, Badge } from '../components/ui';
-import { PencilSimple, Trash, Plus } from 'phosphor-react';
+import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
+import { Trash, Plus } from 'phosphor-react';
 import {
   DndContext,
   closestCenter,
@@ -12,18 +12,12 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragOverEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
   useDroppable,
 } from '@dnd-kit/core';
 import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -193,7 +187,7 @@ export const Tasks: React.FC = () => {
         priority: activeTask.priority,
         category: activeTask.category,
         completed: activeTask.completed,
-        dueDate: newDueDate, // Usar dueDate ao invés de due_date
+        dueDate: newDueDate || undefined, // Usar dueDate ao invés de due_date
       });
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);
@@ -387,7 +381,6 @@ export const Tasks: React.FC = () => {
     const taskDateStr = task.due_date ? new Date(task.due_date + 'T00:00:00').toISOString().split('T')[0] : null;
     
     const isOverdue = task.due_date && taskDateStr && taskDateStr < todayStr;
-    const isToday = task.due_date && taskDateStr === todayStr;
 
     return (
       <div
@@ -400,7 +393,7 @@ export const Tasks: React.FC = () => {
             ? 'bg-green-50 dark:bg-green-900/10' 
             : 'bg-transparent'
         }`}
-        onClick={(e) => {
+        onClick={() => {
           // Só abre o modal se não estiver arrastando
           if (!isDragging) {
             openEditModal(task);
