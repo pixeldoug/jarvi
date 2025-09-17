@@ -70,8 +70,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // For test token, we'll make real API calls since backend now supports it
+
+      console.log('TaskContext - Fetching tasks from:', `${API_BASE_URL}/api/tasks`);
+      console.log('TaskContext - Token:', token ? 'Present' : 'Missing');
       
       const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         headers: {

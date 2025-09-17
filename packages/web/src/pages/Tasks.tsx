@@ -25,6 +25,8 @@ import { CSS } from '@dnd-kit/utilities';
 export const Tasks: React.FC = () => {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
   const { user } = useAuth();
+
+  console.log('Tasks Component - Render:', { tasks: tasks.length, isLoading, error, user: user?.email });
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
