@@ -40,6 +40,8 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
     }
   };
 
+  console.log('QuickTaskCreator render:', { sectionId, isVisible });
+
   if (!isVisible) return null;
 
   return (

@@ -363,18 +363,24 @@ export function Tasks() {
               {isOver ? "✨ Solte aqui para mover" : emptyMessage}
             </div>
           )}
-          
-          {/* Quick Task Creator - aparece no hover */}
-          <div
-            onMouseEnter={() => setHoveredSection(sectionId)}
-            onMouseLeave={() => setHoveredSection(null)}
-          >
-            <QuickTaskCreator
-              sectionId={sectionId}
-              onQuickCreate={handleQuickCreate}
-              isVisible={hoveredSection === sectionId}
-            />
-          </div>
+        </div>
+        
+        {/* Quick Task Creator - aparece no hover (fora do container com overflow) */}
+        <div
+          onMouseEnter={() => {
+            console.log('Mouse enter section:', sectionId);
+            setHoveredSection(sectionId);
+          }}
+          onMouseLeave={() => {
+            console.log('Mouse leave section:', sectionId);
+            setHoveredSection(null);
+          }}
+        >
+          <QuickTaskCreator
+            sectionId={sectionId}
+            onQuickCreate={handleQuickCreate}
+            isVisible={hoveredSection === sectionId}
+          />
         </div>
       </div>
     );
