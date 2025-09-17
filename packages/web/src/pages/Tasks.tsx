@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
 import { TaskItem } from '../components/TaskItem';
+import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { Trash, Plus } from 'phosphor-react';
 import {
   DndContext,
@@ -32,6 +33,7 @@ export function Tasks() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -117,6 +119,58 @@ export function Tasks() {
     } catch (error) {
       console.error('Erro ao definir data:', error);
     }
+  };
+
+  const handleQuickCreate = (title: string, sectionId: string) => {
+    // Determinar a data baseada na seção
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + 30);
+
+    let dueDate = '';
+    switch (sectionId) {
+      case 'hoje':
+        dueDate = today.getFullYear() + '-' + 
+          String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(today.getDate()).padStart(2, '0');
+        break;
+      case 'amanha':
+        dueDate = tomorrow.getFullYear() + '-' + 
+          String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(tomorrow.getDate()).padStart(2, '0');
+        break;
+      case 'proxima-semana':
+        dueDate = nextWeek.getFullYear() + '-' + 
+          String(nextWeek.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(nextWeek.getDate()).padStart(2, '0');
+        break;
+      case 'eventos-futuros':
+        dueDate = futureDate.getFullYear() + '-' + 
+          String(futureDate.getMonth() + 1).padStart(2, '0') + '-' + 
+          String(futureDate.getDate()).padStart(2, '0');
+        break;
+      case 'algum-dia':
+        dueDate = ''; // Sem data
+        break;
+      default:
+        dueDate = '';
+    }
+
+    // Preencher o formulário com os dados da criação rápida
+    setFormData({
+      title: title,
+      description: '',
+      priority: 'medium',
+      category: '',
+      dueDate: dueDate,
+    });
+
+    // Abrir o modal de criação
+    setShowCreateModal(true);
   };
 
   // Função para lidar com drag and drop
@@ -309,6 +363,18 @@ export function Tasks() {
               {isOver ? "✨ Solte aqui para mover" : emptyMessage}
             </div>
           )}
+          
+          {/* Quick Task Creator - aparece no hover */}
+          <div
+            onMouseEnter={() => setHoveredSection(sectionId)}
+            onMouseLeave={() => setHoveredSection(null)}
+          >
+            <QuickTaskCreator
+              sectionId={sectionId}
+              onQuickCreate={handleQuickCreate}
+              isVisible={hoveredSection === sectionId}
+            />
+          </div>
         </div>
       </div>
     );
