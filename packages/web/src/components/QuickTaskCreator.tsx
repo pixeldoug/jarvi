@@ -3,14 +3,16 @@ import { Plus } from 'phosphor-react';
 
 interface QuickTaskCreatorProps {
   sectionId: string;
-  onQuickCreate: (title: string, sectionId: string) => void;
+  onQuickCreate: (title: string, sectionId: string) => Promise<void>;
   isVisible: boolean;
+  hasTasks?: boolean;
 }
 
 export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
   sectionId,
   onQuickCreate,
   isVisible,
+  hasTasks = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState('');
@@ -19,13 +21,17 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
     setIsEditing(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedTitle = title.trim();
     if (trimmedTitle) {
-      onQuickCreate(trimmedTitle, sectionId);
-      setTitle('');
-      setIsEditing(false);
+      try {
+        await onQuickCreate(trimmedTitle, sectionId);
+        setTitle('');
+        setIsEditing(false);
+      } catch (error) {
+        console.error('Erro ao criar tarefa:', error);
+      }
     }
   };
 
@@ -40,12 +46,14 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
     }
   };
 
-  console.log('QuickTaskCreator render:', { sectionId, isVisible });
-
-  if (!isVisible) return null;
+  // console.log('QuickTaskCreator render:', { sectionId, isVisible });
 
   return (
-    <div className="py-2 px-3">
+    <div className={`py-2 px-3 flex items-center transition-opacity duration-200 ${
+      hasTasks ? 'h-[40px]' : ''
+    } ${
+      isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+    }`}>
       {isEditing ? (
         <form onSubmit={handleSubmit} className="flex items-center space-x-3">
           {/* Círculo placeholder (não interativo) */}

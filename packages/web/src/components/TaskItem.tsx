@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../contexts/TaskContext';
@@ -13,6 +13,7 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
   onSetDate?: (taskId: string, date: string) => Promise<void>;
+  onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -22,11 +23,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onEdit,
   onUpdateTask,
   onSetDate,
+  onOpenDatePicker,
 }) => {
   const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerTriggerRef = useRef<HTMLButtonElement>(null);
 
   const {
@@ -49,6 +50,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  // Removido - não precisamos mais da lógica complexa do popover
 
   const isOverdue = section === 'vencidas';
 
@@ -121,15 +124,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     return labels[priority as keyof typeof labels] || priority;
   };
 
-  const handleDateSelect = async (date: string) => {
-    if (onSetDate) {
-      try {
-        await onSetDate(task.id, date);
-      } catch (error) {
-        console.error('Erro ao definir data:', error);
-      }
-    }
-  };
+  // handleDateSelect removido - agora é feito em Tasks.tsx
 
   return (
     <>
@@ -139,12 +134,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         className="relative flex items-center py-2 px-3 transition-all duration-200 hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm group"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onMouseDown={(e) => {
+          console.log('TaskItem container mousedown');
+        }}
+        onClick={(e) => {
+          console.log('TaskItem container clicked');
+        }}
       >
       {/* DRAG HANDLE - Fora do task item (absolute position) */}
       <div 
         className={`absolute -left-8 top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing transition-all duration-200 ${
           isHovered ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
         }`}
+        style={{ pointerEvents: 'auto' }}
         {...attributes}
         {...listeners}
       >
@@ -235,49 +237,77 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         )}
         
         {task.due_date ? (
-          <div className="flex items-center space-x-1">
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              isOverdue 
-                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200' 
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}>
-              {(() => {
-                try {
-                  let date: Date;
-                  if (task.due_date.includes('T')) {
-                    date = new Date(task.due_date);
-                  } else {
-                    date = new Date(task.due_date + 'T00:00:00');
-                  }
-                  
-                  if (isNaN(date.getTime())) {
-                    console.error('Invalid date:', task.due_date);
-                    return 'Data inválida';
-                  }
-                  
-                  const day = date.getDate();
-                  const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
-                  return `${day} ${month}`;
-                } catch (error) {
-                  console.error('Erro ao processar data da tarefa:', task.due_date, error);
-                  return 'Data inválida';
-                }
-              })()}
-            </span>
-          </div>
-        ) : section === 'algum-dia' ? (
           <button
-            ref={datePickerTriggerRef}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setIsDatePickerOpen(true);
+              if (onOpenDatePicker) {
+                onOpenDatePicker(task, e.currentTarget as HTMLElement);
+              }
             }}
-            className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            onMouseDown={(e) => e.stopPropagation()}
+            className={`text-xs px-2 py-1 rounded-full transition-colors cursor-pointer ${
+              isOverdue 
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-900/50' 
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+            title="Clique para alterar a data"
+          >
+            {(() => {
+              try {
+                let date: Date;
+                if (task.due_date.includes('T')) {
+                  date = new Date(task.due_date);
+                } else {
+                  date = new Date(task.due_date + 'T00:00:00');
+                }
+                
+                if (isNaN(date.getTime())) {
+                  console.error('Invalid date:', task.due_date);
+                  return 'Data inválida';
+                }
+                
+                const day = date.getDate();
+                const month = date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').replace(/^./, str => str.toUpperCase());
+                return `${day} ${month}`;
+              } catch (error) {
+                console.error('Erro ao processar data da tarefa:', task.due_date, error);
+                return 'Data inválida';
+              }
+            })()}
+          </button>
+        ) : section === 'algum-dia' ? (
+          <div
+            ref={datePickerTriggerRef}
+            onMouseDown={(e) => {
+              console.log('Definir div mousedown');
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onMouseUp={(e) => {
+              console.log('Definir div mouseup');
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              console.log('Definir div clicked');
+              e.preventDefault();
+              e.stopPropagation();
+              if (onOpenDatePicker) {
+                onOpenDatePicker(task, e.currentTarget as HTMLElement);
+              }
+            }}
+            onPointerDown={(e) => {
+              console.log('Definir div pointerdown');
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer"
+            style={{ pointerEvents: 'auto' }}
           >
             <Calendar className="w-3 h-3" />
             <span>Definir</span>
-          </button>
+          </div>
         ) : null}
         
         {/* Botão de Edição */}
@@ -295,13 +325,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       </div>
       </div>
       
-      {/* Date Picker Popover - Fora do container relativo */}
-      <DatePickerPopover
-        isOpen={isDatePickerOpen}
-        onClose={() => setIsDatePickerOpen(false)}
-        onDateSelect={handleDateSelect}
-        triggerRef={datePickerTriggerRef}
-      />
+      {/* DatePickerPopover agora é renderizado globalmente em Tasks.tsx */}
     </>
   );
 };

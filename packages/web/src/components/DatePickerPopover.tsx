@@ -1,25 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'phosphor-react';
+import { DateInputBR } from './DateInputBR';
 
 interface DatePickerPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   onDateSelect: (date: string) => void;
   triggerRef?: React.RefObject<HTMLElement>;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  position?: { top: number; left: number } | null;
+  initialDate?: string;
 }
 
 export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   isOpen,
   onClose,
   onDateSelect,
+  onMouseEnter,
+  onMouseLeave,
+  position,
+  initialDate,
 }) => {
   const [selectedDate, setSelectedDate] = useState('');
+  const [canClose, setCanClose] = useState(false);
+
+  // Permitir fechar apenas após um pequeno delay para evitar fechamento imediato
+  useEffect(() => {
+    if (isOpen) {
+      console.log('DatePickerPopover opened');
+      setCanClose(false);
+      const timer = setTimeout(() => {
+        setCanClose(true);
+        console.log('DatePickerPopover can now be closed');
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      console.log('DatePickerPopover closed');
+    }
+  }, [isOpen]);
+
+  // Pré-selecionar a data inicial quando o popover abrir
+  useEffect(() => {
+    if (isOpen && initialDate) {
+      try {
+        // Usar o mesmo parsing que o TaskItem para consistência
+        let date: Date;
+        if (initialDate.includes('T')) {
+          date = new Date(initialDate);
+        } else {
+          date = new Date(initialDate + 'T00:00:00');
+        }
+        
+        if (!isNaN(date.getTime())) {
+          const formattedDate = date.getFullYear() + '-' + 
+            String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+            String(date.getDate()).padStart(2, '0');
+          setSelectedDate(formattedDate);
+        }
+      } catch (error) {
+        console.error('Erro ao processar data inicial:', error);
+      }
+    } else if (!isOpen) {
+      setSelectedDate('');
+    }
+  }, [isOpen, initialDate]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
   };
 
   const handleConfirm = () => {
+    console.log('DatePickerPopover handleConfirm called');
     if (selectedDate) {
       onDateSelect(selectedDate);
       setSelectedDate('');
@@ -28,8 +80,16 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   };
 
   const handleCancel = () => {
+    console.log('DatePickerPopover handleCancel called');
     setSelectedDate('');
     onClose();
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    // Não fechar se o clique foi no popover em si
+    if (e.target === e.currentTarget && canClose) {
+      onClose();
+    }
   };
 
   if (!isOpen) {
@@ -41,16 +101,40 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
       {/* Overlay para fechar o popover */}
       <div 
         className="fixed inset-0 z-40" 
-        onClick={onClose}
+        onClick={handleOverlayClick}
       />
       
       {/* Popover */}
       <div
         className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-4 min-w-[280px]"
-        style={{
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
+        style={
+          position
+            ? {
+                top: position.top,
+                left: position.left,
+                transform: 'translate(-50%, -100%)', // Centralizado horizontalmente e acima do botão
+              }
+            : {
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)', // Fallback para o centro
+              }
+        }
+        onClick={(e) => {
+          console.log('Popover clicked, stopping propagation');
+          e.stopPropagation();
+        }}
+        onMouseDown={(e) => {
+          console.log('Popover mousedown, stopping propagation');
+          e.stopPropagation();
+        }}
+        onMouseEnter={() => {
+          console.log('Mouse entered popover');
+          onMouseEnter?.();
+        }}
+        onMouseLeave={() => {
+          console.log('Mouse left popover');
+          onMouseLeave?.();
         }}
       >
         <div className="flex items-center justify-between mb-3">
@@ -70,10 +154,9 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
               Data da Tarefa
             </label>
-            <input
-              type="date"
+            <DateInputBR
               value={selectedDate}
-              onChange={handleDateChange}
+              onChange={(date) => setSelectedDate(date)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               min={new Date().toISOString().split('T')[0]}
             />

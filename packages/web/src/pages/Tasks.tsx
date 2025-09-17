@@ -5,6 +5,8 @@ import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
 import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
+import { DatePickerPopover } from '../components/DatePickerPopover';
+import { DateInputBR } from '../components/DateInputBR';
 import { Trash, Plus } from 'phosphor-react';
 import {
   DndContext,
@@ -29,11 +31,13 @@ export function Tasks() {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
   const { user } = useAuth();
 
-  console.log('Tasks Component - Render:', { tasks: tasks.length, isLoading, error, user: user?.email });
-  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
+  const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
+  const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
+  
+  console.log('Tasks Component - Render:', { tasks: tasks.length, isLoading, error, user: user?.email, hoveredSection });
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -116,12 +120,29 @@ export function Tasks() {
 
     try {
       await updateTask(taskId, updateData, false);
+      setDatePickerTask(null); // Fechar o date picker após salvar
     } catch (error) {
       console.error('Erro ao definir data:', error);
     }
   };
 
-  const handleQuickCreate = (title: string, sectionId: string) => {
+  const handleOpenDatePicker = (task: Task, triggerElement?: HTMLElement) => {
+    console.log('Opening date picker for task:', task.id);
+    setDatePickerTask(task);
+    
+    if (triggerElement) {
+      const rect = triggerElement.getBoundingClientRect();
+      setDatePickerPosition({
+        top: rect.top - 10, // 10px acima do botão
+        left: rect.left + rect.width / 2, // centralizado horizontalmente
+      });
+    } else {
+      // Fallback para o centro da tela
+      setDatePickerPosition(null);
+    }
+  };
+
+  const handleQuickCreate = async (title: string, sectionId: string) => {
     // Determinar a data baseada na seção
     const today = new Date();
     const tomorrow = new Date(today);
@@ -160,17 +181,28 @@ export function Tasks() {
         dueDate = '';
     }
 
-    // Preencher o formulário com os dados da criação rápida
-    setFormData({
-      title: title,
-      description: '',
-      priority: 'medium',
-      category: '',
-      dueDate: dueDate,
-    });
+    try {
+      // Criar a tarefa imediatamente
+      const newTask = await createTask({
+        title: title,
+        description: '',
+        priority: 'medium',
+        category: '',
+        dueDate: dueDate,
+      });
 
-    // Abrir o modal de criação
-    setShowCreateModal(true);
+      // Abrir o modal de edição com a tarefa recém-criada
+      setEditingTask(newTask);
+      setFormData({
+        title: newTask.title,
+        description: newTask.description || '',
+        priority: newTask.priority,
+        category: newTask.category || '',
+        dueDate: newTask.due_date || '',
+      });
+    } catch (error) {
+      console.error('Erro ao criar tarefa:', error);
+    }
   };
 
   // Função para lidar com drag and drop
@@ -299,6 +331,33 @@ export function Tasks() {
       }
     });
 
+    // Ordenar tarefas dentro de cada categoria
+    Object.keys(categories).forEach(key => {
+      const categoryKey = key as keyof typeof categories;
+      
+      if (categoryKey === 'proximaSemana' || categoryKey === 'eventosFuturos') {
+        // Para seções baseadas em tempo: ordenar por data (mais próximas primeiro)
+        categories[categoryKey].sort((a, b) => {
+          if (!a.due_date || !b.due_date) return 0;
+          
+          const dateA = new Date(a.due_date.split('T')[0]);
+          const dateB = new Date(b.due_date.split('T')[0]);
+          
+          return dateA.getTime() - dateB.getTime();
+        });
+      } else {
+        // Para outras seções: ordenar por data de criação (mais recentes por último)
+        categories[categoryKey].sort((a, b) => {
+          // Ordenar por created_at se disponível, senão por id (que geralmente é sequencial)
+          if (a.created_at && b.created_at) {
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          }
+          // Fallback para ordenação por ID (assumindo que IDs são sequenciais)
+          return a.id.localeCompare(b.id);
+        });
+      }
+    });
+
     return categories;
   }, [tasks]);
 
@@ -317,7 +376,17 @@ export function Tasks() {
     });
 
     return (
-      <div className="mb-3">
+      <div 
+        className="mb-1"
+        onMouseEnter={() => {
+          console.log('Mouse enter section:', sectionId);
+          setHoveredSection(sectionId);
+        }}
+        onMouseLeave={() => {
+          console.log('Mouse leave section:', sectionId);
+          setHoveredSection(null);
+        }}
+      >
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
           {title}
           <Badge variant="default" className="ml-2">
@@ -326,7 +395,7 @@ export function Tasks() {
         </h2>
         <div 
           ref={setNodeRef}
-          className={`space-y-1 transition-all duration-300 ease-in-out ${
+          className={`space-y-1 transition-all duration-500 ease-out ${
             tasks.length > 0 
               ? `min-h-[50px] p-1 ${
                   isOver 
@@ -336,7 +405,7 @@ export function Tasks() {
               : `${
                   isOver 
                     ? 'min-h-[60px] p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-2 border-dashed border-blue-300/50 dark:border-blue-600/50' 
-                    : 'min-h-[8px] p-0 hover:min-h-[16px] hover:bg-gray-50/10 dark:hover:bg-gray-800/10'
+                    : 'h-0 p-0 hover:h-auto hover:min-h-[4px] hover:bg-gray-50/10 dark:hover:bg-gray-800/10'
                 }`
           }`}
         >
@@ -351,11 +420,12 @@ export function Tasks() {
                   onEdit={openEditModal}
                   onUpdateTask={updateTask}
                   onSetDate={handleSetDate}
+                  onOpenDatePicker={(task, element) => handleOpenDatePicker(task, element)}
                 />
               ))}
             </SortableContext>
           ) : (
-            <div className={`flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm transition-all duration-300 overflow-hidden ${
+            <div className={`flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm transition-all duration-500 ease-out overflow-hidden ${
               isOver 
                 ? 'h-[54px] opacity-100' 
                 : 'h-0 opacity-0'
@@ -365,23 +435,17 @@ export function Tasks() {
           )}
         </div>
         
-        {/* Quick Task Creator - aparece no hover (fora do container com overflow) */}
-        <div
-          onMouseEnter={() => {
-            console.log('Mouse enter section:', sectionId);
-            setHoveredSection(sectionId);
-          }}
-          onMouseLeave={() => {
-            console.log('Mouse leave section:', sectionId);
-            setHoveredSection(null);
-          }}
-        >
-          <QuickTaskCreator
-            sectionId={sectionId}
-            onQuickCreate={handleQuickCreate}
-            isVisible={hoveredSection === sectionId}
-          />
-        </div>
+        {/* Quick Task Creator - só renderiza quando necessário */}
+        {(hoveredSection === sectionId || tasks.length > 0) && (
+          <div className={tasks.length > 0 ? "min-h-[40px]" : ""}>
+            <QuickTaskCreator
+              sectionId={sectionId}
+              onQuickCreate={handleQuickCreate}
+              isVisible={hoveredSection === sectionId}
+              hasTasks={tasks.length > 0}
+            />
+          </div>
+        )}
       </div>
     );
   };
@@ -534,10 +598,10 @@ export function Tasks() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Data de Vencimento
               </label>
-              <Input
-                type="date"
+              <DateInputBR
                 value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                onChange={(date) => setFormData({ ...formData, dueDate: date })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
 
@@ -615,10 +679,10 @@ export function Tasks() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Data de Vencimento
               </label>
-              <Input
-                type="date"
+              <DateInputBR
                 value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                onChange={(date) => setFormData({ ...formData, dueDate: date })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
             </div>
 
@@ -648,6 +712,22 @@ export function Tasks() {
             </div>
           </form>
         </Modal>
+        
+        {/* Date Picker Popover - Global */}
+        <DatePickerPopover
+          isOpen={!!datePickerTask}
+          onClose={() => {
+            setDatePickerTask(null);
+            setDatePickerPosition(null);
+          }}
+          onDateSelect={(date) => {
+            if (datePickerTask) {
+              handleSetDate(datePickerTask.id, date);
+            }
+          }}
+          position={datePickerPosition}
+          initialDate={datePickerTask?.due_date || ''}
+        />
       </div>
     </DndContext>
   );
