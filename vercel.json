@@ -1,0 +1,17 @@
+{
+  "buildCommand": "cd packages/web && npm run build",
+  "outputDirectory": "packages/web/dist",
+  "framework": "vite",
+  "installCommand": "cd packages/web && npm install",
+  "devCommand": "cd packages/web && npm run dev",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "https://jarvi-production.up.railway.app",
+    "VITE_APP_NAME": "Jarvi"
+  }
+}
