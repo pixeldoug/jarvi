@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../contexts/TaskContext';
 import { Badge } from './ui';
-import { PencilSimple, DotsSixVertical, Calendar, Fire } from 'phosphor-react';
+import { PencilSimple, DotsSixVertical, Calendar, Fire, Tag } from 'phosphor-react';
 import { useCategories } from '../hooks/useCategories';
 
 interface TaskItemProps {
@@ -13,6 +13,7 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
+  onOpenCategoryPicker?: (task: Task, triggerElement?: HTMLElement) => void;
   showInsertionLine?: boolean;
 }
 
@@ -23,6 +24,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onEdit,
   onUpdateTask,
   onOpenDatePicker,
+  onOpenCategoryPicker,
   showInsertionLine = false,
 }) => {
   const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
@@ -109,6 +111,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   // handleDateSelect removido - agora é feito em Tasks.tsx
 
+
   return (
     <>
       {/* Linha de inserção */}
@@ -171,14 +174,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         ) : null}
       </button>
       
-      {/* Ícone de Importante */}
-      {task.important && (
-        <Fire 
-          className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" 
-          weight="fill"
-        />
-      )}
-      
       {/* Título - Edição inline */}
       <div className="flex-1 min-w-0 mx-3">
         {editingInlineTaskId === task.id ? (
@@ -220,24 +215,43 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       
       {/* Tags + Botão de Edição */}
       <div className="flex items-center space-x-2 flex-shrink-0">
-        {task.category && (
+        {/* Ícone de Importante */}
+        {Boolean(task.important) && (
+          <Fire 
+            className="w-4 h-4 text-red-500 flex-shrink-0" 
+            weight="fill"
+          />
+        )}
+        
+        {task.category && task.category.trim() ? (
           <Badge variant={getCategoryVariant(task.category)} className="text-xs">
             {task.category}
           </Badge>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onOpenCategoryPicker) {
+                onOpenCategoryPicker(task, e.currentTarget as HTMLElement);
+              }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer"
+          >
+            <Tag className="w-3 h-3" />
+            <span>Categoria</span>
+          </button>
         )}
         
         
         {task.due_date ? (
           <button
             onClick={(e) => {
-              console.log('Date tag clicked for task:', task.id);
               e.preventDefault();
               e.stopPropagation();
               if (onOpenDatePicker) {
-                console.log('Calling onOpenDatePicker');
                 onOpenDatePicker(task, e.currentTarget as HTMLElement);
-              } else {
-                console.log('onOpenDatePicker not available');
               }
             }}
             onMouseDown={(e) => e.stopPropagation()}

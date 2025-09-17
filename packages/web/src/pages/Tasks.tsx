@@ -5,6 +5,7 @@ import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui'
 import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { DatePickerPopover } from '../components/DatePickerPopover';
+import { CategoryPickerPopover } from '../components/CategoryPickerPopover';
 import { DateInputBR } from '../components/DateInputBR';
 import { useCategories } from '../hooks/useCategories';
 import { Trash, Plus, Fire } from 'phosphor-react';
@@ -34,12 +35,14 @@ import {
 export function Tasks() {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion } = useTasks();
   const { categories, addCategory } = useCategories();
-
+  
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
+  const [categoryPickerTask, setCategoryPickerTask] = useState<Task | null>(null);
+  const [categoryPickerPosition, setCategoryPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -135,7 +138,6 @@ export function Tasks() {
   };
 
   const handleOpenDatePicker = (task: Task, triggerElement?: HTMLElement) => {
-    console.log('handleOpenDatePicker called with task:', task.id);
     setDatePickerTask(task);
     
     if (triggerElement) {
@@ -147,6 +149,43 @@ export function Tasks() {
     } else {
       // Fallback para o centro da tela
       setDatePickerPosition(null);
+    }
+  };
+
+  const handleOpenCategoryPicker = (task: Task, triggerElement?: HTMLElement) => {
+    setCategoryPickerTask(task);
+    
+    if (triggerElement) {
+      const rect = triggerElement.getBoundingClientRect();
+      setCategoryPickerPosition({
+        top: rect.top - 10, // 10px acima do botão
+        left: rect.left + rect.width / 2, // centralizado horizontalmente
+      });
+    } else {
+      // Fallback para o centro da tela
+      setCategoryPickerPosition(null);
+    }
+  };
+
+  const handleSetCategory = async (taskId: string, category: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updateData = {
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      category: category,
+      important: task.important,
+      completed: task.completed,
+      dueDate: task.due_date,
+    };
+
+    try {
+      await updateTask(taskId, updateData, false);
+      setCategoryPickerTask(null); // Fechar o category picker após salvar
+    } catch (error) {
+      console.error('Erro ao definir categoria:', error);
     }
   };
 
@@ -283,7 +322,6 @@ export function Tasks() {
       if (currentSection === overSection && 
           !['proxima-semana', 'eventos-futuros'].includes(currentSection)) {
         
-        console.log('Reordering within section:', currentSection);
         
         // Encontrar as tarefas da seção atual
         const sectionTasks = categorizedTasks[currentSection as keyof typeof categorizedTasks];
@@ -292,11 +330,10 @@ export function Tasks() {
         
         if (oldIndex !== -1 && newIndex !== -1) {
           // Reordenar localmente (otimistic update)
-          const reorderedTasks = arrayMove(sectionTasks, oldIndex, newIndex);
+          arrayMove(sectionTasks, oldIndex, newIndex);
           
           // Aqui você poderia implementar uma API call para salvar a nova ordem
           // Por enquanto, apenas a reordenação visual funciona
-          console.log('New order:', reorderedTasks.map(t => t.title));
         }
         
         return; // Não continuar com a lógica de mudança de seção
@@ -310,7 +347,7 @@ export function Tasks() {
 
     // Determinar nova data baseada na seção
     let newDueDate: string | null = null;
-    
+
     // Usar data local para evitar problemas de fuso horário
     const today = new Date();
     const todayStr = today.getFullYear() + '-' + 
@@ -355,11 +392,11 @@ export function Tasks() {
     }
 
     const updateData = {
-      title: activeTask.title,
-      description: activeTask.description,
-      priority: activeTask.priority,
-      category: activeTask.category,
-      completed: activeTask.completed,
+        title: activeTask.title,
+        description: activeTask.description,
+        priority: activeTask.priority,
+        category: activeTask.category,
+        completed: activeTask.completed,
       dueDate: newDueDate === null ? undefined : newDueDate, // Use undefined for null
     };
     
@@ -505,6 +542,7 @@ export function Tasks() {
                   onEdit={openEditModal}
                   onUpdateTask={updateTask}
                   onOpenDatePicker={(task, element) => handleOpenDatePicker(task, element)}
+                  onOpenCategoryPicker={(task, element) => handleOpenCategoryPicker(task, element)}
                   showInsertionLine={
                     insertionIndicator?.sectionId === sectionId && 
                     insertionIndicator?.index === index
@@ -577,18 +615,18 @@ export function Tasks() {
     >
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               Tarefas
             </h1>
-            <Button
-              onClick={() => setShowCreateModal(true)}
+        <Button
+          onClick={() => setShowCreateModal(true)}
               className="flex items-center space-x-2 font-normal"
-            >
+        >
               <Plus className="w-5 h-5" />
               <span>Nova Tarefa</span>
-            </Button>
-          </div>
+        </Button>
+      </div>
 
           <div className="space-y-6">
             <DroppableSection
@@ -636,34 +674,34 @@ export function Tasks() {
         </div>
 
         {/* Modal de Criação */}
-        <Modal
-          isOpen={showCreateModal}
-          onClose={closeModals}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={closeModals}
           title="Nova Tarefa"
-        >
-          <form onSubmit={handleCreateTask} className="space-y-4">
+      >
+        <form onSubmit={handleCreateTask} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Título
               </label>
-              <Input
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Digite o título da tarefa"
+          <Input
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            placeholder="Digite o título da tarefa"
                 required
-              />
+          />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Descrição
               </label>
-              <Textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Digite a descrição da tarefa"
-                rows={3}
-              />
+          <Textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Digite a descrição da tarefa"
+            rows={3}
+          />
             </div>
 
             <div>
@@ -671,7 +709,7 @@ export function Tasks() {
                 Categoria
               </label>
               <div className="space-y-2">
-                <Select
+            <Select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   options={categoryOptions}
@@ -679,7 +717,7 @@ export function Tasks() {
                 
                 {/* Adicionar nova categoria */}
                 <div className="flex space-x-2">
-                    <Input
+            <Input
                       placeholder="Nova categoria..."
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
@@ -718,10 +756,122 @@ export function Tasks() {
                 value={formData.dueDate || ''}
                 onChange={(date) => setFormData({ ...formData, dueDate: date })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
+            />
+          </div>
 
             <div className="flex justify-end space-x-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeModals}
+            >
+              Cancelar
+            </Button>
+              <Button type="submit">
+              Criar Tarefa
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+        {/* Modal de Edição */}
+      <Modal
+        isOpen={!!editingTask}
+        onClose={closeModals}
+        title="Editar Tarefa"
+      >
+        <form onSubmit={handleUpdateTask} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Título
+              </label>
+          <Input
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            placeholder="Digite o título da tarefa"
+                required
+          />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Descrição
+              </label>
+          <Textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Digite a descrição da tarefa"
+            rows={3}
+          />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Categoria
+              </label>
+              <div className="space-y-2">
+            <Select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  options={categoryOptions}
+                />
+                
+                {/* Adicionar nova categoria */}
+                <div className="flex space-x-2">
+            <Input
+                      placeholder="Nova categoria..."
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="flex-1"
+                    />
+                  <Button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryName.trim()}
+                    className="px-3"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <input
+                  type="checkbox"
+                  checked={formData.important || false}
+                  onChange={(e) => setFormData({ ...formData, important: e.target.checked })}
+                  className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <Fire className="w-4 h-4 text-red-500" weight="fill" />
+                <span>Marcar como importante</span>
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data de Vencimento
+              </label>
+              <DateInputBR
+                value={formData.dueDate || ''}
+                onChange={(date) => setFormData({ ...formData, dueDate: date })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+
+            <div className="flex justify-between">
+            <Button
+              type="button"
+              variant="danger"
+                onClick={() => editingTask && handleDeleteTask(editingTask.id)}
+                className="flex items-center space-x-2"
+              >
+                <Trash className="w-4 h-4" />
+                <span>Excluir</span>
+            </Button>
+            
+            <div className="flex space-x-3">
               <Button
                 type="button"
                 variant="outline"
@@ -729,142 +879,44 @@ export function Tasks() {
               >
                 Cancelar
               </Button>
-              <Button type="submit">
-                Criar Tarefa
-              </Button>
-            </div>
-          </form>
-        </Modal>
-
-        {/* Modal de Edição */}
-        <Modal
-          isOpen={!!editingTask}
-          onClose={closeModals}
-          title="Editar Tarefa"
-        >
-          <form onSubmit={handleUpdateTask} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Título
-              </label>
-              <Input
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Digite o título da tarefa"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Descrição
-              </label>
-              <Textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Digite a descrição da tarefa"
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Categoria
-              </label>
-              <div className="space-y-2">
-                <Select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  options={categoryOptions}
-                />
-                
-                {/* Adicionar nova categoria */}
-                <div className="flex space-x-2">
-                    <Input
-                      placeholder="Nova categoria..."
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="flex-1"
-                    />
-                  <Button
-                    type="button"
-                    onClick={handleAddCategory}
-                    disabled={!newCategoryName.trim()}
-                    className="px-3"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                <input
-                  type="checkbox"
-                  checked={formData.important || false}
-                  onChange={(e) => setFormData({ ...formData, important: e.target.checked })}
-                  className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <Fire className="w-4 h-4 text-red-500" weight="fill" />
-                <span>Marcar como importante</span>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Data de Vencimento
-              </label>
-              <DateInputBR
-                value={formData.dueDate || ''}
-                onChange={(date) => setFormData({ ...formData, dueDate: date })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
-
-            <div className="flex justify-between">
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => editingTask && handleDeleteTask(editingTask.id)}
-                className="flex items-center space-x-2"
-              >
-                <Trash className="w-4 h-4" />
-                <span>Excluir</span>
-              </Button>
-
-              <div className="flex space-x-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={closeModals}
-                >
-                  Cancelar
-                </Button>
                 <Button type="submit">
                   Salvar Alterações
-                </Button>
-              </div>
+              </Button>
             </div>
-          </form>
-        </Modal>
+          </div>
+        </form>
+      </Modal>
         
         {/* Date Picker Popover - Global */}
         <DatePickerPopover
           isOpen={!!datePickerTask}
           onClose={() => {
-            console.log('DatePickerPopover onClose called');
             setDatePickerTask(null);
             setDatePickerPosition(null);
           }}
           onDateSelect={(date) => {
-            console.log('DatePickerPopover onDateSelect called with:', date);
             if (datePickerTask) {
               handleSetDate(datePickerTask.id, date);
             }
           }}
           position={datePickerPosition}
           initialDate={datePickerTask?.due_date || ''}
+        />
+        
+        {/* Category Picker Popover - Global */}
+        <CategoryPickerPopover
+          isOpen={!!categoryPickerTask}
+          onClose={() => {
+            setCategoryPickerTask(null);
+            setCategoryPickerPosition(null);
+          }}
+          onCategorySelect={(category) => {
+            if (categoryPickerTask) {
+              handleSetCategory(categoryPickerTask.id, category);
+            }
+          }}
+          position={categoryPickerPosition}
+          initialCategory={categoryPickerTask?.category || ''}
         />
       </div>
       
