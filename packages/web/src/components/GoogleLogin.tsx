@@ -22,8 +22,6 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
   const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log('🔍 GoogleLogin Debug:', { clientId, hasClientId: !!clientId });
-    
     if (!clientId) {
       console.error('❌ Client ID não encontrado!');
       return;
