@@ -189,7 +189,7 @@ export const Tasks: React.FC = () => {
         priority: activeTask.priority,
         category: activeTask.category,
         completed: activeTask.completed,
-        dueDate: newDueDate === null ? null : newDueDate,
+        dueDate: newDueDate === null ? undefined : newDueDate,
       }, false); // false = não mostrar loading
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);
