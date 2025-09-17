@@ -3,7 +3,7 @@ import { useTasks } from '../contexts/TaskContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
-import { Trash, Plus } from 'phosphor-react';
+import { Trash, Plus, PencilSimple } from 'phosphor-react';
 import {
   DndContext,
   closestCenter,
@@ -181,7 +181,7 @@ export const Tasks: React.FC = () => {
         break;
     }
 
-    // Atualizar a tarefa com nova data
+    // Atualizar a tarefa com nova data (sem loading para drag-and-drop)
     try {
       await updateTask(activeTask.id, {
         title: activeTask.title,
@@ -189,8 +189,8 @@ export const Tasks: React.FC = () => {
         priority: activeTask.priority,
         category: activeTask.category,
         completed: activeTask.completed,
-        dueDate: newDueDate || undefined, // Usar dueDate ao invés de due_date
-      });
+        dueDate: newDueDate === null ? null : newDueDate,
+      }, false); // false = não mostrar loading
     } catch (error) {
       console.error('Erro ao atualizar tarefa:', error);
     }
@@ -258,22 +258,21 @@ export const Tasks: React.FC = () => {
         
         // Lógica de categorização baseada em datas
         
-        if (isToday) {
+        if (isOverdue) {
+          // Tarefas vencidas vão para seção específica
+          categorized.vencidas.push(task);
+        } else if (isToday) {
           categorized.hoje.push(task);
         } else if (isTomorrow) {
           categorized.amanha.push(task);
         } else if (isFuture) {
           categorized.eventosFuturos.push(task);
-        } else if (isOverdue) {
-          // Tarefas vencidas vão para seção específica
-          categorized.vencidas.push(task);
         } else {
           // Fallback - não deveria acontecer
           categorized.algumDia.push(task);
         }
       }
     });
-
 
     return categorized;
   }, [tasks]);
@@ -293,8 +292,8 @@ export const Tasks: React.FC = () => {
     });
 
     return (
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center">
+      <div className="mb-3">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
           {title}
           <Badge variant="default" className="ml-2">
             {tasks.length}
@@ -302,17 +301,17 @@ export const Tasks: React.FC = () => {
         </h2>
         <div 
           ref={setNodeRef}
-          className={`space-y-1 rounded-lg border-2 border-dashed transition-all duration-200 ease-in-out ${
+          className={`space-y-1 transition-all duration-300 ease-in-out ${
             tasks.length > 0 
               ? `min-h-[50px] p-1 ${
                   isOver 
-                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
-                    : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                    ? 'bg-blue-50/50 dark:bg-blue-900/10 rounded-lg' 
+                    : ''
                 }`
               : `${
                   isOver 
-                    ? 'min-h-[62px] p-4 border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
-                    : 'min-h-0 p-0 border-transparent'
+                    ? 'min-h-[60px] p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg border-2 border-dashed border-blue-300/50 dark:border-blue-600/50' 
+                    : 'min-h-[8px] p-0 hover:min-h-[16px] hover:bg-gray-50/10 dark:hover:bg-gray-800/10'
                 }`
           }`}
         >
@@ -327,10 +326,12 @@ export const Tasks: React.FC = () => {
               ))}
             </SortableContext>
           ) : (
-            <div className={`flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm transition-all duration-200 overflow-hidden ${
-              isOver ? 'h-[62px]' : 'h-0'
+            <div className={`flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm transition-all duration-300 overflow-hidden ${
+              isOver 
+                ? 'h-[54px] opacity-100' 
+                : 'h-0 opacity-0'
             }`}>
-              {emptyMessage}
+              {isOver ? "✨ Solte aqui para mover" : emptyMessage}
             </div>
           )}
         </div>
@@ -393,65 +394,57 @@ export const Tasks: React.FC = () => {
       opacity: isDragging ? 0.5 : 1,
     };
 
-    // Verificar se a tarefa está vencida (comparando apenas as datas, não horas)
-    const todayStr = new Date().toISOString().split('T')[0];
-    let taskDateStr: string | null = null;
-    let isOverdue = false;
-    
-    if (task.due_date) {
-      try {
-        let date: Date;
-        if (task.due_date.includes('T')) {
-          date = new Date(task.due_date);
-        } else {
-          date = new Date(task.due_date + 'T00:00:00');
-        }
-        
-        if (!isNaN(date.getTime())) {
-          taskDateStr = date.toISOString().split('T')[0];
-          isOverdue = taskDateStr < todayStr;
-        }
-      } catch (error) {
-        console.error('Erro ao processar data da tarefa:', task.due_date, error);
-      }
-    }
+    // A cor da tag agora é baseada na seção, não na data individual
+    const isOverdue = section === 'vencidas'; // Vermelho apenas para seção vencidas
 
     return (
       <div
         ref={setNodeRef}
         style={style}
-        {...attributes}
-        {...listeners}
-        className={`flex items-center justify-between py-2 px-1 transition-colors cursor-grab active:cursor-grabbing hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
-          task.completed 
-            ? 'bg-green-50 dark:bg-green-900/10' 
-            : 'bg-transparent'
-        }`}
-        onClick={() => {
-          // Só abre o modal se não estiver arrastando
-          if (!isDragging) {
-            openEditModal(task);
-          }
-        }}
+        className="flex items-center justify-between py-2 px-3 transition-all duration-200 hover:bg-gray-100/60 dark:hover:bg-gray-700/40 bg-transparent hover:rounded-[4px] hover:shadow-sm"
       >
-        {/* Radio Button + Título */}
+        {/* Círculo de Conclusão + Título */}
         <div className="flex items-center space-x-3 flex-1 min-w-0">
-          <input
-            type="radio"
-            checked={task.completed}
-            onChange={(e) => {
-              e.stopPropagation(); // Evita abrir o modal ao clicar no radio
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation(); // Evita abrir o modal ao clicar no círculo
               toggleTaskCompletion(task.id);
             }}
-            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
-          />
-          <h3 className={`font-medium truncate ${
-            task.completed 
-              ? 'line-through text-gray-500 dark:text-gray-400' 
-              : 'text-gray-900 dark:text-gray-100'
-          }`}>
-            {task.title}
-          </h3>
+            className={`w-6 h-6 rounded-full border-2 transition-all duration-300 ease-in-out hover:scale-110 active:scale-95 cursor-pointer flex items-center justify-center flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+              task.completed
+                ? 'bg-blue-600 border-blue-600 hover:bg-blue-700 hover:border-blue-700 shadow-sm'
+                : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-sm'
+            }`}
+            aria-label={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+          >
+            {task.completed ? (
+              <svg
+                className="w-4 h-4 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+            ) : null}
+          </button>
+          <div 
+            className="flex-1 min-w-0 cursor-grab active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <h3 className={`font-medium truncate ${
+              task.completed 
+                ? 'line-through text-gray-500 dark:text-gray-400' 
+                : 'text-gray-900 dark:text-gray-100'
+            }`}>
+              {task.title}
+            </h3>
+          </div>
         </div>
 
         {/* Badges - Prioridade, Categoria, Data */}
@@ -502,6 +495,18 @@ export const Tasks: React.FC = () => {
               </span>
             </div>
           )}
+          
+          {/* Ícone de Edição */}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditModal(task);
+            }}
+            className="cursor-pointer p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+            title="Editar tarefa"
+          >
+            <PencilSimple className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+          </button>
         </div>
       </div>
     );

@@ -37,7 +37,7 @@ interface TaskContextType {
   error: string | null;
   fetchTasks: () => Promise<void>;
   createTask: (taskData: CreateTaskData) => Promise<void>;
-  updateTask: (taskId: string, taskData: UpdateTaskData) => Promise<void>;
+  updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
 }
@@ -130,12 +130,19 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
-  const updateTask = async (taskId: string, taskData: UpdateTaskData) => {
+  const updateTask = async (taskId: string, taskData: UpdateTaskData, showLoading: boolean = true) => {
     if (!token) return;
 
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       setError(null);
+
+      // Atualização otimista - atualizar a UI imediatamente
+      setTasks(prev => prev.map(task => 
+        task.id === taskId ? { ...task, ...taskData } : task
+      ));
 
       const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
         method: 'PUT',
@@ -145,7 +152,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         },
         body: JSON.stringify({
           ...taskData,
-          dueDate: taskData.dueDate,
+          dueDate: taskData.dueDate === undefined ? null : taskData.dueDate,
         }),
       });
 
@@ -155,15 +162,28 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const updatedTask = await response.json();
+      // Atualizar com os dados reais do servidor
       setTasks(prev => prev.map(task => 
         task.id === taskId ? updatedTask : task
       ));
     } catch (error) {
       console.error('Error updating task:', error);
       setError('Failed to update task');
+      
+      // Reverter a atualização otimista em caso de erro
+      setTasks(prev => prev.map(task => {
+        if (task.id === taskId) {
+          // Buscar a tarefa original ou manter como estava
+          return task;
+        }
+        return task;
+      }));
+      
       throw error;
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -197,11 +217,25 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   };
 
   const toggleTaskCompletion = async (taskId: string) => {
-    if (!token) return;
+    if (!token) {
+      return;
+    }
+
+    // Encontrar a tarefa atual
+    const currentTask = tasks.find(task => task.id === taskId);
+    if (!currentTask) {
+      console.error('Task not found:', taskId);
+      return;
+    }
+
+    const originalCompleted = currentTask.completed;
+    const newCompleted = !originalCompleted;
 
     try {
-      setIsLoading(true);
-      setError(null);
+      // Atualização otimista - atualizar imediatamente na UI
+      setTasks(prev => prev.map(task => 
+        task.id === taskId ? { ...task, completed: newCompleted } : task
+      ));
 
       const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/toggle`, {
         method: 'PATCH',
@@ -212,19 +246,26 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Toggle task completion failed:', response.status, errorText);
+        
+        // Reverter a atualização otimista
+        setTasks(prev => prev.map(task => 
+          task.id === taskId ? { ...task, completed: originalCompleted } : task
+        ));
+        
         throw new Error('Failed to toggle task completion');
       }
 
       const updatedTask = await response.json();
+      
+      // Confirmar com dados do servidor
       setTasks(prev => prev.map(task => 
         task.id === taskId ? updatedTask : task
       ));
     } catch (error) {
       console.error('Error toggling task completion:', error);
       setError('Failed to toggle task completion');
-      throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
