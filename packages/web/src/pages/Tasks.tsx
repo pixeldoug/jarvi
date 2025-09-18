@@ -924,7 +924,7 @@ export function Tasks() {
         isOpen={!!editingTask}
         onClose={closeModals}
         title="Editar Tarefa"
-        className="max-w-[680px] w-full mx-auto"
+        className="!max-w-[680px]"
       >
         <form onSubmit={handleUpdateTask} className="space-y-4">
             <div>

@@ -52,7 +52,7 @@ export function Modal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className={`relative top-20 mx-auto p-5 border shadow-lg rounded-lg bg-white dark:bg-gray-800 ${className}`}>
+      <div className={`relative top-20 mx-auto p-5 border shadow-lg rounded-lg bg-white dark:bg-gray-800 max-w-lg ${className}`}>
         <div className="mt-3">
           {title && (
             <div className="flex items-center justify-between mb-4">
