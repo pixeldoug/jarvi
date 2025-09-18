@@ -127,6 +127,15 @@ export function Tasks() {
           form.requestSubmit();
         }
       }
+      
+      // Prevenir Enter sozinho de submeter o form no modal de criação
+      if (event.key === 'Enter' && showCreateModal && !event.metaKey && !event.ctrlKey) {
+        // Verificar se não estamos em um textarea
+        const target = event.target as HTMLElement;
+        if (target.tagName !== 'TEXTAREA') {
+          event.preventDefault();
+        }
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -936,8 +945,9 @@ export function Tasks() {
             >
               Cancelar
             </Button>
-              <Button type="submit">
-              Criar Tarefa
+              <Button type="submit" className="flex items-center space-x-2">
+              <span>Criar</span>
+              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">⌘↵</span>
             </Button>
           </div>
         </form>
