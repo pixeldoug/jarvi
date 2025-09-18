@@ -50,7 +50,7 @@ export function Tasks() {
     title: '',
     description: '',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
-    category: 'Trabalho', // Categoria padrão
+    category: '', // Sem categoria padrão
     important: false,
     time: '',
     dueDate: '',
@@ -68,7 +68,7 @@ export function Tasks() {
     e.preventDefault();
     try {
       await createTask(formData);
-      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, time: '', dueDate: '' });
+      setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
       setShowCreateModal(false);
     } catch (error) {
       console.error('Failed to create task:', error);
@@ -82,7 +82,7 @@ export function Tasks() {
     try {
       await updateTask(editingTask.id, formData);
       setEditingTask(null);
-      setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, time: '', dueDate: '' });
+      setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
     } catch (error) {
       console.error('Failed to update task:', error);
     }
@@ -106,7 +106,7 @@ export function Tasks() {
       title: task.title,
       description: task.description || '',
       priority: task.priority,
-      category: task.category || 'Trabalho',
+      category: task.category || '',
       important: task.important || false,
       time: task.time || '',
       dueDate: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
@@ -244,7 +244,7 @@ export function Tasks() {
         title: title,
         description: '',
         priority: 'medium',
-        category: 'Trabalho', // Categoria padrão
+        category: '', // Sem categoria padrão
         dueDate: dueDate,
       });
 
