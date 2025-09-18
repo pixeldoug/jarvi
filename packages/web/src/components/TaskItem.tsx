@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../contexts/TaskContext';
 import { Badge } from './ui';
-import { PencilSimple, DotsSixVertical, Calendar, Fire, Tag } from 'phosphor-react';
+import { PencilSimple, DotsSixVertical, Calendar, Fire, Tag, Trash } from 'phosphor-react';
 import { useCategories } from '../hooks/useCategories';
 
 interface TaskItemProps {
@@ -11,6 +11,7 @@ interface TaskItemProps {
   section: string;
   onToggleCompletion: (taskId: string) => void;
   onEdit: (task: Task) => void;
+  onDelete: (taskId: string) => void;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
   onOpenCategoryPicker?: (task: Task, triggerElement?: HTMLElement) => void;
@@ -22,6 +23,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   section,
   onToggleCompletion,
   onEdit,
+  onDelete,
   onUpdateTask,
   onOpenDatePicker,
   onOpenCategoryPicker,
@@ -345,6 +347,19 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           title="Editar tarefa"
         >
           <PencilSimple className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+        </button>
+        
+        {/* Botão de Deletar */}
+        <button 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(task.id);
+          }}
+          className="cursor-pointer p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors flex-shrink-0"
+          title="Deletar tarefa"
+        >
+          <Trash className="w-4 h-4 text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
         </button>
       </div>
       </div>

@@ -576,11 +576,12 @@ export function Tasks() {
                   section={sectionId}
                   onToggleCompletion={toggleTaskCompletion}
                   onEdit={openEditModal}
+                  onDelete={handleDeleteTask}
                   onUpdateTask={updateTask}
                   onOpenDatePicker={(task, element) => handleOpenDatePicker(task, element)}
                   onOpenCategoryPicker={(task, element) => handleOpenCategoryPicker(task, element)}
                   showInsertionLine={
-                    insertionIndicator?.sectionId === sectionId && 
+                    insertionIndicator?.sectionId === sectionId &&
                     insertionIndicator?.index === index
                   }
                 />
