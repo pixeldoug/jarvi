@@ -436,21 +436,33 @@ export function Tasks() {
 
   // Função para categorizar tarefas por período
   const categorizedTasks = useMemo(() => {
-    // Usar data local sem problemas de fuso horário - forçar fuso horário do Brasil
+    // Usar data local do usuário, não UTC do servidor
     const now = new Date();
-    // Garantir que estamos usando a data local, não UTC
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Debug: log das datas para verificar
-    console.log('Debug - Data atual:', {
-      now: now.toISOString(),
-      today: today.toISOString(),
-      tomorrow: tomorrow.toISOString(),
-      localDate: now.toLocaleDateString('pt-BR'),
-      localTime: now.toLocaleTimeString('pt-BR')
+    // Criar datas usando o fuso horário local do usuário
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Zerar horário para comparação apenas de data
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    
+    // Converter para strings no formato YYYY-MM-DD usando fuso local
+    const todayStr = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0');
+      
+    const tomorrowStr = tomorrow.getFullYear() + '-' + 
+      String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(tomorrow.getDate()).padStart(2, '0');
+      
+    // Debug: verificar as datas corrigidas
+    console.log('Debug - Datas corrigidas:', {
+      todayStr,
+      tomorrowStr,
+      userLocalDate: now.toLocaleDateString('pt-BR'),
+      userLocalTime: now.toLocaleTimeString('pt-BR')
     });
+    
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
     
@@ -469,18 +481,15 @@ export function Tasks() {
         return;
       }
 
-      // Parse da data da tarefa de forma segura
-      const taskDateStr = task.due_date.split('T')[0]; // Remove timezone info
-      const [year, month, day] = taskDateStr.split('-').map(Number);
-      const taskDateOnly = new Date(year, month - 1, day); // month é 0-indexed
+      // Extrair apenas a parte da data (YYYY-MM-DD) ignorando horário e fuso
+      const taskDateStr = task.due_date.split('T')[0];
       
-      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const tomorrowOnly = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
-      if (taskDateOnly < todayOnly) {
+      // Comparar diretamente as strings de data
+      if (taskDateStr < todayStr) {
         categories.vencidas.push(task);
-      } else if (taskDateOnly.getTime() === todayOnly.getTime()) {
+      } else if (taskDateStr === todayStr) {
         categories.hoje.push(task);
-      } else if (taskDateOnly.getTime() === tomorrowOnly.getTime()) {
+      } else if (taskDateStr === tomorrowStr) {
         categories.amanha.push(task);
       } else {
         // Tarefas com data futura vão para "Eventos Futuros"
