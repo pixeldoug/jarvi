@@ -250,40 +250,65 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   };
 
   const undoDeleteTask = async (taskId: string) => {
-    if (!token) return;
+    console.log('undoDeleteTask called with taskId:', taskId);
+    console.log('Available deleted tasks:', deletedTasks);
+    
+    if (!token) {
+      console.log('No token available');
+      return;
+    }
 
     try {
       // Find the deleted task
       const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
-      if (!deletedTaskData) return;
+      console.log('Found deleted task data:', deletedTaskData);
+      
+      if (!deletedTaskData) {
+        console.log('No deleted task found for ID:', taskId);
+        return;
+      }
 
       // Recreate the task
+      const taskData = {
+        title: deletedTaskData.task.title,
+        description: deletedTaskData.task.description,
+        priority: deletedTaskData.task.priority,
+        category: deletedTaskData.task.category,
+        important: deletedTaskData.task.important,
+        time: deletedTaskData.task.time,
+        dueDate: deletedTaskData.task.due_date,
+      };
+      
+      console.log('Recreating task with data:', taskData);
+      
       const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          title: deletedTaskData.task.title,
-          description: deletedTaskData.task.description,
-          priority: deletedTaskData.task.priority,
-          category: deletedTaskData.task.category,
-          important: deletedTaskData.task.important,
-          time: deletedTaskData.task.time,
-          dueDate: deletedTaskData.task.due_date,
-        }),
+        body: JSON.stringify(taskData),
       });
 
+      console.log('Restore response status:', response.status);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to restore task:', errorText);
         throw new Error('Failed to restore task');
       }
 
       const restoredTask = await response.json();
+      console.log('Restored task:', restoredTask);
 
       // Add back to tasks and remove from deleted tasks
-      setTasks(prev => [...prev, restoredTask]);
+      setTasks(prev => {
+        console.log('Adding restored task to tasks list');
+        return [...prev, restoredTask];
+      });
       setDeletedTasks(prev => prev.filter(deleted => deleted.task.id !== taskId));
+      
+      console.log('Task successfully restored:', restoredTask.title);
     } catch (error) {
       console.error('Error restoring task:', error);
       setError(error instanceof Error ? error.message : 'Failed to restore task');

@@ -105,8 +105,19 @@ export function Tasks() {
           description: `"${deletedTask.title}" foi removida`,
           action: {
             label: 'Desfazer',
-            onClick: () => {
-              undoDeleteTask(deletedTask.id);
+            onClick: async () => {
+              console.log('Undo clicked for task:', deletedTask.id);
+              try {
+                await undoDeleteTask(deletedTask.id);
+                toast.success('Tarefa restaurada', {
+                  description: `"${deletedTask.title}" foi restaurada com sucesso`,
+                });
+              } catch (error) {
+                console.error('Failed to restore task:', error);
+                toast.error('Erro ao restaurar tarefa', {
+                  description: 'Não foi possível restaurar a tarefa',
+                });
+              }
             },
           },
         });
