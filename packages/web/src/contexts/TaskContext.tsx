@@ -44,7 +44,8 @@ interface TaskContextType {
   fetchTasks: () => Promise<void>;
   createTask: (taskData: CreateTaskData) => Promise<Task>;
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
-  deleteTask: (taskId: string) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<Task | null>;
+  undoDeleteTask: (taskId: string) => Promise<void>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
   reorderTasks: (reorderedTasks: Task[]) => void;
 }
@@ -67,6 +68,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number }[]>([]);
   const { token } = useAuth();
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -205,12 +207,16 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
-  const deleteTask = async (taskId: string) => {
-    if (!token) return;
+  const deleteTask = async (taskId: string): Promise<Task | null> => {
+    if (!token) return null;
 
     try {
       setIsLoading(true);
       setError(null);
+
+      // Find the task before deleting
+      const taskToDelete = tasks.find(task => task.id === taskId);
+      if (!taskToDelete) return null;
 
       const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
         method: 'DELETE',
@@ -224,13 +230,63 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         throw new Error('Failed to delete task');
       }
 
+      // Remove from tasks and add to deleted tasks for undo functionality
       setTasks(prev => prev.filter(task => task.id !== taskId));
+      setDeletedTasks(prev => [...prev, { task: taskToDelete, deletedAt: Date.now() }]);
+
+      // Clean up old deleted tasks (older than 30 seconds)
+      setTimeout(() => {
+        setDeletedTasks(prev => prev.filter(deleted => Date.now() - deleted.deletedAt < 30000));
+      }, 30000);
+
+      return taskToDelete;
     } catch (error) {
       console.error('Error deleting task:', error);
       setError('Failed to delete task');
       throw error;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const undoDeleteTask = async (taskId: string) => {
+    if (!token) return;
+
+    try {
+      // Find the deleted task
+      const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
+      if (!deletedTaskData) return;
+
+      // Recreate the task
+      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: deletedTaskData.task.title,
+          description: deletedTaskData.task.description,
+          priority: deletedTaskData.task.priority,
+          category: deletedTaskData.task.category,
+          important: deletedTaskData.task.important,
+          time: deletedTaskData.task.time,
+          dueDate: deletedTaskData.task.due_date,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to restore task');
+      }
+
+      const restoredTask = await response.json();
+
+      // Add back to tasks and remove from deleted tasks
+      setTasks(prev => [...prev, restoredTask]);
+      setDeletedTasks(prev => prev.filter(deleted => deleted.task.id !== taskId));
+    } catch (error) {
+      console.error('Error restoring task:', error);
+      setError(error instanceof Error ? error.message : 'Failed to restore task');
     }
   };
 
@@ -308,6 +364,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     createTask,
     updateTask,
     deleteTask,
+    undoDeleteTask,
     toggleTaskCompletion,
     reorderTasks,
   };

@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
 import { ThemeProvider } from './hooks/useTheme';
+import { ToastProvider } from './components/ui';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Tasks } from './pages/Tasks';
@@ -90,10 +91,12 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <TaskProvider>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-              <AppRoutes />
-              <Toaster position="top-right" />
-            </div>
+            <ToastProvider>
+              <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <AppRoutes />
+                <Toaster position="top-right" />
+              </div>
+            </ToastProvider>
           </TaskProvider>
         </AuthProvider>
       </ThemeProvider>

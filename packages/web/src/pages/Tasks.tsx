@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
-import { Button, Input, Textarea, Select, Modal, Badge } from '../components/ui';
+import { Button, Input, Textarea, Select, Modal, Badge, toast } from '../components/ui';
 import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { DateTimePickerPopover } from '../components/DateTimePickerPopover';
@@ -32,7 +32,7 @@ import {
 
 
 export function Tasks() {
-  const { tasks, isLoading, error, createTask, updateTask, deleteTask, toggleTaskCompletion, reorderTasks } = useTasks();
+  const { tasks, isLoading, error, createTask, updateTask, deleteTask, undoDeleteTask, toggleTaskCompletion, reorderTasks } = useTasks();
   const { categories, addCategory } = useCategories();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -93,13 +93,29 @@ export function Tasks() {
 
   const handleDeleteTask = async (taskId: string) => {
     try {
-      await deleteTask(taskId);
+      const deletedTask = await deleteTask(taskId);
       // Fechar modal de edição se a tarefa excluída estava sendo editada
       if (editingTask && editingTask.id === taskId) {
         closeModals();
       }
+      
+      // Show toast with undo option
+      if (deletedTask) {
+        toast.success('Tarefa deletada', {
+          description: `"${deletedTask.title}" foi removida`,
+          action: {
+            label: 'Desfazer',
+            onClick: () => {
+              undoDeleteTask(deletedTask.id);
+            },
+          },
+        });
+      }
     } catch (error) {
       console.error('Failed to delete task:', error);
+      toast.error('Erro ao deletar tarefa', {
+        description: 'Não foi possível remover a tarefa',
+      });
     }
   };
 

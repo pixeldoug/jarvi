@@ -77,3 +77,14 @@ export {
   Badge,
   type BadgeProps,
 } from './Badge';
+
+// ============================================================================
+// NOTIFICATION COMPONENTS
+// ============================================================================
+
+export {
+  ToastProvider,
+  useToast,
+  toast,
+  setGlobalToast,
+} from './Sonner';
