@@ -196,7 +196,6 @@ export const updateTask = async (
 
     if (isPostgreSQL()) {
       // PostgreSQL
-      console.log('Using PostgreSQL for updateTask');
       const pool = getPool();
       const client = await pool.connect();
       try {
@@ -207,17 +206,14 @@ export const updateTask = async (
         );
 
         if (existingResult.rows.length === 0) {
-          console.log('Task not found for id:', id, 'user:', userId);
           res.status(404).json({ error: 'Task not found' });
           return;
         }
 
         existingTask = existingResult.rows[0];
-        console.log('Found existing task:', existingTask);
 
         // Tentar atualizar com coluna time, se falhar, atualizar sem ela
         try {
-          console.log('Attempting to update with time column');
           await client.query(
             `UPDATE tasks 
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, updated_at = $9
@@ -236,7 +232,6 @@ export const updateTask = async (
               userId,
             ]
           );
-          console.log('Successfully updated with time column');
         } catch (timeColumnError) {
           // Se falhar (coluna time não existe), atualizar sem a coluna time
           console.log('Time column not found, updating without time field. Error:', timeColumnError);
@@ -257,18 +252,15 @@ export const updateTask = async (
               userId,
             ]
           );
-          console.log('Successfully updated without time column');
         }
 
         const result = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
         updatedTask = result.rows[0];
-        console.log('Updated task result:', updatedTask);
       } finally {
         client.release();
       }
     } else {
       // SQLite
-      console.log('Using SQLite for updateTask');
       const db = getDatabase();
       
       // Check if task exists and belongs to user
@@ -278,12 +270,9 @@ export const updateTask = async (
       );
 
       if (!existingTask) {
-        console.log('Task not found for id:', id, 'user:', userId);
         res.status(404).json({ error: 'Task not found' });
         return;
       }
-
-      console.log('Found existing task:', existingTask);
 
       await db.run(
         `UPDATE tasks 
@@ -305,7 +294,6 @@ export const updateTask = async (
       );
 
       updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
-      console.log('Updated task result:', updatedTask);
     }
 
     res.json(updatedTask);
