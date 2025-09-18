@@ -1,10 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  CheckSquare,
-  FileText,
-  CurrencyDollar,
-  Target,
+  CheckCircle,
+  Sticker,
+  Wallet,
+  Trophy,
   User,
   SignOut,
 } from 'phosphor-react';
@@ -12,10 +12,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { ThemeToggle } from './ui';
 
 const navigation = [
-  { name: 'Tarefas', href: '/', icon: CheckSquare },
-  { name: 'Notas', href: '/notes', icon: FileText },
-  { name: 'Finanças', href: '/finances', icon: CurrencyDollar },
-  { name: 'Hábitos', href: '/habits', icon: Target },
+  { name: 'Tarefas', href: '/', icon: CheckCircle },
+  { name: 'Notas', href: '/notes', icon: Sticker },
+  { name: 'Finanças', href: '/finances', icon: Wallet },
+  { name: 'Hábitos', href: '/habits', icon: Trophy },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({

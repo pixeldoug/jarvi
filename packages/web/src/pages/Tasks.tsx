@@ -436,11 +436,21 @@ export function Tasks() {
 
   // Função para categorizar tarefas por período
   const categorizedTasks = useMemo(() => {
-    // Usar data local sem problemas de fuso horário
+    // Usar data local sem problemas de fuso horário - forçar fuso horário do Brasil
     const now = new Date();
+    // Garantir que estamos usando a data local, não UTC
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Debug: log das datas para verificar
+    console.log('Debug - Data atual:', {
+      now: now.toISOString(),
+      today: today.toISOString(),
+      tomorrow: tomorrow.toISOString(),
+      localDate: now.toLocaleDateString('pt-BR'),
+      localTime: now.toLocaleTimeString('pt-BR')
+    });
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
     
