@@ -71,11 +71,21 @@ export function Tasks() {
     e.preventDefault();
     console.log('Creating task with data:', formData);
     try {
-      await createTask(formData);
+      const newTask = await createTask(formData);
       setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
       setShowCreateModal(false);
+      
+      // Show success notification
+      if (newTask) {
+        toast.success('Tarefa criada', {
+          description: `"${newTask.title}" foi criada com sucesso`,
+        });
+      }
     } catch (error) {
       console.error('Failed to create task:', error);
+      toast.error('Erro ao criar tarefa', {
+        description: 'Não foi possível criar a tarefa',
+      });
     }
   };
 
