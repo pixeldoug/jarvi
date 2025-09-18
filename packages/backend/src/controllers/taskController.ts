@@ -9,6 +9,16 @@ export const createTask = async (
   try {
     const { title, description, priority, category, important, time, dueDate } = req.body;
     const userId = req.user?.id; // Will come from auth middleware
+    
+    // Debug: log received data
+    console.log('createTask - Received data:', {
+      title,
+      dueDate,
+      time,
+      userId,
+      serverTime: new Date().toISOString(),
+      serverLocalTime: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    });
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
