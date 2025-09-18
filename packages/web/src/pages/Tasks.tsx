@@ -79,6 +79,8 @@ export function Tasks() {
     e.preventDefault();
     if (!editingTask) return;
     
+    console.log('handleUpdateTask called:', { taskId: editingTask.id, formData });
+    
     try {
       await updateTask(editingTask.id, formData);
       setEditingTask(null);
@@ -116,12 +118,15 @@ export function Tasks() {
   const closeModals = () => {
     setShowCreateModal(false);
     setEditingTask(null);
-    setFormData({ title: '', description: '', priority: 'medium', category: 'Trabalho', important: false, time: '', dueDate: '' });
+    setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
   };
 
   const handleSetDate = async (taskId: string, date: string, time?: string) => {
+    console.log('handleSetDate called:', { taskId, date, time, editingTask: editingTask?.id });
+    
     // Se é uma task sendo editada no modal, atualizar apenas o formData
     if (editingTask && taskId === editingTask.id) {
+      console.log('Updating formData for editing task');
       setFormData(prev => ({
         ...prev,
         dueDate: date,
