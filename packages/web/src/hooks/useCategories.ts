@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTasks } from '../contexts/TaskContext';
 
 export interface Category {
   id: string;
@@ -15,19 +16,52 @@ const DEFAULT_CATEGORIES: Category[] = [
 
 export const useCategories = () => {
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const { tasks } = useTasks();
 
-  // Carregar categorias personalizadas do localStorage
+  // Extrair categorias das tarefas existentes
+  const extractCategoriesFromTasks = (tasks: any[]) => {
+    const taskCategories = new Set<string>();
+    tasks.forEach(task => {
+      if (task.category && task.category.trim()) {
+        taskCategories.add(task.category.trim());
+      }
+    });
+    return Array.from(taskCategories);
+  };
+
+  // Carregar categorias personalizadas do localStorage e das tarefas
   useEffect(() => {
     const savedCategories = localStorage.getItem('jarvi-categories');
+    let customCategories: Category[] = [];
+    
     if (savedCategories) {
       try {
-        const customCategories = JSON.parse(savedCategories);
-        setCategories([...DEFAULT_CATEGORIES, ...customCategories]);
+        customCategories = JSON.parse(savedCategories);
       } catch (error) {
         console.error('Erro ao carregar categorias:', error);
       }
     }
-  }, []);
+
+    // Extrair categorias das tarefas existentes
+    const taskCategories = extractCategoriesFromTasks(tasks);
+    
+    // Criar categorias para as que não existem ainda
+    const newTaskCategories: Category[] = taskCategories
+      .filter(taskCat => 
+        !DEFAULT_CATEGORIES.some(defCat => defCat.name === taskCat) &&
+        !customCategories.some(customCat => customCat.name === taskCat)
+      )
+      .map(taskCat => ({
+        id: `task-${taskCat.toLowerCase().replace(/\s+/g, '-')}`,
+        name: taskCat,
+        color: 'gray',
+        isDefault: false,
+      }));
+
+    // Combinar todas as categorias
+    const allCategories = [...DEFAULT_CATEGORIES, ...customCategories, ...newTaskCategories];
+    setCategories(allCategories);
+  }, [tasks]);
 
   const addCategory = (name: string, color: string = 'gray') => {
     const newCategory: Category = {
