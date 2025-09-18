@@ -611,10 +611,13 @@ export function Tasks() {
   };
 
 
-  const categoryOptions = categories.map(cat => ({
-    value: cat.name,
-    label: cat.name,
-  }));
+  const categoryOptions = [
+    { value: '', label: '— Sem categoria —' },
+    ...categories.map(cat => ({
+      value: cat.name,
+      label: cat.name,
+    }))
+  ];
 
   const handleAddCategory = () => {
     if (newCategoryName.trim()) {

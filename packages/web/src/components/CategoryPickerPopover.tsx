@@ -37,7 +37,7 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
   // Pré-selecionar a categoria inicial quando o popover abrir
   useEffect(() => {
     if (isOpen) {
-      setSelectedCategory(initialCategory || 'Trabalho');
+      setSelectedCategory(initialCategory || '');
     } else {
       setSelectedCategory('');
       setNewCategoryName('');
@@ -45,10 +45,9 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
   }, [isOpen, initialCategory]);
 
   const handleConfirm = () => {
-    if (selectedCategory) {
-      onCategorySelect(selectedCategory);
-      onClose();
-    }
+    // Permitir categoria vazia (para remover categoria)
+    onCategorySelect(selectedCategory);
+    onClose();
   };
 
   const handleCancel = () => {
@@ -71,10 +70,13 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
     }
   };
 
-  const categoryOptions = categories.map(cat => ({
-    value: cat.name,
-    label: cat.name,
-  }));
+  const categoryOptions = [
+    { value: '', label: '— Sem categoria —' },
+    ...categories.map(cat => ({
+      value: cat.name,
+      label: cat.name,
+    }))
+  ];
 
   if (!isOpen) {
     return null;
@@ -159,14 +161,9 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
           <div className="flex space-x-2 pt-2">
             <button
               onClick={handleConfirm}
-              disabled={!selectedCategory}
-              className={`flex-1 px-3 py-2 text-sm font-medium text-white rounded-md transition-colors ${
-                selectedCategory
-                  ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'bg-blue-400 dark:bg-blue-500 cursor-not-allowed opacity-70'
-              }`}
+              className="flex-1 px-3 py-2 text-sm font-medium text-white rounded-md transition-colors bg-blue-600 hover:bg-blue-700"
             >
-              Definir Categoria
+              {selectedCategory ? 'Definir Categoria' : 'Remover Categoria'}
             </button>
             {initialCategory && (
               <button
