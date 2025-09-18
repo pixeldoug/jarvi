@@ -224,9 +224,21 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         )}
         
         {task.category && task.category.trim() ? (
-          <Badge variant={getCategoryVariant(task.category)} className="text-xs">
-            {task.category}
-          </Badge>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (onOpenCategoryPicker) {
+                onOpenCategoryPicker(task, e.currentTarget as HTMLElement);
+              }
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <Badge variant={getCategoryVariant(task.category)} className="text-xs">
+              {task.category}
+            </Badge>
+          </button>
         ) : (
           <button
             onClick={(e) => {

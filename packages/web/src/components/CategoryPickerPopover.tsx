@@ -168,6 +168,18 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
             >
               Definir Categoria
             </button>
+            {initialCategory && (
+              <button
+                onClick={() => {
+                  onCategorySelect(''); // Passar string vazia para remover categoria
+                  onClose();
+                }}
+                className="px-3 py-2 text-red-600 dark:text-red-400 text-sm font-medium rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                title="Remover categoria desta tarefa"
+              >
+                Remover
+              </button>
+            )}
             <button
               onClick={handleCancel}
               className="px-3 py-2 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -180,3 +192,4 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
     </>
   );
 };
+
