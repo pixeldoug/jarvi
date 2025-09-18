@@ -282,7 +282,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 if (task.due_date.includes('T')) {
                   date = new Date(task.due_date);
                 } else {
-                  date = new Date(task.due_date + 'T00:00:00');
+                  // Corrigir timezone: usar timezone local em vez de UTC
+                  const [year, month, day] = task.due_date.split('-').map(Number);
+                  date = new Date(year, month - 1, day); // month é 0-indexed
                 }
                 
                 if (isNaN(date.getTime())) {
