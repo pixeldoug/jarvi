@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'phosphor-react';
+import { X, CheckCircle, Warning, Info, WarningCircle } from 'phosphor-react';
 
 interface Toast {
   id: string;
@@ -106,9 +106,9 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
       case 'success':
         return <CheckCircle className="w-5 h-5 text-green-600" weight="fill" />;
       case 'error':
-        return <AlertCircle className="w-5 h-5 text-red-600" weight="fill" />;
+        return <WarningCircle className="w-5 h-5 text-red-600" weight="fill" />;
       case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-600" weight="fill" />;
+        return <Warning className="w-5 h-5 text-yellow-600" weight="fill" />;
       case 'info':
         return <Info className="w-5 h-5 text-blue-600" weight="fill" />;
       default:
