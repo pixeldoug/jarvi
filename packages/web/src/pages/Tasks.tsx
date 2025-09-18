@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge, toast } from '../components/ui';
@@ -7,7 +7,7 @@ import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { DateTimePickerPopover } from '../components/DateTimePickerPopover';
 import { CategoryPickerPopover } from '../components/CategoryPickerPopover';
 import { useCategories } from '../hooks/useCategories';
-import { Trash, Plus, Fire } from 'phosphor-react';
+import { Trash, Fire } from 'phosphor-react';
 import {
   DndContext,
   closestCenter,
@@ -90,6 +90,25 @@ export function Tasks() {
       console.error('Failed to update task:', error);
     }
   };
+
+  // Atalho de teclado para criar nova tarefa
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Verificar se não estamos em um input, textarea ou modal
+      const target = event.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true';
+      const isModalOpen = showCreateModal || editingTask;
+      
+      // Se pressionar "/" e não estiver em input/modal, abrir modal de nova tarefa
+      if (event.key === '/' && !isInput && !isModalOpen) {
+        event.preventDefault();
+        setShowCreateModal(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showCreateModal, editingTask]);
 
   const handleDeleteTask = async (taskId: string) => {
     try {
@@ -717,8 +736,8 @@ export function Tasks() {
           onClick={() => setShowCreateModal(true)}
               className="flex items-center space-x-2 font-normal"
         >
-              <Plus className="w-5 h-5" />
               <span>Nova Tarefa</span>
+              <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">/</span>
         </Button>
       </div>
 
@@ -817,7 +836,7 @@ export function Tasks() {
                     disabled={!newCategoryName.trim()}
                     className="px-3"
                   >
-                    <Plus className="w-4 h-4" />
+                    <span className="text-lg">+</span>
                   </Button>
                 </div>
               </div>
@@ -956,7 +975,7 @@ export function Tasks() {
                     disabled={!newCategoryName.trim()}
                     className="px-3"
                   >
-                    <Plus className="w-4 h-4" />
+                    <span className="text-lg">+</span>
                   </Button>
                 </div>
               </div>

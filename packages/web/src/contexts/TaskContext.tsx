@@ -68,22 +68,32 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number }[]>(() => {
+  const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number; originalIndex: number }[]>(() => {
     // Initialize from localStorage
     try {
       const stored = localStorage.getItem('jarvi_deleted_tasks');
       if (stored) {
         const parsed = JSON.parse(stored);
+        
+        // Check if the array is corrupted (contains empty objects or is too large)
+        if (parsed.length > 100 || parsed.some((item: any) => !item.task || !item.task.id)) {
+          console.warn('Corrupted deletedTasks detected, clearing localStorage');
+          localStorage.removeItem('jarvi_deleted_tasks');
+          return [];
+        }
+        
         // Filter out tasks older than 30 seconds
         const now = Date.now();
-        const valid = parsed.filter((deleted: { task: Task; deletedAt: number }) => 
-          now - deleted.deletedAt < 30000
+        const valid = parsed.filter((deleted: { task: Task; deletedAt: number; originalIndex?: number }) => 
+          deleted && deleted.task && deleted.task.id && (now - deleted.deletedAt < 30000)
         );
         console.log('Loaded deletedTasks from localStorage:', valid);
         return valid;
       }
     } catch (error) {
       console.error('Error loading deletedTasks from localStorage:', error);
+      // Clear corrupted data
+      localStorage.removeItem('jarvi_deleted_tasks');
     }
     return [];
   });
@@ -95,12 +105,39 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   // Save to localStorage whenever deletedTasks changes
   useEffect(() => {
     try {
+      // Validate data before saving
+      const validTasks = deletedTasks.filter(deleted => 
+        deleted && deleted.task && deleted.task.id && typeof deleted.deletedAt === 'number'
+      );
+      
+      if (validTasks.length !== deletedTasks.length) {
+        console.warn('Filtered out invalid deleted tasks before saving');
+        setDeletedTasks(validTasks);
+        return;
+      }
+      
       localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(deletedTasks));
-      console.log('Saved deletedTasks to localStorage:', deletedTasks);
+      console.log('Saved deletedTasks to localStorage:', deletedTasks.length, 'tasks');
     } catch (error) {
       console.error('Error saving deletedTasks to localStorage:', error);
     }
   }, [deletedTasks]);
+
+  // Clean up old deleted tasks every 10 seconds
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      setDeletedTasks(prev => {
+        const now = Date.now();
+        const valid = prev.filter(deleted => now - deleted.deletedAt < 30000);
+        if (valid.length !== prev.length) {
+          console.log('Cleaned up old deleted tasks:', prev.length - valid.length, 'removed');
+        }
+        return valid;
+      });
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -261,13 +298,16 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         throw new Error('Failed to delete task');
       }
 
+      // Find the original index of the task before removing it
+      const originalIndex = tasks.findIndex(task => task.id === taskId);
+      
       // Remove from tasks and add to deleted tasks for undo functionality
       setTasks(prev => prev.filter(task => task.id !== taskId));
       
-      const newDeletedTask = { task: taskToDelete, deletedAt: Date.now() };
+      const newDeletedTask = { task: taskToDelete, deletedAt: Date.now(), originalIndex };
       setDeletedTasks(prev => {
         const newDeletedTasks = [...prev, newDeletedTask];
-        console.log('Saving deleted task:', taskToDelete.title, 'with ID:', taskId);
+        console.log('Saving deleted task:', taskToDelete.title, 'with ID:', taskId, 'at original index:', originalIndex);
         console.log('New deletedTasks array:', newDeletedTasks);
         
         // Also save to localStorage immediately
@@ -281,14 +321,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         return newDeletedTasks;
       });
 
-      // Clean up old deleted tasks (older than 30 seconds)
-      setTimeout(() => {
-        setDeletedTasks(prev => {
-          const filtered = prev.filter(deleted => Date.now() - deleted.deletedAt < 30000);
-          console.log('Cleaned up deleted tasks, remaining:', filtered.length);
-          return filtered;
-        });
-      }, 30000);
+      // Note: Cleanup of old deleted tasks is handled in the initialization filter
 
       return taskToDelete;
     } catch (error) {
@@ -302,7 +335,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
   const undoDeleteTask = async (taskId: string): Promise<boolean> => {
     console.log('undoDeleteTask called with taskId:', taskId);
-    console.log('Available deleted tasks:', deletedTasks);
+    console.log('Available deleted tasks count:', deletedTasks.length);
+    console.log('Current time:', Date.now());
     
     if (!token) {
       console.log('No token available');
@@ -314,7 +348,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       console.log('Searching for taskId:', taskId);
       console.log('Available deleted tasks details:');
       deletedTasks.forEach((deleted, index) => {
-        console.log(`  [${index}] Task ID: ${deleted.task.id}, Title: ${deleted.task.title}`);
+        const age = Date.now() - deleted.deletedAt;
+        console.log(`  [${index}] Task ID: ${deleted.task.id}, Title: ${deleted.task.title}, Age: ${age}ms`);
       });
       
       const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
@@ -323,6 +358,67 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       if (!deletedTaskData) {
         console.log('No deleted task found for ID:', taskId);
         console.log('Available IDs:', deletedTasks.map(d => d.task.id));
+        
+        // Try to reload from localStorage as fallback
+        try {
+          const stored = localStorage.getItem('jarvi_deleted_tasks');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            console.log('Fallback: checking localStorage, found:', parsed.length, 'tasks');
+            const fallbackTask = parsed.find((deleted: { task: Task; deletedAt: number }) => deleted.task.id === taskId);
+            if (fallbackTask) {
+              console.log('Found task in localStorage fallback:', fallbackTask);
+              // Use the task directly from localStorage instead of recursive call
+              const taskData = {
+                title: fallbackTask.task.title,
+                description: fallbackTask.task.description,
+                priority: fallbackTask.task.priority,
+                category: fallbackTask.task.category,
+                important: fallbackTask.task.important,
+                time: fallbackTask.task.time,
+                dueDate: fallbackTask.task.due_date,
+              };
+              
+              console.log('Recreating task with fallback data:', taskData);
+              
+              const response = await fetch(`${API_BASE_URL}/api/tasks`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(taskData),
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Failed to restore task from fallback:', errorText);
+                throw new Error('Failed to restore task');
+              }
+
+              const restoredTask = await response.json();
+              console.log('Restored task from fallback:', restoredTask);
+
+              // Add back to tasks at original position and remove from deleted tasks
+              setTasks(prev => {
+                const newTasks = [...prev];
+                const insertIndex = Math.min(fallbackTask.originalIndex || 0, newTasks.length);
+                newTasks.splice(insertIndex, 0, restoredTask);
+                console.log('Restored task at original index:', insertIndex);
+                return newTasks;
+              });
+              
+              // Clean up localStorage
+              const updatedStored = parsed.filter((deleted: { task: Task; deletedAt: number }) => deleted.task.id !== taskId);
+              localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(updatedStored));
+              
+              return true;
+            }
+          }
+        } catch (error) {
+          console.error('Error in localStorage fallback:', error);
+        }
+        
         return false;
       }
 
@@ -359,10 +455,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       const restoredTask = await response.json();
       console.log('Restored task:', restoredTask);
 
-      // Add back to tasks and remove from deleted tasks
+      // Add back to tasks at original position and remove from deleted tasks
       setTasks(prev => {
-        console.log('Adding restored task to tasks list');
-        return [...prev, restoredTask];
+        const newTasks = [...prev];
+        const insertIndex = Math.min(deletedTaskData.originalIndex || 0, newTasks.length);
+        newTasks.splice(insertIndex, 0, restoredTask);
+        console.log('Adding restored task to tasks list at original index:', insertIndex);
+        return newTasks;
       });
       setDeletedTasks(prev => {
         const filtered = prev.filter(deleted => deleted.task.id !== taskId);
