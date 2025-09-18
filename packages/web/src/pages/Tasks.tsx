@@ -136,6 +136,12 @@ export function Tasks() {
           event.preventDefault();
         }
       }
+      
+      // ESC para fechar modais
+      if (event.key === 'Escape' && (showCreateModal || editingTask)) {
+        event.preventDefault();
+        closeModals();
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
