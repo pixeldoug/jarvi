@@ -4,13 +4,29 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@/screens/*": ["src/screens/*"],
-      "@/components/*": ["src/components/*"],
-      "@/services/*": ["src/services/*"],
-      "@/types/*": ["../shared/src/types/*"],
-      "@/utils/*": ["../shared/src/utils/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@/screens/*": [
+        "src/screens/*"
+      ],
+      "@/components/*": [
+        "src/components/*"
+      ],
+      "@/services/*": [
+        "src/services/*"
+      ],
+      "@/types/*": [
+        "../shared/src/types/*"
+      ],
+      "@/utils/*": [
+        "../shared/src/utils/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "nativewind-env.d.ts"
+  ]
 }

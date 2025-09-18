@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'phosphor-react';
 import { DateInputBR } from './DateInputBR';
+import { TimeInputBR } from './TimeInputBR';
 
 interface DatePickerPopoverProps {
   isOpen: boolean;
   onClose: () => void;
-  onDateSelect: (date: string) => void;
+  onDateSelect: (date: string, time?: string) => void;
   triggerRef?: React.RefObject<HTMLElement>;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   position?: { top: number; left: number } | null;
   initialDate?: string;
+  initialTime?: string;
 }
 
 export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
@@ -21,8 +23,10 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
   onMouseLeave,
   position,
   initialDate,
+  initialTime,
 }) => {
   const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
   const [canClose, setCanClose] = useState(false);
 
   // Permitir fechar apenas após um pequeno delay para evitar fechamento imediato
@@ -60,20 +64,32 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
       }
     } else if (!isOpen) {
       setSelectedDate('');
+      setSelectedTime('');
     }
   }, [isOpen, initialDate]);
+
+  // Pré-selecionar o horário inicial quando o popover abrir
+  useEffect(() => {
+    if (isOpen && initialTime) {
+      setSelectedTime(initialTime);
+    } else if (!isOpen) {
+      setSelectedTime('');
+    }
+  }, [isOpen, initialTime]);
 
 
   const handleConfirm = () => {
     if (selectedDate) {
-      onDateSelect(selectedDate);
+      onDateSelect(selectedDate, selectedTime);
       setSelectedDate('');
+      setSelectedTime('');
       onClose();
     }
   };
 
   const handleCancel = () => {
     setSelectedDate('');
+    setSelectedTime('');
     onClose();
   };
 
@@ -83,6 +99,8 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
       onClose();
     }
   };
+
+  console.log('DatePickerPopover render:', { isOpen, position });
 
   if (!isOpen) {
     return null;
@@ -138,15 +156,29 @@ export const DatePickerPopover: React.FC<DatePickerPopoverProps> = ({
         </div>
         
         <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Data da Tarefa
-            </label>
-            <DateInputBR
-              value={selectedDate}
-              onChange={(date) => setSelectedDate(date)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Data da Tarefa
+              </label>
+              <DateInputBR
+                value={selectedDate}
+                onChange={(date) => setSelectedDate(date)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Horário (opcional)
+              </label>
+              <TimeInputBR
+                value={selectedTime}
+                onChange={(time) => setSelectedTime(time)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                placeholder="14:30"
+              />
+            </div>
           </div>
           
           <div className="flex space-x-2 pt-2">

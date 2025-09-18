@@ -9,7 +9,8 @@ import {
   SignOut,
 } from 'phosphor-react';
 import { useAuth } from '../contexts/AuthContext';
-import { ThemeToggle, Logo } from './ui';
+import { ThemeToggle } from './ui';
+import jarviLogo from '../assets/jarvi.svg';
 
 const navigation = [
   { name: 'Tarefas', href: '/', icon: CheckCircle },
@@ -37,7 +38,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
           <div className='flex flex-col flex-grow pt-5 overflow-y-auto bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700'>
             <div className='flex items-center justify-between flex-shrink-0 px-4'>
               <div className='flex items-center space-x-2'>
-                <Logo className='w-6 h-6 text-indigo-600 dark:text-indigo-400' />
+                <img src={jarviLogo} alt="Jarvi Logo" className='w-6 h-6' />
                 <h1 className='text-xl font-semibold text-gray-900 dark:text-gray-100'>Jarvi</h1>
               </div>
               <ThemeToggle size="sm" />

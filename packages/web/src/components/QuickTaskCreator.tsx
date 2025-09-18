@@ -67,7 +67,7 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleSubmit}
-            className="flex-1 bg-transparent border-none outline-none text-sm font-medium text-gray-600 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500"
+            className="flex-1 bg-transparent border-none outline-none text-sm font-normal text-gray-600 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="Digite o título da tarefa..."
             autoFocus
           />
@@ -83,7 +83,7 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
           </div>
           
           {/* Título placeholder */}
-          <span className="text-sm font-medium text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors">
+          <span className="text-sm font-normal text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors">
             Adicionar nova tarefa
           </span>
         </div>
