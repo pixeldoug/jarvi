@@ -4,7 +4,7 @@
  * Componente Input otimizado para web com design tokens
  */
 
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { useThemeClasses } from '../../hooks/useTheme';
 
 // ============================================================================
@@ -35,7 +35,7 @@ export interface InputProps {
 // COMPONENTE
 // ============================================================================
 
-export function Input({
+export const Input = forwardRef<HTMLInputElement, InputProps>(({
   id,
   name,
   type = 'text',
@@ -53,7 +53,7 @@ export function Input({
   helperText,
   label,
   size = 'md',
-}: InputProps) {
+}, ref) => {
   const { isDark } = useThemeClasses();
 
   // Classes base
@@ -96,6 +96,7 @@ export function Input({
       )}
       
       <input
+        ref={ref}
         id={id}
         name={name}
         type={type}
@@ -118,4 +119,6 @@ export function Input({
       )}
     </div>
   );
-}
+});
+
+Input.displayName = 'Input';

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge, toast } from '../components/ui';
@@ -46,6 +46,9 @@ export function Tasks() {
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   
+  // Ref para o campo de título
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -91,7 +94,17 @@ export function Tasks() {
     }
   };
 
-  // Atalho de teclado para criar nova tarefa
+  // Focar automaticamente no campo de título quando o modal de criação abrir
+  useEffect(() => {
+    if (showCreateModal && titleInputRef.current) {
+      // Pequeno delay para garantir que o modal foi renderizado
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 100);
+    }
+  }, [showCreateModal]);
+
+  // Atalhos de teclado
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Verificar se não estamos em um input, textarea ou modal
@@ -103,6 +116,16 @@ export function Tasks() {
       if (event.key === '/' && !isInput && !isModalOpen) {
         event.preventDefault();
         setShowCreateModal(true);
+      }
+      
+      // Se pressionar Command+Enter (Mac) ou Ctrl+Enter (Windows) no modal de criação
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && showCreateModal) {
+        event.preventDefault();
+        // Simular submit do form
+        const form = document.querySelector('form');
+        if (form) {
+          form.requestSubmit();
+        }
       }
     };
 
@@ -792,6 +815,7 @@ export function Tasks() {
                 Título
               </label>
           <Input
+            ref={titleInputRef}
             value={formData.title}
             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             placeholder="Digite o título da tarefa"
