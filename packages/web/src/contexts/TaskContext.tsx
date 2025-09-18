@@ -45,7 +45,7 @@ interface TaskContextType {
   createTask: (taskData: CreateTaskData) => Promise<Task>;
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string) => Promise<Task | null>;
-  undoDeleteTask: (taskId: string) => Promise<void>;
+  undoDeleteTask: (taskId: string) => Promise<boolean>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
   reorderTasks: (reorderedTasks: Task[]) => void;
 }
@@ -70,6 +70,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number }[]>([]);
   const { token } = useAuth();
+
+  // Log when context is initialized
+  console.log('TaskProvider initialized, deletedTasks:', deletedTasks);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -232,11 +235,20 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       // Remove from tasks and add to deleted tasks for undo functionality
       setTasks(prev => prev.filter(task => task.id !== taskId));
-      setDeletedTasks(prev => [...prev, { task: taskToDelete, deletedAt: Date.now() }]);
+      setDeletedTasks(prev => {
+        const newDeletedTasks = [...prev, { task: taskToDelete, deletedAt: Date.now() }];
+        console.log('Saving deleted task:', taskToDelete.title, 'with ID:', taskId);
+        console.log('New deletedTasks array:', newDeletedTasks);
+        return newDeletedTasks;
+      });
 
       // Clean up old deleted tasks (older than 30 seconds)
       setTimeout(() => {
-        setDeletedTasks(prev => prev.filter(deleted => Date.now() - deleted.deletedAt < 30000));
+        setDeletedTasks(prev => {
+          const filtered = prev.filter(deleted => Date.now() - deleted.deletedAt < 30000);
+          console.log('Cleaned up deleted tasks, remaining:', filtered.length);
+          return filtered;
+        });
       }, 30000);
 
       return taskToDelete;
@@ -249,13 +261,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
-  const undoDeleteTask = async (taskId: string) => {
+  const undoDeleteTask = async (taskId: string): Promise<boolean> => {
     console.log('undoDeleteTask called with taskId:', taskId);
     console.log('Available deleted tasks:', deletedTasks);
     
     if (!token) {
       console.log('No token available');
-      return;
+      return false;
     }
 
     try {
@@ -265,7 +277,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       
       if (!deletedTaskData) {
         console.log('No deleted task found for ID:', taskId);
-        return;
+        return false;
       }
 
       // Recreate the task
@@ -309,9 +321,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       setDeletedTasks(prev => prev.filter(deleted => deleted.task.id !== taskId));
       
       console.log('Task successfully restored:', restoredTask.title);
+      return true;
     } catch (error) {
       console.error('Error restoring task:', error);
       setError(error instanceof Error ? error.message : 'Failed to restore task');
+      return false;
     }
   };
 

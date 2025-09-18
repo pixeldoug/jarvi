@@ -108,10 +108,16 @@ export function Tasks() {
             onClick: async () => {
               console.log('Undo clicked for task:', deletedTask.id);
               try {
-                await undoDeleteTask(deletedTask.id);
-                toast.success('Tarefa restaurada', {
-                  description: `"${deletedTask.title}" foi restaurada com sucesso`,
-                });
+                const success = await undoDeleteTask(deletedTask.id);
+                if (success) {
+                  toast.success('Tarefa restaurada', {
+                    description: `"${deletedTask.title}" foi restaurada com sucesso`,
+                  });
+                } else {
+                  toast.error('Erro ao restaurar tarefa', {
+                    description: 'A tarefa não pôde ser encontrada para restauração',
+                  });
+                }
               } catch (error) {
                 console.error('Failed to restore task:', error);
                 toast.error('Erro ao restaurar tarefa', {
