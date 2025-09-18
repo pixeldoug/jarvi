@@ -66,6 +66,7 @@ export function Tasks() {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Creating task with data:', formData);
     try {
       await createTask(formData);
       setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
@@ -124,9 +125,9 @@ export function Tasks() {
   const handleSetDate = async (taskId: string, date: string, time?: string) => {
     console.log('handleSetDate called:', { taskId, date, time, editingTask: editingTask?.id });
     
-    // Se é uma task sendo editada no modal, atualizar apenas o formData
-    if (editingTask && taskId === editingTask.id) {
-      console.log('Updating formData for editing task');
+    // Se é uma task sendo editada no modal ou uma task temporária de criação, atualizar apenas o formData
+    if ((editingTask && taskId === editingTask.id) || taskId === 'temp-create') {
+      console.log('Updating formData for editing/creating task');
       setFormData(prev => ({
         ...prev,
         dueDate: date,
@@ -792,11 +793,20 @@ export function Tasks() {
               <button
                 type="button"
                 onClick={(e) => {
-                  // Criar uma task temporária para o modal
+                  // Criar uma task temporária para o modal de criação
                   const tempTask = {
-                    ...editingTask,
+                    id: 'temp-create',
+                    user_id: '',
+                    title: formData.title,
+                    description: formData.description,
+                    completed: false,
+                    priority: formData.priority,
+                    category: formData.category,
+                    important: formData.important,
                     due_date: formData.dueDate,
                     time: formData.time,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
                   } as Task;
                   
                   handleOpenDatePicker(tempTask, e.currentTarget as HTMLElement);
