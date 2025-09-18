@@ -211,8 +211,6 @@ export function Tasks() {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + 30);
 
@@ -227,11 +225,6 @@ export function Tasks() {
         dueDate = tomorrow.getFullYear() + '-' + 
           String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + 
           String(tomorrow.getDate()).padStart(2, '0');
-        break;
-      case 'proxima-semana':
-        dueDate = nextWeek.getFullYear() + '-' + 
-          String(nextWeek.getMonth() + 1).padStart(2, '0') + '-' + 
-          String(nextWeek.getDate()).padStart(2, '0');
         break;
       case 'eventos-futuros':
         dueDate = futureDate.getFullYear() + '-' + 
@@ -294,7 +287,7 @@ export function Tasks() {
       // Mostrar linha de inserção para:
       // 1. Reordenação dentro da mesma seção (exceto seções temporais)
       // 2. Mudança para outra seção (exceto seções temporais)
-      if (!['proxima-semana', 'eventos-futuros'].includes(overSection)) {
+      if (!['eventos-futuros'].includes(overSection)) {
         const sectionTasks = categorizedTasks[overSection as keyof typeof categorizedTasks];
         const overIndex = sectionTasks.findIndex(task => task.id === overTask.id);
         
@@ -305,7 +298,7 @@ export function Tasks() {
       } else {
         setInsertionIndicator(null);
       }
-    } else if (overSection && !['proxima-semana', 'eventos-futuros'].includes(overSection)) {
+    } else if (overSection && !['eventos-futuros'].includes(overSection)) {
       // Estamos sobre uma seção vazia (que permite inserção manual)
       setInsertionIndicator({
         sectionId: overSection,
@@ -346,7 +339,7 @@ export function Tasks() {
       
       // Permitir reordenação apenas em seções que não são baseadas em tempo
       if (currentSection === overSection && 
-          !['proxima-semana', 'eventos-futuros'].includes(currentSection)) {
+          !['eventos-futuros'].includes(currentSection)) {
         
         
         // Encontrar as tarefas da seção atual
@@ -396,11 +389,6 @@ export function Tasks() {
       String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + 
       String(tomorrow.getDate()).padStart(2, '0');
     
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const nextWeekStr = nextWeek.getFullYear() + '-' + 
-      String(nextWeek.getMonth() + 1).padStart(2, '0') + '-' + 
-      String(nextWeek.getDate()).padStart(2, '0');
     
     switch (overSection) {
       case 'hoje':
@@ -408,9 +396,6 @@ export function Tasks() {
         break;
       case 'amanha':
         newDueDate = tomorrowStr;
-        break;
-      case 'proxima-semana':
-        newDueDate = nextWeekStr;
         break;
       case 'eventos-futuros':
         // Para eventos futuros, vamos usar uma data 30 dias no futuro
@@ -464,7 +449,6 @@ export function Tasks() {
       vencidas: [] as Task[],
       hoje: [] as Task[],
       amanha: [] as Task[],
-      proximaSemana: [] as Task[],
       eventosFuturos: [] as Task[],
       algumDia: [] as Task[],
     };
@@ -482,18 +466,14 @@ export function Tasks() {
       
       const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const tomorrowOnly = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
-      const nextWeekOnly = new Date(nextWeek.getFullYear(), nextWeek.getMonth(), nextWeek.getDate());
-
       if (taskDateOnly < todayOnly) {
         categories.vencidas.push(task);
       } else if (taskDateOnly.getTime() === todayOnly.getTime()) {
         categories.hoje.push(task);
       } else if (taskDateOnly.getTime() === tomorrowOnly.getTime()) {
         categories.amanha.push(task);
-      } else if (taskDateOnly <= nextWeekOnly) {
-        categories.proximaSemana.push(task);
       } else {
-        // Tarefas com data posterior à próxima semana vão para "Eventos Futuros"
+        // Tarefas com data futura vão para "Eventos Futuros"
         categories.eventosFuturos.push(task);
       }
     });
@@ -502,7 +482,7 @@ export function Tasks() {
     Object.keys(categories).forEach(key => {
       const categoryKey = key as keyof typeof categories;
       
-      if (categoryKey === 'proximaSemana' || categoryKey === 'eventosFuturos') {
+      if (categoryKey === 'eventosFuturos') {
         // Para seções baseadas em tempo: ordenar por data (mais próximas primeiro)
         categories[categoryKey].sort((a, b) => {
           if (!a.due_date || !b.due_date) return 0;
@@ -686,12 +666,6 @@ export function Tasks() {
               sectionId="amanha"
             />
 
-            <DroppableSection
-              title="Próxima Semana"
-              tasks={categorizedTasks.proximaSemana}
-              emptyMessage="Nenhuma tarefa para próxima semana"
-              sectionId="proxima-semana"
-            />
 
             <DroppableSection
               title="Eventos Futuros"
