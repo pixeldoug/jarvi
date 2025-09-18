@@ -29,23 +29,45 @@ export const createTask = async (
       const pool = getPool();
       const client = await pool.connect();
       try {
-        await client.query(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [
-            taskId,
-            userId,
-            title,
-            description || null,
-            priority || 'medium',
-            category || null,
-            important || false,
-            time || null,
-            dueDate || null,
-            now,
-            now,
-          ]
-        );
+        // Tentar inserir com coluna time, se falhar, inserir sem ela (para compatibilidade)
+        try {
+          await client.query(
+            `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              taskId,
+              userId,
+              title,
+              description || null,
+              priority || 'medium',
+              category || null,
+              important || false,
+              time || null,
+              dueDate || null,
+              now,
+              now,
+            ]
+          );
+        } catch (timeColumnError) {
+          // Se falhar (coluna time não existe), inserir sem a coluna time
+          console.log('Time column not found, inserting without time field');
+          await client.query(
+            `INSERT INTO tasks (id, user_id, title, description, priority, category, important, due_date, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              taskId,
+              userId,
+              title,
+              description || null,
+              priority || 'medium',
+              category || null,
+              important || false,
+              dueDate || null,
+              now,
+              now,
+            ]
+          );
+        }
 
         const result = await client.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
         newTask = result.rows[0];
@@ -164,24 +186,47 @@ export const updateTask = async (
 
         existingTask = existingResult.rows[0];
 
-        await client.query(
-          `UPDATE tasks 
-           SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, updated_at = $9
-           WHERE id = $10 AND user_id = $11`,
-          [
-            title || existingTask.title,
-            description !== undefined ? description : existingTask.description,
-            completed !== undefined ? completed : existingTask.completed,
-            priority || existingTask.priority,
-            category !== undefined ? category : existingTask.category,
-            important !== undefined ? important : existingTask.important,
-            time !== undefined ? time : existingTask.time,
-            dueDate !== undefined ? dueDate : existingTask.due_date,
-            now,
-            id,
-            userId,
-          ]
-        );
+        // Tentar atualizar com coluna time, se falhar, atualizar sem ela
+        try {
+          await client.query(
+            `UPDATE tasks 
+             SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, updated_at = $9
+             WHERE id = $10 AND user_id = $11`,
+            [
+              title || existingTask.title,
+              description !== undefined ? description : existingTask.description,
+              completed !== undefined ? completed : existingTask.completed,
+              priority || existingTask.priority,
+              category !== undefined ? category : existingTask.category,
+              important !== undefined ? important : existingTask.important,
+              time !== undefined ? time : existingTask.time,
+              dueDate !== undefined ? dueDate : existingTask.due_date,
+              now,
+              id,
+              userId,
+            ]
+          );
+        } catch (timeColumnError) {
+          // Se falhar (coluna time não existe), atualizar sem a coluna time
+          console.log('Time column not found, updating without time field');
+          await client.query(
+            `UPDATE tasks 
+             SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, due_date = $7, updated_at = $8
+             WHERE id = $9 AND user_id = $10`,
+            [
+              title || existingTask.title,
+              description !== undefined ? description : existingTask.description,
+              completed !== undefined ? completed : existingTask.completed,
+              priority || existingTask.priority,
+              category !== undefined ? category : existingTask.category,
+              important !== undefined ? important : existingTask.important,
+              dueDate !== undefined ? dueDate : existingTask.due_date,
+              now,
+              id,
+              userId,
+            ]
+          );
+        }
 
         const result = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
         updatedTask = result.rows[0];
