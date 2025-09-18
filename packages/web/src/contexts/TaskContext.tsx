@@ -68,11 +68,39 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number }[]>([]);
+  const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number }[]>(() => {
+    // Initialize from localStorage
+    try {
+      const stored = localStorage.getItem('jarvi_deleted_tasks');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Filter out tasks older than 30 seconds
+        const now = Date.now();
+        const valid = parsed.filter((deleted: { task: Task; deletedAt: number }) => 
+          now - deleted.deletedAt < 30000
+        );
+        console.log('Loaded deletedTasks from localStorage:', valid);
+        return valid;
+      }
+    } catch (error) {
+      console.error('Error loading deletedTasks from localStorage:', error);
+    }
+    return [];
+  });
   const { token } = useAuth();
 
   // Log when context is initialized
   console.log('TaskProvider initialized, deletedTasks:', deletedTasks);
+
+  // Save to localStorage whenever deletedTasks changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(deletedTasks));
+      console.log('Saved deletedTasks to localStorage:', deletedTasks);
+    } catch (error) {
+      console.error('Error saving deletedTasks to localStorage:', error);
+    }
+  }, [deletedTasks]);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -235,10 +263,21 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       // Remove from tasks and add to deleted tasks for undo functionality
       setTasks(prev => prev.filter(task => task.id !== taskId));
+      
+      const newDeletedTask = { task: taskToDelete, deletedAt: Date.now() };
       setDeletedTasks(prev => {
-        const newDeletedTasks = [...prev, { task: taskToDelete, deletedAt: Date.now() }];
+        const newDeletedTasks = [...prev, newDeletedTask];
         console.log('Saving deleted task:', taskToDelete.title, 'with ID:', taskId);
         console.log('New deletedTasks array:', newDeletedTasks);
+        
+        // Also save to localStorage immediately
+        try {
+          localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(newDeletedTasks));
+          console.log('Immediately saved to localStorage:', newDeletedTasks);
+        } catch (error) {
+          console.error('Error saving to localStorage:', error);
+        }
+        
         return newDeletedTasks;
       });
 
@@ -325,7 +364,17 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         console.log('Adding restored task to tasks list');
         return [...prev, restoredTask];
       });
-      setDeletedTasks(prev => prev.filter(deleted => deleted.task.id !== taskId));
+      setDeletedTasks(prev => {
+        const filtered = prev.filter(deleted => deleted.task.id !== taskId);
+        // Also update localStorage
+        try {
+          localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(filtered));
+          console.log('Updated localStorage after restore:', filtered);
+        } catch (error) {
+          console.error('Error updating localStorage:', error);
+        }
+        return filtered;
+      });
       
       console.log('Task successfully restored:', restoredTask.title);
       return true;
