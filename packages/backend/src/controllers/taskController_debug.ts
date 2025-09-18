@@ -218,10 +218,6 @@ export const updateTask = async (
         // Tentar atualizar com coluna time, se falhar, atualizar sem ela
         try {
           console.log('Attempting to update with time column');
-          // Converter strings vazias para null para campos de timestamp
-          const timeValue = time !== undefined ? (time === '' ? null : time) : existingTask.time;
-          const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
-          
           await client.query(
             `UPDATE tasks 
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, updated_at = $9
@@ -233,8 +229,8 @@ export const updateTask = async (
               priority || existingTask.priority,
               category !== undefined ? category : existingTask.category,
               important !== undefined ? important : existingTask.important,
-              timeValue,
-              dueDateValue,
+              time !== undefined ? time : existingTask.time,
+              dueDate !== undefined ? dueDate : existingTask.due_date,
               now,
               id,
               userId,
@@ -244,9 +240,6 @@ export const updateTask = async (
         } catch (timeColumnError) {
           // Se falhar (coluna time não existe), atualizar sem a coluna time
           console.log('Time column not found, updating without time field. Error:', timeColumnError);
-          // Converter strings vazias para null para campos de timestamp
-          const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
-          
           await client.query(
             `UPDATE tasks 
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, due_date = $7, updated_at = $8
@@ -258,7 +251,7 @@ export const updateTask = async (
               priority || existingTask.priority,
               category !== undefined ? category : existingTask.category,
               important !== undefined ? important : existingTask.important,
-              dueDateValue,
+              dueDate !== undefined ? dueDate : existingTask.due_date,
               now,
               id,
               userId,
@@ -292,10 +285,6 @@ export const updateTask = async (
 
       console.log('Found existing task:', existingTask);
 
-      // Converter strings vazias para null para campos de timestamp
-      const timeValue = time !== undefined ? (time === '' ? null : time) : existingTask.time;
-      const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
-
       await db.run(
         `UPDATE tasks 
          SET title = ?, description = ?, completed = ?, priority = ?, category = ?, important = ?, time = ?, due_date = ?, updated_at = ?
@@ -307,8 +296,8 @@ export const updateTask = async (
           priority || existingTask.priority,
           category !== undefined ? category : existingTask.category,
           important !== undefined ? important : existingTask.important,
-          timeValue,
-          dueDateValue,
+          time !== undefined ? time : existingTask.time,
+          dueDate !== undefined ? dueDate : existingTask.due_date,
           now,
           id,
           userId,
