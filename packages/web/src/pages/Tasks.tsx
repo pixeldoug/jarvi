@@ -145,7 +145,7 @@ export function Tasks() {
       category: task.category || '',
       important: task.important || false,
       time: task.time || '',
-      dueDate: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
+      dueDate: task.due_date ? (task.due_date.includes('T') ? task.due_date.split('T')[0] : task.due_date) : '',
     });
   };
 
@@ -554,8 +554,15 @@ export function Tasks() {
         categories[categoryKey].sort((a, b) => {
           if (!a.due_date || !b.due_date) return 0;
           
-          const dateA = new Date(a.due_date.split('T')[0]);
-          const dateB = new Date(b.due_date.split('T')[0]);
+          // Extrair apenas a parte da data (YYYY-MM-DD) para evitar problemas de timezone
+          const dateAStr = a.due_date.includes('T') ? a.due_date.split('T')[0] : a.due_date;
+          const dateBStr = b.due_date.includes('T') ? b.due_date.split('T')[0] : b.due_date;
+          
+          const [yearA, monthA, dayA] = dateAStr.split('-').map(Number);
+          const [yearB, monthB, dayB] = dateBStr.split('-').map(Number);
+          
+          const dateA = new Date(yearA, monthA - 1, dayA);
+          const dateB = new Date(yearB, monthB - 1, dayB);
           
           return dateA.getTime() - dateB.getTime();
         });

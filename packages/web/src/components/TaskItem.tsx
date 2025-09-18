@@ -280,9 +280,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               try {
                 let date: Date;
                 if (task.due_date.includes('T')) {
-                  date = new Date(task.due_date);
+                  // Para datas com timestamp, extrair apenas a parte da data (YYYY-MM-DD)
+                  const dateOnly = task.due_date.split('T')[0];
+                  const [year, month, day] = dateOnly.split('-').map(Number);
+                  date = new Date(year, month - 1, day); // month é 0-indexed, usar timezone local
                 } else {
-                  // Corrigir timezone: usar timezone local em vez de UTC
+                  // Para datas simples (YYYY-MM-DD), usar diretamente
                   const [year, month, day] = task.due_date.split('-').map(Number);
                   date = new Date(year, month - 1, day); // month é 0-indexed
                 }

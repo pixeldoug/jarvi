@@ -52,9 +52,14 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
         try {
           let date: Date;
           if (initialDate.includes('T')) {
-            date = new Date(initialDate);
+            // Para datas com timestamp, extrair apenas a parte da data (YYYY-MM-DD)
+            const dateOnly = initialDate.split('T')[0];
+            const [year, month, day] = dateOnly.split('-').map(Number);
+            date = new Date(year, month - 1, day); // month é 0-indexed, usar timezone local
           } else {
-            date = new Date(initialDate + 'T00:00:00');
+            // Para datas simples (YYYY-MM-DD), usar diretamente
+            const [year, month, day] = initialDate.split('-').map(Number);
+            date = new Date(year, month - 1, day); // month é 0-indexed
           }
           
           if (!isNaN(date.getTime())) {
