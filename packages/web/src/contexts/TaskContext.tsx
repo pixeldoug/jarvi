@@ -272,11 +272,18 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
     try {
       // Find the deleted task
+      console.log('Searching for taskId:', taskId);
+      console.log('Available deleted tasks details:');
+      deletedTasks.forEach((deleted, index) => {
+        console.log(`  [${index}] Task ID: ${deleted.task.id}, Title: ${deleted.task.title}`);
+      });
+      
       const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
       console.log('Found deleted task data:', deletedTaskData);
       
       if (!deletedTaskData) {
         console.log('No deleted task found for ID:', taskId);
+        console.log('Available IDs:', deletedTasks.map(d => d.task.id));
         return false;
       }
 
