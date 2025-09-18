@@ -87,7 +87,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         const valid = parsed.filter((deleted: { task: Task; deletedAt: number; originalIndex?: number }) => 
           deleted && deleted.task && deleted.task.id && (now - deleted.deletedAt < 30000)
         );
-        console.log('Loaded deletedTasks from localStorage:', valid);
         return valid;
       }
     } catch (error) {
@@ -99,11 +98,10 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   });
   const { token } = useAuth();
 
-  // Log when context is initialized
-  console.log('TaskProvider initialized, deletedTasks:', deletedTasks);
-
-  // Save to localStorage whenever deletedTasks changes
+  // Save to localStorage whenever deletedTasks changes (but only if it's not empty)
   useEffect(() => {
+    if (deletedTasks.length === 0) return; // Don't save empty arrays
+    
     try {
       // Validate data before saving
       const validTasks = deletedTasks.filter(deleted => 
@@ -117,7 +115,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
       
       localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(deletedTasks));
-      console.log('Saved deletedTasks to localStorage:', deletedTasks.length, 'tasks');
     } catch (error) {
       console.error('Error saving deletedTasks to localStorage:', error);
     }
@@ -129,9 +126,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       setDeletedTasks(prev => {
         const now = Date.now();
         const valid = prev.filter(deleted => now - deleted.deletedAt < 30000);
-        if (valid.length !== prev.length) {
-          console.log('Cleaned up old deleted tasks:', prev.length - valid.length, 'removed');
-        }
         return valid;
       });
     }, 10000); // Check every 10 seconds
@@ -305,21 +299,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       setTasks(prev => prev.filter(task => task.id !== taskId));
       
       const newDeletedTask = { task: taskToDelete, deletedAt: Date.now(), originalIndex };
-      setDeletedTasks(prev => {
-        const newDeletedTasks = [...prev, newDeletedTask];
-        console.log('Saving deleted task:', taskToDelete.title, 'with ID:', taskId, 'at original index:', originalIndex);
-        console.log('New deletedTasks array:', newDeletedTasks);
-        
-        // Also save to localStorage immediately
-        try {
-          localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(newDeletedTasks));
-          console.log('Immediately saved to localStorage:', newDeletedTasks);
-        } catch (error) {
-          console.error('Error saving to localStorage:', error);
-        }
-        
-        return newDeletedTasks;
-      });
+      setDeletedTasks(prev => [...prev, newDeletedTask]);
 
       // Note: Cleanup of old deleted tasks is handled in the initialization filter
 
@@ -334,40 +314,23 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   };
 
   const undoDeleteTask = async (taskId: string): Promise<boolean> => {
-    console.log('undoDeleteTask called with taskId:', taskId);
-    console.log('Available deleted tasks count:', deletedTasks.length);
-    console.log('Current time:', Date.now());
-    
     if (!token) {
-      console.log('No token available');
       return false;
     }
 
     try {
       // Find the deleted task
-      console.log('Searching for taskId:', taskId);
-      console.log('Available deleted tasks details:');
-      deletedTasks.forEach((deleted, index) => {
-        const age = Date.now() - deleted.deletedAt;
-        console.log(`  [${index}] Task ID: ${deleted.task.id}, Title: ${deleted.task.title}, Age: ${age}ms`);
-      });
-      
       const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
-      console.log('Found deleted task data:', deletedTaskData);
       
       if (!deletedTaskData) {
-        console.log('No deleted task found for ID:', taskId);
-        console.log('Available IDs:', deletedTasks.map(d => d.task.id));
         
         // Try to reload from localStorage as fallback
         try {
           const stored = localStorage.getItem('jarvi_deleted_tasks');
           if (stored) {
             const parsed = JSON.parse(stored);
-            console.log('Fallback: checking localStorage, found:', parsed.length, 'tasks');
             const fallbackTask = parsed.find((deleted: { task: Task; deletedAt: number }) => deleted.task.id === taskId);
             if (fallbackTask) {
-              console.log('Found task in localStorage fallback:', fallbackTask);
               // Use the task directly from localStorage instead of recursive call
               const taskData = {
                 title: fallbackTask.task.title,
@@ -378,8 +341,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
                 time: fallbackTask.task.time,
                 dueDate: fallbackTask.task.due_date,
               };
-              
-              console.log('Recreating task with fallback data:', taskData);
               
               const response = await fetch(`${API_BASE_URL}/api/tasks`, {
                 method: 'POST',
@@ -397,14 +358,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
               }
 
               const restoredTask = await response.json();
-              console.log('Restored task from fallback:', restoredTask);
 
               // Add back to tasks at original position and remove from deleted tasks
               setTasks(prev => {
                 const newTasks = [...prev];
                 const insertIndex = Math.min(fallbackTask.originalIndex || 0, newTasks.length);
                 newTasks.splice(insertIndex, 0, restoredTask);
-                console.log('Restored task at original index:', insertIndex);
                 return newTasks;
               });
               
@@ -433,8 +392,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         dueDate: deletedTaskData.task.due_date,
       };
       
-      console.log('Recreating task with data:', taskData);
-      
       const response = await fetch(`${API_BASE_URL}/api/tasks`, {
         method: 'POST',
         headers: {
@@ -444,8 +401,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         body: JSON.stringify(taskData),
       });
 
-      console.log('Restore response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Failed to restore task:', errorText);
@@ -453,14 +408,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const restoredTask = await response.json();
-      console.log('Restored task:', restoredTask);
 
       // Add back to tasks at original position and remove from deleted tasks
       setTasks(prev => {
         const newTasks = [...prev];
         const insertIndex = Math.min(deletedTaskData.originalIndex || 0, newTasks.length);
         newTasks.splice(insertIndex, 0, restoredTask);
-        console.log('Adding restored task to tasks list at original index:', insertIndex);
         return newTasks;
       });
       setDeletedTasks(prev => {
@@ -468,14 +421,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         // Also update localStorage
         try {
           localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(filtered));
-          console.log('Updated localStorage after restore:', filtered);
         } catch (error) {
           console.error('Error updating localStorage:', error);
         }
         return filtered;
       });
-      
-      console.log('Task successfully restored:', restoredTask.title);
       return true;
     } catch (error) {
       console.error('Error restoring task:', error);
