@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar as CalendarIcon, Clock } from 'phosphor-react';
 
 interface DateTimePickerPopoverProps {
@@ -21,6 +21,7 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [canClose, setCanClose] = useState(false);
+  const timeScrollRef = useRef<HTMLDivElement>(null);
 
   // Gerar slots de horário de 15 em 15 minutos das 06:00 às 23:45
   const timeSlots = Array.from({ length: 72 }, (_, i) => {
@@ -72,6 +73,24 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
       setSelectedTime('');
     }
   }, [isOpen, initialDate, initialTime]);
+
+  // Scroll para 09:00 quando o popover abrir
+  useEffect(() => {
+    if (isOpen && timeScrollRef.current) {
+      // Encontrar o índice do horário 09:00
+      const nineAmIndex = timeSlots.findIndex(time => time === '09:00');
+      if (nineAmIndex !== -1) {
+        // Aguardar um pouco para garantir que o DOM foi renderizado
+        setTimeout(() => {
+          if (timeScrollRef.current) {
+            const buttonHeight = 32; // altura aproximada de cada botão + margin
+            const scrollPosition = nineAmIndex * buttonHeight;
+            timeScrollRef.current.scrollTop = scrollPosition;
+          }
+        }, 50);
+      }
+    }
+  }, [isOpen, timeSlots]);
 
   const handleConfirm = () => {
     if (selectedDate) {
@@ -278,7 +297,7 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto max-h-60">
+            <div ref={timeScrollRef} className="flex-1 overflow-y-auto max-h-60">
               <div className="p-2 space-y-1">
                 {timeSlots.map(time => (
                   <button
