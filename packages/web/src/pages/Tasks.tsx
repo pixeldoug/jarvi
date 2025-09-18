@@ -499,7 +499,9 @@ export function Tasks() {
       todayStr,
       tomorrowStr,
       userLocalDate: now.toLocaleDateString('pt-BR'),
-      userLocalTime: now.toLocaleTimeString('pt-BR')
+      userLocalTime: now.toLocaleTimeString('pt-BR'),
+      userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      utcDate: now.toISOString().split('T')[0]
     });
     
     const nextWeek = new Date(today);
@@ -523,16 +525,23 @@ export function Tasks() {
       // Extrair apenas a parte da data (YYYY-MM-DD) ignorando horário e fuso
       const taskDateStr = task.due_date.split('T')[0];
       
+      // Debug: log da comparação de datas
+      console.log(`Task "${task.title}": taskDateStr="${taskDateStr}", todayStr="${todayStr}", tomorrowStr="${tomorrowStr}"`);
+      
       // Comparar diretamente as strings de data
       if (taskDateStr < todayStr) {
         categories.vencidas.push(task);
+        console.log(`  → Categorizada como VENCIDA`);
       } else if (taskDateStr === todayStr) {
         categories.hoje.push(task);
+        console.log(`  → Categorizada como HOJE`);
       } else if (taskDateStr === tomorrowStr) {
         categories.amanha.push(task);
+        console.log(`  → Categorizada como AMANHÃ`);
       } else {
         // Tarefas com data futura vão para "Eventos Futuros"
         categories.eventosFuturos.push(task);
+        console.log(`  → Categorizada como EVENTOS FUTUROS`);
       }
     });
 
