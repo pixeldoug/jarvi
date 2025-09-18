@@ -92,6 +92,10 @@ export function Tasks() {
     if (window.confirm('Tem certeza que deseja excluir esta tarefa?')) {
       try {
         await deleteTask(taskId);
+        // Fechar modal de edição se a tarefa excluída estava sendo editada
+        if (editingTask && editingTask.id === taskId) {
+          closeModals();
+        }
       } catch (error) {
         console.error('Failed to delete task:', error);
       }
