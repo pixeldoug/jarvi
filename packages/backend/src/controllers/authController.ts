@@ -5,7 +5,10 @@ import { generateToken } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Support multiple Google Client IDs (web and mobile)
+const webClientId = process.env.GOOGLE_CLIENT_ID; // Web project
+const mobileClientId = '933867383204-gc7lts7bcc9to2k1puqumheetic5tbai.apps.googleusercontent.com'; // iOS project
+const supportedClientIds = [webClientId, mobileClientId].filter(Boolean);
 
 export const googleAuth = async (
   req: Request,
@@ -19,11 +22,29 @@ export const googleAuth = async (
       return;
     }
 
-    // Verify the Google ID token
-    const ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    // Verify the Google ID token with multiple supported client IDs
+    let ticket;
+    let verifiedClientId;
+    
+    for (const clientId of supportedClientIds) {
+      try {
+        const googleClient = new OAuth2Client(clientId);
+        ticket = await googleClient.verifyIdToken({
+          idToken,
+          audience: clientId,
+        });
+        verifiedClientId = clientId;
+        break;
+      } catch (error) {
+        // Try next client ID
+        continue;
+      }
+    }
+    
+    if (!ticket) {
+      res.status(400).json({ error: 'Invalid ID token for any supported client' });
+      return;
+    }
 
     const payload = ticket.getPayload();
 
