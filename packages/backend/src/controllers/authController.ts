@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 
 // Support multiple Google Client IDs (web and mobile)
 const webClientId = process.env.GOOGLE_CLIENT_ID; // Web project
-const mobileClientId = '933867383204-gc7lts7bcc9to2k1puqumheetic5tbai.apps.googleusercontent.com'; // iOS project
+const mobileClientId = process.env.GOOGLE_MOBILE_CLIENT_ID; // iOS project
 const supportedClientIds = [webClientId, mobileClientId].filter(Boolean);
 
 export const googleAuth = async (
@@ -156,7 +156,12 @@ export const googleAuth = async (
       },
     });
   } catch (error) {
-    console.error('Google auth error:', error);
+    // Log error without exposing sensitive details
+    console.error('Google auth error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Authentication failed' });
   }
 };
@@ -240,7 +245,12 @@ export const register = async (
       },
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    // Log error without exposing sensitive details
+    console.error('Registration error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Registration failed' });
   }
 };
@@ -310,7 +320,12 @@ export const login = async (
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    // Log error without exposing sensitive details
+    console.error('Login error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Login failed' });
   }
 };
@@ -355,7 +370,12 @@ export const getProfile = async (
 
     res.json(user);
   } catch (error) {
-    console.error('Get profile error:', error);
+    // Log error without exposing sensitive details
+    console.error('Get profile error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Failed to get profile' });
   }
 };

@@ -2,12 +2,31 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 import { initializeDatabase } from './database';
 import taskRoutes from './routes/taskRoutes';
 import authRoutes from './routes/authRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Auth rate limiting (more restrictive)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 auth requests per windowMs
+  message: 'Too many authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Middleware
 app.use(helmet());
@@ -17,6 +36,7 @@ app.use(cors({
 }));
 app.use(morgan('combined'));
 app.use(express.json());
+app.use(limiter);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -78,7 +98,7 @@ app.get('/health', (req, res) => {
 // });
 
 // API Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tasks', taskRoutes);
 
 // Initialize database and start server
