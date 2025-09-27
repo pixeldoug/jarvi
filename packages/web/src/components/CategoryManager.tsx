@@ -250,7 +250,6 @@ export const CategoryManager: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ex: Trabalho, Pessoal, Estudos..."
               required
-              autoFocus
             />
           </div>
 
