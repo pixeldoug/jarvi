@@ -5,6 +5,7 @@ import {
   Sticker,
   Wallet,
   Trophy,
+  Tag,
   User,
   SignOut,
 } from 'phosphor-react';
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Notas', href: '/notes', icon: Sticker },
   { name: 'Finanças', href: '/finances', icon: Wallet },
   { name: 'Hábitos', href: '/habits', icon: Trophy },
+  { name: 'Categorias', href: '/categories', icon: Tag },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({

@@ -12,6 +12,7 @@ import { Tasks } from './pages/Tasks';
 import { Notes } from './pages/Notes';
 import { Finances } from './pages/Finances';
 import { Habits } from './pages/Habits';
+import { Categories } from './pages/Categories';
 
 const queryClient = new QueryClient();
 
@@ -76,6 +77,16 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute>
               <Layout>
                 <Habits />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/categories"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Categories />
               </Layout>
             </ProtectedRoute>
           }
