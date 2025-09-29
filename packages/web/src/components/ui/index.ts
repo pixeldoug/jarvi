@@ -69,6 +69,11 @@ export {
   type ModalProps,
 } from './Modal';
 
+export {
+  Accordion,
+  type AccordionProps,
+} from './Accordion';
+
 // ============================================================================
 // DISPLAY COMPONENTS
 // ============================================================================

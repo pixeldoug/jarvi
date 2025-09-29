@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
-import { Button, Input, Textarea, Select, Modal, Badge, toast } from '../components/ui';
-import { Accordion } from '@jarvi/shared';
+import { Button, Input, Textarea, Select, Modal, Badge, toast, Accordion } from '../components/ui';
 import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { DateTimePickerPopover } from '../components/DateTimePickerPopover';
