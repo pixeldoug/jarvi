@@ -585,17 +585,25 @@ export function Tasks() {
     };
 
     tasks.forEach(task => {
-      // Se a tarefa está completada e tem data vencida, vai para seção especial
-      if (task.completed && task.due_date) {
-        const taskDateStr = task.due_date.split('T')[0];
-        if (taskDateStr < todayStr) {
+      // Se a tarefa está completada, verificar se deve ir para seção especial
+      if (task.completed) {
+        // Tarefas completadas com data vencida OU sem data vão para "Tarefas Concluídas"
+        if (!task.due_date) {
           categories.vencidasCompletadas.push(task);
-          console.log(`Task "${task.title}" → Categorizada como VENCIDA E COMPLETADA`);
+          console.log(`Task "${task.title}" → Categorizada como TAREFA SEM DATA COMPLETADA`);
           return;
+        } else {
+          const taskDateStr = task.due_date.split('T')[0];
+          if (taskDateStr < todayStr) {
+            categories.vencidasCompletadas.push(task);
+            console.log(`Task "${task.title}" → Categorizada como TAREFA VENCIDA COMPLETADA`);
+            return;
+          }
         }
       }
 
       if (!task.due_date) {
+        // Apenas tarefas não completadas sem data vão para "Algum Dia"
         categories.algumDia.push(task);
         return;
       }
@@ -654,10 +662,14 @@ export function Tasks() {
           return dateA.getTime() - dateB.getTime();
         });
       } else if (categoryKey === 'vencidasCompletadas') {
-        // Para tarefas vencidas completadas: ordenar por data de vencimento (mais antigas primeiro)
+        // Para tarefas concluídas: ordenar por data (com data primeiro, sem data no final)
         categories[categoryKey].sort((a, b) => {
-          if (!a.due_date || !b.due_date) return 0;
+          // Tarefas sem data vão para o final
+          if (!a.due_date && !b.due_date) return 0;
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
           
+          // Para tarefas com data: ordenar por data de vencimento (mais antigas primeiro)
           const dateAStr = a.due_date.includes('T') ? a.due_date.split('T')[0] : a.due_date;
           const dateBStr = b.due_date.includes('T') ? b.due_date.split('T')[0] : b.due_date;
           
