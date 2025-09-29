@@ -154,9 +154,36 @@ export const TasksScreen: React.FC = () => {
   const toggleTaskCompletion = async (taskId: string) => {
     try {
       const response = await api.patch(`/tasks/${taskId}/toggle`);
-      setTasks(tasks.map(task =>
-        task.id === taskId ? response.data : task
-      ));
+      const updatedTask = response.data;
+      
+      // Atualizar a lista de tarefas com reordenação
+      setTasks(prevTasks => {
+        const updatedTasks = prevTasks.map(task =>
+          task.id === taskId ? updatedTask : task
+        );
+        
+        // Se a tarefa foi marcada como concluída, movê-la para o final
+        if (updatedTask.completed) {
+          const taskIndex = updatedTasks.findIndex(task => task.id === taskId);
+          if (taskIndex !== -1) {
+            const taskToMove = updatedTasks[taskIndex];
+            const remainingTasks = updatedTasks.filter(task => task.id !== taskId);
+            return [...remainingTasks, taskToMove];
+          }
+        }
+        // Se a tarefa foi desmarcada como concluída, movê-la para o início das não concluídas
+        else {
+          const taskIndex = updatedTasks.findIndex(task => task.id === taskId);
+          if (taskIndex !== -1) {
+            const taskToMove = updatedTasks[taskIndex];
+            const completedTasks = updatedTasks.filter(task => task.id !== taskId && task.completed);
+            const incompleteTasks = updatedTasks.filter(task => task.id !== taskId && !task.completed);
+            return [...incompleteTasks, taskToMove, ...completedTasks];
+          }
+        }
+        
+        return updatedTasks;
+      });
     } catch (error) {
       console.error('Error toggling task:', error);
       Alert.alert('Erro', 'Não foi possível alterar o status da tarefa');

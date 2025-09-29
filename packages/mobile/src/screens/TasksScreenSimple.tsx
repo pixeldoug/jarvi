@@ -41,11 +41,39 @@ export const TasksScreenSimple: React.FC = () => {
   };
 
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(task => 
-      task.id === id 
-        ? { ...task, completed: !task.completed }
-        : task
-    ));
+    setTasks(prevTasks => {
+      const updatedTasks = prevTasks.map(task => 
+        task.id === id 
+          ? { ...task, completed: !task.completed }
+          : task
+      );
+      
+      // Encontrar a tarefa que foi atualizada
+      const updatedTask = updatedTasks.find(task => task.id === id);
+      if (!updatedTask) return updatedTasks;
+      
+      // Se a tarefa foi marcada como concluída, movê-la para o final
+      if (updatedTask.completed) {
+        const taskIndex = updatedTasks.findIndex(task => task.id === id);
+        if (taskIndex !== -1) {
+          const taskToMove = updatedTasks[taskIndex];
+          const remainingTasks = updatedTasks.filter(task => task.id !== id);
+          return [...remainingTasks, taskToMove];
+        }
+      }
+      // Se a tarefa foi desmarcada como concluída, movê-la para o início das não concluídas
+      else {
+        const taskIndex = updatedTasks.findIndex(task => task.id === id);
+        if (taskIndex !== -1) {
+          const taskToMove = updatedTasks[taskIndex];
+          const completedTasks = updatedTasks.filter(task => task.id !== id && task.completed);
+          const incompleteTasks = updatedTasks.filter(task => task.id !== id && !task.completed);
+          return [...incompleteTasks, taskToMove, ...completedTasks];
+        }
+      }
+      
+      return updatedTasks;
+    });
   };
 
   const deleteTask = (id: string) => {
@@ -289,6 +317,8 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
 });
+
+
 
 
 

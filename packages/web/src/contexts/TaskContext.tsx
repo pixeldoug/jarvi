@@ -450,10 +450,34 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     const newCompleted = !originalCompleted;
 
     try {
-      // Atualização otimista - atualizar imediatamente na UI
-      setTasks(prev => prev.map(task => 
-        task.id === taskId ? { ...task, completed: newCompleted } : task
-      ));
+      // Atualização otimista - atualizar imediatamente na UI com reordenação
+      setTasks(prev => {
+        const updatedTasks = prev.map(task => 
+          task.id === taskId ? { ...task, completed: newCompleted } : task
+        );
+        
+        // Se a tarefa foi marcada como concluída, movê-la para o final
+        if (newCompleted) {
+          const taskIndex = updatedTasks.findIndex(task => task.id === taskId);
+          if (taskIndex !== -1) {
+            const taskToMove = updatedTasks[taskIndex];
+            const remainingTasks = updatedTasks.filter(task => task.id !== taskId);
+            return [...remainingTasks, taskToMove];
+          }
+        }
+        // Se a tarefa foi desmarcada como concluída, movê-la para o início das não concluídas
+        else {
+          const taskIndex = updatedTasks.findIndex(task => task.id === taskId);
+          if (taskIndex !== -1) {
+            const taskToMove = updatedTasks[taskIndex];
+            const completedTasks = updatedTasks.filter(task => task.id !== taskId && task.completed);
+            const incompleteTasks = updatedTasks.filter(task => task.id !== taskId && !task.completed);
+            return [...incompleteTasks, taskToMove, ...completedTasks];
+          }
+        }
+        
+        return updatedTasks;
+      });
 
       const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/toggle`, {
         method: 'PATCH',
@@ -477,10 +501,24 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       const updatedTask = await response.json();
       
-      // Confirmar com dados do servidor
-      setTasks(prev => prev.map(task => 
-        task.id === taskId ? updatedTask : task
-      ));
+      // Confirmar com dados do servidor e manter a reordenação
+      setTasks(prev => {
+        const tasksWithUpdated = prev.map(task => 
+          task.id === taskId ? updatedTask : task
+        );
+        
+        // Garantir que a ordenação está correta após a confirmação do servidor
+        if (updatedTask.completed) {
+          const taskIndex = tasksWithUpdated.findIndex(task => task.id === taskId);
+          if (taskIndex !== -1) {
+            const taskToMove = tasksWithUpdated[taskIndex];
+            const remainingTasks = tasksWithUpdated.filter(task => task.id !== taskId);
+            return [...remainingTasks, taskToMove];
+          }
+        }
+        
+        return tasksWithUpdated;
+      });
     } catch (error) {
       console.error('Error toggling task completion:', error);
       setError('Failed to toggle task completion');

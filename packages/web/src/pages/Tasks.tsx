@@ -618,7 +618,13 @@ export function Tasks() {
       
       if (categoryKey === 'eventosFuturos') {
         // Para seções baseadas em tempo: ordenar por data (mais próximas primeiro)
+        // Mas manter tarefas concluídas no final
         categories[categoryKey].sort((a, b) => {
+          // Primeiro, ordenar por status de conclusão (não concluídas primeiro)
+          if (a.completed !== b.completed) {
+            return a.completed ? 1 : -1;
+          }
+          
           if (!a.due_date || !b.due_date) return 0;
           
           // Extrair apenas a parte da data (YYYY-MM-DD) para evitar problemas de timezone
@@ -634,11 +640,18 @@ export function Tasks() {
           return dateA.getTime() - dateB.getTime();
         });
       } else {
-        // Para outras seções: manter ordem manual (não forçar ordenação automática)
-        // Usuário pode reordenar manualmente via drag and drop
-        // Apenas ordenação inicial por data de criação, mas preserva reordenações manuais
-        // Para outras seções: manter ordem do array principal (permite reordenação manual)
-        // Não aplicar ordenação automática para preservar reordenações manuais
+        // Para outras seções: ordenar por status de conclusão (não concluídas primeiro)
+        // Preservar ordem relativa entre tarefas do mesmo status
+        categories[categoryKey].sort((a, b) => {
+          if (a.completed !== b.completed) {
+            return a.completed ? 1 : -1;
+          }
+          
+          // Para tarefas do mesmo status, manter ordem original (baseada no índice no array principal)
+          const indexA = tasks.findIndex(task => task.id === a.id);
+          const indexB = tasks.findIndex(task => task.id === b.id);
+          return indexA - indexB;
+        });
       }
     });
 
