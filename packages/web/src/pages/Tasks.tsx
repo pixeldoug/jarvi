@@ -393,7 +393,7 @@ export function Tasks() {
       // Mostrar linha de inserção para:
       // 1. Reordenação dentro da mesma seção (exceto seções temporais)
       // 2. Mudança para outra seção (exceto seções temporais)
-      if (!['eventos-futuros'].includes(overSection)) {
+      if (!['eventos-futuros', 'vencidas-completadas'].includes(overSection)) {
         const sectionTasks = categorizedTasks[overSection as keyof typeof categorizedTasks];
         const overIndex = sectionTasks.findIndex(task => task.id === overTask.id);
         
@@ -404,7 +404,7 @@ export function Tasks() {
       } else {
         setInsertionIndicator(null);
       }
-    } else if (overSection && !['eventos-futuros'].includes(overSection)) {
+    } else if (overSection && !['eventos-futuros', 'vencidas-completadas'].includes(overSection)) {
       // Estamos sobre uma seção vazia (que permite inserção manual)
       setInsertionIndicator({
         sectionId: overSection,
@@ -445,7 +445,7 @@ export function Tasks() {
       
       // Permitir reordenação apenas em seções que não são baseadas em tempo
       if (currentSection === overSection && 
-          !['eventos-futuros'].includes(currentSection)) {
+          !['eventos-futuros', 'vencidas-completadas'].includes(currentSection)) {
         
         
         // Encontrar as tarefas da seção atual
@@ -581,9 +581,20 @@ export function Tasks() {
       amanha: [] as Task[],
       eventosFuturos: [] as Task[],
       algumDia: [] as Task[],
+      vencidasCompletadas: [] as Task[],
     };
 
     tasks.forEach(task => {
+      // Se a tarefa está completada e tem data vencida, vai para seção especial
+      if (task.completed && task.due_date) {
+        const taskDateStr = task.due_date.split('T')[0];
+        if (taskDateStr < todayStr) {
+          categories.vencidasCompletadas.push(task);
+          console.log(`Task "${task.title}" → Categorizada como VENCIDA E COMPLETADA`);
+          return;
+        }
+      }
+
       if (!task.due_date) {
         categories.algumDia.push(task);
         return;
@@ -597,8 +608,11 @@ export function Tasks() {
       
       // Comparar diretamente as strings de data
       if (taskDateStr < todayStr) {
-        categories.vencidas.push(task);
-        console.log(`  → Categorizada como VENCIDA`);
+        // Apenas tarefas não completadas vão para "vencidas"
+        if (!task.completed) {
+          categories.vencidas.push(task);
+          console.log(`  → Categorizada como VENCIDA`);
+        }
       } else if (taskDateStr === todayStr) {
         categories.hoje.push(task);
         console.log(`  → Categorizada como HOJE`);
@@ -628,6 +642,22 @@ export function Tasks() {
           if (!a.due_date || !b.due_date) return 0;
           
           // Extrair apenas a parte da data (YYYY-MM-DD) para evitar problemas de timezone
+          const dateAStr = a.due_date.includes('T') ? a.due_date.split('T')[0] : a.due_date;
+          const dateBStr = b.due_date.includes('T') ? b.due_date.split('T')[0] : b.due_date;
+          
+          const [yearA, monthA, dayA] = dateAStr.split('-').map(Number);
+          const [yearB, monthB, dayB] = dateBStr.split('-').map(Number);
+          
+          const dateA = new Date(yearA, monthA - 1, dayA);
+          const dateB = new Date(yearB, monthB - 1, dayB);
+          
+          return dateA.getTime() - dateB.getTime();
+        });
+      } else if (categoryKey === 'vencidasCompletadas') {
+        // Para tarefas vencidas completadas: ordenar por data de vencimento (mais antigas primeiro)
+        categories[categoryKey].sort((a, b) => {
+          if (!a.due_date || !b.due_date) return 0;
+          
           const dateAStr = a.due_date.includes('T') ? a.due_date.split('T')[0] : a.due_date;
           const dateBStr = b.due_date.includes('T') ? b.due_date.split('T')[0] : b.due_date;
           
@@ -838,6 +868,16 @@ export function Tasks() {
               emptyMessage="Nenhuma tarefa para algum dia"
               sectionId="algum-dia"
             />
+
+            {/* Nova seção para tarefas vencidas e completadas */}
+            {categorizedTasks.vencidasCompletadas.length > 0 && (
+              <DroppableSection
+                title="Vencidas e Completadas"
+                tasks={categorizedTasks.vencidasCompletadas}
+                emptyMessage="Nenhuma tarefa vencida completada"
+                sectionId="vencidas-completadas"
+              />
+            )}
           </div>
         </div>
 
