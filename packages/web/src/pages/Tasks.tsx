@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge, toast } from '../components/ui';
+import { Accordion } from '@jarvi/shared';
 import { TaskItem } from '../components/TaskItem';
 import { QuickTaskCreator } from '../components/QuickTaskCreator';
 import { DateTimePickerPopover } from '../components/DateTimePickerPopover';
@@ -704,12 +705,14 @@ export function Tasks() {
 
     return (
       <div className="mb-1">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
-          {title}
-          <Badge variant="default" className="ml-2">
-            {tasks.length}
-          </Badge>
-        </h2>
+        {title && (
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
+            {title}
+            <Badge variant="default" className="ml-2">
+              {tasks.length}
+            </Badge>
+          </h2>
+        )}
         <div 
           ref={setNodeRef}
           className={`space-y-1 transition-all duration-500 ease-out ${
@@ -869,14 +872,21 @@ export function Tasks() {
               sectionId="algum-dia"
             />
 
-            {/* Nova seção para tarefas vencidas e completadas */}
+            {/* Nova seção para tarefas concluídas (accordion) */}
             {categorizedTasks.vencidasCompletadas.length > 0 && (
-              <DroppableSection
-                title="Vencidas e Completadas"
-                tasks={categorizedTasks.vencidasCompletadas}
-                emptyMessage="Nenhuma tarefa vencida completada"
-                sectionId="vencidas-completadas"
-              />
+              <Accordion
+                title="Tarefas Concluídas"
+                variant="subtle"
+                defaultOpen={false}
+                className="mt-6"
+              >
+                <DroppableSection
+                  title=""
+                  tasks={categorizedTasks.vencidasCompletadas}
+                  emptyMessage="Nenhuma tarefa concluída"
+                  sectionId="vencidas-completadas"
+                />
+              </Accordion>
             )}
           </div>
         </div>
