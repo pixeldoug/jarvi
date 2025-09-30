@@ -70,9 +70,9 @@ export const authService = {
             clientId: GOOGLE_CLIENT_ID,
             code: result.params.code,
             redirectUri: GOOGLE_REDIRECT_URI,
-            extraParams: {
+            extraParams: request.codeVerifier ? {
               code_verifier: request.codeVerifier,
-            },
+            } : {},
           },
           authService.discovery
         );
