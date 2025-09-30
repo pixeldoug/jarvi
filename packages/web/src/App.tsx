@@ -13,6 +13,7 @@ import { Notes } from './pages/Notes';
 import { Finances } from './pages/Finances';
 import { Habits } from './pages/Habits';
 import { Categories } from './pages/Categories';
+import { Lists } from './pages/Lists';
 
 const queryClient = new QueryClient();
 
@@ -87,6 +88,16 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute>
               <Layout>
                 <Categories />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lists"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Lists />
               </Layout>
             </ProtectedRoute>
           }
