@@ -40,12 +40,6 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
     }
   }, [isOpen, initialCategory]);
 
-  const handleConfirm = (e?: React.MouseEvent) => {
-    e?.preventDefault();
-    // Permitir categoria vazia (para remover categoria)
-    onCategorySelect(selectedCategory);
-    onClose();
-  };
 
   const handleCancel = (e?: React.MouseEvent) => {
     e?.preventDefault();
@@ -111,19 +105,18 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
             </label>
             <CategoryDropdown
               value={selectedCategory}
-              onChange={setSelectedCategory}
+              onChange={(category) => {
+                setSelectedCategory(category);
+                // Aplicar a categoria automaticamente quando selecionada
+                onCategorySelect(category);
+                onClose();
+              }}
               placeholder="Selecione uma categoria"
               className="w-full"
             />
           </div>
           
           <div className="flex space-x-2 pt-2">
-            <button
-              onClick={(e) => handleConfirm(e)}
-              className="flex-1 px-3 py-2 text-sm font-medium text-white rounded-md transition-colors bg-blue-600 hover:bg-blue-700"
-            >
-              {selectedCategory ? 'Definir Categoria' : 'Remover Categoria'}
-            </button>
             {initialCategory && (
               <button
                 onClick={(e) => {
@@ -131,10 +124,10 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
                   onCategorySelect(''); // Passar string vazia para remover categoria
                   onClose();
                 }}
-                className="px-3 py-2 text-red-600 dark:text-red-400 text-sm font-medium rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                className="flex-1 px-3 py-2 text-red-600 dark:text-red-400 text-sm font-medium rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 title="Remover categoria desta tarefa"
               >
-                Remover
+                Remover Categoria
               </button>
             )}
             <button
