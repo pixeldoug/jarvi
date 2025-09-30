@@ -159,7 +159,7 @@ export function Tasks() {
 
   const handleDeleteTask = async (taskId: string) => {
     try {
-      const deletedTask = await deleteTask(taskId);
+      const deletedTask = await deleteTask(taskId, false); // showLoading = false para transição suave
       // Fechar modal de edição se a tarefa excluída estava sendo editada
       if (editingTask && editingTask.id === taskId) {
         closeModals();

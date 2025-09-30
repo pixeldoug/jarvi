@@ -44,7 +44,7 @@ interface TaskContextType {
   fetchTasks: () => Promise<void>;
   createTask: (taskData: CreateTaskData, showLoading?: boolean) => Promise<Task>;
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
-  deleteTask: (taskId: string) => Promise<Task | null>;
+  deleteTask: (taskId: string, showLoading?: boolean) => Promise<Task | null>;
   undoDeleteTask: (taskId: string) => Promise<boolean>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
   reorderTasks: (reorderedTasks: Task[]) => void;
@@ -298,11 +298,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
-  const deleteTask = async (taskId: string): Promise<Task | null> => {
+  const deleteTask = async (taskId: string, showLoading: boolean = true): Promise<Task | null> => {
     if (!token) return null;
 
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       setError(null);
 
       // Find the task before deleting
@@ -338,7 +340,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       setError('Failed to delete task');
       throw error;
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
