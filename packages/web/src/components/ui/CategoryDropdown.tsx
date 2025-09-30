@@ -93,10 +93,6 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   const selectedCategory = categories.find(cat => cat.name === value);
   const displayValue = selectedCategory ? selectedCategory.name : value || placeholder;
 
-  const getCategoryColor = (categoryName: string) => {
-    const category = categories.find(cat => cat.name === categoryName);
-    return category ? category.color : 'gray';
-  };
 
   // Se showTrigger for false, mostrar apenas o menu dropdown
   if (!showTrigger) {

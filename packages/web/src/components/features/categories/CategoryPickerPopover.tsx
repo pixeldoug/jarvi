@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Tag } from 'phosphor-react';
-import { Button, CategoryDropdown } from '../../ui';
+import { CategoryDropdown } from '../../ui';
 
 interface CategoryPickerPopoverProps {
   isOpen: boolean;

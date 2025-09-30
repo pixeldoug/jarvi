@@ -2,7 +2,7 @@ import React from 'react';
 import { Tag } from 'phosphor-react';
 import { useCategories } from '../../hooks/useCategories';
 
-interface CategoryBadgeProps {
+export interface CategoryBadgeProps {
   categoryName: string;
   size?: 'sm' | 'md' | 'lg';
   variant?: 'default' | 'outline' | 'minimal';
