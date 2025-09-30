@@ -66,6 +66,11 @@ export {
   type CategoryDropdownProps,
 } from './CategoryDropdown';
 
+export {
+  CategoryBadge,
+  type CategoryBadgeProps,
+} from './CategoryBadge';
+
 // ============================================================================
 // DISPLAY COMPONENTS
 // ============================================================================

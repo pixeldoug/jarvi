@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
-import { Button, Input, Textarea, Select, Modal, Badge, toast, Accordion } from '../components/ui';
+import { Button, Input, Textarea, Modal, Badge, toast, Accordion, CategoryDropdown } from '../components/ui';
 import { TaskItem, QuickTaskCreator, DateTimePickerPopover } from '../components/features/tasks';
 import { CategoryPickerPopover } from '../components/features/categories';
 import { MyLists } from '../components/features/lists';
-import { useCategories } from '../hooks/useCategories';
 import { Trash, Fire } from 'phosphor-react';
 import {
   DndContext,
@@ -32,7 +31,6 @@ import {
 
 export function Tasks() {
   const { tasks, isLoading, error, createTask, updateTask, deleteTask, undoDeleteTask, toggleTaskCompletion, reorderTasks } = useTasks();
-  const { categories, addCategory } = useCategories();
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -42,7 +40,6 @@ export function Tasks() {
   const [categoryPickerPosition, setCategoryPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
-  const [newCategoryName, setNewCategoryName] = useState('');
   const [selectedList, setSelectedList] = useState<{ type: 'important' | 'category'; category?: string } | null>(null);
   
   // Ref para o campo de título
@@ -837,20 +834,6 @@ export function Tasks() {
   };
 
 
-  const categoryOptions = [
-    { value: '', label: '— Sem categoria —' },
-    ...categories.map(cat => ({
-      value: cat.name,
-      label: cat.name,
-    }))
-  ];
-
-  const handleAddCategory = () => {
-    if (newCategoryName.trim()) {
-      addCategory(newCategoryName.trim());
-      setNewCategoryName('');
-    }
-  };
 
 
   if (isLoading) {
@@ -877,8 +860,8 @@ export function Tasks() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="flex">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-row">
+        <div className="flex-1">
           {/* Área principal de tarefas */}
           <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -999,31 +982,11 @@ export function Tasks() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Categoria
               </label>
-              <div className="space-y-2">
-            <Select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  options={categoryOptions}
-                />
-                
-                {/* Adicionar nova categoria */}
-                <div className="flex space-x-2">
-            <Input
-                      placeholder="Nova categoria..."
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="flex-1"
-                    />
-                  <Button
-                    type="button"
-                    onClick={handleAddCategory}
-                    disabled={!newCategoryName.trim()}
-                    className="px-3"
-                  >
-                    <span className="text-lg">+</span>
-                  </Button>
-                </div>
-              </div>
+              <CategoryDropdown
+                value={formData.category}
+                onChange={(category) => setFormData({ ...formData, category })}
+                placeholder="Selecione uma categoria"
+              />
             </div>
 
             <div>
@@ -1140,31 +1103,11 @@ export function Tasks() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Categoria
               </label>
-              <div className="space-y-2">
-            <Select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  options={categoryOptions}
-                />
-                
-                {/* Adicionar nova categoria */}
-                <div className="flex space-x-2">
-            <Input
-                      placeholder="Nova categoria..."
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="flex-1"
-                    />
-                  <Button
-                    type="button"
-                    onClick={handleAddCategory}
-                    disabled={!newCategoryName.trim()}
-                    className="px-3"
-                  >
-                    <span className="text-lg">+</span>
-                  </Button>
-                </div>
-              </div>
+              <CategoryDropdown
+                value={formData.category}
+                onChange={(category) => setFormData({ ...formData, category })}
+                placeholder="Selecione uma categoria"
+              />
             </div>
 
             <div>

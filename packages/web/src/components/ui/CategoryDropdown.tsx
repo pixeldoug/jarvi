@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CaretDown, Plus, Tag } from 'phosphor-react';
 import { useCategories } from '../../hooks/useCategories';
 
-interface CategoryDropdownProps {
-  value: string;
+export interface CategoryDropdownProps {
+  value?: string;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;

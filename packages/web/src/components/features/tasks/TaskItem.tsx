@@ -2,9 +2,8 @@ import React, { useState, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../contexts/TaskContext';
-import { Badge } from '../../ui';
+import { CategoryBadge } from '../../ui';
 import { PencilSimple, DotsSixVertical, Calendar, Fire, Tag, Trash } from 'phosphor-react';
-import { useCategories } from '../../../hooks/useCategories';
 
 interface TaskItemProps {
   task: Task;
@@ -33,7 +32,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const [inlineEditValue, setInlineEditValue] = useState('');
   const [isHovered, setIsHovered] = useState(false);
   const datePickerTriggerRef = useRef<HTMLDivElement>(null);
-  const { getCategoryVariant } = useCategories();
 
   const {
     attributes,
@@ -237,9 +235,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             onMouseDown={(e) => e.stopPropagation()}
             className="hover:opacity-80 transition-opacity cursor-pointer"
           >
-            <Badge variant={getCategoryVariant(task.category)} className="text-xs">
-              {task.category}
-            </Badge>
+            <CategoryBadge 
+              categoryName={task.category} 
+              size="sm" 
+              variant="default"
+            />
           </button>
         ) : (
           <button
