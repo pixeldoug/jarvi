@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Plus, Tag } from 'phosphor-react';
+import { CaretDown, Plus, Tag } from 'phosphor-react';
 import { useCategories } from '../../hooks/useCategories';
 
 interface CategoryDropdownProps {
@@ -98,7 +98,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
             {displayValue}
           </span>
         </span>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <CaretDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Menu */}
