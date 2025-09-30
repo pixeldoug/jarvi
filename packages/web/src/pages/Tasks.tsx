@@ -35,7 +35,6 @@ export function Tasks() {
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
   const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [categoryPickerTask, setCategoryPickerTask] = useState<Task | null>(null);
@@ -776,19 +775,12 @@ export function Tasks() {
           )}
         </div>
         
-        {/* Quick Task Creator - versão simplificada */}
-        <div 
-          className={tasks.length > 0 ? "min-h-[40px]" : ""}
-          onMouseEnter={() => setHoveredSection(sectionId)}
-          onMouseLeave={() => setHoveredSection(null)}
-        >
-          <QuickTaskCreator
-            sectionId={sectionId}
-            onQuickCreate={handleQuickCreate}
-            isVisible={hoveredSection === sectionId || tasks.length === 0}
-            hasTasks={tasks.length > 0}
-          />
-        </div>
+        {/* Quick Task Creator - AUTÔNOMO */}
+        <QuickTaskCreator
+          sectionId={sectionId}
+          onQuickCreate={handleQuickCreate}
+          hasTasks={tasks.length > 0}
+        />
       </div>
     );
   };

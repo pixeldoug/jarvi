@@ -3,5 +3,5 @@
  */
 
 export { TaskItem } from './TaskItem';
-export { QuickTaskCreator } from './QuickTaskCreator';
+export { QuickTaskCreatorStable as QuickTaskCreator } from './QuickTaskCreatorStable';
 export { DateTimePickerPopover } from './DateTimePickerPopover';
