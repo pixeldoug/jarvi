@@ -257,6 +257,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 categoryName={task.category} 
                 size="sm" 
                 variant="default"
+                showIcon={false}
               />
             ) : (
               <div className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer">
