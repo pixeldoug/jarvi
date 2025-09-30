@@ -11,7 +11,7 @@ interface TaskItemProps {
   onToggleCompletion: (taskId: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
-  onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
+  onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
   showInsertionLine?: boolean;
 }
@@ -113,7 +113,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       }
 
       // Atualizar com loading desabilitado para ser mais rápido
-      await onUpdateTask(taskId, updateData);
+      await onUpdateTask(taskId, updateData, false); // showLoading = false
     } catch (error) {
       console.error('Failed to update task title:', error);
       // Reverter o estado se houver erro
@@ -267,7 +267,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 value={task.category || ''}
                 onChange={async (category) => {
                   try {
-                    await onUpdateTask(task.id, { category });
+                    await onUpdateTask(task.id, { category }, false); // showLoading = false
                     setShowCategoryDropdown(false);
                   } catch (error) {
                     console.error('Erro ao atualizar categoria:', error);
