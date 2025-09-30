@@ -53,29 +53,38 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   };
 
   const handleCreateCategory = async () => {
+    console.log('handleCreateCategory called with:', newCategoryName);
     if (newCategoryName.trim()) {
       try {
         if (onCreateCategory) {
+          console.log('Using onCreateCategory prop');
           onCreateCategory(newCategoryName.trim());
         } else {
+          console.log('Using createCategory hook');
           await createCategory(newCategoryName.trim());
         }
         onChange(newCategoryName.trim());
         setNewCategoryName('');
         setIsCreating(false);
         setIsOpen(false);
+        console.log('Category created successfully');
       } catch (error) {
         console.error('Erro ao criar categoria:', error);
       }
+    } else {
+      console.log('Category name is empty, not creating');
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
+      console.log('Enter pressed, creating category:', newCategoryName);
       handleCreateCategory();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       setIsCreating(false);
       setNewCategoryName('');
     }
