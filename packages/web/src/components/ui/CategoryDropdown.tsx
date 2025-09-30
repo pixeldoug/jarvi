@@ -19,7 +19,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   onCreateCategory,
   showTrigger = true,
 }) => {
-  const { categories, createCategory } = useCategories();
+  const { categories, addCategory } = useCategories();
   const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -60,8 +60,8 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
           console.log('Using onCreateCategory prop');
           onCreateCategory(newCategoryName.trim());
         } else {
-          console.log('Using createCategory hook');
-          await createCategory(newCategoryName.trim());
+          console.log('Using addCategory hook');
+          addCategory(newCategoryName.trim());
         }
         onChange(newCategoryName.trim());
         setNewCategoryName('');
