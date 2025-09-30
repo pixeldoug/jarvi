@@ -287,8 +287,12 @@ export function Tasks() {
 
 
   // Função para lidar com seleção de listas
-  const handleListSelect = (listType: 'important' | 'category', category?: string) => {
-    setSelectedList({ type: listType, category });
+  const handleListSelect = (listType: 'all' | 'important' | 'category', category?: string) => {
+    if (listType === 'all') {
+      setSelectedList(null);
+    } else {
+      setSelectedList({ type: listType, category });
+    }
   };
 
   const handleCategoryDropdownToggle = (taskId: string) => {
@@ -866,14 +870,6 @@ export function Tasks() {
                   : `Lista: ${selectedList.category}`
                 : 'Tarefas'
               }
-              {selectedList && (
-                <button
-                  onClick={() => setSelectedList(null)}
-                  className="ml-3 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
-                >
-                  Voltar
-                </button>
-              )}
             </h1>
         <Button
           onClick={() => setShowCreateModal(true)}
@@ -1225,6 +1221,7 @@ export function Tasks() {
             onListSelect={handleListSelect}
             selectedList={selectedList}
             taskCounts={listTaskCounts}
+            tasks={tasks}
           />
         </div>
         

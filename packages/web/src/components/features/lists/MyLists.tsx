@@ -9,18 +9,20 @@ interface CustomList {
 }
 
 interface MyListsProps {
-  onListSelect: (listType: 'important' | 'category', category?: string) => void;
-  selectedList?: { type: 'important' | 'category'; category?: string } | null;
+  onListSelect: (listType: 'all' | 'important' | 'category', category?: string) => void;
+  selectedList?: { type: 'all' | 'important' | 'category'; category?: string } | null;
   taskCounts: {
     important: number;
     categories: Record<string, number>;
   };
+  tasks: any[]; // Para contar total de tarefas
 }
 
 export const MyLists: React.FC<MyListsProps> = ({
   onListSelect,
   selectedList,
   taskCounts,
+  tasks,
 }) => {
   const { categories } = useCategories();
   const [customLists, setCustomLists] = useState<CustomList[]>(() => {
@@ -94,6 +96,22 @@ export const MyLists: React.FC<MyListsProps> = ({
       </div>
 
       <div className="space-y-2 mb-6">
+        {/* Todas as Tarefas */}
+        <div
+          className={getListItemClass(!selectedList)}
+          onClick={() => onListSelect('all')}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-5 h-5 rounded-full border-2 border-gray-400 flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+            </div>
+            <span className="font-medium">Todas as Tarefas</span>
+          </div>
+          <span className="text-sm font-medium bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+            {tasks.length}
+          </span>
+        </div>
+
         {/* Lista Importantes */}
         <div
           className={getListItemClass(isImportantSelected)}
