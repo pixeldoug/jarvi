@@ -107,7 +107,9 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               onClick={() => handleSelectCategory(category.name)}
               className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 transition-colors"
             >
-              <Tag weight="fill" className={`w-4 h-4 text-${category.color}-500`} />
+              {value !== category.name && (
+                <Tag weight="fill" className={`w-4 h-4 text-${category.color}-500`} />
+              )}
               <span className="text-gray-900 dark:text-gray-100">{category.name}</span>
               {value === category.name && (
                 <span className="ml-auto text-blue-500">✓</span>
@@ -200,7 +202,9 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               onClick={() => handleSelectCategory(category.name)}
               className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 transition-colors"
             >
-              <Tag weight="fill" className={`w-4 h-4 text-${category.color}-500`} />
+              {value !== category.name && (
+                <Tag weight="fill" className={`w-4 h-4 text-${category.color}-500`} />
+              )}
               <span className="text-gray-900 dark:text-gray-100">{category.name}</span>
               {value === category.name && (
                 <span className="ml-auto text-blue-500">✓</span>
