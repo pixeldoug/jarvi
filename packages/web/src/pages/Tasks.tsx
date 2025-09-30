@@ -157,6 +157,9 @@ export function Tasks() {
   }, [showCreateModal, editingTask]);
 
   const handleDeleteTask = async (taskId: string) => {
+    // Salvar posição atual do scroll
+    const currentScrollY = window.scrollY;
+    
     try {
       const deletedTask = await deleteTask(taskId, false); // showLoading = false para transição suave
       // Fechar modal de edição se a tarefa excluída estava sendo editada
@@ -193,11 +196,22 @@ export function Tasks() {
           },
         });
       }
+      
+      // Restaurar posição do scroll após a operação
+      setTimeout(() => {
+        window.scrollTo(0, currentScrollY);
+      }, 0);
+      
     } catch (error) {
       console.error('Failed to delete task:', error);
       toast.error('Erro ao deletar tarefa', {
         description: 'Não foi possível remover a tarefa',
       });
+      
+      // Restaurar scroll mesmo em caso de erro
+      setTimeout(() => {
+        window.scrollTo(0, currentScrollY);
+      }, 0);
     }
   };
 
