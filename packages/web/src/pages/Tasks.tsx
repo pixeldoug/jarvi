@@ -344,7 +344,7 @@ export function Tasks() {
 
     try {
       // Criar a tarefa imediatamente
-      const newTask = await createTask({
+      await createTask({
         title: title,
         description: '',
         priority: 'medium',
@@ -352,15 +352,7 @@ export function Tasks() {
         dueDate: dueDate,
       });
 
-      // Abrir o modal de edição com a tarefa recém-criada
-      setEditingTask(newTask);
-      setFormData({
-        title: newTask.title,
-        description: newTask.description || '',
-        priority: newTask.priority,
-        category: newTask.category || '',
-        dueDate: newTask.due_date || '',
-      });
+      // Tarefa criada com sucesso - não abrir modal de edição
     } catch (error) {
       console.error('Erro ao criar tarefa:', error);
     }
