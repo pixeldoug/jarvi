@@ -275,6 +275,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 }}
                 placeholder="Selecione uma categoria"
                 className="w-48"
+                showTrigger={false}
               />
             </div>
           )}
