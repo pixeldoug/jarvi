@@ -33,6 +33,7 @@ export const MyLists: React.FC<MyListsProps> = ({
     }
   });
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [showNewListForm, setShowNewListForm] = useState(false);
 
   // Salvar listas no localStorage
   const saveLists = (lists: CustomList[]) => {
@@ -57,6 +58,7 @@ export const MyLists: React.FC<MyListsProps> = ({
       saveLists(updatedLists);
       
       setSelectedCategory('');
+      setShowNewListForm(false); // Fechar o formulário após criar
     }
   };
 
@@ -83,7 +85,12 @@ export const MyLists: React.FC<MyListsProps> = ({
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Minhas listas
         </h2>
-        <Plus className="w-5 h-5 text-gray-400" />
+        <button
+          onClick={() => setShowNewListForm(!showNewListForm)}
+          className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+        >
+          <Plus className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
+        </button>
       </div>
 
       <div className="space-y-2 mb-6">
@@ -133,28 +140,42 @@ export const MyLists: React.FC<MyListsProps> = ({
         })}
       </div>
 
-      {/* Criar Nova Lista */}
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-          Nova Lista
-        </h3>
-        <div className="space-y-3">
-          <CategoryDropdown
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-            placeholder="Selecione uma categoria"
-            className="w-full"
-          />
-          <Button 
-            onClick={handleCreateList} 
-            disabled={!selectedCategory}
-            fullWidth
-            size="sm"
-          >
-            Criar Lista
-          </Button>
+      {/* Criar Nova Lista - Condicional */}
+      {showNewListForm && (
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            Nova Lista
+          </h3>
+          <div className="space-y-3">
+            <CategoryDropdown
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              placeholder="Selecione uma categoria"
+              className="w-full"
+            />
+            <div className="flex space-x-2">
+              <Button
+                onClick={handleCreateList}
+                disabled={!selectedCategory}
+                size="sm"
+                className="flex-1"
+              >
+                Criar Lista
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowNewListForm(false);
+                  setSelectedCategory('');
+                }}
+                variant="outline"
+                size="sm"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
