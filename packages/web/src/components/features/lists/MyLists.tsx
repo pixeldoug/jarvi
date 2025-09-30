@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Fire, Tag, X } from 'phosphor-react';
-import { Button } from '../../ui';
+import { Button, CategoryDropdown } from '../../ui';
 import { useCategories } from '../../../hooks/useCategories';
 
 interface CustomList {
@@ -139,16 +139,12 @@ export const MyLists: React.FC<MyListsProps> = ({
           Nova Lista
         </h3>
         <div className="space-y-3">
-          <select
+          <CategoryDropdown
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Selecione uma categoria</option>
-            {categories.map(cat => (
-              <option key={cat.id} value={cat.name}>{cat.name}</option>
-            ))}
-          </select>
+            onChange={setSelectedCategory}
+            placeholder="Selecione uma categoria"
+            className="w-full"
+          />
           <Button 
             onClick={handleCreateList} 
             disabled={!selectedCategory}

@@ -61,6 +61,11 @@ export {
   type AccordionProps,
 } from './Accordion';
 
+export {
+  CategoryDropdown,
+  type CategoryDropdownProps,
+} from './CategoryDropdown';
+
 // ============================================================================
 // DISPLAY COMPONENTS
 // ============================================================================
