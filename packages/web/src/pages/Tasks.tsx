@@ -47,6 +47,7 @@ export function Tasks() {
   // Ref para o campo de título
   const titleInputRef = useRef<HTMLInputElement>(null);
   
+  
   const [formData, setFormData] = useState<CreateTaskData>({
     title: '',
     description: '',
@@ -310,6 +311,7 @@ export function Tasks() {
     }
   };
 
+
   const handleQuickCreate = async (title: string, sectionId: string) => {
     // Determinar a data baseada na seção
     const today = new Date();
@@ -343,16 +345,16 @@ export function Tasks() {
     }
 
     try {
-      // Criar a tarefa imediatamente
+      // Criar a tarefa imediatamente sem mostrar loading (evita "piscada")
       await createTask({
         title: title,
         description: '',
         priority: 'medium',
         category: '', // Sem categoria padrão
         dueDate: dueDate,
-      });
+      }, false); // showLoading = false
 
-      // Tarefa criada com sucesso - não abrir modal de edição
+      // Tarefa criada com sucesso
     } catch (error) {
       console.error('Erro ao criar tarefa:', error);
     }
@@ -673,13 +675,26 @@ export function Tasks() {
         });
       } else {
         // Para outras seções: ordenar por status de conclusão (não concluídas primeiro)
-        // Preservar ordem relativa entre tarefas do mesmo status
         categories[categoryKey].sort((a, b) => {
           if (a.completed !== b.completed) {
             return a.completed ? 1 : -1;
           }
           
-          // Para tarefas do mesmo status, manter ordem original (baseada no índice no array principal)
+          // Para seção "Algum Dia", também aplicar a lógica de ordenação padrão
+          // (removido tratamento especial)
+          
+          // Para outras seções, ordenar por data/horário se disponível
+          if (a.due_date && b.due_date) {
+            const dateA = new Date(a.due_date + (a.time ? `T${a.time}` : ''));
+            const dateB = new Date(b.due_date + (b.time ? `T${b.time}` : ''));
+            return dateA.getTime() - dateB.getTime();
+          }
+          
+          // Se apenas uma tem data, a com data vem primeiro
+          if (a.due_date && !b.due_date) return -1;
+          if (!a.due_date && b.due_date) return 1;
+          
+          // Se nenhuma tem data, manter ordem original
           const indexA = tasks.findIndex(task => task.id === a.id);
           const indexB = tasks.findIndex(task => task.id === b.id);
           return indexA - indexB;
@@ -761,21 +776,19 @@ export function Tasks() {
           )}
         </div>
         
-        {/* Quick Task Creator - só renderiza quando necessário */}
-        {(hoveredSection === sectionId || tasks.length > 0) && (
-          <div 
-            className={tasks.length > 0 ? "min-h-[40px]" : ""}
-            onMouseEnter={() => setHoveredSection(sectionId)}
-            onMouseLeave={() => setHoveredSection(null)}
-          >
-            <QuickTaskCreator
-              sectionId={sectionId}
-              onQuickCreate={handleQuickCreate}
-              isVisible={hoveredSection === sectionId}
-              hasTasks={tasks.length > 0}
-            />
-          </div>
-        )}
+        {/* Quick Task Creator - versão simplificada */}
+        <div 
+          className={tasks.length > 0 ? "min-h-[40px]" : ""}
+          onMouseEnter={() => setHoveredSection(sectionId)}
+          onMouseLeave={() => setHoveredSection(null)}
+        >
+          <QuickTaskCreator
+            sectionId={sectionId}
+            onQuickCreate={handleQuickCreate}
+            isVisible={hoveredSection === sectionId || tasks.length === 0}
+            hasTasks={tasks.length > 0}
+          />
+        </div>
       </div>
     );
   };

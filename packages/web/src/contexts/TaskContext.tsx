@@ -42,7 +42,7 @@ interface TaskContextType {
   isLoading: boolean;
   error: string | null;
   fetchTasks: () => Promise<void>;
-  createTask: (taskData: CreateTaskData) => Promise<Task>;
+  createTask: (taskData: CreateTaskData, showLoading?: boolean) => Promise<Task>;
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string) => Promise<Task | null>;
   undoDeleteTask: (taskId: string) => Promise<boolean>;
@@ -135,6 +135,31 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+  // Função para ordenar tarefas de forma inteligente
+  const sortTasks = (tasks: Task[]): Task[] => {
+    return [...tasks].sort((a, b) => {
+      // Se ambas têm data, ordenar por data e horário
+      if (a.due_date && b.due_date) {
+        const dateA = new Date(a.due_date + (a.time ? `T${a.time}` : ''));
+        const dateB = new Date(b.due_date + (b.time ? `T${b.time}` : ''));
+        return dateA.getTime() - dateB.getTime();
+      }
+      
+      // Se apenas A tem data, A vem primeiro
+      if (a.due_date && !b.due_date) {
+        return -1;
+      }
+      
+      // Se apenas B tem data, B vem primeiro
+      if (!a.due_date && b.due_date) {
+        return 1;
+      }
+      
+      // Se nenhuma tem data, ordenar por data de criação (mais antigas primeiro, novas no final)
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
+  };
+
   const fetchTasks = async () => {
     if (!token) return;
 
@@ -157,7 +182,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const tasksData = await response.json();
-      setTasks(tasksData);
+      setTasks(sortTasks(tasksData));
     } catch (error) {
       console.error('Error fetching tasks:', error);
       setError('Failed to fetch tasks');
@@ -166,11 +191,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   };
 
-  const createTask = async (taskData: CreateTaskData): Promise<Task> => {
+  const createTask = async (taskData: CreateTaskData, showLoading: boolean = true): Promise<Task> => {
     if (!token) throw new Error('No authentication token');
 
     try {
-      setIsLoading(true);
+      if (showLoading) {
+        setIsLoading(true);
+      }
       setError(null);
 
       const requestData = {
@@ -196,14 +223,16 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const newTask = await response.json();
-      setTasks(prev => [newTask, ...prev]);
+      setTasks(prev => sortTasks([...prev, newTask]));
       return newTask;
     } catch (error) {
       console.error('Error creating task:', error);
       setError('Failed to create task');
       throw error;
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -244,10 +273,10 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const updatedTask = await response.json();
-      // Atualizar com os dados reais do servidor
-      setTasks(prev => prev.map(task => 
+      // Atualizar com os dados reais do servidor e reordenar
+      setTasks(prev => sortTasks(prev.map(task => 
         task.id === taskId ? updatedTask : task
-      ));
+      )));
     } catch (error) {
       console.error('Error updating task:', error);
       setError('Failed to update task');

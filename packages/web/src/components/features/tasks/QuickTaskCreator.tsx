@@ -46,12 +46,14 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
     }
   };
 
+  // Não renderizar se não for visível e não tiver tarefas
+  if (!isVisible && hasTasks) {
+    return null;
+  }
 
   return (
     <div className={`py-2 px-3 flex items-center transition-opacity duration-200 ${
       hasTasks ? 'h-[40px]' : ''
-    } ${
-      isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
     }`}>
       {isEditing ? (
         <form onSubmit={handleSubmit} className="flex items-center space-x-3">
@@ -66,7 +68,6 @@ export const QuickTaskCreator: React.FC<QuickTaskCreatorProps> = ({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={handleKeyDown}
-            onBlur={handleSubmit}
             className="flex-1 bg-transparent border-none outline-none text-sm font-normal text-gray-600 dark:text-gray-400 placeholder-gray-400 dark:placeholder-gray-500"
             placeholder="Digite o título da tarefa..."
             autoFocus

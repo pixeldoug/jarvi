@@ -20,14 +20,16 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Auth rate limiting (more restrictive)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 auth requests per windowMs
-  message: 'Too many authentication attempts, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Auth rate limiting (disabled in development, restrictive in production)
+const authLimiter = process.env.NODE_ENV === 'production' 
+  ? rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 5, // limit each IP to 5 auth requests per windowMs
+      message: 'Too many authentication attempts, please try again later.',
+      standardHeaders: true,
+      legacyHeaders: false,
+    })
+  : (req: any, res: any, next: any) => next(); // No rate limiting in development
 
 // Middleware
 app.use(helmet());
