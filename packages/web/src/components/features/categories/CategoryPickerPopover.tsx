@@ -44,19 +44,22 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
     }
   }, [isOpen, initialCategory]);
 
-  const handleConfirm = () => {
+  const handleConfirm = (e?: React.MouseEvent) => {
+    e?.preventDefault();
     // Permitir categoria vazia (para remover categoria)
     onCategorySelect(selectedCategory);
     onClose();
   };
 
-  const handleCancel = () => {
+  const handleCancel = (e?: React.MouseEvent) => {
+    e?.preventDefault();
     setSelectedCategory('');
     setNewCategoryName('');
     onClose();
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = (e?: React.MouseEvent) => {
+    e?.preventDefault();
     if (newCategoryName.trim()) {
       const newCategory = addCategory(newCategoryName.trim());
       setSelectedCategory(newCategory.name);
@@ -160,14 +163,15 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
           
           <div className="flex space-x-2 pt-2">
             <button
-              onClick={handleConfirm}
+              onClick={(e) => handleConfirm(e)}
               className="flex-1 px-3 py-2 text-sm font-medium text-white rounded-md transition-colors bg-blue-600 hover:bg-blue-700"
             >
               {selectedCategory ? 'Definir Categoria' : 'Remover Categoria'}
             </button>
             {initialCategory && (
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
                   onCategorySelect(''); // Passar string vazia para remover categoria
                   onClose();
                 }}
@@ -178,7 +182,7 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
               </button>
             )}
             <button
-              onClick={handleCancel}
+              onClick={(e) => handleCancel(e)}
               className="px-3 py-2 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               Cancelar
