@@ -14,6 +14,9 @@ interface TaskItemProps {
   onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
   showInsertionLine?: boolean;
+  isCategoryDropdownOpen?: boolean;
+  onCategoryDropdownToggle?: () => void;
+  onCategoryDropdownClose?: () => void;
 }
 
 export const TaskItem: React.FC<TaskItemProps> = ({
@@ -25,11 +28,13 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onUpdateTask,
   onOpenDatePicker,
   showInsertionLine = false,
+  isCategoryDropdownOpen = false,
+  onCategoryDropdownToggle,
+  onCategoryDropdownClose,
 }) => {
   const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const datePickerTriggerRef = useRef<HTMLDivElement>(null);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -37,15 +42,15 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
-        setShowCategoryDropdown(false);
+        onCategoryDropdownClose?.();
       }
     };
 
-    if (showCategoryDropdown) {
+    if (isCategoryDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showCategoryDropdown]);
+  }, [isCategoryDropdownOpen, onCategoryDropdownClose]);
 
   const {
     attributes,
@@ -242,7 +247,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setShowCategoryDropdown(true);
+              onCategoryDropdownToggle?.();
             }}
             onMouseDown={(e) => e.stopPropagation()}
             className="hover:opacity-80 transition-opacity cursor-pointer"
@@ -261,14 +266,14 @@ export const TaskItem: React.FC<TaskItemProps> = ({
             )}
           </button>
           
-          {showCategoryDropdown && (
+          {isCategoryDropdownOpen && (
             <div className="absolute top-full left-0 z-50 mt-1">
               <CategoryDropdown
                 value={task.category || ''}
                 onChange={async (category) => {
                   try {
                     await onUpdateTask(task.id, { category }, false); // showLoading = false
-                    setShowCategoryDropdown(false);
+                    onCategoryDropdownClose?.();
                   } catch (error) {
                     console.error('Erro ao atualizar categoria:', error);
                   }

@@ -38,6 +38,7 @@ export function Tasks() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [selectedList, setSelectedList] = useState<{ type: 'important' | 'category'; category?: string } | null>(null);
+  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<string | null>(null); // ID da tarefa com dropdown aberto
   
   // Ref para o campo de título
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -288,6 +289,14 @@ export function Tasks() {
   // Função para lidar com seleção de listas
   const handleListSelect = (listType: 'important' | 'category', category?: string) => {
     setSelectedList({ type: listType, category });
+  };
+
+  const handleCategoryDropdownToggle = (taskId: string) => {
+    setOpenCategoryDropdown(openCategoryDropdown === taskId ? null : taskId);
+  };
+
+  const handleCategoryDropdownClose = () => {
+    setOpenCategoryDropdown(null);
   };
 
   // Calcular contagens para as listas
@@ -769,6 +778,9 @@ export function Tasks() {
                     insertionIndicator?.sectionId === sectionId &&
                     insertionIndicator?.index === index
                   }
+                  isCategoryDropdownOpen={openCategoryDropdown === task.id}
+                  onCategoryDropdownToggle={() => handleCategoryDropdownToggle(task.id)}
+                  onCategoryDropdownClose={handleCategoryDropdownClose}
                 />
               ))}
             </SortableContext>
