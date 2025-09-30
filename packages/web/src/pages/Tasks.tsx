@@ -748,8 +748,9 @@ export function Tasks() {
     title: string, 
     tasks: Task[], 
     emptyMessage: string, 
-    sectionId: string 
-  }> = ({ title, tasks, emptyMessage, sectionId }) => {
+    sectionId: string,
+    showTitle?: boolean
+  }> = ({ title, tasks, emptyMessage, sectionId, showTitle = true }) => {
     const { setNodeRef, isOver } = useDroppable({
       id: sectionId,
       data: {
@@ -759,7 +760,7 @@ export function Tasks() {
 
     return (
       <div className="mb-1">
-        {title && (
+        {title && showTitle && (
           <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center">
             {title}
             <Badge variant="default" className="ml-2">
@@ -895,6 +896,7 @@ export function Tasks() {
                     : `Nenhuma tarefa na categoria "${selectedList.category}"`
                 }
                 sectionId="custom-list"
+                showTitle={false}
               />
             ) : (
               // Seções normais para visualização padrão
