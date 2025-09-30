@@ -328,6 +328,27 @@ export function Tasks() {
     return tasks;
   }, [tasks, selectedList]);
 
+  // Organizar tarefas filtradas por data (para listas personalizadas)
+  const sortedFilteredTasks = useMemo(() => {
+    if (!selectedList) return [];
+    
+    return [...filteredTasks].sort((a, b) => {
+      // Tarefas com data vêm primeiro
+      if (a.due_date && !b.due_date) return -1;
+      if (!a.due_date && b.due_date) return 1;
+      
+      // Se ambas têm data, ordenar por data
+      if (a.due_date && b.due_date) {
+        const dateA = new Date(a.due_date + (a.time ? `T${a.time}` : ''));
+        const dateB = new Date(b.due_date + (b.time ? `T${b.time}` : ''));
+        return dateA.getTime() - dateB.getTime();
+      }
+      
+      // Se nenhuma tem data, ordenar por data de criação (mais recentes primeiro)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [filteredTasks, selectedList]);
+
   const handleQuickCreate = async (title: string, sectionId: string) => {
     // Determinar a data baseada na seção
     const today = new Date();
@@ -863,57 +884,73 @@ export function Tasks() {
       </div>
 
           <div className="space-y-6">
-            <DroppableSection
-              title="Vencidas"
-              tasks={categorizedTasks.vencidas}
-              emptyMessage="Nenhuma tarefa vencida"
-              sectionId="vencidas"
-            />
-
-            <DroppableSection
-              title="Hoje"
-              tasks={categorizedTasks.hoje}
-              emptyMessage="Nenhuma tarefa para hoje"
-              sectionId="hoje"
-            />
-
-            <DroppableSection
-              title="Amanhã"
-              tasks={categorizedTasks.amanha}
-              emptyMessage="Nenhuma tarefa para amanhã"
-              sectionId="amanha"
-            />
-
-
-            <DroppableSection
-              title="Eventos Futuros"
-              tasks={categorizedTasks.eventosFuturos}
-              emptyMessage="Nenhum evento futuro"
-              sectionId="eventos-futuros"
-            />
-
-            <DroppableSection
-              title="Algum Dia"
-              tasks={categorizedTasks.algumDia}
-              emptyMessage="Nenhuma tarefa para algum dia"
-              sectionId="algum-dia"
-            />
-
-            {/* Nova seção para tarefas concluídas (accordion) */}
-            {categorizedTasks.vencidasCompletadas.length > 0 && (
-              <Accordion
-                title="Tarefas Concluídas"
-                variant="subtle"
-                defaultOpen={false}
-                className="mt-6"
-              >
+            {selectedList ? (
+              // Lista única para listas personalizadas
+              <DroppableSection
+                title={selectedList.type === 'important' ? 'Importantes' : selectedList.category || 'Lista'}
+                tasks={sortedFilteredTasks}
+                emptyMessage={
+                  selectedList.type === 'important' 
+                    ? 'Nenhuma tarefa importante' 
+                    : `Nenhuma tarefa na categoria "${selectedList.category}"`
+                }
+                sectionId="custom-list"
+              />
+            ) : (
+              // Seções normais para visualização padrão
+              <>
                 <DroppableSection
-                  title=""
-                  tasks={categorizedTasks.vencidasCompletadas}
-                  emptyMessage="Nenhuma tarefa concluída"
-                  sectionId="vencidas-completadas"
+                  title="Vencidas"
+                  tasks={categorizedTasks.vencidas}
+                  emptyMessage="Nenhuma tarefa vencida"
+                  sectionId="vencidas"
                 />
-              </Accordion>
+
+                <DroppableSection
+                  title="Hoje"
+                  tasks={categorizedTasks.hoje}
+                  emptyMessage="Nenhuma tarefa para hoje"
+                  sectionId="hoje"
+                />
+
+                <DroppableSection
+                  title="Amanhã"
+                  tasks={categorizedTasks.amanha}
+                  emptyMessage="Nenhuma tarefa para amanhã"
+                  sectionId="amanha"
+                />
+
+                <DroppableSection
+                  title="Eventos Futuros"
+                  tasks={categorizedTasks.eventosFuturos}
+                  emptyMessage="Nenhum evento futuro"
+                  sectionId="eventos-futuros"
+                />
+
+                <DroppableSection
+                  title="Algum Dia"
+                  tasks={categorizedTasks.algumDia}
+                  emptyMessage="Nenhuma tarefa para algum dia"
+                  sectionId="algum-dia"
+                />
+
+                {/* Nova seção para tarefas concluídas (accordion) */}
+                {categorizedTasks.vencidasCompletadas.length > 0 && (
+                  <Accordion
+                    title="Tarefas Concluídas"
+                    variant="subtle"
+                    defaultOpen={false}
+                    className="mt-6"
+                  >
+                    <DroppableSection
+                      title=""
+                      tasks={categorizedTasks.vencidasCompletadas}
+                      emptyMessage="Nenhuma tarefa concluída"
+                      sectionId="vencidas-completadas"
+                    />
+                  </Accordion>
+                )}
+              </>
             )}
           </div>
         </div>
