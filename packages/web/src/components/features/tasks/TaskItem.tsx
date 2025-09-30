@@ -238,43 +238,45 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         )}
         
         <div className="relative" ref={categoryDropdownRef}>
-          {showCategoryDropdown ? (
-            <CategoryDropdown
-              value={task.category || ''}
-              onChange={async (category) => {
-                try {
-                  await onUpdateTask(task.id, { category });
-                  setShowCategoryDropdown(false);
-                } catch (error) {
-                  console.error('Erro ao atualizar categoria:', error);
-                }
-              }}
-              placeholder="Selecione uma categoria"
-              className="w-32"
-            />
-          ) : (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowCategoryDropdown(true);
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="hover:opacity-80 transition-opacity cursor-pointer"
-            >
-              {task.category && task.category.trim() ? (
-                <CategoryBadge 
-                  categoryName={task.category} 
-                  size="sm" 
-                  variant="default"
-                />
-              ) : (
-                <div className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer">
-                  <Tag className="w-3 h-3" />
-                  <span>Categoria</span>
-                </div>
-              )}
-            </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowCategoryDropdown(true);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            {task.category && task.category.trim() ? (
+              <CategoryBadge 
+                categoryName={task.category} 
+                size="sm" 
+                variant="default"
+              />
+            ) : (
+              <div className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer">
+                <Tag className="w-3 h-3" />
+                <span>Categoria</span>
+              </div>
+            )}
+          </button>
+          
+          {showCategoryDropdown && (
+            <div className="absolute top-full left-0 z-50 mt-1">
+              <CategoryDropdown
+                value={task.category || ''}
+                onChange={async (category) => {
+                  try {
+                    await onUpdateTask(task.id, { category });
+                    setShowCategoryDropdown(false);
+                  } catch (error) {
+                    console.error('Erro ao atualizar categoria:', error);
+                  }
+                }}
+                placeholder="Selecione uma categoria"
+                className="w-48"
+              />
+            </div>
           )}
         </div>
         
