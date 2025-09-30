@@ -9,9 +9,9 @@ import {
   User,
   SignOut,
 } from 'phosphor-react';
-import { useAuth } from '../contexts/AuthContext';
-import { ThemeToggle } from './ui';
-import jarviLogo from '../assets/jarvi.svg';
+import { useAuth } from '../../contexts/AuthContext';
+import { ThemeToggle } from './ThemeToggle';
+import jarviLogo from '../../assets/jarvi.svg';
 
 const navigation = [
   { name: 'Tarefas', href: '/', icon: CheckCircle },

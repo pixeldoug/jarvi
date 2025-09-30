@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Card } from '../components/ui';
-import { GoogleLogin } from '../components/GoogleLogin';
+import { GoogleLogin } from '../components/features/auth';
 
 export const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);

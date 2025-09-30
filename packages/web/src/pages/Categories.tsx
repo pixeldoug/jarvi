@@ -1,5 +1,5 @@
 import React from 'react';
-import { CategoryManager } from '../components/CategoryManager';
+import { CategoryManager } from '../components/features/categories';
 
 export const Categories: React.FC = () => {
   return (

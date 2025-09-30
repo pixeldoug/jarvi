@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Trash, Tag } from 'phosphor-react';
-import { useCategories } from '../hooks/useCategories';
-import { Button, Input, Modal } from './ui';
+import { useCategories } from '../../../hooks/useCategories';
+import { Button, Input, Modal } from '../../ui';
 
 const AVAILABLE_COLORS = [
   { name: 'Azul', value: 'blue', bg: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200' },

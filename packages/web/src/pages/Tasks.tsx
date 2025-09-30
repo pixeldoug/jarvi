@@ -2,10 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge, toast, Accordion } from '../components/ui';
-import { TaskItem } from '../components/TaskItem';
-import { QuickTaskCreator } from '../components/QuickTaskCreator';
-import { DateTimePickerPopover } from '../components/DateTimePickerPopover';
-import { CategoryPickerPopover } from '../components/CategoryPickerPopover';
+import { TaskItem, QuickTaskCreator, DateTimePickerPopover } from '../components/features/tasks';
+import { CategoryPickerPopover } from '../components/features/categories';
 import { useCategories } from '../hooks/useCategories';
 import { Trash, Fire } from 'phosphor-react';
 import {

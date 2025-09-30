@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Task } from '../contexts/TaskContext';
-import { Badge } from './ui';
+import { Task } from '../../../contexts/TaskContext';
+import { Badge } from '../../ui';
 import { PencilSimple, DotsSixVertical, Calendar, Fire, Tag, Trash } from 'phosphor-react';
-import { useCategories } from '../hooks/useCategories';
+import { useCategories } from '../../../hooks/useCategories';
 
 interface TaskItemProps {
   task: Task;

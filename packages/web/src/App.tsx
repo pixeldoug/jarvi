@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
 import { ThemeProvider } from './hooks/useTheme';
 import { ToastProvider } from './components/ui';
-import { Layout } from './components/Layout';
+import { Layout } from './components/layout';
 import { Login } from './pages/Login';
 import { Tasks } from './pages/Tasks';
 import { Notes } from './pages/Notes';
