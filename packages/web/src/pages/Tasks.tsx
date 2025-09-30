@@ -4,6 +4,7 @@ import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Select, Modal, Badge, toast, Accordion } from '../components/ui';
 import { TaskItem, QuickTaskCreator, DateTimePickerPopover } from '../components/features/tasks';
 import { CategoryPickerPopover } from '../components/features/categories';
+import { MyLists } from '../components/features/lists';
 import { useCategories } from '../hooks/useCategories';
 import { Trash, Fire } from 'phosphor-react';
 import {
@@ -42,6 +43,7 @@ export function Tasks() {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [selectedList, setSelectedList] = useState<{ type: 'important' | 'category'; category?: string } | null>(null);
   
   // Ref para o campo de título
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -325,6 +327,40 @@ export function Tasks() {
   };
 
 
+  // Função para lidar com seleção de listas
+  const handleListSelect = (listType: 'important' | 'category', category?: string) => {
+    setSelectedList({ type: listType, category });
+  };
+
+  // Calcular contagens para as listas
+  const listTaskCounts = useMemo(() => {
+    const important = tasks.filter(task => task.important && !task.completed).length;
+    const categories: Record<string, number> = {};
+    
+    tasks.forEach(task => {
+      if (task.category && !task.completed) {
+        categories[task.category] = (categories[task.category] || 0) + 1;
+      }
+    });
+    
+    return { important, categories };
+  }, [tasks]);
+
+  // Filtrar tarefas baseado na lista selecionada
+  const filteredTasks = useMemo(() => {
+    if (!selectedList) return tasks;
+    
+    if (selectedList.type === 'important') {
+      return tasks.filter(task => task.important);
+    }
+    
+    if (selectedList.type === 'category' && selectedList.category) {
+      return tasks.filter(task => task.category === selectedList.category);
+    }
+    
+    return tasks;
+  }, [tasks, selectedList]);
+
   const handleQuickCreate = async (title: string, sectionId: string) => {
     // Determinar a data baseada na seção
     const today = new Date();
@@ -547,6 +583,7 @@ export function Tasks() {
 
   // Função para categorizar tarefas por período
   const categorizedTasks = useMemo(() => {
+    const tasksToUse = filteredTasks; // Usar tarefas filtradas
     // Usar data local do usuário, não UTC do servidor
     const now = new Date();
     
@@ -589,7 +626,7 @@ export function Tasks() {
       vencidasCompletadas: [] as Task[],
     };
 
-    tasks.forEach(task => {
+    tasksToUse.forEach(task => {
       // Se a tarefa está completada, verificar se deve ir para seção especial
       if (task.completed) {
         // Tarefas completadas com data vencida OU sem data vão para "Tarefas Concluídas"
@@ -716,7 +753,7 @@ export function Tasks() {
     });
 
     return categories;
-  }, [tasks]);
+  }, [filteredTasks]);
 
   // Componente para seção droppable
   const DroppableSection: React.FC<{ 
@@ -841,10 +878,25 @@ export function Tasks() {
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex">
+          {/* Área principal de tarefas */}
+          <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-              Tarefas
+              {selectedList 
+                ? selectedList.type === 'important' 
+                  ? 'Tarefas Importantes' 
+                  : `Lista: ${selectedList.category}`
+                : 'Tarefas'
+              }
+              {selectedList && (
+                <button
+                  onClick={() => setSelectedList(null)}
+                  className="ml-3 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
+                >
+                  Voltar
+                </button>
+              )}
             </h1>
         <Button
           onClick={() => setShowCreateModal(true)}
@@ -1227,10 +1279,18 @@ export function Tasks() {
           position={categoryPickerPosition}
           initialCategory={categoryPickerTask?.category || ''}
         />
-      </div>
-      
-      {/* Drag Overlay - Mostra a task sendo arrastada */}
-      <DragOverlay
+          </div>
+
+          {/* Painel lateral direito - Minhas Listas */}
+          <MyLists
+            onListSelect={handleListSelect}
+            selectedList={selectedList}
+            taskCounts={listTaskCounts}
+          />
+        </div>
+        
+        {/* Drag Overlay - Mostra a task sendo arrastada */}
+        <DragOverlay
         dropAnimation={{
           duration: 150,
           easing: 'ease-out',
