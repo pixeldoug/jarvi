@@ -93,6 +93,11 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   const selectedCategory = categories.find(cat => cat.name === value);
   const displayValue = selectedCategory ? selectedCategory.name : value || placeholder;
 
+  const getCategoryColor = (categoryName: string) => {
+    const category = categories.find(cat => cat.name === categoryName);
+    return category ? category.color : 'gray';
+  };
+
   // Se showTrigger for false, mostrar apenas o menu dropdown
   if (!showTrigger) {
     return (
@@ -108,7 +113,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 transition-colors"
             >
               {value !== category.name && (
-                <Tag weight="fill" className={`w-4 h-4 text-${category.color}-500`} />
+                <Tag weight="fill" className={`w-4 h-4 text-${getCategoryColor(category.name)}-500`} />
               )}
               <span className="text-gray-900 dark:text-gray-100">{category.name}</span>
               {value === category.name && (
@@ -203,7 +208,7 @@ export const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-3 transition-colors"
             >
               {value !== category.name && (
-                <Tag weight="fill" className={`w-4 h-4 text-${category.color}-500`} />
+                <Tag weight="fill" className={`w-4 h-4 text-${getCategoryColor(category.name)}-500`} />
               )}
               <span className="text-gray-900 dark:text-gray-100">{category.name}</span>
               {value === category.name && (
