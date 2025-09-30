@@ -94,3 +94,4 @@ export const Accordion: React.FC<AccordionProps> = ({
 };
 
 export default Accordion;
+
