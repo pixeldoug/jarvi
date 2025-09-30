@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Tag } from 'phosphor-react';
-import { useCategories } from '../../../hooks/useCategories';
-import { Button, Input, Select } from '../../ui';
+import { X, Tag } from 'phosphor-react';
+import { Button, CategoryDropdown } from '../../ui';
 
 interface CategoryPickerPopoverProps {
   isOpen: boolean;
@@ -18,9 +17,7 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
   position,
   initialCategory,
 }) => {
-  const { categories, addCategory } = useCategories();
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [newCategoryName, setNewCategoryName] = useState('');
   const [canClose, setCanClose] = useState(false);
 
   // Permitir fechar apenas após um pequeno delay para evitar fechamento imediato
@@ -40,7 +37,6 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
       setSelectedCategory(initialCategory || '');
     } else {
       setSelectedCategory('');
-      setNewCategoryName('');
     }
   }, [isOpen, initialCategory]);
 
@@ -54,17 +50,7 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
   const handleCancel = (e?: React.MouseEvent) => {
     e?.preventDefault();
     setSelectedCategory('');
-    setNewCategoryName('');
     onClose();
-  };
-
-  const handleAddCategory = (e?: React.MouseEvent) => {
-    e?.preventDefault();
-    if (newCategoryName.trim()) {
-      const newCategory = addCategory(newCategoryName.trim());
-      setSelectedCategory(newCategory.name);
-      setNewCategoryName('');
-    }
   };
 
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -73,13 +59,6 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
     }
   };
 
-  const categoryOptions = [
-    { value: '', label: '— Sem categoria —' },
-    ...categories.map(cat => ({
-      value: cat.name,
-      label: cat.name,
-    }))
-  ];
 
   if (!isOpen) {
     return null;
@@ -130,35 +109,12 @@ export const CategoryPickerPopover: React.FC<CategoryPickerPopoverProps> = ({
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
               Categoria da Tarefa
             </label>
-            <Select
+            <CategoryDropdown
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              options={categoryOptions}
+              onChange={setSelectedCategory}
+              placeholder="Selecione uma categoria"
               className="w-full"
             />
-          </div>
-          
-          {/* Adicionar nova categoria */}
-          <div className="space-y-2">
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Criar Nova Categoria
-            </label>
-            <div className="flex space-x-2">
-              <Input
-                placeholder="Nome da categoria..."
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                onClick={handleAddCategory}
-                disabled={!newCategoryName.trim()}
-                className="px-3"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
           </div>
           
           <div className="flex space-x-2 pt-2">
