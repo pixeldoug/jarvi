@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../contexts/TaskContext';
-import { CategoryBadge } from '../../ui';
+import { CategoryBadge, CategoryDropdown } from '../../ui';
 import { PencilSimple, DotsSixVertical, Calendar, Fire, Tag, Trash } from 'phosphor-react';
 
 interface TaskItemProps {
@@ -13,7 +13,6 @@ interface TaskItemProps {
   onDelete: (taskId: string) => void;
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
-  onOpenCategoryPicker?: (task: Task, triggerElement?: HTMLElement) => void;
   showInsertionLine?: boolean;
 }
 
@@ -25,13 +24,28 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onDelete,
   onUpdateTask,
   onOpenDatePicker,
-  onOpenCategoryPicker,
   showInsertionLine = false,
 }) => {
   const [editingInlineTaskId, setEditingInlineTaskId] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
   const [isHovered, setIsHovered] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const datePickerTriggerRef = useRef<HTMLDivElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fechar dropdown quando clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+        setShowCategoryDropdown(false);
+      }
+    };
+
+    if (showCategoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCategoryDropdown]);
 
   const {
     attributes,
@@ -223,40 +237,46 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           />
         )}
         
-        {task.category && task.category.trim() ? (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (onOpenCategoryPicker) {
-                onOpenCategoryPicker(task, e.currentTarget as HTMLElement);
-              }
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="hover:opacity-80 transition-opacity cursor-pointer"
-          >
-            <CategoryBadge 
-              categoryName={task.category} 
-              size="sm" 
-              variant="default"
+        <div className="relative" ref={categoryDropdownRef}>
+          {showCategoryDropdown ? (
+            <CategoryDropdown
+              value={task.category || ''}
+              onChange={async (category) => {
+                try {
+                  await onUpdateTask(task.id, { category });
+                  setShowCategoryDropdown(false);
+                } catch (error) {
+                  console.error('Erro ao atualizar categoria:', error);
+                }
+              }}
+              placeholder="Selecione uma categoria"
+              className="w-32"
             />
-          </button>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (onOpenCategoryPicker) {
-                onOpenCategoryPicker(task, e.currentTarget as HTMLElement);
-              }
-            }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer"
-          >
-            <Tag className="w-3 h-3" />
-            <span>Categoria</span>
-          </button>
-        )}
+          ) : (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowCategoryDropdown(true);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              {task.category && task.category.trim() ? (
+                <CategoryBadge 
+                  categoryName={task.category} 
+                  size="sm" 
+                  variant="default"
+                />
+              ) : (
+                <div className="flex items-center space-x-1 text-xs px-2 py-1 rounded-full border border-dashed border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors cursor-pointer">
+                  <Tag className="w-3 h-3" />
+                  <span>Categoria</span>
+                </div>
+              )}
+            </button>
+          )}
+        </div>
         
         
         {task.due_date ? (

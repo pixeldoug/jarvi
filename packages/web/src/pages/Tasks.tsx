@@ -3,7 +3,6 @@ import { useTasks } from '../contexts/TaskContext';
 import { Task, CreateTaskData } from '../contexts/TaskContext';
 import { Button, Input, Textarea, Modal, Badge, toast, Accordion, CategoryDropdown } from '../components/ui';
 import { TaskItem, QuickTaskCreator, DateTimePickerPopover } from '../components/features/tasks';
-import { CategoryPickerPopover } from '../components/features/categories';
 import { MyLists } from '../components/features/lists';
 import { Trash, Fire } from 'phosphor-react';
 import {
@@ -36,8 +35,6 @@ export function Tasks() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [datePickerTask, setDatePickerTask] = useState<Task | null>(null);
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
-  const [categoryPickerTask, setCategoryPickerTask] = useState<Task | null>(null);
-  const [categoryPickerPosition, setCategoryPickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [selectedList, setSelectedList] = useState<{ type: 'important' | 'category'; category?: string } | null>(null);
@@ -286,42 +283,6 @@ export function Tasks() {
     }
   };
 
-  const handleOpenCategoryPicker = (task: Task, triggerElement?: HTMLElement) => {
-    setCategoryPickerTask(task);
-    
-    if (triggerElement) {
-      const rect = triggerElement.getBoundingClientRect();
-      setCategoryPickerPosition({
-        top: rect.top - 10, // 10px acima do botão
-        left: rect.left + rect.width / 2, // centralizado horizontalmente
-      });
-    } else {
-      // Fallback para o centro da tela
-      setCategoryPickerPosition(null);
-    }
-  };
-
-  const handleSetCategory = async (taskId: string, category: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const updateData = {
-      title: task.title,
-      description: task.description,
-      priority: task.priority,
-      category: category,
-      important: task.important,
-      completed: task.completed,
-      dueDate: task.due_date,
-    };
-
-    try {
-      await updateTask(taskId, updateData, false);
-      setCategoryPickerTask(null); // Fechar o category picker após salvar
-    } catch (error) {
-      console.error('Erro ao definir categoria:', error);
-    }
-  };
 
 
   // Função para lidar com seleção de listas
@@ -804,7 +765,6 @@ export function Tasks() {
                   onDelete={handleDeleteTask}
                   onUpdateTask={updateTask}
                   onOpenDatePicker={(task, element) => handleOpenDatePicker(task, element)}
-                  onOpenCategoryPicker={(task, element) => handleOpenCategoryPicker(task, element)}
                   showInsertionLine={
                     insertionIndicator?.sectionId === sectionId &&
                     insertionIndicator?.index === index
@@ -1207,21 +1167,6 @@ export function Tasks() {
           initialTime={datePickerTask?.time || ''}
         />
         
-        {/* Category Picker Popover - Global */}
-        <CategoryPickerPopover
-          isOpen={!!categoryPickerTask}
-          onClose={() => {
-            setCategoryPickerTask(null);
-            setCategoryPickerPosition(null);
-          }}
-          onCategorySelect={(category) => {
-            if (categoryPickerTask) {
-              handleSetCategory(categoryPickerTask.id, category);
-            }
-          }}
-          position={categoryPickerPosition}
-          initialCategory={categoryPickerTask?.category || ''}
-        />
           </div>
 
           {/* Painel lateral direito - Minhas Listas */}
