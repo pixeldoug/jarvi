@@ -31,11 +31,11 @@ export const CategoryBadge: React.FC<CategoryBadgeProps> = ({
     lg: 'px-4 py-2 text-base',
   };
   
-  // Variantes
+  // Variantes (melhoradas para dark mode)
   const variantClasses = {
-    default: `bg-${color}-100 dark:bg-${color}-900/30 text-${color}-700 dark:text-${color}-300`,
-    outline: `border border-${color}-300 dark:border-${color}-600 text-${color}-700 dark:text-${color}-300 bg-transparent`,
-    minimal: `text-${color}-600 dark:text-${color}-400 bg-transparent`,
+    default: `bg-${color}-100 dark:bg-${color}-900/50 text-${color}-800 dark:text-${color}-200`,
+    outline: `border-2 border-${color}-300 dark:border-${color}-500 text-${color}-700 dark:text-${color}-200 bg-transparent`,
+    minimal: `text-${color}-600 dark:text-${color}-300 bg-transparent`,
   };
   
   const iconSizes = {
@@ -55,7 +55,7 @@ export const CategoryBadge: React.FC<CategoryBadgeProps> = ({
   return (
     <span className={baseClasses} onClick={onClick}>
       {showIcon && (
-        <Tag weight="fill" className={`${iconSizes[size]} text-${color}-500`} />
+        <Tag weight="fill" className={`${iconSizes[size]} text-${color}-600 dark:text-${color}-300`} />
       )}
       <span>{categoryName}</span>
     </span>

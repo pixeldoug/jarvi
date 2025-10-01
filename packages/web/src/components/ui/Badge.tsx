@@ -5,7 +5,6 @@
  */
 
 import React from 'react';
-import { useThemeClasses } from '../../hooks/useTheme';
 
 // ============================================================================
 // TIPOS
@@ -28,8 +27,6 @@ export function Badge({
   size = 'md',
   className = '',
 }: BadgeProps) {
-  const { isDark } = useThemeClasses();
-
   // Classes base
   const baseClasses = [
     'inline-flex items-center font-medium rounded-full',
@@ -43,29 +40,15 @@ export function Badge({
     lg: 'px-3 py-2 text-base',
   };
 
-  // Classes de variante
+  // Classes de variante (melhoradas para dark mode)
   const variantClasses = {
-    default: isDark 
-      ? 'bg-gray-700 text-gray-200' 
-      : 'bg-gray-100 text-gray-800',
-    primary: isDark 
-      ? 'bg-blue-600 text-blue-100' 
-      : 'bg-blue-100 text-blue-800',
-    secondary: isDark 
-      ? 'bg-purple-600 text-purple-100' 
-      : 'bg-purple-100 text-purple-800',
-    success: isDark 
-      ? 'bg-green-600 text-green-100' 
-      : 'bg-green-100 text-green-800',
-    warning: isDark 
-      ? 'bg-yellow-600 text-yellow-100' 
-      : 'bg-yellow-100 text-yellow-800',
-    danger: isDark 
-      ? 'bg-red-600 text-red-100' 
-      : 'bg-red-100 text-red-800',
-    info: isDark 
-      ? 'bg-cyan-600 text-cyan-100' 
-      : 'bg-cyan-100 text-cyan-800',
+    default: 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200',
+    primary: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
+    secondary: 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200',
+    success: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
+    warning: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
+    danger: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+    info: 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-800 dark:text-cyan-200',
   };
 
   // Classes finais
