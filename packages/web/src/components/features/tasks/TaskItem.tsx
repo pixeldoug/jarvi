@@ -273,7 +273,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 value={task.category || ''}
                 onChange={async (category) => {
                   try {
-                    await onUpdateTask(task.id, { category }, false); // showLoading = false
+                    // Preservar todos os dados existentes da tarefa
+                    await onUpdateTask(task.id, { 
+                      category,
+                      dueDate: task.due_date,
+                      time: task.time,
+                    }, false); // showLoading = false
                     onCategoryDropdownClose?.();
                   } catch (error) {
                     console.error('Erro ao atualizar categoria:', error);
