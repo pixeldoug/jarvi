@@ -5,6 +5,7 @@ interface DateTimePickerPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   onDateTimeSelect: (date: string, time?: string) => void;
+  onRemoveDate?: () => void;
   position?: { top: number; left: number } | null;
   initialDate?: string;
   initialTime?: string;
@@ -14,6 +15,7 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
   isOpen,
   onClose,
   onDateTimeSelect,
+  onRemoveDate,
   position,
   initialDate,
   initialTime,
@@ -109,6 +111,15 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
   };
 
   const handleCancel = () => {
+    setSelectedDate(undefined);
+    setSelectedTime('');
+    onClose();
+  };
+
+  const handleRemoveDate = () => {
+    if (onRemoveDate) {
+      onRemoveDate();
+    }
     setSelectedDate(undefined);
     setSelectedTime('');
     onClose();
@@ -335,12 +346,28 @@ export const DateTimePickerPopover: React.FC<DateTimePickerPopoverProps> = ({
                   month: 'long' 
                 })} às {selectedTime}
               </span>
+            ) : selectedDate ? (
+              <span>
+                {selectedDate.toLocaleDateString('pt-BR', { 
+                  weekday: 'long', 
+                  day: 'numeric', 
+                  month: 'long' 
+                })}
+              </span>
             ) : (
               'Selecione uma data e horário'
             )}
           </div>
           
           <div className="flex space-x-2">
+            {initialDate && onRemoveDate && (
+              <button
+                onClick={handleRemoveDate}
+                className="px-4 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+              >
+                Remover Data
+              </button>
+            )}
             <button
               onClick={handleCancel}
               className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"

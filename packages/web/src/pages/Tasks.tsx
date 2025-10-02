@@ -1209,6 +1209,11 @@ export function Tasks() {
               handleSetDate(datePickerTask.id, date, time);
             }
           }}
+          onRemoveDate={() => {
+            if (datePickerTask) {
+              handleSetDate(datePickerTask.id, '', '');
+            }
+          }}
           position={datePickerPosition}
           initialDate={datePickerTask?.due_date || ''}
           initialTime={datePickerTask?.time || ''}
