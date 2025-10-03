@@ -45,7 +45,31 @@ export const createNote = async (
           ]
         );
 
-        const result = await client.query('SELECT * FROM notes WHERE id = $1', [noteId]);
+        // Buscar a nota criada com os campos calculados
+        const result = await client.query(
+          `SELECT DISTINCT n.*, 
+                  CASE 
+                    WHEN n.user_id = $1 THEN 'owner'
+                    ELSE ns.permission
+                  END as access_level,
+                  CASE 
+                    WHEN n.user_id != $1 THEN u.name
+                    ELSE NULL
+                  END as shared_by_name,
+                  CASE 
+                    WHEN n.user_id = $1 THEN (
+                      SELECT COUNT(*) > 0 
+                      FROM note_shares ns2 
+                      WHERE ns2.note_id = n.id AND ns2.owner_id = $1
+                    )
+                    ELSE false
+                  END as is_shared
+           FROM notes n
+           LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = $1
+           LEFT JOIN users u ON n.user_id = u.id
+           WHERE n.id = $2`,
+          [userId, noteId]
+        );
         newNote = result.rows[0];
       } finally {
         client.release();
@@ -67,7 +91,31 @@ export const createNote = async (
         ]
       );
 
-      newNote = await db.get('SELECT * FROM notes WHERE id = ?', [noteId]);
+      // Buscar a nota criada com os campos calculados
+      newNote = await db.get(
+        `SELECT DISTINCT n.*, 
+                CASE 
+                  WHEN n.user_id = ? THEN 'owner'
+                  ELSE ns.permission
+                END as access_level,
+                CASE 
+                  WHEN n.user_id != ? THEN u.name
+                  ELSE NULL
+                END as shared_by_name,
+                CASE 
+                  WHEN n.user_id = ? THEN (
+                    SELECT COUNT(*) > 0 
+                    FROM note_shares ns2 
+                    WHERE ns2.note_id = n.id AND ns2.owner_id = ?
+                  )
+                  ELSE 0
+                END as is_shared
+         FROM notes n
+         LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = ?
+         LEFT JOIN users u ON n.user_id = u.id
+         WHERE n.id = ?`,
+        [userId, userId, userId, userId, userId, noteId]
+      );
     }
 
     res.status(201).json(newNote);
