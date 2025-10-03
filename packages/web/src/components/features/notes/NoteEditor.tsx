@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Check, Eye, EyeSlash } from 'phosphor-react';
+import { TrashSimple, Check } from 'phosphor-react';
 
 interface NoteEditorProps {
   note: Note;
@@ -18,7 +18,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [content, setContent] = useState(note.content);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
   
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -115,29 +114,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     });
   };
 
-  // Simple markdown renderer for preview
-  const renderMarkdown = (text: string) => {
-    if (!text) return '';
-    
-    return text
-      // Headers
-      .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>')
-      // Bold
-      .replace(/\*\*(.*)\*\*/gim, '<strong class="font-bold">$1</strong>')
-      // Italic
-      .replace(/\*(.*)\*/gim, '<em class="italic">$1</em>')
-      // Code
-      .replace(/`(.*)`/gim, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-      // Links
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>')
-      // Lists
-      .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
-      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
-      // Line breaks
-      .replace(/\n/gim, '<br>');
-  };
 
   return (
     <div className="flex flex-col h-full" onKeyDown={handleKeyDown}>
@@ -166,24 +142,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               </span>
             )}
             <Button
-              onClick={() => setShowPreview(!showPreview)}
-              className="flex items-center space-x-1"
-              variant="secondary"
-              size="sm"
-            >
-              {showPreview ? (
-                <>
-                  <EyeSlash className="w-4 h-4" />
-                  <span>Editor</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-4 h-4" />
-                  <span>Preview</span>
-                </>
-              )}
-            </Button>
-            <Button
               onClick={handleSave}
               disabled={!hasUnsavedChanges || isSaving}
               className="flex items-center space-x-1"
@@ -211,56 +169,31 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       </div>
 
       {/* Content Editor */}
-      <div className="flex-1 flex">
-        {showPreview ? (
-          // Preview Mode
-          <div className="flex-1 p-4">
-            <div 
-              className="prose prose-gray dark:prose-invert max-w-none h-full overflow-y-auto"
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-            />
-          </div>
-        ) : (
-          // Editor Mode
-          <div className="flex-1 p-4">
-            <textarea
-              value={content}
-              onChange={handleContentChange}
-              placeholder="Comece a escrever sua nota em Markdown...
+      <div className="flex-1 p-4">
+        <textarea
+          value={content}
+          onChange={handleContentChange}
+          placeholder="Comece a escrever sua nota...
 
-# Exemplo de Título
+Você pode usar formatação Markdown:
+**negrito** *itálico* `código`
+
+# Título
 ## Subtítulo
-### Sub-subtítulo
-
-**Texto em negrito**
-*Texto em itálico*
-`código inline`
 
 - Lista item 1
 - Lista item 2
-- Lista item 3
 
-[Link para exemplo](https://example.com)
-
-```javascript
-// Bloco de código
-function exemplo() {
-  return 'Hello World!';
-}
-```"
-              className="w-full h-full resize-none bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 leading-relaxed font-mono text-sm"
-              style={{ minHeight: 'calc(100vh - 200px)' }}
-            />
-          </div>
-        )}
+[Link](https://example.com)"
+          className="w-full h-full resize-none bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 leading-relaxed"
+          style={{ minHeight: 'calc(100vh - 200px)' }}
+        />
       </div>
 
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="text-xs text-gray-500 dark:text-gray-400">
-          Dica: Use Ctrl+S para salvar manualmente • 
-          {showPreview ? 'Modo Preview' : 'Modo Editor'} • 
-          Markdown suportado
+          Dica: Use Ctrl+S para salvar manualmente • Markdown suportado
         </div>
       </div>
     </div>
