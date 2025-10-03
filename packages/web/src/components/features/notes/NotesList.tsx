@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { Plus, Trash2, PencilSimple } from 'phosphor-react';
+import { Plus, TrashSimple, PencilSimple } from 'phosphor-react';
 
 interface NotesListProps {
   notes: Note[];
@@ -185,7 +185,7 @@ export const NotesList: React.FC<NotesListProps> = ({
                     className="ml-2 p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                     title="Deletar nota"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <TrashSimple className="w-4 h-4" />
                   </button>
                 </div>
               </div>
