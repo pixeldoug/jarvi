@@ -15,6 +15,21 @@ export function Notes() {
     setCurrentNote 
   } = useNotes();
 
+  const handleGoBack = () => {
+    setCurrentNote(null);
+  };
+
+  const handleNewNote = async () => {
+    try {
+      await createNote({
+        title: 'Nova nota',
+        content: '',
+      });
+    } catch (error) {
+      console.error('Failed to create note:', error);
+    }
+  };
+
   if (isLoading && notes.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -57,6 +72,8 @@ export function Notes() {
             note={currentNote}
             onUpdate={updateNote}
             onDelete={deleteNote}
+            onGoBack={handleGoBack}
+            onNewNote={handleNewNote}
           />
         ) : (
           <EmptyState onCreateNote={createNote} />

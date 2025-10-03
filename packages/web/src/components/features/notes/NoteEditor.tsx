@@ -1,23 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Check } from 'phosphor-react';
+import { TrashSimple, Check, Question } from 'phosphor-react';
+import { Breadcrumbs } from './Breadcrumbs';
+import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
 
 interface NoteEditorProps {
   note: Note;
   onUpdate: (noteId: string, noteData: { title?: string; content?: string }) => Promise<void>;
   onDelete: (noteId: string) => Promise<Note | null>;
+  onGoBack?: () => void;
+  onNewNote?: () => void;
 }
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({
   note,
   onUpdate,
   onDelete,
+  onGoBack,
+  onNewNote,
 }) => {
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -95,13 +102,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Ctrl/Cmd + S to save
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      handleSave();
-    }
-  };
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onSave: handleSave,
+    onDelete: handleDelete,
+    onNewNote,
+    onGoBack,
+    onToggleFocus: () => setShowShortcuts(true),
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -116,7 +124,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
 
   return (
-    <div className="flex flex-col h-full" onKeyDown={handleKeyDown}>
+    <div className="flex flex-col h-full">
+      {/* Breadcrumbs */}
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <Breadcrumbs
+          items={[
+            { label: note.title || 'Sem título' }
+          ]}
+          onHomeClick={onGoBack}
+        />
+      </div>
+
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
@@ -151,6 +169,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               <Check className="w-4 h-4" />
               <span>Salvar</span>
             </Button>
+            <button
+              onClick={() => setShowShortcuts(true)}
+              className="flex items-center space-x-1 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title="Atalhos de teclado (Ctrl+/)"
+            >
+              <Question className="w-4 h-4" />
+            </button>
             <Button
               onClick={handleDelete}
               className="flex items-center space-x-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
@@ -193,9 +218,15 @@ Você pode usar formatação Markdown:
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="text-xs text-gray-500 dark:text-gray-400">
-          Dica: Use Ctrl+S para salvar manualmente • Markdown suportado
+          Dica: Use Ctrl+S para salvar • Ctrl+N para nova nota • Esc para voltar • Markdown suportado
         </div>
       </div>
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp
+        isVisible={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
     </div>
   );
 };
