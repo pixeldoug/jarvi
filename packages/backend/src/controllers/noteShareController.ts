@@ -275,6 +275,87 @@ export const getNoteShares = async (req: Request, res: Response): Promise<void> 
   }
 };
 
+export const updateSharePermission = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { noteId, shareId } = req.params;
+    const { permission } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    if (!['read', 'write'].includes(permission)) {
+      res.status(400).json({ error: 'Permission must be "read" or "write"' });
+      return;
+    }
+
+    // Verificar se a nota pertence ao usuário
+    let note;
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          'SELECT * FROM notes WHERE id = $1 AND user_id = $2',
+          [noteId, userId]
+        );
+        note = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      note = await db.get('SELECT * FROM notes WHERE id = ? AND user_id = ?', [noteId, userId]);
+    }
+
+    if (!note) {
+      res.status(404).json({ error: 'Note not found or unauthorized' });
+      return;
+    }
+
+    // Atualizar permissão do compartilhamento
+    let updatedShare;
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          `UPDATE note_shares 
+           SET permission = $1 
+           WHERE id = $2 AND note_id = $3 AND owner_id = $4 
+           RETURNING *`,
+          [permission, shareId, noteId, userId]
+        );
+        updatedShare = result.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      await db.run(
+        'UPDATE note_shares SET permission = ? WHERE id = ? AND note_id = ? AND owner_id = ?',
+        [permission, shareId, noteId, userId]
+      );
+      updatedShare = await db.get(
+        'SELECT * FROM note_shares WHERE id = ? AND note_id = ? AND owner_id = ?',
+        [shareId, noteId, userId]
+      );
+    }
+
+    if (!updatedShare) {
+      res.status(404).json({ error: 'Share not found or unauthorized' });
+      return;
+    }
+
+    res.json({ message: 'Share permission updated successfully', share: updatedShare });
+  } catch (error) {
+    console.error('Error updating share permission:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const unshareNote = async (req: Request, res: Response): Promise<void> => {
   try {
     const { noteId, shareId } = req.params;

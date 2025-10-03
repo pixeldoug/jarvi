@@ -4,6 +4,7 @@ import {
   getSharedNotes, 
   getNoteShares, 
   unshareNote, 
+  updateSharePermission,
   searchUsers 
 } from '../controllers/noteShareController';
 import { authenticateToken } from '../middleware/auth';
@@ -24,6 +25,9 @@ router.get('/notes/shared', getSharedNotes);
 
 // Obter compartilhamentos de uma nota específica
 router.get('/notes/:noteId/shares', getNoteShares);
+
+// Atualizar permissão de compartilhamento
+router.put('/notes/:noteId/shares/:shareId', updateSharePermission);
 
 // Remover compartilhamento
 router.delete('/notes/:noteId/shares/:shareId', unshareNote);

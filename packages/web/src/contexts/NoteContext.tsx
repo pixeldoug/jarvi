@@ -37,6 +37,7 @@ interface NoteContextType {
   setCurrentNote: (note: Note | null) => void;
   shareNote: (noteId: string, userId: string, permission: 'read' | 'write') => Promise<void>;
   getNoteShares: (noteId: string) => Promise<any[]>;
+  updateSharePermission: (noteId: string, shareId: string, permission: 'read' | 'write') => Promise<void>;
   unshareNote: (noteId: string, shareId: string) => Promise<void>;
   searchUsers: (query: string) => Promise<any[]>;
 }
@@ -263,6 +264,31 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     }
   };
 
+  const updateSharePermission = async (noteId: string, shareId: string, permission: 'read' | 'write'): Promise<void> => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/notes/${noteId}/shares/${shareId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ permission }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Recarregar notas para atualizar a lista
+      await fetchNotes();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update share permission');
+      throw err;
+    }
+  };
+
   const unshareNote = async (noteId: string, shareId: string): Promise<void> => {
     if (!user) throw new Error('User not authenticated');
 
@@ -329,6 +355,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     setCurrentNote,
     shareNote,
     getNoteShares,
+    updateSharePermission,
     unshareNote,
     searchUsers,
   };

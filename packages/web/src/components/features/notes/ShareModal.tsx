@@ -31,7 +31,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   noteId,
   noteTitle,
 }) => {
-  const { shareNote, getNoteShares, unshareNote, searchUsers } = useNotes();
+  const { shareNote, getNoteShares, updateSharePermission, unshareNote, searchUsers } = useNotes();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
   const [shares, setShares] = useState<Share[]>([]);
@@ -84,6 +84,18 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       setSearchResults([]);
     } catch (error) {
       console.error('Error sharing note:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdatePermission = async (shareId: string, permission: 'read' | 'write') => {
+    setIsLoading(true);
+    try {
+      await updateSharePermission(noteId, shareId, permission);
+      await loadShares();
+    } catch (error) {
+      console.error('Error updating share permission:', error);
     } finally {
       setIsLoading(false);
     }
@@ -200,13 +212,32 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      share.permission === 'write'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                    }`}>
-                      {share.permission === 'write' ? 'Escrita' : 'Leitura'}
-                    </span>
+                    <div className="flex space-x-1">
+                      <button
+                        onClick={() => handleUpdatePermission(share.id, 'read')}
+                        disabled={isLoading}
+                        className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                          share.permission === 'read'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-800'
+                        }`}
+                        title="Alterar para Leitura"
+                      >
+                        Leitura
+                      </button>
+                      <button
+                        onClick={() => handleUpdatePermission(share.id, 'write')}
+                        disabled={isLoading}
+                        className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                          share.permission === 'write'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-800'
+                        }`}
+                        title="Alterar para Escrita"
+                      >
+                        Escrita
+                      </button>
+                    </div>
                     <button
                       onClick={() => handleUnshare(share.id)}
                       className="p-1 text-gray-400 hover:text-red-500 transition-colors"
