@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Save } from 'phosphor-react';
+import { TrashSimple, Check } from 'phosphor-react';
 
 interface NoteEditorProps {
   note: Note;
@@ -148,7 +148,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               variant="secondary"
               size="sm"
             >
-              <Save className="w-4 h-4" />
+              <Check className="w-4 h-4" />
               <span>Salvar</span>
             </Button>
             <Button
