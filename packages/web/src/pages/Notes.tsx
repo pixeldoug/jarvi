@@ -86,6 +86,7 @@ export function Notes() {
             onNewNote={handleNewNote}
             onToggleFullscreen={handleToggleFullscreen}
             isFullscreen={isFullscreen}
+            onNoteChange={setCurrentNote}
           />
         ) : (
           <EmptyState onCreateNote={createNote} />

@@ -17,6 +17,7 @@ interface NoteEditorProps {
   onNewNote?: () => void;
   onToggleFullscreen?: () => void;
   isFullscreen?: boolean;
+  onNoteChange?: (updatedNote: Note) => void;
 }
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({
@@ -27,6 +28,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onNewNote,
   onToggleFullscreen,
   isFullscreen = false,
+  onNoteChange,
 }) => {
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
@@ -77,6 +79,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         isReceivingCollaborativeChange.current = true;
         setContent(newContent);
         setHasUnsavedChanges(true);
+        
+        // Update the current note in the context to reflect the change
+        if (onNoteChange) {
+          const updatedNote = {
+            ...note,
+            content: newContent,
+            updated_at: new Date().toISOString()
+          };
+          onNoteChange(updatedNote);
+        }
+        
         isReceivingCollaborativeChange.current = false;
         console.log(`Content updated by ${userName}`);
       }
@@ -87,7 +100,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     return () => {
       window.removeEventListener('collaborative-note-change', handleCollaborativeChange as EventListener);
     };
-  }, [user?.id]);
+  }, [user?.id, note, onNoteChange]);
 
   // Auto-save functionality
   useEffect(() => {
