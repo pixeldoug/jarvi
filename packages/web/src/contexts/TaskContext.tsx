@@ -589,6 +589,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
           important: currentTask.important,
           time: currentTask.time,
           dueDate: nextDateStr,
+          recurrence_type: currentTask.recurrence_type,
+          recurrence_config: currentTask.recurrence_config,
         }, false); // showLoading = false para experiência fluida
 
         console.log('Next recurrence instance created:', newInstance);
