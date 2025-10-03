@@ -5,4 +5,5 @@ export { EmptyState } from './EmptyState';
 export { Breadcrumbs } from './Breadcrumbs';
 export { CategoryPicker } from './CategoryPicker';
 export { ShareModal } from './ShareModal';
+export { CollaborationIndicators } from './CollaborationIndicators';
 export { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';

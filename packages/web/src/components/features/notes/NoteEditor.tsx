@@ -5,6 +5,9 @@ import { TrashSimple, Check, Question, ArrowsOut, ArrowsIn, Share } from 'phosph
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
 import { CategoryPicker } from './CategoryPicker';
 import { ShareModal } from './ShareModal';
+import { CollaborationIndicators } from './CollaborationIndicators';
+import { useCollaboration } from '../../../hooks/useCollaboration';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface NoteEditorProps {
   note: Note;
@@ -34,6 +37,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [showShareModal, setShowShareModal] = useState(false);
   
   const titleRef = useRef<HTMLInputElement>(null);
+  
+  // Collaboration hooks
+  const { user } = useAuth();
+  const { collaborators, isConnected, joinNote, leaveNote, sendNoteChange } = useCollaboration();
+  const isReceivingCollaborativeChange = useRef(false);
 
   // Auto-save timer
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -45,6 +53,41 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setCategory(note.category);
     setHasUnsavedChanges(false);
   }, [note.id, note.title, note.content, note.category]);
+
+  // Join note collaboration when note changes
+  useEffect(() => {
+    if (note.id && isConnected) {
+      joinNote(note.id);
+    }
+    
+    return () => {
+      if (note.id) {
+        leaveNote(note.id);
+      }
+    };
+  }, [note.id, isConnected, joinNote, leaveNote]);
+
+  // Listen for collaborative changes
+  useEffect(() => {
+    const handleCollaborativeChange = (event: CustomEvent) => {
+      const { content: newContent, userId, userName } = event.detail;
+      
+      // Only apply changes from other users
+      if (userId !== user?.id) {
+        isReceivingCollaborativeChange.current = true;
+        setContent(newContent);
+        setHasUnsavedChanges(true);
+        isReceivingCollaborativeChange.current = false;
+        console.log(`Content updated by ${userName}`);
+      }
+    };
+
+    window.addEventListener('collaborative-note-change', handleCollaborativeChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('collaborative-note-change', handleCollaborativeChange as EventListener);
+    };
+  }, [user?.id]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -82,8 +125,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
+    const newContent = e.target.value;
+    setContent(newContent);
     setHasUnsavedChanges(true);
+    
+    // Send collaborative change if not receiving one
+    if (!isReceivingCollaborativeChange.current && isConnected) {
+      sendNoteChange(note.id, newContent);
+    }
   };
 
   const handleSave = async () => {
@@ -157,6 +206,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             />
           </div>
           <div className="flex items-center space-x-2">
+            {/* Collaboration indicators */}
+            <CollaborationIndicators 
+              collaborators={collaborators}
+              currentUserId={user?.id}
+            />
             {hasUnsavedChanges && (
               <span className="text-xs text-orange-500 dark:text-orange-400">
                 Não salvo

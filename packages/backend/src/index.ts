@@ -4,11 +4,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import { createServer } from 'http';
 import { initializeDatabase } from './database';
 import taskRoutes from './routes/taskRoutes';
 import noteRoutes from './routes/noteRoutes';
 import noteShareRoutes from './routes/noteShareRoutes';
 import authRoutes from './routes/authRoutes';
+import { CollaborationService } from './services/collaborationService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -111,8 +113,14 @@ app.use('/api', noteShareRoutes);
 // Initialize database and start server
 initializeDatabase()
   .then(() => {
-    app.listen(PORT, () => {
+    const server = createServer(app);
+    
+    // Initialize collaboration service
+    const collaborationService = new CollaborationService(server);
+    
+    server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🤝 Collaboration service initialized`);
     });
   })
   .catch((error) => {
