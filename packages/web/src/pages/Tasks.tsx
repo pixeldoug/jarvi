@@ -37,7 +37,7 @@ export function Tasks() {
   const [datePickerPosition, setDatePickerPosition] = useState<{ top: number; left: number } | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
-  const [selectedList, setSelectedList] = useState<{ type: 'important' | 'category'; category?: string } | null>(null);
+  const [selectedList, setSelectedList] = useState<{ type: 'important' | 'recurring' | 'category'; category?: string } | null>(null);
   const [openCategoryDropdown, setOpenCategoryDropdown] = useState<string | null>(null); // ID da tarefa com dropdown aberto
   const [recurrenceType, setRecurrenceType] = useState<string>('none'); // Estado de recorrência
   
@@ -298,7 +298,7 @@ export function Tasks() {
 
 
   // Função para lidar com seleção de listas
-  const handleListSelect = (listType: 'all' | 'important' | 'category', category?: string) => {
+  const handleListSelect = (listType: 'all' | 'important' | 'recurring' | 'category', category?: string) => {
     if (listType === 'all') {
       setSelectedList(null);
     } else {
@@ -317,6 +317,7 @@ export function Tasks() {
   // Calcular contagens para as listas
   const listTaskCounts = useMemo(() => {
     const important = tasks.filter(task => task.important && !task.completed).length;
+    const recurring = tasks.filter(task => task.recurrence_type && task.recurrence_type !== 'none' && !task.completed).length;
     const categories: Record<string, number> = {};
     
     tasks.forEach(task => {
@@ -325,7 +326,7 @@ export function Tasks() {
       }
     });
     
-    return { important, categories };
+    return { important, recurring, categories };
   }, [tasks]);
 
   // Filtrar tarefas baseado na lista selecionada
@@ -334,6 +335,10 @@ export function Tasks() {
     
     if (selectedList.type === 'important') {
       return tasks.filter(task => task.important);
+    }
+    
+    if (selectedList.type === 'recurring') {
+      return tasks.filter(task => task.recurrence_type && task.recurrence_type !== 'none');
     }
     
     if (selectedList.type === 'category' && selectedList.category) {

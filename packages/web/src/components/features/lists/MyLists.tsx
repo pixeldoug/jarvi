@@ -9,10 +9,11 @@ interface CustomList {
 }
 
 interface MyListsProps {
-  onListSelect: (listType: 'all' | 'important' | 'category', category?: string) => void;
-  selectedList?: { type: 'all' | 'important' | 'category'; category?: string } | null;
+  onListSelect: (listType: 'all' | 'important' | 'recurring' | 'category', category?: string) => void;
+  selectedList?: { type: 'all' | 'important' | 'recurring' | 'category'; category?: string } | null;
   taskCounts: {
     important: number;
+    recurring: number;
     categories: Record<string, number>;
   };
   tasks: any[]; // Para contar total de tarefas
@@ -123,6 +124,22 @@ export const MyLists: React.FC<MyListsProps> = ({
           </div>
           <span className="text-sm font-medium bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
             {taskCounts.important}
+          </span>
+        </div>
+
+        {/* Lista Tarefas Recorrentes */}
+        <div
+          className={getListItemClass(selectedList?.type === 'recurring')}
+          onClick={() => onListSelect('recurring')}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-white"></div>
+            </div>
+            <span className="font-medium">Tarefas Recorrentes</span>
+          </div>
+          <span className="text-sm font-medium bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+            {taskCounts.recurring}
           </span>
         </div>
 
