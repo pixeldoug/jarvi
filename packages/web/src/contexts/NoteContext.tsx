@@ -6,6 +6,7 @@ export interface Note {
   user_id: string;
   title: string;
   content: string;
+  category?: string;
   created_at: string;
   updated_at: string;
 }
@@ -13,11 +14,13 @@ export interface Note {
 export interface CreateNoteData {
   title: string;
   content?: string;
+  category?: string;
 }
 
 export interface UpdateNoteData {
   title?: string;
   content?: string;
+  category?: string;
 }
 
 interface NoteContextType {

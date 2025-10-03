@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Check, Question } from 'phosphor-react';
+import { TrashSimple, Check, Question, ArrowsOut, ArrowsIn } from 'phosphor-react';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
+import { CategoryPicker } from './CategoryPicker';
 
 interface NoteEditorProps {
   note: Note;
-  onUpdate: (noteId: string, noteData: { title?: string; content?: string }) => Promise<void>;
+  onUpdate: (noteId: string, noteData: { title?: string; content?: string; category?: string }) => Promise<void>;
   onDelete: (noteId: string) => Promise<Note | null>;
   onGoBack?: () => void;
   onNewNote?: () => void;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
 }
 
 export const NoteEditor: React.FC<NoteEditorProps> = ({
@@ -18,9 +21,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onDelete,
   onGoBack,
   onNewNote,
+  onToggleFullscreen,
+  isFullscreen = false,
 }) => {
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
+  const [category, setCategory] = useState(note.category);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -34,8 +40,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   useEffect(() => {
     setTitle(note.title);
     setContent(note.content);
+    setCategory(note.category);
     setHasUnsavedChanges(false);
-  }, [note.id, note.title, note.content]);
+  }, [note.id, note.title, note.content, note.category]);
 
   // Auto-save functionality
   useEffect(() => {
@@ -56,7 +63,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [title, content, hasUnsavedChanges]);
+  }, [title, content, category, hasUnsavedChanges]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -82,7 +89,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
     setIsSaving(true);
     try {
-      await onUpdate(note.id, { title, content });
+      await onUpdate(note.id, { title, content, category });
       setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Failed to save note:', error);
@@ -108,6 +115,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     onNewNote,
     onGoBack,
     onToggleFocus: () => setShowShortcuts(true),
+    onToggleFullscreen,
   });
 
   const formatDate = (dateString: string) => {
@@ -137,6 +145,15 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               className="w-full text-2xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
             />
           </div>
+          <div className="ml-4">
+            <CategoryPicker
+              selectedCategory={category}
+              onCategoryChange={(newCategory) => {
+                setCategory(newCategory);
+                setHasUnsavedChanges(true);
+              }}
+            />
+          </div>
           <div className="flex items-center space-x-2">
             {hasUnsavedChanges && (
               <span className="text-xs text-orange-500 dark:text-orange-400">
@@ -158,6 +175,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               <Check className="w-4 h-4" />
               <span>Salvar</span>
             </Button>
+            <button
+              onClick={onToggleFullscreen}
+              className="flex items-center space-x-1 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title={isFullscreen ? "Sair do modo fullscreen" : "Modo fullscreen"}
+            >
+              {isFullscreen ? <ArrowsIn className="w-4 h-4" /> : <ArrowsOut className="w-4 h-4" />}
+            </button>
             <button
               onClick={() => setShowShortcuts(true)}
               className="flex items-center space-x-1 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -207,7 +231,7 @@ Você pode usar formatação Markdown:
       {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="text-xs text-gray-500 dark:text-gray-400">
-          Dica: Use Ctrl+S para salvar • Ctrl+N para nova nota • Esc para voltar • Markdown suportado
+          Dica: Use Ctrl+S para salvar • Ctrl+N para nova nota • Esc para voltar • F11 para fullscreen • Markdown suportado
         </div>
       </div>
 

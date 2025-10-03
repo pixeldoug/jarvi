@@ -7,7 +7,7 @@ export const createNote = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, content } = req.body;
+    const { title, content, category } = req.body;
     const userId = req.user?.id;
     
     console.log('createNote - Creating note:', title);
@@ -32,13 +32,14 @@ export const createNote = async (
       const client = await pool.connect();
       try {
         await client.query(
-          `INSERT INTO notes (id, user_id, title, content, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
+          `INSERT INTO notes (id, user_id, title, content, category, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             noteId,
             userId,
             title,
             content || '',
+            category || null,
             now,
             now,
           ]
@@ -53,13 +54,14 @@ export const createNote = async (
       // SQLite
       const db = getDatabase();
       await db.run(
-        `INSERT INTO notes (id, user_id, title, content, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notes (id, user_id, title, content, category, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           noteId,
           userId,
           title,
           content || '',
+          category || null,
           now,
           now,
         ]
@@ -125,7 +127,7 @@ export const updateNote = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, content } = req.body;
+    const { title, content, category } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -148,9 +150,9 @@ export const updateNote = async (
       try {
         await client.query(
           `UPDATE notes 
-           SET title = $1, content = $2, updated_at = $3
-           WHERE id = $4 AND user_id = $5`,
-          [title, content || '', now, id, userId]
+           SET title = $1, content = $2, category = $3, updated_at = $4
+           WHERE id = $5 AND user_id = $6`,
+          [title, content || '', category || null, now, id, userId]
         );
 
         const result = await client.query('SELECT * FROM notes WHERE id = $1', [id]);
@@ -163,9 +165,9 @@ export const updateNote = async (
       const db = getDatabase();
       await db.run(
         `UPDATE notes 
-         SET title = ?, content = ?, updated_at = ?
+         SET title = ?, content = ?, category = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
-        [title, content || '', now, id, userId]
+        [title, content || '', category || null, now, id, userId]
       );
 
       updatedNote = await db.get('SELECT * FROM notes WHERE id = ?', [id]);

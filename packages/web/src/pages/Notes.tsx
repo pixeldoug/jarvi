@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNotes, Note } from '../contexts/NoteContext';
+import { useNotes } from '../contexts/NoteContext';
 import { NotesList } from '../components/features/notes/NotesList';
 import { NoteEditor } from '../components/features/notes/NoteEditor';
 import { EmptyState } from '../components/features/notes/EmptyState';
@@ -34,11 +34,8 @@ export function Notes() {
     }
   };
 
-  const handleNoteSelect = (note: Note | null) => {
-    setCurrentNote(note);
-    if (note) {
-      setIsFullscreen(true);
-    }
+  const handleToggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
   };
 
   if (isLoading && notes.length === 0) {
@@ -71,7 +68,7 @@ export function Notes() {
           <NotesList
             notes={notes}
             currentNote={currentNote}
-            onNoteSelect={handleNoteSelect}
+            onNoteSelect={setCurrentNote}
             onCreateNote={createNote}
             onDeleteNote={deleteNote}
           />
@@ -87,6 +84,8 @@ export function Notes() {
             onDelete={deleteNote}
             onGoBack={handleGoBack}
             onNewNote={handleNewNote}
+            onToggleFullscreen={handleToggleFullscreen}
+            isFullscreen={isFullscreen}
           />
         ) : (
           <EmptyState onCreateNote={createNote} />

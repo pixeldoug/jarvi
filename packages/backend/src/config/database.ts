@@ -53,6 +53,7 @@ export const initializeDatabase = async (): Promise<void> => {
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
+      category TEXT,
       tags TEXT,
       is_favorite BOOLEAN DEFAULT FALSE,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -126,6 +127,14 @@ export const initializeDatabase = async (): Promise<void> => {
   try {
     await db.exec(`
       ALTER TABLE tasks ADD COLUMN recurrence_config TEXT;
+    `);
+  } catch (e) {
+    // Coluna já existe, ignorar erro
+  }
+
+  try {
+    await db.exec(`
+      ALTER TABLE notes ADD COLUMN category TEXT;
     `);
   } catch (e) {
     // Coluna já existe, ignorar erro

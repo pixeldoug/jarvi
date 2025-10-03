@@ -77,6 +77,7 @@ const createTables = async (): Promise<void> => {
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
+      category TEXT,
       tags TEXT,
       is_favorite ${booleanType} DEFAULT FALSE,
       created_at ${timestampType},

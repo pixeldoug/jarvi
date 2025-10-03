@@ -3,4 +3,5 @@ export { NoteEditor } from './NoteEditor';
 export { MarkdownEditor } from './MarkdownEditor';
 export { EmptyState } from './EmptyState';
 export { Breadcrumbs } from './Breadcrumbs';
+export { CategoryPicker } from './CategoryPicker';
 export { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';

@@ -6,6 +6,7 @@ interface KeyboardShortcutsProps {
   onNewNote?: () => void;
   onGoBack?: () => void;
   onToggleFocus?: () => void;
+  onToggleFullscreen?: () => void;
 }
 
 export const useKeyboardShortcuts = ({
@@ -14,6 +15,7 @@ export const useKeyboardShortcuts = ({
   onNewNote,
   onGoBack,
   onToggleFocus,
+  onToggleFullscreen,
 }: KeyboardShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -48,6 +50,13 @@ export const useKeyboardShortcuts = ({
       if ((event.ctrlKey || event.metaKey) && event.key === '/') {
         event.preventDefault();
         onToggleFocus?.();
+        return;
+      }
+
+      // F11 - Toggle fullscreen
+      if (event.key === 'F11') {
+        event.preventDefault();
+        onToggleFullscreen?.();
         return;
       }
     };
@@ -119,6 +128,11 @@ export const KeyboardShortcutsHelp: React.FC<{ isVisible: boolean; onClose: () =
           <div className="flex justify-between items-center">
             <span className="text-gray-600 dark:text-gray-400">Mostrar atalhos</span>
             <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Ctrl+/</kbd>
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-gray-600 dark:text-gray-400">Modo fullscreen</span>
+            <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">F11</kbd>
           </div>
         </div>
 
