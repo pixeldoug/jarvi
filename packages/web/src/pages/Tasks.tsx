@@ -630,21 +630,11 @@ export function Tasks() {
     };
 
     tasksToUse.forEach(task => {
-      // Se a tarefa está completada, verificar se deve ir para seção especial
+      // Se a tarefa está completada, vai para "Tarefas Concluídas"
       if (task.completed) {
-        // Tarefas completadas com data vencida OU sem data vão para "Tarefas Concluídas"
-        if (!task.due_date) {
-          categories.vencidasCompletadas.push(task);
-          console.log(`Task "${task.title}" → Categorizada como TAREFA SEM DATA COMPLETADA`);
-          return;
-        } else {
-          const taskDateStr = task.due_date.split('T')[0];
-          if (taskDateStr < todayStr) {
-            categories.vencidasCompletadas.push(task);
-            console.log(`Task "${task.title}" → Categorizada como TAREFA VENCIDA COMPLETADA`);
-            return;
-          }
-        }
+        categories.vencidasCompletadas.push(task);
+        console.log(`Task "${task.title}" → Categorizada como TAREFA CONCLUÍDA`);
+        return;
       }
 
       if (!task.due_date) {
@@ -943,7 +933,7 @@ export function Tasks() {
                   sectionId="algum-dia"
                 />
 
-                {/* Nova seção para tarefas concluídas (accordion) */}
+                {/* Seção para tarefas concluídas (accordion) */}
                 {categorizedTasks.vencidasCompletadas.length > 0 && (
                   <Accordion
                     title="Tarefas Concluídas"
