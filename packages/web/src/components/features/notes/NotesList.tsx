@@ -268,6 +268,16 @@ export const NotesList: React.FC<NotesListProps> = ({
                           {note.category}
                         </span>
                       )}
+                      {note.access_level === 'owner' && note.shared_by_name && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          Compartilhada
+                        </span>
+                      )}
+                      {note.access_level !== 'owner' && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                          {note.shared_by_name ? `Compartilhada por ${note.shared_by_name}` : 'Compartilhada'}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
                       {getPreviewText(note.content)}

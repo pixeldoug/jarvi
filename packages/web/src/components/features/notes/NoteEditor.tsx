@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Check, Question, ArrowsOut, ArrowsIn } from 'phosphor-react';
+import { TrashSimple, Check, Question, ArrowsOut, ArrowsIn, Share } from 'phosphor-react';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
 import { CategoryPicker } from './CategoryPicker';
+import { ShareModal } from './ShareModal';
 
 interface NoteEditorProps {
   note: Note;
@@ -30,6 +31,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -175,6 +177,15 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               <Check className="w-4 h-4" />
               <span>Salvar</span>
             </Button>
+            {note.access_level === 'owner' && (
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center space-x-1 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                title="Compartilhar nota"
+              >
+                <Share className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={onToggleFullscreen}
               className="flex items-center space-x-1 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -189,15 +200,17 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
             >
               <Question className="w-4 h-4" />
             </button>
-            <Button
-              onClick={handleDelete}
-              className="flex items-center space-x-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-              variant="ghost"
-              size="sm"
-            >
-              <TrashSimple className="w-4 h-4" />
-              <span>Deletar</span>
-            </Button>
+            {note.access_level === 'owner' && (
+              <Button
+                onClick={handleDelete}
+                className="flex items-center space-x-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                variant="ghost"
+                size="sm"
+              >
+                <TrashSimple className="w-4 h-4" />
+                <span>Deletar</span>
+              </Button>
+            )}
           </div>
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -235,11 +248,19 @@ Você pode usar formatação Markdown:
         </div>
       </div>
 
-      {/* Keyboard Shortcuts Help */}
-      <KeyboardShortcutsHelp
-        isVisible={showShortcuts}
-        onClose={() => setShowShortcuts(false)}
-      />
-    </div>
-  );
-};
+              {/* Keyboard Shortcuts Help */}
+              <KeyboardShortcutsHelp
+                isVisible={showShortcuts}
+                onClose={() => setShowShortcuts(false)}
+              />
+
+              {/* Share Modal */}
+              <ShareModal
+                isOpen={showShareModal}
+                onClose={() => setShowShareModal(false)}
+                noteId={note.id}
+                noteTitle={note.title}
+              />
+            </div>
+          );
+        };

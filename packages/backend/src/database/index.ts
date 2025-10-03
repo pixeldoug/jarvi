@@ -84,6 +84,19 @@ const createTables = async (): Promise<void> => {
       updated_at ${timestampType}
     );`,
     
+    `CREATE TABLE IF NOT EXISTS note_shares (
+      id TEXT PRIMARY KEY,
+      note_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      shared_with_user_id TEXT NOT NULL,
+      permission TEXT DEFAULT 'read',
+      created_at ${timestampType},
+      FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE,
+      FOREIGN KEY (owner_id) REFERENCES users (id),
+      FOREIGN KEY (shared_with_user_id) REFERENCES users (id),
+      UNIQUE(note_id, shared_with_user_id)
+    );`,
+    
     `CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

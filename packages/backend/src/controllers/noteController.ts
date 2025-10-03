@@ -93,10 +93,22 @@ export const getNotes = async (req: Request, res: Response): Promise<void> => {
       const pool = getPool();
       const client = await pool.connect();
       try {
+        // Buscar notas próprias e compartilhadas
         const result = await client.query(
-          `SELECT * FROM notes 
-           WHERE user_id = $1 
-           ORDER BY updated_at DESC`,
+          `SELECT DISTINCT n.*, 
+                  CASE 
+                    WHEN n.user_id = $1 THEN 'owner'
+                    ELSE ns.permission
+                  END as access_level,
+                  CASE 
+                    WHEN n.user_id != $1 THEN u.name
+                    ELSE NULL
+                  END as shared_by_name
+           FROM notes n
+           LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = $1
+           LEFT JOIN users u ON n.user_id = u.id
+           WHERE n.user_id = $1 OR ns.shared_with_user_id = $1
+           ORDER BY n.updated_at DESC`,
           [userId]
         );
         notes = result.rows;
@@ -107,10 +119,21 @@ export const getNotes = async (req: Request, res: Response): Promise<void> => {
       // SQLite
       const db = getDatabase();
       notes = await db.all(
-        `SELECT * FROM notes 
-         WHERE user_id = ? 
-         ORDER BY updated_at DESC`,
-        [userId]
+        `SELECT DISTINCT n.*, 
+                CASE 
+                  WHEN n.user_id = ? THEN 'owner'
+                  ELSE ns.permission
+                END as access_level,
+                CASE 
+                  WHEN n.user_id != ? THEN u.name
+                  ELSE NULL
+                END as shared_by_name
+         FROM notes n
+         LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = ?
+         LEFT JOIN users u ON n.user_id = u.id
+         WHERE n.user_id = ? OR ns.shared_with_user_id = ?
+         ORDER BY n.updated_at DESC`,
+        [userId, userId, userId, userId, userId]
       );
     }
 
@@ -132,6 +155,53 @@ export const updateNote = async (
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    // Verificar permissões de escrita
+    let hasWritePermission = false;
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Verificar se é o dono da nota
+        const ownerResult = await client.query(
+          'SELECT id FROM notes WHERE id = $1 AND user_id = $2',
+          [id, userId]
+        );
+        
+        if (ownerResult.rows.length > 0) {
+          hasWritePermission = true;
+        } else {
+          // Verificar se tem permissão de escrita via compartilhamento
+          const shareResult = await client.query(
+            'SELECT id FROM note_shares WHERE note_id = $1 AND shared_with_user_id = $2 AND permission = $3',
+            [id, userId, 'write']
+          );
+          hasWritePermission = shareResult.rows.length > 0;
+        }
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      // Verificar se é o dono da nota
+      const ownerNote = await db.get('SELECT id FROM notes WHERE id = ? AND user_id = ?', [id, userId]);
+      
+      if (ownerNote) {
+        hasWritePermission = true;
+      } else {
+        // Verificar se tem permissão de escrita via compartilhamento
+        const shareNote = await db.get(
+          'SELECT id FROM note_shares WHERE note_id = ? AND shared_with_user_id = ? AND permission = ?',
+          [id, userId, 'write']
+        );
+        hasWritePermission = !!shareNote;
+      }
+    }
+
+    if (!hasWritePermission) {
+      res.status(403).json({ error: 'No write permission for this note' });
       return;
     }
 

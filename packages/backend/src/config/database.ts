@@ -61,6 +61,19 @@ export const initializeDatabase = async (): Promise<void> => {
       FOREIGN KEY (user_id) REFERENCES users (id)
     );
 
+    CREATE TABLE IF NOT EXISTS note_shares (
+      id TEXT PRIMARY KEY,
+      note_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      shared_with_user_id TEXT NOT NULL,
+      permission TEXT DEFAULT 'read', -- 'read' or 'write'
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE,
+      FOREIGN KEY (owner_id) REFERENCES users (id),
+      FOREIGN KEY (shared_with_user_id) REFERENCES users (id),
+      UNIQUE(note_id, shared_with_user_id)
+    );
+
     CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,

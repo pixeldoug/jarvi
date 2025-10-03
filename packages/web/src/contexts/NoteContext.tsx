@@ -9,6 +9,8 @@ export interface Note {
   category?: string;
   created_at: string;
   updated_at: string;
+  access_level?: 'owner' | 'read' | 'write';
+  shared_by_name?: string;
 }
 
 export interface CreateNoteData {
@@ -33,6 +35,10 @@ interface NoteContextType {
   updateNote: (noteId: string, noteData: UpdateNoteData, showLoading?: boolean) => Promise<void>;
   deleteNote: (noteId: string, showLoading?: boolean) => Promise<Note | null>;
   setCurrentNote: (note: Note | null) => void;
+  shareNote: (noteId: string, userId: string, permission: 'read' | 'write') => Promise<void>;
+  getNoteShares: (noteId: string) => Promise<any[]>;
+  unshareNote: (noteId: string, shareId: string) => Promise<void>;
+  searchUsers: (query: string) => Promise<any[]>;
 }
 
 const NoteContext = createContext<NoteContextType | undefined>(undefined);
@@ -211,6 +217,96 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     }
   };
 
+  const shareNote = async (noteId: string, userId: string, permission: 'read' | 'write'): Promise<void> => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/notes/${noteId}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ sharedWithUserId: userId, permission }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Recarregar notas para atualizar a lista
+      await fetchNotes();
+    } catch (err: any) {
+      setError(err.message || 'Failed to share note');
+      throw err;
+    }
+  };
+
+  const getNoteShares = async (noteId: string): Promise<any[]> => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/notes/${noteId}/shares`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch note shares');
+      throw err;
+    }
+  };
+
+  const unshareNote = async (noteId: string, shareId: string): Promise<void> => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/notes/${noteId}/shares/${shareId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Recarregar notas para atualizar a lista
+      await fetchNotes();
+    } catch (err: any) {
+      setError(err.message || 'Failed to unshare note');
+      throw err;
+    }
+  };
+
+  const searchUsers = async (query: string): Promise<any[]> => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (err: any) {
+      setError(err.message || 'Failed to search users');
+      throw err;
+    }
+  };
+
   // Fetch notes when user changes
   useEffect(() => {
     if (user && token) {
@@ -231,6 +327,10 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     updateNote,
     deleteNote,
     setCurrentNote,
+    shareNote,
+    getNoteShares,
+    unshareNote,
+    searchUsers,
   };
 
   return (
