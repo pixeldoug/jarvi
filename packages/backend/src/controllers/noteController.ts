@@ -282,12 +282,30 @@ export const updateNote = async (
       const pool = getPool();
       const client = await pool.connect();
       try {
-        await client.query(
-          `UPDATE notes 
-           SET title = $1, content = $2, category = $3, updated_at = $4
-           WHERE id = $5 AND user_id = $6`,
-          [title, content || '', category || null, now, id, userId]
-        );
+        // Primeiro verificar se é o dono ou tem permissão de escrita
+        let updateQuery;
+        let updateParams;
+        
+        if (hasWritePermission) {
+          // Se tem permissão, fazer o update
+          if (await client.query('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [id, userId]).then(r => r.rows.length > 0)) {
+            // É o dono da nota
+            updateQuery = `UPDATE notes 
+                          SET title = $1, content = $2, category = $3, updated_at = $4
+                          WHERE id = $5 AND user_id = $6`;
+            updateParams = [title, content || '', category || null, now, id, userId];
+          } else {
+            // É um usuário compartilhado com permissão de escrita
+            updateQuery = `UPDATE notes 
+                          SET title = $1, content = $2, category = $3, updated_at = $4
+                          WHERE id = $5`;
+            updateParams = [title, content || '', category || null, now, id];
+          }
+          
+          await client.query(updateQuery, updateParams);
+        } else {
+          throw new Error('No write permission');
+        }
 
         // Buscar a nota atualizada com os campos calculados
         const result = await client.query(
@@ -321,12 +339,31 @@ export const updateNote = async (
     } else {
       // SQLite
       const db = getDatabase();
-      await db.run(
-        `UPDATE notes 
-         SET title = ?, content = ?, category = ?, updated_at = ?
-         WHERE id = ? AND user_id = ?`,
-        [title, content || '', category || null, now, id, userId]
-      );
+      
+      if (hasWritePermission) {
+        // Verificar se é o dono ou usuário compartilhado
+        const ownerNote = await db.get('SELECT id FROM notes WHERE id = ? AND user_id = ?', [id, userId]);
+        
+        if (ownerNote) {
+          // É o dono da nota
+          await db.run(
+            `UPDATE notes 
+             SET title = ?, content = ?, category = ?, updated_at = ?
+             WHERE id = ? AND user_id = ?`,
+            [title, content || '', category || null, now, id, userId]
+          );
+        } else {
+          // É um usuário compartilhado com permissão de escrita
+          await db.run(
+            `UPDATE notes 
+             SET title = ?, content = ?, category = ?, updated_at = ?
+             WHERE id = ?`,
+            [title, content || '', category || null, now, id]
+          );
+        }
+      } else {
+        throw new Error('No write permission');
+      }
 
       // Buscar a nota atualizada com os campos calculados
       updatedNote = await db.get(
