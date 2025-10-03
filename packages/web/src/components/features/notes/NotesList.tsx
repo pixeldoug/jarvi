@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { Plus, TrashSimple, PencilSimple } from 'phosphor-react';
+import { Plus, TrashSimple, PencilSimple, FunnelSimple } from 'phosphor-react';
+import { useCategories } from '../../../hooks/useCategories';
 
 interface NotesListProps {
   notes: Note[];
@@ -20,6 +21,9 @@ export const NotesList: React.FC<NotesListProps> = ({
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newNoteTitle, setNewNoteTitle] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const { categories } = useCategories();
 
   const handleCreateNote = async () => {
     if (!newNoteTitle.trim()) return;
@@ -82,6 +86,33 @@ export const NotesList: React.FC<NotesListProps> = ({
       : plainText;
   };
 
+  // Filtrar notas por categoria
+  const filteredNotes = selectedCategory 
+    ? notes.filter(note => note.category === selectedCategory)
+    : notes;
+
+  // Obter categorias únicas das notas
+  const noteCategories = Array.from(new Set(notes.map(note => note.category).filter(Boolean)));
+
+  const getCategoryColor = (categoryName: string) => {
+    const category = categories.find(cat => cat.name === categoryName);
+    return category?.color || 'gray';
+  };
+
+  const getCategoryStyle = (color: string) => {
+    const colorMap: Record<string, string> = {
+      red: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+      blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      green: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+      pink: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
+      indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200',
+      gray: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+    };
+    return colorMap[color] || colorMap.gray;
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -90,16 +121,64 @@ export const NotesList: React.FC<NotesListProps> = ({
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Notas
           </h2>
-          <Button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center space-x-2 px-3 py-2 text-sm"
-            variant="primary"
-            size="sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nova</span>
-          </Button>
+          <div className="flex items-center space-x-2">
+            {noteCategories.length > 0 && (
+              <Button
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center space-x-2 px-3 py-2 text-sm"
+                variant="secondary"
+                size="sm"
+              >
+                <FunnelSimple className="w-4 h-4" />
+                <span>Filtros</span>
+              </Button>
+            )}
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center space-x-2 px-3 py-2 text-sm"
+              variant="primary"
+              size="sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nova</span>
+            </Button>
+          </div>
         </div>
+
+        {/* Category Filters */}
+        {showFilters && noteCategories.length > 0 && (
+          <div className="mb-4 space-y-2">
+            <div className="flex items-center space-x-2 flex-wrap">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Filtrar por categoria:</span>
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                  selectedCategory === null
+                    ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Todas ({notes.length})
+              </button>
+              {noteCategories.map((category) => {
+                const categoryNotes = notes.filter(note => note.category === category);
+                return (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category || null)}
+                    className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                      selectedCategory === category
+                        ? getCategoryStyle(getCategoryColor(category))
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {category} ({categoryNotes.length})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Create Note Form */}
         {isCreating && (
@@ -148,15 +227,25 @@ export const NotesList: React.FC<NotesListProps> = ({
 
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto">
-        {notes.length === 0 ? (
+        {filteredNotes.length === 0 ? (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
             <PencilSimple className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Nenhuma nota ainda.</p>
-            <p className="text-xs">Clique em "Nova" para começar.</p>
+            <p className="text-sm">
+              {selectedCategory 
+                ? `Nenhuma nota na categoria "${selectedCategory}".`
+                : 'Nenhuma nota ainda.'
+              }
+            </p>
+            <p className="text-xs">
+              {selectedCategory 
+                ? 'Tente selecionar outra categoria ou criar uma nova nota.'
+                : 'Clique em "Nova" para começar.'
+              }
+            </p>
           </div>
         ) : (
           <div className="p-2">
-            {notes.map((note) => (
+            {filteredNotes.map((note) => (
               <div
                 key={note.id}
                 onClick={() => onNoteSelect(note)}
@@ -170,9 +259,16 @@ export const NotesList: React.FC<NotesListProps> = ({
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                      {note.title}
-                    </h3>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                        {note.title}
+                      </h3>
+                      {note.category && (
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${getCategoryStyle(getCategoryColor(note.category))}`}>
+                          {note.category}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
                       {getPreviewText(note.content)}
                     </p>
