@@ -39,6 +39,7 @@ export function Tasks() {
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [selectedList, setSelectedList] = useState<{ type: 'important' | 'category'; category?: string } | null>(null);
   const [openCategoryDropdown, setOpenCategoryDropdown] = useState<string | null>(null); // ID da tarefa com dropdown aberto
+  const [recurrenceType, setRecurrenceType] = useState<string>('none'); // Estado de recorrência
   
   // Ref para o campo de título
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -64,16 +65,26 @@ export function Tasks() {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Creating task with data:', formData);
+    console.log('Creating task with data:', formData, 'recurrence:', recurrenceType);
     try {
-      const newTask = await createTask(formData);
+      const taskData = {
+        ...formData,
+        recurrence_type: recurrenceType,
+        recurrence_config: recurrenceType !== 'none' ? JSON.stringify({ frequency: recurrenceType }) : null
+      };
+      const newTask = await createTask(taskData);
       setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
+      setRecurrenceType('none');
       setShowCreateModal(false);
       
       // Show success notification
       if (newTask) {
+        const message = recurrenceType !== 'none' 
+          ? `"${newTask.title}" foi criada com recorrência ${recurrenceType === 'daily' ? 'diária' : recurrenceType === 'weekly' ? 'semanal' : 'mensal'}`
+          : `"${newTask.title}" foi criada com sucesso`;
+        
         toast.success('Tarefa criada', {
-          description: `"${newTask.title}" foi criada com sucesso`,
+          description: message,
         });
       }
     } catch (error) {
@@ -1056,6 +1067,22 @@ export function Tasks() {
                   <span className="text-gray-400 dark:text-gray-500">Clique para definir data e horário</span>
                 )}
               </button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Recorrência
+              </label>
+              <select
+                value={recurrenceType}
+                onChange={(e) => setRecurrenceType(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value="none">Não se repete</option>
+                <option value="daily">Repetir diariamente</option>
+                <option value="weekly">Repetir semanalmente</option>
+                <option value="monthly">Repetir mensalmente</option>
+              </select>
             </div>
 
             <div className="flex justify-end space-x-3">

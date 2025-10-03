@@ -552,6 +552,41 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         
         return tasksWithUpdated;
       });
+
+      // Se a tarefa foi completada e tem recorrência, criar próxima instância
+      if (newCompleted && currentTask.recurrence_type && currentTask.recurrence_type !== 'none') {
+        console.log('Creating next recurrence instance for completed task');
+        
+        // Calcular próxima data diretamente (sem import dinâmico)
+        const currentDate = new Date(currentTask.due_date || new Date().toISOString().split('T')[0]);
+        let nextDate = new Date(currentDate);
+        
+        switch (currentTask.recurrence_type) {
+          case 'daily':
+            nextDate.setDate(nextDate.getDate() + 1);
+            break;
+          case 'weekly':
+            nextDate.setDate(nextDate.getDate() + 7);
+            break;
+          case 'monthly':
+            nextDate.setMonth(nextDate.getMonth() + 1);
+            break;
+        }
+        
+        const nextDateStr = nextDate.toISOString().split('T')[0];
+
+        const newInstance = await createTask({
+          title: currentTask.title,
+          description: currentTask.description,
+          priority: currentTask.priority,
+          category: currentTask.category,
+          important: currentTask.important,
+          time: currentTask.time,
+          dueDate: nextDateStr,
+        }, false); // showLoading = false para experiência fluida
+
+        console.log('Next recurrence instance created:', newInstance);
+      }
     } catch (error) {
       console.error('Error toggling task completion:', error);
       setError('Failed to toggle task completion');

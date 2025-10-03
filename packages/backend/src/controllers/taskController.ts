@@ -7,18 +7,11 @@ export const createTask = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, priority, category, important, time, dueDate } = req.body;
+    const { title, description, priority, category, important, time, dueDate, recurrence_type, recurrence_config } = req.body;
     const userId = req.user?.id; // Will come from auth middleware
     
-    // Debug: log received data
-    console.log('createTask - Received data:', {
-      title,
-      dueDate,
-      time,
-      userId,
-      serverTime: new Date().toISOString(),
-      serverLocalTime: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-    });
+    // Debug: log received data (simplified)
+    console.log('createTask - Creating task:', title);
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
@@ -39,45 +32,26 @@ export const createTask = async (
       const pool = getPool();
       const client = await pool.connect();
       try {
-        // Tentar inserir com coluna time, se falhar, inserir sem ela (para compatibilidade)
-        try {
-          await client.query(
-            `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-            [
-              taskId,
-              userId,
-              title,
-              description || null,
-              priority || 'medium',
-              category || null,
-              important || false,
-              time || null,
-              dueDate || null,
-              now,
-              now,
-            ]
-          );
-        } catch (timeColumnError) {
-          // Se falhar (coluna time não existe), inserir sem a coluna time
-          console.log('Time column not found, inserting without time field');
-          await client.query(
-            `INSERT INTO tasks (id, user_id, title, description, priority, category, important, due_date, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [
-              taskId,
-              userId,
-              title,
-              description || null,
-              priority || 'medium',
-              category || null,
-              important || false,
-              dueDate || null,
-              now,
-              now,
-            ]
-          );
-        }
+        // Inserir diretamente (colunas já existem)
+        await client.query(
+          `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, recurrence_type, recurrence_config, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            taskId,
+            userId,
+            title,
+            description || null,
+            priority || 'medium',
+            category || null,
+            important || false,
+            time || null,
+            dueDate || null,
+            recurrence_type || 'none',
+            recurrence_config || null,
+            now,
+            now,
+          ]
+        );
 
         const result = await client.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
         newTask = result.rows[0];
@@ -88,8 +62,8 @@ export const createTask = async (
       // SQLite
       const db = getDatabase();
       await db.run(
-        `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, recurrence_type, recurrence_config, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           taskId,
           userId,
@@ -100,6 +74,8 @@ export const createTask = async (
           important || false,
           time || null,
           dueDate || null,
+          recurrence_type || 'none',
+          recurrence_config || null,
           now,
           now,
         ]

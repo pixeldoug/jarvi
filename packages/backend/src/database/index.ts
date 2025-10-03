@@ -66,6 +66,8 @@ const createTables = async (): Promise<void> => {
       important ${booleanType} DEFAULT FALSE,
       due_date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       time TEXT,
+      recurrence_type TEXT DEFAULT 'none',
+      recurrence_config TEXT,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
