@@ -38,7 +38,11 @@ export const initializeDatabase = async (): Promise<void> => {
       completed BOOLEAN DEFAULT FALSE,
       priority TEXT DEFAULT 'medium',
       category TEXT,
+      important BOOLEAN DEFAULT FALSE,
+      time TEXT,
       due_date DATETIME,
+      recurrence_type TEXT DEFAULT 'none',
+      recurrence_config TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users (id)
@@ -93,6 +97,39 @@ export const initializeDatabase = async (): Promise<void> => {
       FOREIGN KEY (habit_id) REFERENCES habits (id)
     );
   `);
+
+  // Migração: adicionar colunas que podem estar faltando
+  try {
+    await db.exec(`
+      ALTER TABLE tasks ADD COLUMN important BOOLEAN DEFAULT FALSE;
+    `);
+  } catch (e) {
+    // Coluna já existe, ignorar erro
+  }
+
+  try {
+    await db.exec(`
+      ALTER TABLE tasks ADD COLUMN time TEXT;
+    `);
+  } catch (e) {
+    // Coluna já existe, ignorar erro
+  }
+
+  try {
+    await db.exec(`
+      ALTER TABLE tasks ADD COLUMN recurrence_type TEXT DEFAULT 'none';
+    `);
+  } catch (e) {
+    // Coluna já existe, ignorar erro
+  }
+
+  try {
+    await db.exec(`
+      ALTER TABLE tasks ADD COLUMN recurrence_config TEXT;
+    `);
+  } catch (e) {
+    // Coluna já existe, ignorar erro
+  }
 
   console.log('✅ Database initialized successfully');
 };
