@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { Plus, Trash2, Edit3 } from 'phosphor-react';
+import { Plus, Trash2, Edit } from 'phosphor-react';
 
 interface NotesListProps {
   notes: Note[];
@@ -150,7 +150,7 @@ export const NotesList: React.FC<NotesListProps> = ({
       <div className="flex-1 overflow-y-auto">
         {notes.length === 0 ? (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-            <Edit3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+            <Edit className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p className="text-sm">Nenhuma nota ainda.</p>
             <p className="text-xs">Clique em "Nova" para começar.</p>
           </div>
