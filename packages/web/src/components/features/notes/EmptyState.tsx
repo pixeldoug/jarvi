@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit, Plus } from 'phosphor-react';
+import { PencilSimple, Plus } from 'phosphor-react';
 import { Button } from '../../ui';
 
 interface EmptyStateProps {
@@ -21,7 +21,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ onCreateNote }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
       <div className="text-center max-w-md">
-        <Edit className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
+        <PencilSimple className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-gray-500" />
         
         <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
           Bem-vindo às suas notas
