@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import { initializeDatabase } from './database';
 import taskRoutes from './routes/taskRoutes';
+import noteRoutes from './routes/noteRoutes';
 import authRoutes from './routes/authRoutes';
 
 const app = express();
@@ -103,6 +104,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/notes', noteRoutes);
 
 // Initialize database and start server
 initializeDatabase()

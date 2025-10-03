@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
+import { NoteProvider } from './contexts/NoteContext';
 import { ThemeProvider } from './hooks/useTheme';
 import { ToastProvider } from './components/ui';
 import { Layout } from './components/layout';
@@ -102,12 +103,14 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <TaskProvider>
-            <ToastProvider>
-              <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-                <AppRoutes />
-                <Toaster position="top-right" />
-              </div>
-            </ToastProvider>
+            <NoteProvider>
+              <ToastProvider>
+                <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                  <AppRoutes />
+                  <Toaster position="top-right" />
+                </div>
+              </ToastProvider>
+            </NoteProvider>
           </TaskProvider>
         </AuthProvider>
       </ThemeProvider>

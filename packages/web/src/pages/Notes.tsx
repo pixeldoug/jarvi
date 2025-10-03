@@ -1,25 +1,68 @@
 import React from 'react';
+import { useNotes } from '../contexts/NoteContext';
+import { NotesList } from '../components/features/notes/NotesList';
+import { NoteEditor } from '../components/features/notes/NoteEditor';
+import { EmptyState } from '../components/features/notes/EmptyState';
 
-export const Notes: React.FC = () => {
-  return (
-    <div>
-      <h1 className='text-2xl font-bold text-gray-900'>Notas</h1>
-      <p className='mt-2 text-gray-600'>Suas notas e anotações.</p>
+export function Notes() {
+  const { 
+    notes, 
+    currentNote, 
+    isLoading, 
+    error, 
+    createNote, 
+    updateNote, 
+    deleteNote, 
+    setCurrentNote 
+  } = useNotes();
 
-      <div className='mt-8'>
-        <div className='bg-white shadow rounded-lg'>
-          <div className='px-4 py-5 sm:p-6'>
-            <h3 className='text-lg leading-6 font-medium text-gray-900'>
-              Minhas Notas
-            </h3>
-            <div className='mt-4'>
-              <p className='text-sm text-gray-500'>
-                Suas notas aparecerão aqui. Funcionalidade em desenvolvimento.
-              </p>
-            </div>
-          </div>
+  if (isLoading && notes.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Carregando notas...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400 mb-4">Erro ao carregar notas</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full bg-white dark:bg-gray-900">
+      {/* Sidebar com lista de notas */}
+      <div className="w-80 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        <NotesList
+          notes={notes}
+          currentNote={currentNote}
+          onNoteSelect={setCurrentNote}
+          onCreateNote={createNote}
+          onDeleteNote={deleteNote}
+        />
+      </div>
+
+      {/* Editor inline */}
+      <div className="flex-1 bg-white dark:bg-gray-900">
+        {currentNote ? (
+          <NoteEditor
+            note={currentNote}
+            onUpdate={updateNote}
+            onDelete={deleteNote}
+          />
+        ) : (
+          <EmptyState onCreateNote={createNote} />
+        )}
       </div>
     </div>
   );
-};
+}

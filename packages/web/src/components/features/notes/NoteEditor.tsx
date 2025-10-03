@@ -1,0 +1,191 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Note } from '../../../contexts/NoteContext';
+import { Button } from '../../ui';
+import { Trash2, Save } from 'phosphor-react';
+
+interface NoteEditorProps {
+  note: Note;
+  onUpdate: (noteId: string, noteData: { title?: string; content?: string }) => Promise<void>;
+  onDelete: (noteId: string) => Promise<Note | null>;
+}
+
+export const NoteEditor: React.FC<NoteEditorProps> = ({
+  note,
+  onUpdate,
+  onDelete,
+}) => {
+  const [title, setTitle] = useState(note.title);
+  const [content, setContent] = useState(note.content);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  const titleRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-save timer
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update local state when note prop changes
+  useEffect(() => {
+    setTitle(note.title);
+    setContent(note.content);
+    setHasUnsavedChanges(false);
+  }, [note.id, note.title, note.content]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (hasUnsavedChanges) {
+      // Clear existing timeout
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+
+      // Set new timeout for auto-save (2 seconds after last change)
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        handleSave();
+      }, 2000);
+    }
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [title, content, hasUnsavedChanges]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setContent(e.target.value);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleSave = async () => {
+    if (!hasUnsavedChanges) return;
+
+    setIsSaving(true);
+    try {
+      await onUpdate(note.id, { title, content });
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error('Failed to save note:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Tem certeza que deseja deletar esta nota? Esta ação não pode ser desfeita.')) {
+      try {
+        await onDelete(note.id);
+      } catch (error) {
+        console.error('Failed to delete note:', error);
+      }
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      handleSave();
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-full" onKeyDown={handleKeyDown}>
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex-1">
+            <input
+              ref={titleRef}
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Título da nota..."
+              className="w-full text-2xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            {hasUnsavedChanges && (
+              <span className="text-xs text-orange-500 dark:text-orange-400">
+                Não salvo
+              </span>
+            )}
+            {isSaving && (
+              <span className="text-xs text-blue-500 dark:text-blue-400">
+                Salvando...
+              </span>
+            )}
+            <Button
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges || isSaving}
+              className="flex items-center space-x-1"
+              variant="secondary"
+              size="sm"
+            >
+              <Save className="w-4 h-4" />
+              <span>Salvar</span>
+            </Button>
+            <Button
+              onClick={handleDelete}
+              className="flex items-center space-x-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+              variant="ghost"
+              size="sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Deletar</span>
+            </Button>
+          </div>
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          Criado em {formatDate(note.created_at)} • 
+          Última atualização {formatDate(note.updated_at)}
+        </div>
+      </div>
+
+      {/* Content Editor */}
+      <div className="flex-1 p-4">
+        <textarea
+          ref={contentRef}
+          value={content}
+          onChange={handleContentChange}
+          placeholder="Comece a escrever sua nota..."
+          className="w-full h-full resize-none bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 leading-relaxed"
+          style={{ minHeight: 'calc(100vh - 200px)' }}
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          Dica: Use Ctrl+S para salvar manualmente
+        </div>
+      </div>
+    </div>
+  );
+};
