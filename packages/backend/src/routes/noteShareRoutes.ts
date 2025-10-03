@@ -6,7 +6,7 @@ import {
   unshareNote, 
   searchUsers 
 } from '../controllers/noteShareController';
-import { authenticateToken } from '../middleware/authMiddleware';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 

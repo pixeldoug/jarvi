@@ -221,7 +221,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/notes/${noteId}/share`, {
+      const response = await fetch(`${API_BASE_URL}/api/notes/${noteId}/share`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -246,7 +246,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/notes/${noteId}/shares`, {
+      const response = await fetch(`${API_BASE_URL}/api/notes/${noteId}/shares`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -267,7 +267,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/notes/${noteId}/shares/${shareId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/notes/${noteId}/shares/${shareId}`, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -290,7 +290,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     if (!user) throw new Error('User not authenticated');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/users/search?q=${encodeURIComponent(query)}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/search?q=${encodeURIComponent(query)}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
