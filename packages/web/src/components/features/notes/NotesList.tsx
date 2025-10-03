@@ -268,7 +268,7 @@ export const NotesList: React.FC<NotesListProps> = ({
                           {note.category}
                         </span>
                       )}
-                      {note.access_level === 'owner' && note.shared_by_name && (
+                      {note.access_level === 'owner' && note.is_shared && (
                         <span className="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                           Compartilhada
                         </span>

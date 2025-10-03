@@ -103,7 +103,15 @@ export const getNotes = async (req: Request, res: Response): Promise<void> => {
                   CASE 
                     WHEN n.user_id != $1 THEN u.name
                     ELSE NULL
-                  END as shared_by_name
+                  END as shared_by_name,
+                  CASE 
+                    WHEN n.user_id = $1 THEN (
+                      SELECT COUNT(*) > 0 
+                      FROM note_shares ns2 
+                      WHERE ns2.note_id = n.id AND ns2.owner_id = $1
+                    )
+                    ELSE false
+                  END as is_shared
            FROM notes n
            LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = $1
            LEFT JOIN users u ON n.user_id = u.id
@@ -127,13 +135,21 @@ export const getNotes = async (req: Request, res: Response): Promise<void> => {
                 CASE 
                   WHEN n.user_id != ? THEN u.name
                   ELSE NULL
-                END as shared_by_name
+                END as shared_by_name,
+                CASE 
+                  WHEN n.user_id = ? THEN (
+                    SELECT COUNT(*) > 0 
+                    FROM note_shares ns2 
+                    WHERE ns2.note_id = n.id AND ns2.owner_id = ?
+                  )
+                  ELSE 0
+                END as is_shared
          FROM notes n
          LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = ?
          LEFT JOIN users u ON n.user_id = u.id
          WHERE n.user_id = ? OR ns.shared_with_user_id = ?
          ORDER BY n.updated_at DESC`,
-        [userId, userId, userId, userId, userId]
+        [userId, userId, userId, userId, userId, userId, userId]
       );
     }
 

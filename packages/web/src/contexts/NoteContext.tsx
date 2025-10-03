@@ -11,6 +11,7 @@ export interface Note {
   updated_at: string;
   access_level?: 'owner' | 'read' | 'write';
   shared_by_name?: string;
+  is_shared?: boolean;
 }
 
 export interface CreateNoteData {
