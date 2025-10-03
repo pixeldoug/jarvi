@@ -2,14 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
 import { TrashSimple, Check, Eye, EyeSlash } from 'phosphor-react';
+import '@uiw/react-md-editor/markdown-editor.css';
 
-interface NoteEditorProps {
+interface MarkdownEditorProps {
   note: Note;
   onUpdate: (noteId: string, noteData: { title?: string; content?: string }) => Promise<void>;
   onDelete: (noteId: string) => Promise<Note | null>;
 }
 
-export const NoteEditor: React.FC<NoteEditorProps> = ({
+export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   note,
   onUpdate,
   onDelete,
@@ -21,8 +22,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   
   const titleRef = useRef<HTMLInputElement>(null);
-
-  // Auto-save timer
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update local state when note prop changes
@@ -67,8 +66,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     setHasUnsavedChanges(true);
   };
 
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
+  const handleContentChange = (value: string) => {
+    setContent(value);
     setHasUnsavedChanges(true);
   };
 
@@ -225,7 +224,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           <div className="flex-1 p-4">
             <textarea
               value={content}
-              onChange={handleContentChange}
+              onChange={(e) => handleContentChange(e.target.value)}
               placeholder="Comece a escrever sua nota em Markdown...
 
 # Exemplo de Título
