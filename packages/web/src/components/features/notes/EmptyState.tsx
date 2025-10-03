@@ -1,6 +1,7 @@
 import React from 'react';
 import { PencilSimple, Plus } from 'phosphor-react';
 import { Button } from '../../ui';
+import { Note } from '../../../contexts/NoteContext';
 
 interface EmptyStateProps {
   onCreateNote: (noteData: { title: string; content?: string }) => Promise<Note>;

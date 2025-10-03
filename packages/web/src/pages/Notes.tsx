@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNotes } from '../contexts/NoteContext';
 import { NotesList } from '../components/features/notes/NotesList';
 import { NoteEditor } from '../components/features/notes/NoteEditor';
