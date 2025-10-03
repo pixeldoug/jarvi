@@ -12,6 +12,8 @@ export interface Task {
   important?: boolean;
   time?: string;
   due_date?: string;
+  recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_config?: string;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +26,8 @@ export interface CreateTaskData {
   important?: boolean;
   time?: string;
   dueDate?: string;
+  recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_config?: string;
 }
 
 export interface UpdateTaskData {
@@ -35,6 +39,8 @@ export interface UpdateTaskData {
   important?: boolean;
   time?: string;
   dueDate?: string;
+  recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_config?: string;
 }
 
 interface TaskContextType {

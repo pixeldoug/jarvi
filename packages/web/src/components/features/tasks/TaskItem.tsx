@@ -244,11 +244,12 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         
         {/* Ícone de Recorrência */}
         {task.recurrence_type && task.recurrence_type !== 'none' && (
-          <Repeat 
-            className="w-4 h-4 text-blue-500 flex-shrink-0" 
-            weight="fill"
-            title={`Recorrência ${task.recurrence_type === 'daily' ? 'diária' : task.recurrence_type === 'weekly' ? 'semanal' : 'mensal'}`}
-          />
+          <div title={`Recorrência ${task.recurrence_type === 'daily' ? 'diária' : task.recurrence_type === 'weekly' ? 'semanal' : 'mensal'}`}>
+            <Repeat 
+              className="w-4 h-4 text-blue-500 flex-shrink-0" 
+              weight="fill"
+            />
+          </div>
         )}
         
         <div className="relative" ref={categoryDropdownRef}>

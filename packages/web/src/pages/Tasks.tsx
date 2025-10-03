@@ -69,8 +69,8 @@ export function Tasks() {
     try {
       const taskData = {
         ...formData,
-        recurrence_type: recurrenceType,
-        recurrence_config: recurrenceType !== 'none' ? JSON.stringify({ frequency: recurrenceType }) : null
+        recurrence_type: recurrenceType as 'none' | 'daily' | 'weekly' | 'monthly',
+        recurrence_config: recurrenceType !== 'none' ? JSON.stringify({ frequency: recurrenceType }) : undefined
       };
       const newTask = await createTask(taskData);
       setFormData({ title: '', description: '', priority: 'medium', category: '', important: false, time: '', dueDate: '' });
