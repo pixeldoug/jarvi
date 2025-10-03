@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
 import { TrashSimple, Check, Question } from 'phosphor-react';
-import { Breadcrumbs } from './Breadcrumbs';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
 
 interface NoteEditorProps {
@@ -125,16 +124,6 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Breadcrumbs */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <Breadcrumbs
-          items={[
-            { label: note.title || 'Sem título' }
-          ]}
-          onHomeClick={onGoBack}
-        />
-      </div>
-
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">

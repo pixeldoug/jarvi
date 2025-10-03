@@ -1,4 +1,5 @@
-import { useNotes } from '../contexts/NoteContext';
+import { useState } from 'react';
+import { useNotes, Note } from '../contexts/NoteContext';
 import { NotesList } from '../components/features/notes/NotesList';
 import { NoteEditor } from '../components/features/notes/NoteEditor';
 import { EmptyState } from '../components/features/notes/EmptyState';
@@ -15,8 +16,11 @@ export function Notes() {
     setCurrentNote 
   } = useNotes();
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const handleGoBack = () => {
     setCurrentNote(null);
+    setIsFullscreen(false);
   };
 
   const handleNewNote = async () => {
@@ -27,6 +31,13 @@ export function Notes() {
       });
     } catch (error) {
       console.error('Failed to create note:', error);
+    }
+  };
+
+  const handleNoteSelect = (note: Note | null) => {
+    setCurrentNote(note);
+    if (note) {
+      setIsFullscreen(true);
     }
   };
 
@@ -54,18 +65,20 @@ export function Notes() {
 
   return (
     <div className="flex h-full bg-white dark:bg-gray-900">
-      {/* Sidebar com lista de notas */}
-      <div className="w-80 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <NotesList
-          notes={notes}
-          currentNote={currentNote}
-          onNoteSelect={setCurrentNote}
-          onCreateNote={createNote}
-          onDeleteNote={deleteNote}
-        />
-      </div>
+      {/* Sidebar com lista de notas - colapsável */}
+      {!isFullscreen && (
+        <div className="w-80 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <NotesList
+            notes={notes}
+            currentNote={currentNote}
+            onNoteSelect={handleNoteSelect}
+            onCreateNote={createNote}
+            onDeleteNote={deleteNote}
+          />
+        </div>
+      )}
 
-      {/* Editor inline */}
+      {/* Editor inline - fullscreen quando ativo */}
       <div className="flex-1 bg-white dark:bg-gray-900">
         {currentNote ? (
           <NoteEditor
