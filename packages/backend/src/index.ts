@@ -36,13 +36,52 @@ const authLimiter = process.env.NODE_ENV === 'production'
   : (req: any, res: any, next: any) => next(); // No rate limiting in development
 
 // Middleware
-app.use(helmet());
-app.use(cors({
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false
+}));
+
+// CORS configuration
+const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://jarvi.life', 'https://www.jarvi.life'] // Produção: apenas domínios permitidos
     : true, // Desenvolvimento: permite qualquer origem
-  credentials: true
-}));
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+
+// Additional CORS headers middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = process.env.NODE_ENV === 'production' 
+    ? ['https://jarvi.life', 'https://www.jarvi.life']
+    : ['http://localhost:3000', 'http://localhost:5173'];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
+// Log CORS configuration
+console.log('🔧 CORS Configuration:', {
+  nodeEnv: process.env.NODE_ENV,
+  origin: corsOptions.origin,
+  credentials: corsOptions.credentials
+});
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(limiter);
