@@ -56,12 +56,12 @@ app.use(cors(corsOptions));
 
 // Additional CORS headers middleware
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
+  const origin = req.headers.origin as string | undefined;
   const allowedOrigins = process.env.NODE_ENV === 'production' 
     ? ['https://jarvi.life', 'https://www.jarvi.life']
     : ['http://localhost:3000', 'http://localhost:5173'];
   
-  if (allowedOrigins.includes(origin)) {
+  if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   
