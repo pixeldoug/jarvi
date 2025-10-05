@@ -38,7 +38,9 @@ const authLimiter = process.env.NODE_ENV === 'production'
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*', // Em desenvolvimento permite tudo, produção será restrito
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://jarvi.life', 'https://www.jarvi.life'] // Produção: apenas domínios permitidos
+    : true, // Desenvolvimento: permite qualquer origem
   credentials: true
 }));
 app.use(morgan('combined'));
