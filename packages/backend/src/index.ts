@@ -86,6 +86,19 @@ app.get('/test-auth', (req, res) => {
   });
 });
 
+// Test endpoint for note creation
+app.post('/test-note', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  res.json({
+    hasAuthHeader: !!authHeader,
+    hasToken: !!token,
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Debug endpoint for database status (can be removed in production)
 app.get('/debug/database', async (req, res) => {
   try {
