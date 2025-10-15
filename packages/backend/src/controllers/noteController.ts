@@ -25,7 +25,7 @@ export const createNote = async (
     let newNote;
 
     if (isPostgreSQL()) {
-      // PostgreSQL
+      // PostgreSQL - versão simplificada
       const pool = getPool();
       const client = await pool.connect();
       try {
@@ -43,21 +43,19 @@ export const createNote = async (
           ]
         );
 
-        // Buscar a nota criada com os campos calculados
-        const result = await client.query(
-          `SELECT n.*, 
-                  'owner' as access_level,
-                  NULL as shared_by_name,
-                  false as is_shared
-           FROM notes n
-           WHERE n.id = $1`,
-          [noteId]
-        );
-        newNote = result.rows[0];
-        
-        if (!newNote) {
-          throw new Error('Failed to retrieve created note');
-        }
+        // Retornar apenas os dados básicos da nota criada
+        newNote = {
+          id: noteId,
+          user_id: userId,
+          title,
+          content: content || '',
+          category: category || null,
+          created_at: now,
+          updated_at: now,
+          access_level: 'owner',
+          shared_by_name: null,
+          is_shared: false
+        };
       } finally {
         client.release();
       }
