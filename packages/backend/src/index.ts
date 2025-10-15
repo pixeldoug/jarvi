@@ -74,58 +74,58 @@ app.get('/health', (req, res) => {
 });
 
 // Debug endpoint for database status (can be removed in production)
-// app.get('/debug/database', async (req, res) => {
-//   try {
-//     const { getPool, isPostgreSQL } = await import('./database');
-//     
-//     if (isPostgreSQL()) {
-//       const pool = getPool();
-//       const client = await pool.connect();
-//       
-//       try {
-//         const tablesResult = await client.query(
-//           `SELECT table_name FROM information_schema.tables 
-//            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`
-//         );
-//         
-//         const tables = tablesResult.rows.map(row => row.table_name);
-//         const tableCounts: Record<string, any> = {};
-//         
-//         for (const tableName of tables) {
-//           try {
-//             const countResult = await client.query(`SELECT COUNT(*) as count FROM ${tableName}`);
-//             tableCounts[tableName] = countResult.rows[0].count;
-//           } catch (err: any) {
-//             tableCounts[tableName] = `Error: ${err?.message || 'Unknown error'}`;
-//           }
-//         }
-//         
-//         res.json({
-//           database: 'PostgreSQL',
-//           tables_exist: tables,
-//           table_counts: tableCounts,
-//           total_tables: tables.length,
-//           timestamp: new Date().toISOString()
-//         });
-//       } finally {
-//         client.release();
-//       }
-//     } else {
-//       res.json({
-//         database: 'SQLite',
-//         message: 'SQLite debugging not implemented for this endpoint',
-//         timestamp: new Date().toISOString()
-//       });
-//     }
-//   } catch (error: any) {
-//     console.error('Database debug error:', error);
-//     res.status(500).json({ 
-//       error: 'Database debug failed', 
-//       message: error?.message || 'Unknown error',
-//       timestamp: new Date().toISOString()
-//     });
-//   }
-// });
+app.get('/debug/database', async (req, res) => {
+  try {
+    const { getPool, isPostgreSQL } = await import('./database');
+    
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      
+      try {
+        const tablesResult = await client.query(
+          `SELECT table_name FROM information_schema.tables 
+           WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`
+        );
+        
+        const tables = tablesResult.rows.map(row => row.table_name);
+        const tableCounts: Record<string, any> = {};
+        
+        for (const tableName of tables) {
+          try {
+            const countResult = await client.query(`SELECT COUNT(*) as count FROM ${tableName}`);
+            tableCounts[tableName] = countResult.rows[0].count;
+          } catch (err: any) {
+            tableCounts[tableName] = `Error: ${err?.message || 'Unknown error'}`;
+          }
+        }
+        
+        res.json({
+          database: 'PostgreSQL',
+          tables_exist: tables,
+          table_counts: tableCounts,
+          total_tables: tables.length,
+          timestamp: new Date().toISOString()
+        });
+      } finally {
+        client.release();
+      }
+    } else {
+      res.json({
+        database: 'SQLite',
+        message: 'SQLite debugging not implemented for this endpoint',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error: any) {
+    console.error('Database debug error:', error);
+    res.status(500).json({ 
+      error: 'Database debug failed', 
+      message: error?.message || 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // API Routes
 app.use('/api/auth', authLimiter, authRoutes);
