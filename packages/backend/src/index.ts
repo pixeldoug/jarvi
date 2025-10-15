@@ -11,6 +11,7 @@ import noteRoutes from './routes/noteRoutes';
 import noteShareRoutes from './routes/noteShareRoutes';
 import authRoutes from './routes/authRoutes';
 import { CollaborationService } from './services/collaborationService';
+import { authenticateToken } from './middleware/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
