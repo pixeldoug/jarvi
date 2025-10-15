@@ -7,17 +7,8 @@ export const createNote = async (
   res: Response
 ): Promise<void> => {
   try {
-    console.log('=== createNote START ===');
-    console.log('Headers:', req.headers);
-    console.log('User from req.user:', req.user);
-    console.log('Request body:', req.body);
-    
     const { title, content, category } = req.body;
     const userId = req.user?.id;
-    
-    console.log('createNote - Creating note:', title);
-    console.log('createNote - User ID:', userId);
-    console.log('createNote - Request body:', req.body);
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
@@ -52,14 +43,21 @@ export const createNote = async (
           ]
         );
 
-        // Buscar a nota criada (versão simplificada para debug)
+        // Buscar a nota criada com os campos calculados
         const result = await client.query(
-          `SELECT n.*, 'owner' as access_level, NULL as shared_by_name, false as is_shared
+          `SELECT n.*, 
+                  'owner' as access_level,
+                  NULL as shared_by_name,
+                  false as is_shared
            FROM notes n
            WHERE n.id = $1`,
           [noteId]
         );
         newNote = result.rows[0];
+        
+        if (!newNote) {
+          throw new Error('Failed to retrieve created note');
+        }
       } finally {
         client.release();
       }
@@ -110,15 +108,9 @@ export const createNote = async (
     res.status(201).json(newNote);
   } catch (error) {
     console.error('Error creating note:', error);
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      userId: req.user?.id,
-      body: req.body
-    });
     res.status(500).json({ 
       error: 'Failed to create note',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      message: error instanceof Error ? error.message : 'Internal server error'
     });
   }
 };
