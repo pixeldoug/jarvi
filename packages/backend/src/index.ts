@@ -145,6 +145,34 @@ app.get('/test-env', (req, res) => {
   });
 });
 
+// Test endpoint that bypasses auth middleware completely
+app.post('/test-note-direct', async (req, res) => {
+  try {
+    console.log('=== test-note-direct START ===');
+    console.log('Headers:', req.headers);
+    console.log('Request body:', req.body);
+    
+    // Simulate user data
+    req.user = {
+      id: 'test-user-id',
+      email: 'test@example.com',
+      name: 'Test User'
+    };
+    
+    // Import and call createNote directly
+    const { createNote } = await import('./controllers/noteController');
+    await createNote(req, res);
+    
+  } catch (error) {
+    console.error('Error in test-note-direct:', error);
+    res.status(500).json({
+      error: 'Direct test failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint for database status (can be removed in production)
 app.get('/debug/database', async (req, res) => {
   try {
