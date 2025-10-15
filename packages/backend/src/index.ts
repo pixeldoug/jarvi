@@ -73,6 +73,52 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Temporary endpoint to check notes table structure
+app.get('/debug/notes-table', async (req, res) => {
+  try {
+    const { getPool, isPostgreSQL } = await import('./database');
+    
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      
+      try {
+        // Check table structure
+        const structureResult = await client.query(`
+          SELECT column_name, data_type, is_nullable, column_default
+          FROM information_schema.columns 
+          WHERE table_name = 'notes' 
+          ORDER BY ordinal_position
+        `);
+        
+        // Check if table exists and has data
+        const countResult = await client.query('SELECT COUNT(*) as count FROM notes');
+        
+        res.json({
+          table_exists: true,
+          structure: structureResult.rows,
+          count: countResult.rows[0].count,
+          timestamp: new Date().toISOString()
+        });
+      } finally {
+        client.release();
+      }
+    } else {
+      res.json({
+        database: 'SQLite',
+        message: 'SQLite debugging not implemented',
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'Failed to check notes table',
+      message: error?.message || 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // API Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tasks', taskRoutes);
