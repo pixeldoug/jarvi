@@ -30,14 +30,13 @@ export const createNote = async (
       const client = await pool.connect();
       try {
         await client.query(
-          `INSERT INTO notes (id, user_id, title, content, category, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          `INSERT INTO notes (id, user_id, title, content, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
           [
             noteId,
             userId,
             title,
             content || '',
-            category || null,
             now,
             now,
           ]
@@ -49,7 +48,6 @@ export const createNote = async (
           user_id: userId,
           title,
           content: content || '',
-          category: category || null,
           created_at: now,
           updated_at: now,
           access_level: 'owner',
