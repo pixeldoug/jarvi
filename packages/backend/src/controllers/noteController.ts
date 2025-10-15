@@ -7,6 +7,11 @@ export const createNote = async (
   res: Response
 ): Promise<void> => {
   try {
+    console.log('=== createNote START ===');
+    console.log('Headers:', req.headers);
+    console.log('User from req.user:', req.user);
+    console.log('Request body:', req.body);
+    
     const { title, content, category } = req.body;
     const userId = req.user?.id;
     
