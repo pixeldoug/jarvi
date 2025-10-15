@@ -47,30 +47,12 @@ export const createNote = async (
           ]
         );
 
-        // Buscar a nota criada com os campos calculados
+        // Buscar a nota criada (versão simplificada para debug)
         const result = await client.query(
-          `SELECT DISTINCT n.*, 
-                  CASE 
-                    WHEN n.user_id = $1 THEN 'owner'
-                    ELSE ns.permission
-                  END as access_level,
-                  CASE 
-                    WHEN n.user_id != $1 THEN u.name
-                    ELSE NULL
-                  END as shared_by_name,
-                  CASE 
-                    WHEN n.user_id = $1 THEN (
-                      SELECT COUNT(*) > 0 
-                      FROM note_shares ns2 
-                      WHERE ns2.note_id = n.id AND ns2.owner_id = $1
-                    )
-                    ELSE false
-                  END as is_shared
+          `SELECT n.*, 'owner' as access_level, NULL as shared_by_name, false as is_shared
            FROM notes n
-           LEFT JOIN note_shares ns ON n.id = ns.note_id AND ns.shared_with_user_id = $1
-           LEFT JOIN users u ON n.user_id = u.id
-           WHERE n.id = $2`,
-          [userId, noteId]
+           WHERE n.id = $1`,
+          [noteId]
         );
         newNote = result.rows[0];
       } finally {
