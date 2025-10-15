@@ -73,6 +73,19 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Test endpoint for authentication
+app.get('/test-auth', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  res.json({
+    hasAuthHeader: !!authHeader,
+    hasToken: !!token,
+    authHeader: authHeader,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Debug endpoint for database status (can be removed in production)
 app.get('/debug/database', async (req, res) => {
   try {
