@@ -57,6 +57,11 @@ export {
 } from './Modal';
 
 export {
+  Drawer,
+  type DrawerProps,
+} from './Drawer';
+
+export {
   Accordion,
   type AccordionProps,
 } from './Accordion';

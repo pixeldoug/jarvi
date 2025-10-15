@@ -9,11 +9,6 @@ import { ThemeProvider } from './hooks/useTheme';
 import { ToastProvider } from './components/ui';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
-import { Tasks } from './pages/Tasks';
-import { Notes } from './pages/Notes';
-import { Finances } from './pages/Finances';
-import { Habits } from './pages/Habits';
-import { Categories } from './pages/Categories';
 
 const queryClient = new QueryClient();
 
@@ -46,9 +41,7 @@ const AppRoutes: React.FC = () => {
           path="/"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Tasks />
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
         />
@@ -56,9 +49,7 @@ const AppRoutes: React.FC = () => {
           path="/notes"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Notes />
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
         />
@@ -66,9 +57,7 @@ const AppRoutes: React.FC = () => {
           path="/finances"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Finances />
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
         />
@@ -76,9 +65,7 @@ const AppRoutes: React.FC = () => {
           path="/habits"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Habits />
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
         />
@@ -86,9 +73,7 @@ const AppRoutes: React.FC = () => {
           path="/categories"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Categories />
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
         />
