@@ -134,6 +134,16 @@ app.post('/test-note-auth', async (req, res) => {
   }
 });
 
+// Test endpoint to check if auth middleware is working
+app.post('/test-auth-middleware', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user,
+    body: req.body,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Test endpoint to check environment variables
 app.get('/test-env', (req, res) => {
   res.json({
