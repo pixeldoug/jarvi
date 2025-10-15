@@ -11,6 +11,8 @@ export const createNote = async (
     const userId = req.user?.id;
     
     console.log('createNote - Creating note:', title);
+    console.log('createNote - User ID:', userId);
+    console.log('createNote - Request body:', req.body);
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
@@ -121,7 +123,16 @@ export const createNote = async (
     res.status(201).json(newNote);
   } catch (error) {
     console.error('Error creating note:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      userId: req.user?.id,
+      body: req.body
+    });
+    res.status(500).json({ 
+      error: 'Failed to create note',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
