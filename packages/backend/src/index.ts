@@ -41,9 +41,17 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-// CORS - configuração simples e direta
+// CORS - configuração para desenvolvimento e produção
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://jarvi.life');
+  const origin = req.headers.origin;
+  const allowedOrigins = process.env.NODE_ENV === 'production' 
+    ? ['https://jarvi.life', 'https://www.jarvi.life']
+    : ['http://localhost:3000', 'http://localhost:5173'];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
@@ -55,7 +63,7 @@ app.use((req, res, next) => {
   }
 });
 
-console.log('🔧 CORS: Permitindo apenas https://jarvi.life');
+console.log('🔧 CORS: Permitindo origens:', process.env.NODE_ENV === 'production' ? 'produção' : 'desenvolvimento');
 app.use(morgan('combined'));
 app.use(express.json());
 app.use(limiter);
