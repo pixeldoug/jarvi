@@ -134,6 +134,17 @@ app.post('/test-note-auth', async (req, res) => {
   }
 });
 
+// Test endpoint to check environment variables
+app.get('/test-env', (req, res) => {
+  res.json({
+    NODE_ENV: process.env.NODE_ENV,
+    hasJWT_SECRET: !!process.env.JWT_SECRET,
+    JWT_SECRET_length: process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0,
+    hasDATABASE_URL: !!process.env.DATABASE_URL,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Debug endpoint for database status (can be removed in production)
 app.get('/debug/database', async (req, res) => {
   try {
