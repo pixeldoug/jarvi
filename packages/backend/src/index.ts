@@ -99,6 +99,41 @@ app.post('/test-note', (req, res) => {
   });
 });
 
+// Test endpoint that simulates createNote without auth middleware
+app.post('/test-note-auth', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+    
+    // Simulate JWT verification
+    const jwt = require('jsonwebtoken');
+    const JWT_SECRET = process.env.JWT_SECRET;
+    
+    if (!JWT_SECRET) {
+      return res.status(500).json({ error: 'JWT_SECRET not configured' });
+    }
+    
+    const decoded = jwt.verify(token, JWT_SECRET);
+    
+    res.json({
+      success: true,
+      decoded,
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'JWT verification failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Debug endpoint for database status (can be removed in production)
 app.get('/debug/database', async (req, res) => {
   try {
