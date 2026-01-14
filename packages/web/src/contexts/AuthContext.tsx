@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { usePostHog } from 'posthog-js/react';
 
 interface User {
   id: string;
@@ -35,6 +36,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const posthog = usePostHog();
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -61,6 +63,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+        
+        // Identificar usuário no PostHog (apenas em produção)
+        if (posthog && import.meta.env.PROD) {
+          posthog.identify(userData.email, {
+            email: userData.email,
+            name: userData.name,
+            user_id: userData.id,
+          });
+        }
       } else {
         // Token is invalid, remove it
         localStorage.removeItem('jarvi_token');
@@ -95,6 +106,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(data.token);
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
+
+      // Identificar usuário no PostHog (apenas em produção)
+      if (posthog && import.meta.env.PROD) {
+        posthog.identify(data.user.email, {
+          email: data.user.email,
+          name: data.user.name,
+          user_id: data.user.id,
+        });
+      }
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -123,6 +143,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(data.token);
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
+
+      // Identificar usuário no PostHog (apenas em produção)
+      if (posthog && import.meta.env.PROD) {
+        posthog.identify(data.user.email, {
+          email: data.user.email,
+          name: data.user.name,
+          user_id: data.user.id,
+        });
+      }
     } catch (error) {
       console.error('Google login error:', error);
       throw error;
@@ -151,6 +180,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(data.token);
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
+
+      // Identificar usuário no PostHog (apenas em produção)
+      if (posthog && import.meta.env.PROD) {
+        posthog.identify(data.user.email, {
+          email: data.user.email,
+          name: data.user.name,
+          user_id: data.user.id,
+        });
+      }
     } catch (error) {
       console.error('Registration error:', error);
       throw error;

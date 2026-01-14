@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { usePostHog } from 'posthog-js/react';
 
 export interface Task {
   id: string;
@@ -103,6 +104,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     return [];
   });
   const { token } = useAuth();
+  const posthog = usePostHog();
 
   // Save to localStorage whenever deletedTasks changes (but only if it's not empty)
   useEffect(() => {
@@ -229,6 +231,19 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const newTask = await response.json();
+
+      // Rastrear evento no PostHog (apenas em produção)
+      if (posthog && import.meta.env.PROD) {
+        posthog.capture('task_created', {
+          task_id: newTask.id,
+          priority: newTask.priority,
+          has_due_date: !!newTask.due_date,
+          has_category: !!newTask.category,
+          is_important: newTask.important || false,
+          has_recurrence: newTask.recurrence_type && newTask.recurrence_type !== 'none',
+        });
+      }
+
       setTasks(prev => sortTasks([...prev, newTask]));
       return newTask;
     } catch (error) {
