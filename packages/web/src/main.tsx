@@ -5,7 +5,8 @@ import App from './App';
 import { PostHogProvider } from 'posthog-js/react';
 
 const options = {
-  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  api_host: import.meta.env.PROD ? '/ingest' : import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
+  ui_host: 'https://us.posthog.com', // Necessário para o toolbar funcionar com proxy
 } as const;
 
 // Só renderiza com PostHog em produção
