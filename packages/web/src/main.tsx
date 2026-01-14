@@ -8,10 +8,20 @@ const options = {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
 } as const;
 
+// Só renderiza com PostHog em produção
+const AppWrapper = () => {
+  if (import.meta.env.PROD) {
+    return (
+      <PostHogProvider apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY} options={options}>
+        <App />
+      </PostHogProvider>
+    );
+  }
+  return <App />;
+};
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PostHogProvider apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY} options={options}>
-      <App />
-    </PostHogProvider>
+    <AppWrapper />
   </StrictMode>
 );
