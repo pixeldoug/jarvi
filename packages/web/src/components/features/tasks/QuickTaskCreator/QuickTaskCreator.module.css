@@ -1,0 +1,102 @@
+/**
+ * QuickTaskCreator Component Styles
+ * Following JarviDS Web design system from Figma
+ * 
+ * ⚠️ NOT USED IN MVP INITIAL
+ * This component is kept for future use but is currently disabled.
+ */
+
+.container {
+  display: flex;
+  gap: var(--sizes-3);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-button-radius);
+  padding: var(--sizes-1) var(--sizes-10);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  width: 100%;
+  background: transparent;
+  border: none;
+}
+
+.container.editing {
+  cursor: default;
+}
+
+.iconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--component-quick-task-creator-bg-default);
+  border: 1px solid var(--component-quick-task-creator-border-default);
+  transition: all 0.2s ease;
+}
+
+.container:hover .iconContainer {
+  background: var(--component-quick-task-creator-bg-hover);
+  border-color: var(--component-quick-task-creator-border-hover);
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  color: var(--component-quick-task-creator-icon-default);
+  transition: color 0.2s ease;
+}
+
+.container:hover .icon {
+  color: var(--component-quick-task-creator-icon-hover);
+}
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--component-quick-task-creator-content);
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.container:hover .label {
+  color: var(--component-quick-task-creator-content-hover);
+}
+
+/* Editing state */
+.form {
+  display: flex;
+  gap: var(--sizes-3);
+  align-items: center;
+  width: 100%;
+}
+
+.input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.input::placeholder {
+  color: var(--semantic-content-secondary);
+}
+
+/* Visibility states */
+.container.hidden {
+  opacity: 0.4;
+}
+
+.container.hidden:hover {
+  opacity: 1;
+}
+

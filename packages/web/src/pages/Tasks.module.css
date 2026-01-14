@@ -1,0 +1,292 @@
+/**
+ * Tasks Page Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+/* Content */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+}
+
+/* Section */
+.section {
+  margin-bottom: var(--sizes-1);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0 0 var(--sizes-2);
+}
+
+.sectionBadge {
+  margin-left: var(--sizes-2);
+}
+
+.sectionContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  min-height: 50px;
+  padding: var(--sizes-1);
+  padding-left: var(--sizes-4); /* Add left padding to accommodate drag handle */
+  border-radius: var(--radius-radius-sm);
+  transition: background-color 0.2s ease;
+  /* Ensure drag handle is not hidden */
+  overflow: visible;
+}
+
+.sectionOver {
+  background: rgba(79, 38, 228, 0.05);
+}
+
+.sectionEmpty {
+  min-height: 0;
+  padding: 0;
+}
+
+.sectionEmpty.sectionOver {
+  min-height: 60px;
+  padding: var(--sizes-3);
+  border: 1px dashed var(--color-brand-primary-300);
+}
+
+/* Empty state */
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-secondary);
+  
+  transition: all 0.2s ease;
+}
+
+.emptyStateOver {
+  height: 54px;
+  opacity: 1;
+}
+
+/* Loading and Error */
+.loading,
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+}
+
+.error {
+  color: var(--color-system-red-500);
+}
+
+/* Add button */
+.addButton {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  font-weight: 400;
+}
+
+.shortcut {
+  font-size: 12px;
+  color: var(--semantic-content-secondary);
+  background: var(--color-gray-100);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+:global(.dark) .shortcut {
+  background: var(--color-gray-800);
+}
+
+/* Form styles */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.label {
+  display: block;
+  
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: 500;
+  color: var(--semantic-content-primary);
+  
+  margin-bottom: var(--sizes-1);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: 500;
+  color: var(--semantic-content-primary);
+  
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-system-red-500);
+}
+
+.fireIcon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-system-red-500);
+}
+
+.dateButton {
+  width: 100%;
+  padding: var(--sizes-3);
+  
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-primary);
+  
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dateButton:hover {
+  background: var(--color-gray-50);
+}
+
+.dateButton:focus {
+  outline: none;
+  border-color: var(--color-brand-primary-500);
+  box-shadow: 0 0 0 2px var(--color-brand-primary-100);
+}
+
+.datePlaceholder {
+  color: var(--semantic-content-secondary);
+}
+
+.select {
+  width: 100%;
+  padding: var(--sizes-3);
+  
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-primary);
+  
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--color-brand-primary-500);
+  box-shadow: 0 0 0 2px var(--color-brand-primary-100);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sizes-3);
+  margin-top: var(--sizes-2);
+}
+
+.formActionsSpread {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--sizes-2);
+}
+
+.formActionsRight {
+  display: flex;
+  gap: var(--sizes-3);
+}
+
+/* Drag overlay */
+.dragOverlay {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);
+  padding: var(--sizes-2) var(--sizes-3);
+  
+  background: var(--semantic-surface-primary);
+  border: 2px solid var(--color-brand-primary-300);
+  border-radius: var(--radius-radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  
+  transform: translateZ(0);
+}
+
+.dragCircle {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  background: var(--semantic-surface-primary);
+  border: 2px solid var(--semantic-border-primary);
+  border-radius: 50%;
+}
+
+.dragCircleCompleted {
+  background: var(--color-system-green-500);
+  border-color: var(--color-system-green-500);
+}
+
+.dragCheck {
+  width: 16px;
+  height: 16px;
+  color: white;
+}
+
+.dragFire {
+  width: 16px;
+  height: 16px;
+  color: var(--color-system-red-500);
+  flex-shrink: 0;
+}
+
+.dragTitle {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-primary);
+}
+
+.dragTitleCompleted {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-secondary);
+  text-decoration: line-through;
+}
+

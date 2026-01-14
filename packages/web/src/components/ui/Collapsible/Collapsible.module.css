@@ -1,0 +1,118 @@
+/**
+ * Collapsible Component Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.collapsible {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+/* Header with toggle and label */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-6);
+  width: 100%;
+  padding-left: 24px;
+  padding-top: var(--sizes-2);
+  padding-bottom: var(--sizes-2);
+  /* Always show background for sticky header */
+  background-color: var(--semantic-surface-primary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  flex-shrink: 0;
+}
+
+/* Toggle button */
+.toggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  
+  /* Visual */
+  background: var(--color-bw-transparent);
+  border: none;
+  border-radius: 8px;
+  
+  /* Interaction */
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.toggleButton:hover {
+  background: var(--semantic-surface-tertiary);
+}
+
+.toggleIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--semantic-content-primary);
+  transition: transform 0.2s ease;
+}
+
+.toggleIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Rotated icon when closed */
+.toggleIconClosed {
+  transform: rotate(-90deg);
+}
+
+/* Label */
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  margin: 0;
+}
+
+/* Divider extends to the right */
+.divider {
+  flex: 1;
+  min-width: 0;
+  height: 0.5px;
+  background: var(--semantic-border-primary);
+  border: none;
+}
+
+/* Content area */
+.content {
+  width: 100%;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+}
+
+.contentOpen {
+  max-height: 10000px;
+  opacity: 1;
+}
+
+.contentClosed {
+  max-height: 0;
+  opacity: 0;
+}
+

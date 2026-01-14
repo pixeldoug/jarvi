@@ -1,0 +1,22 @@
+/**
+ * Divider Styles
+ * Using design tokens from Figma
+ */
+
+.divider {
+  border: none;
+  margin: 0;
+  padding: 0;
+  background-color: var(--semantic-border-primary);
+}
+
+.horizontal {
+  width: 100%;
+  height: 0.5px;
+}
+
+.vertical {
+  width: 0.5px;
+  height: 100%;
+  display: inline-block;
+}

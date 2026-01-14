@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tag, CaretDown } from 'phosphor-react';
+import { Tag, CaretDown } from '@phosphor-icons/react';
 import { useCategories } from '../../../hooks/useCategories';
 
 interface CategoryPickerProps {

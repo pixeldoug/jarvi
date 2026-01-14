@@ -4,9 +4,8 @@
  * Componente para alternar entre tema claro e escuro
  */
 
-// import React from 'react';
-import { Sun, Moon } from 'phosphor-react';
-import { useThemeWeb } from '../../hooks/useTheme';
+import { Sun, Moon } from '@phosphor-icons/react';
+import { useTheme } from '../../hooks/useTheme';
 
 // ============================================================================
 // TIPOS
@@ -27,7 +26,7 @@ export function ThemeToggle({
   showLabel = false,
   className = '',
 }: ThemeToggleProps) {
-  const { toggleTheme, isDark } = useThemeWeb();
+  const { toggleTheme, isDark } = useTheme();
 
   // Classes de tamanho
   const sizeClasses = {

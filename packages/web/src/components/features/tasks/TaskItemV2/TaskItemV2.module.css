@@ -1,0 +1,200 @@
+/**
+ * TaskItemV2 Component Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.taskItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--size-target-standard, 48px);
+  padding: 0 var(--sizes-4);
+  margin-left: 24px;
+  border-radius: var(--radius-radius-sm);
+  transition: background-color 0.15s ease;
+  /* Ensure drag handle is not hidden by overflow */
+  overflow: visible;
+}
+
+.taskItem:hover {
+  background-color: var(--semantic-surface-secondary);
+}
+
+/* Dragging state */
+.dragging {
+  opacity: 0;
+}
+
+/* Left content: checkbox + date chip + title */
+.taskContent {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Task title container */
+.taskTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Title text */
+.title {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.title:hover {
+  color: var(--semantic-content-info);
+}
+
+/* Completed state */
+.titleCompleted {
+  color: var(--semantic-content-disabled);
+  text-decoration: line-through;
+}
+
+.titleCompleted:hover {
+  color: var(--semantic-content-disabled);
+}
+
+/* Title inline edit */
+.titleInput {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  color: var(--semantic-content-primary);
+  outline: none;
+}
+
+.titleInput:focus {
+  outline: none;
+}
+
+/* Right side: category chip + action buttons */
+.taskMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+/* Action buttons group */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.taskItem:hover .actions {
+  opacity: 1;
+}
+
+/* Action button */
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  
+  /* Visual */
+  background: var(--component-button-secondary-bg-default);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-icon-radius);
+  
+  /* Interaction */
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.actionButton:hover {
+  background: var(--component-button-secondary-bg-hover);
+}
+
+.actionButtonIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--semantic-content-primary);
+}
+
+/* Drag handle */
+.dragHandle {
+  position: absolute;
+  left: -32px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  padding: 2px 0;
+  
+  /* Visual */
+  background: var(--semantic-surface-secondary);
+  border-radius: 8px;
+  box-shadow: 0px 1px 2px 0px var(--semantic-elevation-first-level);
+  
+  /* Hidden by default */
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  
+  /* Interaction */
+  cursor: grab;
+}
+
+.taskItem:hover .dragHandle {
+  opacity: 1;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragHandleIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--semantic-content-secondary);
+}
+
+/* Insertion line for drag and drop */
+.insertionLine {
+  height: 2px;
+  margin: 0 var(--sizes-3);
+  background: var(--semantic-content-info);
+  border-radius: 9999px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+

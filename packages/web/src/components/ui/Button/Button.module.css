@@ -1,0 +1,375 @@
+/**
+ * Button Component Styles
+ * Following Figma Design System specifications
+ * Using design tokens from CSS variables
+ * 
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-Web
+ * Node: 40000003:245215 (Button Component)
+ */
+
+/* ============================================================================
+   BASE BUTTON STYLES
+   ============================================================================ */
+
+.button {
+  /* Reset */
+  border: none;
+  outline: none;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  text-decoration: none;
+  
+  /* Layout */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2);
+  
+  /* Typography - Using typography sizing tokens from Mode.tokens.json */
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  text-align: center;
+  white-space: nowrap;
+  
+  /* Border radius - From Figma: 16px */
+  border-radius: var(--sizes-4);
+  
+  /* Elevation (shadow) - From Figma: 0px 0px 2px border-elevation */
+  box-shadow: 0px 0px 2px rgba(9, 9, 11, 0.3);
+  
+  /* Transitions */
+  transition: all 0.2s ease-in-out;
+  
+  /* Prevent text selection on double click */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Remove default button styles */
+.button::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+/* ============================================================================
+   SIZES - From Figma Specs
+   ============================================================================ */
+
+/* Medium (default) - From Figma: 48px height, 24px horizontal padding */
+.size-medium {
+  height: var(--sizes-12);
+  padding: 0 var(--sizes-6);
+}
+
+.size-medium.icon-left {
+  padding-left: var(--sizes-3);
+  padding-right: var(--sizes-4);
+}
+
+.size-medium.icon-right {
+  padding-left: var(--sizes-4);
+  padding-right: var(--sizes-3);
+}
+
+.size-medium.icon-icon-only {
+  width: var(--sizes-12);
+  padding: 0;
+}
+
+/* Small - From Figma: 40px height, 16px horizontal padding */
+.size-small {
+  height: var(--sizes-10);
+  padding: 0 var(--sizes-4);
+  /* Small button uses label-sm typography */
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+}
+
+.size-small.icon-left {
+  padding-left: var(--sizes-2);
+  padding-right: var(--sizes-3);
+}
+
+.size-small.icon-right {
+  padding-left: var(--sizes-3);
+  padding-right: var(--sizes-2);
+}
+
+.size-small.icon-icon-only {
+  width: var(--sizes-10);
+  padding: 0;
+}
+
+/* Small icon gap */
+.size-small.icon-left,
+.size-small.icon-right {
+  gap: var(--sizes-1);
+}
+
+/* ============================================================================
+   VARIANT: PRIMARY
+   ============================================================================ */
+
+.variant-primary {
+  background-color: var(--component-button-primary-bg-default);
+  color: var(--component-button-primary-content-default);
+  border-bottom: 2px solid var(--semantic-border-elevantion);
+}
+
+.variant-primary:hover:not(.disabled) {
+  background-color: var(--component-button-primary-bg-hover);
+  color: var(--component-button-primary-content-hover);
+}
+
+.variant-primary:focus-visible:not(.disabled) {
+  background-color: var(--component-button-primary-bg-default);
+  /* From Figma: Focus ring with 1.5px border, 3px offset */
+  box-shadow: 
+    0 0 0 3px rgba(37, 99, 235, 0.1),
+    0 0 0 4.5px var(--semantic-control-focusring),
+    0px 0px 2px rgba(9, 9, 11, 0.3);
+}
+
+.variant-primary:active:not(.disabled),
+.variant-primary.active:not(.disabled) {
+  background-color: var(--component-button-primary-bg-active);
+  color: var(--component-button-primary-content-active);
+}
+
+/* ============================================================================
+   VARIANT: SECONDARY
+   ============================================================================ */
+
+.variant-secondary {
+  background-color: var(--component-button-secondary-bg-default);
+  color: var(--component-button-secondary-content-default);
+  border: 1px solid var(--semantic-border-primary);
+}
+
+.variant-secondary:hover:not(.disabled) {
+  background-color: var(--component-button-secondary-bg-hover);
+  color: var(--component-button-secondary-content-hover);
+}
+
+.variant-secondary:focus-visible:not(.disabled) {
+  background-color: var(--component-button-secondary-bg-default);
+  box-shadow: 
+    0 0 0 3px rgba(37, 99, 235, 0.1),
+    0 0 0 4.5px var(--semantic-control-focusring),
+    0px 0px 2px rgba(9, 9, 11, 0.3);
+}
+
+.variant-secondary:active:not(.disabled),
+.variant-secondary.active:not(.disabled) {
+  background-color: var(--component-button-secondary-bg-active);
+  color: var(--component-button-secondary-content-active);
+  border-color: var(--component-button-secondary-border-active);
+}
+
+/* ============================================================================
+   VARIANT: GHOST
+   ============================================================================ */
+
+.variant-ghost {
+  background-color: var(--component-button-ghost-bg-default);
+  color: var(--component-button-ghost-content-default);
+  box-shadow: none; /* Ghost doesn't have elevation shadow */
+}
+
+.variant-ghost:hover:not(.disabled) {
+  background-color: var(--component-button-ghost-bg-hover);
+  color: var(--component-button-ghost-content-hover);
+  box-shadow: none;
+}
+
+.variant-ghost:focus-visible:not(.disabled) {
+  background-color: var(--component-button-ghost-bg-default);
+  box-shadow: 
+    0 0 0 3px rgba(37, 99, 235, 0.1),
+    0 0 0 4.5px var(--semantic-control-focusring);
+}
+
+.variant-ghost:active:not(.disabled),
+.variant-ghost.active:not(.disabled) {
+  background-color: var(--component-button-ghost-bg-active);
+  color: var(--component-button-ghost-content-active);
+  box-shadow: none;
+}
+
+/* ============================================================================
+   VARIANT: DESTRUCTIVE
+   ============================================================================ */
+
+.variant-destructive {
+  background-color: var(--component-button-destructive-bg-default);
+  color: var(--component-button-destructive-content-default);
+}
+
+.variant-destructive:hover:not(.disabled) {
+  background-color: var(--component-button-destructive-bg-hover);
+  color: var(--component-button-destructive-content-hover);
+}
+
+.variant-destructive:focus-visible:not(.disabled) {
+  background-color: var(--component-button-destructive-bg-default);
+  box-shadow: 
+    0 0 0 3px rgba(37, 99, 235, 0.1),
+    0 0 0 4.5px var(--semantic-control-focusring),
+    0px 0px 2px rgba(9, 9, 11, 0.3);
+}
+
+.variant-destructive:active:not(.disabled) {
+  background-color: var(--component-button-destructive-bg-active);
+  color: var(--component-button-destructive-content-active);
+}
+
+/* ============================================================================
+   DISABLED STATE
+   ============================================================================ */
+
+.button.disabled,
+.button:disabled {
+  background-color: var(--component-button-bg-disabled);
+  color: var(--component-button-content-disabled);
+  cursor: not-allowed;
+  opacity: 1; /* Don't use opacity, use token colors */
+  pointer-events: none;
+  box-shadow: 0px 0px 2px rgba(9, 9, 11, 0.3); /* Maintain elevation shadow */
+}
+
+/* Secondary disabled needs border */
+.variant-secondary.disabled,
+.variant-secondary:disabled {
+  border-color: var(--semantic-border-primary);
+}
+
+/* Ghost disabled doesn't have shadow */
+.variant-ghost.disabled,
+.variant-ghost:disabled {
+  box-shadow: none;
+  background-color: transparent;
+}
+
+/* ============================================================================
+   FULL WIDTH
+   ============================================================================ */
+
+.fullWidth {
+  width: 100%;
+}
+
+/* ============================================================================
+   ICON & LABEL
+   ============================================================================ */
+
+.icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Hide label when icon-only */
+.icon-icon-only .label {
+  display: none;
+}
+
+/* ============================================================================
+   LOADING STATE
+   ============================================================================ */
+
+.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  animation: spin 1s linear infinite;
+}
+
+.spinnerCircle {
+  opacity: 0.25;
+}
+
+.spinnerPath {
+  opacity: 0.75;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================================
+   SHORTCUT
+   ============================================================================ */
+
+.shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  /* Typography */
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-xs-font-size, 11px);
+  font-weight: var(--typography-label-xs-font-weight, 500);
+  line-height: var(--typography-label-xs-line-height, 14px);
+  letter-spacing: var(--typography-label-xs-letter-spacing, 0.5px);
+  
+  /* Visual */
+  color: var(--semantic-content-secondary, #a0abb4);
+  background: transparent;
+  
+  /* Spacing */
+  margin-left: var(--sizes-2, 8px);
+  padding: 0 var(--sizes-1, 4px);
+  
+  /* Layout */
+  min-width: auto;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Shortcut spacing adjustments */
+.hasShortcut {
+  padding-right: var(--sizes-2, 8px);
+}
+
+.hasShortcut.icon-right {
+  padding-right: var(--sizes-2, 8px);
+}
+
+/* Shortcut for small buttons */
+.size-small .shortcut {
+  font-size: 10px;
+  line-height: 12px;
+  margin-left: var(--sizes-1, 4px);
+}
+
+/* ============================================================================
+   FOCUS VISIBLE POLYFILL (for older browsers)
+   ============================================================================ */
+
+.button:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+

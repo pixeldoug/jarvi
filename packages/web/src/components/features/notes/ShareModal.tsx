@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input } from '../../ui';
 import { useNotes } from '../../../contexts/NoteContext';
-import { Share, User, TrashSimple, MagnifyingGlass } from 'phosphor-react';
+import { Share, User, TrashSimple, MagnifyingGlass } from '@phosphor-icons/react';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -163,7 +163,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     <div className="flex space-x-1">
                       <Button
                         onClick={() => handleShare(user.id, 'read')}
-                        size="sm"
+                        size="small"
                         variant="secondary"
                         disabled={isLoading}
                       >
@@ -171,7 +171,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                       </Button>
                       <Button
                         onClick={() => handleShare(user.id, 'write')}
-                        size="sm"
+                        size="small"
                         variant="primary"
                         disabled={isLoading}
                       >

@@ -1,0 +1,159 @@
+/**
+ * MainLayout Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.layout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Background */
+.background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.backgroundImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Content wrapper */
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: var(--sizes-4);
+  flex: 1;
+  padding: var(--sizes-6) var(--sizes-6) var(--sizes-16);
+  min-height: 0;
+}
+
+/* Sidebar container */
+.sidebar {
+  flex-shrink: 0;
+  width: 320px;
+  max-width: 320px;
+  height: calc(100vh - var(--sizes-6) - var(--sizes-16));
+  padding: var(--sizes-8) var(--sizes-6) var(--sizes-6);
+  background: linear-gradient(
+    180deg,
+    var(--semantic-gradient-primary-stop-0) 0%,
+    var(--semantic-gradient-primary-stop-78) 78%,
+    var(--semantic-gradient-primary-stop-100) 100%
+  );
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  overflow-y: auto;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Main content area */
+.main {
+  flex: 1;
+  min-width: 0;
+  height: calc(100vh - var(--sizes-6) - var(--sizes-16));
+  padding: var(--sizes-12) var(--sizes-6) 0 var(--sizes-16);
+  background: linear-gradient(
+    178deg,
+    var(--semantic-gradient-primary-stop-0) 2.45%,
+    var(--semantic-gradient-primary-stop-78) 76.63%,
+    var(--semantic-gradient-primary-stop-100) 97.55%
+  );
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-10);
+  overflow-y: auto;
+  position: relative;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Right sidebar container */
+.rightSidebar {
+  flex-shrink: 0;
+  width: 606px;
+  max-width: 606px;
+  height: calc(100vh - var(--sizes-6) - var(--sizes-16));
+  background: linear-gradient(
+    178deg,
+    var(--semantic-gradient-primary-stop-0) 2.45%,
+    var(--semantic-gradient-primary-stop-78) 76.63%,
+    var(--semantic-gradient-primary-stop-100) 97.55%
+  );
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Header in main content */
+.mainHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  max-width: 1280px;
+  width: 100%;
+}
+
+.mainTitle {
+  font-family: var(--typography-display-lg-font-family);
+  font-size: var(--typography-display-lg-font-size);
+  font-weight: var(--typography-display-lg-font-weight);
+  line-height: var(--typography-display-lg-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* Body slot */
+.mainBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--sizes-10);
+  padding-bottom: var(--sizes-24);
+}
+
+/* Scrollbar customizada para a área de tasks */
+.mainBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mainBody::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-radius-round);
+}
+
+.mainBody::-webkit-scrollbar-thumb {
+  background: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-radius-round);
+}
+
+.mainBody::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+/* User menu area */
+.userMenuArea {
+  position: absolute;
+  top: var(--sizes-6, 24px);
+  right: var(--sizes-6, 24px);
+  z-index: 10;
+  display: flex;
+  gap: var(--sizes-2);
+  align-items: flex-start;
+}
+
+/* Dark mode: gradients automatically update via CSS variables */
+

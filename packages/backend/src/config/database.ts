@@ -36,7 +36,7 @@ export const initializeDatabase = async (): Promise<void> => {
       title TEXT NOT NULL,
       description TEXT,
       completed BOOLEAN DEFAULT FALSE,
-      priority TEXT DEFAULT 'medium',
+      priority TEXT,
       category TEXT,
       important BOOLEAN DEFAULT FALSE,
       time TEXT,

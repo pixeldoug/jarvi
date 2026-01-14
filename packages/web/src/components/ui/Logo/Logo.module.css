@@ -1,0 +1,28 @@
+/**
+ * Logo Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.logo {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  
+  /* Visual */
+  background: var(--component-logo-bg-default);
+  border: none;
+  border-bottom: 2px solid var(--semantic-border-elevantion);
+  border-radius: var(--radius-button-radius);
+  box-shadow: 0px 1px 0px 0px rgba(24, 24, 27, 0.15);
+}
+
+/* Icon SVG */
+.icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}

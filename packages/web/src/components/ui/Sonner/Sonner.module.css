@@ -1,0 +1,173 @@
+/**
+ * Sonner Component Styles
+ * Following JarviDS Web design system from Figma
+ * Based on node 40000310:12002
+ */
+
+/* Toast Container - positioned 16px above ControlBar */
+.toastContainer {
+  position: fixed;
+  /* bottom is set dynamically via inline style */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 101; /* Above ControlBar (z-index: 100) */
+  
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  pointer-events: none;
+  
+  
+  max-width: calc(100vw - 48px);
+}
+
+/* Toast Item */
+.toast {
+  position: relative;
+  pointer-events: auto;
+  width: 100%;
+  overflow: hidden; /* Para conter a barra de progresso */
+  
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  
+  padding: var(--sizes-2) var(--sizes-2) var(--sizes-2) var(--sizes-6); 
+  
+  background: var(--semantic-surface-primary);
+  border-radius: 22px; /* Specific value from Figma */
+  box-shadow: var(--semantic-elevation-first-level);
+  
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+/* Progress bar */
+.progressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 100%;
+  background: var(--semantic-surface-secondary);
+  transition: width 0.16s linear, opacity 0.2s ease; /* 16ms para ~60fps */
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+}
+
+/* Hide progress bar when paused (hover/focus) */
+.toast.paused .progressBar {
+  opacity: 0;
+}
+
+.toast.entering {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+.toast.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast.leaving {
+  transform: translateY(8px);
+  opacity: 0;
+}
+
+/* Content wrapper */
+.content {
+  position: relative;
+  z-index: 1; /* Acima da barra de progresso */
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3); /* 12px gap between text and button */
+  flex: 1;
+  min-width: 0;
+}
+
+/* Text label */
+.label {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+/* View Button (Secondary button style) */
+.viewButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 var(--sizes-4);
+  flex-shrink: 0;
+  
+  background: var(--component-button-secondary-bg-default);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-radius);
+  
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--component-button-secondary-content-default);
+  
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.viewButton:hover {
+  background: var(--component-button-secondary-bg-hover);
+  color: var(--component-button-secondary-content-hover);
+}
+
+.viewButton:active {
+  background: var(--component-button-secondary-bg-active);
+  color: var(--component-button-secondary-content-active);
+  border-color: var(--component-button-secondary-border-active);
+}
+
+/* Close Button (Ghost button style) */
+.closeButton {
+  position: relative;
+  z-index: 1; /* Acima da barra de progresso */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  
+  background: var(--component-button-ghost-bg-default);
+  border: none;
+  border-radius: var(--radius-button-icon-radius);
+  
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.closeButton:hover {
+  background: var(--component-button-ghost-bg-hover);
+}
+
+.closeButton:active {
+  background: var(--component-button-ghost-bg-active);
+}
+
+.closeIcon {
+  width: 20px;
+  height: 20px;
+  color: var(--component-button-ghost-content-default);
+  transition: color 0.15s ease;
+}
+
+.closeButton:hover .closeIcon {
+  color: var(--component-button-ghost-content-hover);
+}
+
+.closeButton:active .closeIcon {
+  color: var(--component-button-ghost-content-active);
+}
+

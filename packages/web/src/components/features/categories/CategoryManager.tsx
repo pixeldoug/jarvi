@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash, Tag } from 'phosphor-react';
+import { Plus, Trash, Tag } from '@phosphor-icons/react';
 import { useCategories } from '../../../hooks/useCategories';
 import { Button, Input, Modal } from '../../ui';
 
@@ -310,7 +310,7 @@ export const CategoryManager: React.FC = () => {
             </Button>
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={handleCloseModal}
               className="flex-1"
             >

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { Plus, TrashSimple, PencilSimple, FunnelSimple } from 'phosphor-react';
+import { Plus, TrashSimple, PencilSimple, FunnelSimple } from '@phosphor-icons/react';
 import { useCategories } from '../../../hooks/useCategories';
 
 interface NotesListProps {
@@ -127,7 +127,7 @@ export const NotesList: React.FC<NotesListProps> = ({
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center space-x-2 px-3 py-2 text-sm"
                 variant="secondary"
-                size="sm"
+                size="small"
               >
                 <FunnelSimple className="w-4 h-4" />
                 <span>Filtros</span>
@@ -137,7 +137,7 @@ export const NotesList: React.FC<NotesListProps> = ({
               onClick={() => setIsCreating(true)}
               className="flex items-center space-x-2 px-3 py-2 text-sm"
               variant="primary"
-              size="sm"
+              size="small"
             >
               <Plus className="w-4 h-4" />
               <span>Nova</span>
@@ -204,7 +204,7 @@ export const NotesList: React.FC<NotesListProps> = ({
                 onClick={handleCreateNote}
                 className="text-xs"
                 variant="primary"
-                size="sm"
+                size="small"
                 disabled={!newNoteTitle.trim()}
               >
                 Criar
@@ -216,7 +216,7 @@ export const NotesList: React.FC<NotesListProps> = ({
                 }}
                 className="text-xs"
                 variant="secondary"
-                size="sm"
+                size="small"
               >
                 Cancelar
               </Button>

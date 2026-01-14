@@ -1,5 +1,5 @@
 import React from 'react';
-import { PencilSimple, Plus } from 'phosphor-react';
+import { PencilSimple, Plus } from '@phosphor-icons/react';
 import { Button } from '../../ui';
 import { Note } from '../../../contexts/NoteContext';
 

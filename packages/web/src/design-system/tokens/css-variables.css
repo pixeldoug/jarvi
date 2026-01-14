@@ -1,0 +1,505 @@
+/**
+ * Design Tokens - CSS Variables
+ * Generated from Figma tokens
+ * DO NOT EDIT MANUALLY
+ */
+
+/* ========================================
+   ROOT VARIABLES (Light Mode Default)
+   ======================================== */
+
+:root {
+  /* ===== Colors ===== */
+  --color-gray-20: #F9FAFA;
+  --color-gray-50: #F7F8F9;
+  --color-gray-100: #E8EAED;
+  --color-gray-200: #D8DDE0;
+  --color-gray-300: #C7CDD3;
+  --color-gray-400: #B5BCC4;
+  --color-gray-500: #A0ABB4;
+  --color-gray-600: #8A97A2;
+  --color-gray-700: #757F88;
+  --color-gray-800: #596269;
+  --color-gray-900: #34373C;
+  --color-gray-950: #18181B;
+  --color-brand-primary-50: #F3F1FC;
+  --color-brand-primary-100: #EEE9FE;
+  --color-brand-primary-200: #DED4FD;
+  --color-brand-primary-300: #CDBDFC;
+  --color-brand-primary-400: #8D6EF7;
+  --color-brand-primary-500: #7048F5;
+  --color-brand-primary-600: #6137F3;
+  --color-brand-primary-700: #4F26E4;
+  --color-brand-primary-800: #3812B7;
+  --color-brand-primary-900: #1D1440;
+  --color-brand-primary-950: #160F2B;
+  --color-system-green-50: #F0FDF4;
+  --color-system-green-100: #DCFCE7;
+  --color-system-green-200: #BBF7D0;
+  --color-system-green-300: #86EFAC;
+  --color-system-green-400: #4ADE80;
+  --color-system-green-500: #22C55E;
+  --color-system-green-600: #16A34A;
+  --color-system-green-700: #15803D;
+  --color-system-green-800: #166534;
+  --color-system-green-900: #14532D;
+  --color-system-green-950: #052E16;
+  --color-system-yellow-50: #FFFBEB;
+  --color-system-yellow-100: #FEF3C7;
+  --color-system-yellow-200: #FDE68A;
+  --color-system-yellow-300: #FCD34D;
+  --color-system-yellow-400: #FBBF24;
+  --color-system-yellow-500: #F59E0B;
+  --color-system-yellow-600: #D97706;
+  --color-system-yellow-700: #B45309;
+  --color-system-yellow-800: #92400E;
+  --color-system-yellow-900: #78350F;
+  --color-system-yellow-950: #451A03;
+  --color-system-red-50: #FEF2F2;
+  --color-system-red-100: #FEE2E2;
+  --color-system-red-200: #FECACA;
+  --color-system-red-300: #FCA5A5;
+  --color-system-red-400: #F87171;
+  --color-system-red-500: #EF4444;
+  --color-system-red-600: #DC2626;
+  --color-system-red-700: #B91C1C;
+  --color-system-red-800: #991B1B;
+  --color-system-red-900: #7F1D1D;
+  --color-system-red-950: #450A0A;
+  --color-system-blue-50: #EFF6FF;
+  --color-system-blue-100: #DBEAFE;
+  --color-system-blue-200: #BFDBFE;
+  --color-system-blue-300: #93C5FD;
+  --color-system-blue-400: #60A5FA;
+  --color-system-blue-500: #3B82F6;
+  --color-system-blue-600: #2563EB;
+  --color-system-blue-700: #1D4ED8;
+  --color-system-blue-800: #1E40AF;
+  --color-system-blue-900: #1E3A8A;
+  --color-system-blue-950: #172554;
+  --color-system-purple-50: #EEF2FF;
+  --color-system-purple-100: #E0E7FF;
+  --color-system-purple-200: #C7D2FE;
+  --color-system-purple-300: #A5B4FC;
+  --color-system-purple-400: #818CF8;
+  --color-system-purple-500: #6366F1;
+  --color-system-purple-600: #4F46E5;
+  --color-system-purple-700: #4338CA;
+  --color-system-purple-800: #3730A3;
+  --color-system-purple-900: #312E81;
+  --color-system-purple-950: #1E1B4B;
+  --color-bw-white: #FFFFFF;
+  --color-bw-transparent: rgba(255, 255, 255, 0);
+  --color-bw-white-transparent-05: rgba(255, 255, 255, 0.05);
+  --color-bw-white-transparent-10: rgba(255, 255, 255, 0.1);
+  --color-bw-white-transparent-15: rgba(255, 255, 255, 0.15);
+  --color-bw-white-transparent-20: rgba(255, 255, 255, 0.2);
+  --color-bw-white-transparent-30: rgba(255, 255, 255, 0.3);
+  --color-bw-white-transparent-60: rgba(255, 255, 255, 0.6);
+  --color-bw-white-transparent-80: rgba(255, 255, 255, 0.8);
+  --color-bw-black: #09090B;
+  --color-bw-black-transparent-05: rgba(9, 9, 11, 0.05);
+  --color-bw-black-transparent-10: rgba(9, 9, 11, 0.1);
+  --color-bw-black-transparent-15: rgba(9, 9, 11, 0.15);
+  --color-bw-black-transparent-20: rgba(9, 9, 11, 0.2);
+  --color-bw-black-transparent-30: rgba(9, 9, 11, 0.3);
+  --color-bw-black-transparent-60: rgba(9, 9, 11, 0.6);
+  --color-bw-black-transparent-80: rgba(9, 9, 11, 0.8);
+
+  /* ===== Typography ===== */
+  --font-font-family-font-display: Georgia;
+  --font-font-family-font-ui: Poppins;
+  --font-font-family-font-mono: Menlo;
+  --font-font-weight-thin: 100px;
+  --font-font-weight-extralight: 200px;
+  --font-font-weight-light: 300px;
+  --font-font-weight-normal: 400px;
+  --font-font-weight-medium: 500px;
+  --font-font-weight-semibold: 600px;
+  --font-font-weight-bold: 700px;
+  --font-font-weight-extrabold: 800px;
+  --font-font-weight-black: 900px;
+  --font-font-style-italic: italic;
+  --font-font-style-not-italic: normal;
+  --font-letter-spacing-tighter: -0.800000011920929px;
+  --font-letter-spacing-tight: -0.4000000059604645px;
+  --font-letter-spacing-normal: 0px;
+  --font-letter-spacing-wide: 0.4000000059604645px;
+  --font-letter-spacing-wider: 0.800000011920929px;
+  --font-letter-spacing-widest: 1.600000023841858px;
+
+  /* ===== Sizes ===== */
+  --sizes-0: 0px;
+  --sizes-1: 4px;
+  --sizes-2: 8px;
+  --sizes-3: 12px;
+  --sizes-4: 16px;
+  --sizes-5: 20px;
+  --sizes-6: 24px;
+  --sizes-7: 28px;
+  --sizes-8: 32px;
+  --sizes-9: 36px;
+  --sizes-10: 40px;
+  --sizes-11: 44px;
+  --sizes-12: 48px;
+  --sizes-14: 56px;
+  --sizes-15: 6px;
+  --sizes-16: 64px;
+  --sizes-20: 80px;
+  --sizes-24: 96px;
+  --sizes-25: 10px;
+  --sizes-28: 112px;
+  --sizes-32: 128px;
+  --sizes-35: 14px;
+  --sizes-36: 144px;
+  --sizes-40: 160px;
+  --sizes-44: 176px;
+  --sizes-48: 192px;
+  --sizes-52: 208px;
+  --sizes-56: 224px;
+  --sizes-60: 240px;
+  --sizes-64: 256px;
+  --sizes-72: 288px;
+  --sizes-80: 320px;
+  --sizes-96: 384px;
+  --sizes-275: 11px;
+  --sizes-325: 13px;
+  --sizes-375: 15px;
+  --sizes-px: 1px;
+  --sizes-05: 2px;
+
+  /* ===== Opacity ===== */
+
+
+  /* ===== Typography Sizing (Mode) ===== */
+  --typography-display-lg-font-size: 64px;
+  --typography-display-lg-line-height: 80px;
+  --typography-display-lg-font-weight: 600;
+  --typography-display-lg-letter-spacing: 0px;
+  --typography-heading-lg-font-size: 32px;
+  --typography-heading-lg-line-height: 32px;
+  --typography-heading-lg-font-weight: 600;
+  --typography-heading-lg-letter-spacing: 0px;
+  --typography-heading-md-font-size: 24px;
+  --typography-heading-md-line-height: 24px;
+  --typography-heading-md-font-weight: 600;
+  --typography-heading-md-letter-spacing: 0px;
+  --typography-heading-sm-font-size: 20px;
+  --typography-heading-sm-line-height: 24px;
+  --typography-heading-sm-font-weight: 600;
+  --typography-heading-sm-letter-spacing: 0px;
+  --typography-body-lg-font-size: 16px;
+  --typography-body-lg-line-height: 20px;
+  --typography-body-lg-font-weight: 500;
+  --typography-body-lg-letter-spacing: 0px;
+  --typography-body-md-font-size: 14px;
+  --typography-body-md-line-height: 20px;
+  --typography-body-md-font-weight: 500;
+  --typography-body-md-letter-spacing: 0px;
+  --typography-body-sm-font-size: 13px;
+  --typography-body-sm-line-height: 13px;
+  --typography-body-sm-font-weight: 500;
+  --typography-body-sm-letter-spacing: 0px;
+  --typography-label-md-font-size: 15px;
+  --typography-label-md-line-height: 22px;
+  --typography-label-md-font-weight: 400;
+  --typography-label-md-letter-spacing: 0px;
+  --typography-label-sm-font-size: 11px;
+  --typography-label-sm-line-height: 16px;
+  --typography-label-sm-font-weight: 500;
+  --typography-label-sm-letter-spacing: 0px;
+
+  /* ===== Radius (Mode) ===== */
+  --radius-radius-sm: 12px;
+  --radius-radius-md: 16px;
+  --radius-radius-lg: 24px;
+  --radius-radius-round: 9999px;
+  --radius-button-radius: 16px;
+  --radius-button-icon-radius: 16px;
+  --radius-button-ring-radius: 18px;
+  --radius-calendar-day-button-radius: 12px;
+  --radius-chip-radius: 16px;
+  --radius-chip-ring-radius: 20px;
+  --radius-tooltip-radius: 12px;
+
+  /* ===== Target Sizes (Mode) ===== */
+  --size-target-fine: 24px;
+  --size-target-tight: 36px;
+  --size-target-compact: 40px;
+  --size-target-standard: 48px;
+
+  /* ===== Chip Sizes (Mode) ===== */
+  --size-chip-small-height: 24px;
+  --size-chip-medium-height: 36px;
+
+  /* ===== Semantic Tokens (Light Mode) ===== */
+  --semantic-content-primary: #34373C;
+  --semantic-content-secondary: #A0ABB4;
+  --semantic-content-tertiary: #B5BCC4;
+  --semantic-content-accent: #F3F1FC;
+  --semantic-content-subtle: #EEE9FE;
+  --semantic-content-disabled: #B5BCC4;
+  --semantic-content-positive: #16A34A;
+  --semantic-content-negative: #DC2626;
+  --semantic-content-warning: #D97706;
+  --semantic-content-info: #6137F3;
+  --semantic-surface-primary: #FFFFFF;
+  --semantic-surface-secondary: #F7F8F9;
+  --semantic-surface-tertiary: #E8EAED;
+  --semantic-surface-accent: #4F26E4;
+  --semantic-surface-accent-subtle: #F3F1FC;
+  --semantic-border-primary: #D8DDE0;
+  --semantic-border-elevantion: rgba(9, 9, 11, 0.3);
+  --semantic-control-bg: #FFFFFF;
+  --semantic-control-content-placeholder: #B5BCC4;
+  --semantic-control-content: #34373C;
+  --semantic-control-border-active: #6137F3;
+  --semantic-control-focusring: #2563EB;
+  --semantic-elevation-first-level: rgba(9, 9, 11, 0.05);
+  --semantic-gradient-primary-stop-0: #FFFFFF;
+  --semantic-gradient-primary-stop-78: #FFFFFF;
+  --semantic-gradient-primary-stop-100: rgba(255, 255, 255, 0.8);
+
+  /* ===== Component Tokens (Light Mode) ===== */
+  --component-badge-bg-default: #F7F8F9;
+  --component-badge-bg-disabled: #E8EAED;
+  --component-badge-content-disabled: #B5BCC4;
+  --component-badge-bg-hover: #E8EAED;
+  --component-badge-content-hover: #34373C;
+  --component-badge-content: #34373C;
+  --component-button-bg-disabled: #E8EAED;
+  --component-button-content-disabled: #B5BCC4;
+  --component-button-shortcut: rgba(255, 255, 255, 0.8);
+  --component-button-primary-bg-default: #4F26E4;
+  --component-button-primary-bg-hover: #3812B7;
+  --component-button-primary-bg-active: #4F26E4;
+  --component-button-primary-content-default: #FFFFFF;
+  --component-button-primary-content-hover: #FFFFFF;
+  --component-button-primary-content-active: #FFFFFF;
+  --component-button-destructive-bg-default: #B91C1C;
+  --component-button-destructive-bg-hover: #991B1B;
+  --component-button-destructive-bg-active: #7F1D1D;
+  --component-button-destructive-content-default: #FFFFFF;
+  --component-button-destructive-content-hover: #FFFFFF;
+  --component-button-destructive-content-active: #FFFFFF;
+  --component-button-secondary-bg-default: rgba(255, 255, 255, 0.1);
+  --component-button-secondary-bg-hover: #E8EAED;
+  --component-button-secondary-bg-active: #EEE9FE;
+  --component-button-secondary-content-default: #34373C;
+  --component-button-secondary-content-hover: #8A97A2;
+  --component-button-secondary-content-active: #6137F3;
+  --component-button-secondary-border-active: #8D6EF7;
+  --component-button-ghost-bg-default: rgba(255, 255, 255, 0);
+  --component-button-ghost-bg-hover: #E8EAED;
+  --component-button-ghost-bg-active: #F7F8F9;
+  --component-button-ghost-content-default: #34373C;
+  --component-button-ghost-content-hover: #8A97A2;
+  --component-button-ghost-content-active: #596269;
+  --component-calendar-arrow-button-bg: rgba(255, 255, 255, 0);
+  --component-calendar-arrow-button-bg-hover: #EEE9FE;
+  --component-calendar-arrow-button-content: #34373C;
+  --component-calendar-arrow-button-content-hover: #6137F3;
+  --component-calendar-day-button-bg-default: rgba(255, 255, 255, 0);
+  --component-calendar-day-button-bg-hover: #EEE9FE;
+  --component-calendar-day-button-bg-pressed: #E8EAED;
+  --component-calendar-day-button-bg-disabled: #E8EAED;
+  --component-calendar-day-button-bg-selected: #6137F3;
+  --component-calendar-day-button-content-default: #34373C;
+  --component-calendar-day-button-content-hover: #6137F3;
+  --component-calendar-day-button-content-pressed: #A0ABB4;
+  --component-calendar-day-button-content-disabled: #B5BCC4;
+  --component-calendar-day-button-content-selected: #F3F1FC;
+  --component-calendar-day-button-current-bg-default: #E8EAED;
+  --component-calendar-day-button-current-content-default: #757F88;
+  --component-control-bar-bg-default: #18181B;
+  --component-control-bar-bg-active: #18181B;
+  --component-control-bar-tab-content: #EEE9FE;
+  --component-control-bar-tab-bg-default: rgba(255, 255, 255, 0);
+  --component-control-bar-tab-bg-active: rgba(255, 255, 255, 0.1);
+  --component-control-bar-tab-bg-hover: rgba(255, 255, 255, 0.05);
+  --component-control-bar-button-bg-disabled: #34373C;
+  --component-control-bar-button-content-disabled: #757F88;
+  --component-control-bar-close-button-bg: rgba(255, 255, 255, 0);
+  --component-control-bar-close-button-content: #F3F1FC;
+  --component-control-bar-border: #34373C;
+  --component-chip-bg-disabled: #E8EAED;
+  --component-chip-content-disabled: #B5BCC4;
+  --component-chip-bg-default: rgba(255, 255, 255, 0);
+  --component-chip-bg-hover: #E8EAED;
+  --component-chip-bg-active: #EEE9FE;
+  --component-chip-content-active: #6137F3;
+  --component-chip-content-hover: #8A97A2;
+  --component-chip-border-active: #DED4FD;
+  --component-googlebutton-bg-default: #FFFFFF;
+  --component-googlebutton-bg-hover: #E8EAED;
+  --component-googlebutton-content-default: #34373C;
+  --component-googlebutton-content-hover: #34373C;
+  --component-list-item-bg-disabled: rgba(255, 255, 255, 0);
+  --component-list-item-content-disabled: #B5BCC4;
+  --component-list-item-bg-default: rgba(255, 255, 255, 0);
+  --component-list-item-bg-hover: #F7F8F9;
+  --component-list-item-bg-active: #F3F1FC;
+  --component-list-item-content-hover: #34373C;
+  --component-list-item-content-active: #3812B7;
+  --component-logo-bg-default: #18181B;
+  --component-logo-content-stop-1: #FFFFFF;
+  --component-logo-content-stop-2: #EEE9FE;
+  --component-dialog-bg-overlay: rgba(9, 9, 11, 0.3);
+  --component-quick-task-creator-bg-default: #E8EAED;
+  --component-quick-task-creator-bg-hover: #6137F3;
+  --component-quick-task-creator-border-default: rgba(9, 9, 11, 0.05);
+  --component-quick-task-creator-border-hover: #6137F3;
+  --component-quick-task-creator-icon-default: #A0ABB4;
+  --component-quick-task-creator-icon-hover: #F3F1FC;
+  --component-quick-task-creator-content: #A0ABB4;
+  --component-quick-task-creator-content-hover: #34373C;
+  --component-tooltip-bg: #18181B;
+  --component-tooltip-content: #F3F1FC;
+}
+
+/* ========================================
+   DARK MODE OVERRIDES
+   ======================================== */
+
+.dark,
+[data-theme="dark"] {
+  /* ===== Semantic Tokens (Dark Mode) ===== */
+  --semantic-content-primary: #F7F8F9;
+  --semantic-content-secondary: #B5BCC4;
+  --semantic-content-tertiary: #A0ABB4;
+  --semantic-content-accent: #F3F1FC;
+  --semantic-content-subtle: #EEE9FE;
+  --semantic-content-disabled: #34373C;
+  --semantic-content-positive: #4ADE80;
+  --semantic-content-negative: #F87171;
+  --semantic-content-warning: #FBBF24;
+  --semantic-content-info: #8D6EF7;
+  --semantic-surface-primary: #18181B;
+  --semantic-surface-secondary: #34373C;
+  --semantic-surface-tertiary: #596269;
+  --semantic-surface-accent: #4F26E4;
+  --semantic-surface-accent-subtle: #160F2B;
+  --semantic-border-primary: #34373C;
+  --semantic-border-elevantion: rgba(9, 9, 11, 0.3);
+  --semantic-control-bg: #18181B;
+  --semantic-control-content-placeholder: #A0ABB4;
+  --semantic-control-content: #F7F8F9;
+  --semantic-control-border-active: #7048F5;
+  --semantic-control-focusring: #1D4ED8;
+  --semantic-elevation-first-level: rgba(255, 255, 255, 0.05);
+  --semantic-gradient-primary-stop-0: #18181B;
+  --semantic-gradient-primary-stop-78: #18181B;
+  --semantic-gradient-primary-stop-100: rgba(9, 9, 11, 0.8);
+
+  /* ===== Component Tokens (Dark Mode) ===== */
+  --component-badge-bg-default: #34373C;
+  --component-badge-bg-disabled: #18181B;
+  --component-badge-content-disabled: #34373C;
+  --component-badge-bg-hover: #596269;
+  --component-badge-content-hover: #F7F8F9;
+  --component-badge-content: #F7F8F9;
+  --component-button-bg-disabled: #34373C;
+  --component-button-content-disabled: #757F88;
+  --component-button-shortcut: rgba(255, 255, 255, 0.8);
+  --component-button-primary-bg-default: #4F26E4;
+  --component-button-primary-bg-hover: #3812B7;
+  --component-button-primary-bg-active: #4F26E4;
+  --component-button-primary-content-default: #FFFFFF;
+  --component-button-primary-content-hover: #FFFFFF;
+  --component-button-primary-content-active: #FFFFFF;
+  --component-button-destructive-bg-default: #DC2626;
+  --component-button-destructive-bg-hover: #B91C1C;
+  --component-button-destructive-bg-active: #991B1B;
+  --component-button-destructive-content-default: #FFFFFF;
+  --component-button-destructive-content-hover: #FFFFFF;
+  --component-button-destructive-content-active: #FFFFFF;
+  --component-button-secondary-bg-default: rgba(9, 9, 11, 0.1);
+  --component-button-secondary-bg-hover: #34373C;
+  --component-button-secondary-bg-active: #1D1440;
+  --component-button-secondary-content-default: #F7F8F9;
+  --component-button-secondary-content-hover: #F7F8F9;
+  --component-button-secondary-content-active: #8D6EF7;
+  --component-button-secondary-border-active: #4F26E4;
+  --component-button-ghost-bg-default: rgba(255, 255, 255, 0);
+  --component-button-ghost-bg-hover: #34373C;
+  --component-button-ghost-bg-active: #34373C;
+  --component-button-ghost-content-default: #F7F8F9;
+  --component-button-ghost-content-hover: #B5BCC4;
+  --component-button-ghost-content-active: #D8DDE0;
+  --component-calendar-arrow-button-bg: rgba(255, 255, 255, 0);
+  --component-calendar-arrow-button-bg-hover: #3730A3;
+  --component-calendar-arrow-button-content: #F7F8F9;
+  --component-calendar-arrow-button-content-hover: #DED4FD;
+  --component-calendar-day-button-bg-default: rgba(255, 255, 255, 0);
+  --component-calendar-day-button-bg-hover: #3812B7;
+  --component-calendar-day-button-bg-pressed: #34373C;
+  --component-calendar-day-button-bg-disabled: #34373C;
+  --component-calendar-day-button-bg-selected: #4F26E4;
+  --component-calendar-day-button-content-default: #F7F8F9;
+  --component-calendar-day-button-content-hover: #DED4FD;
+  --component-calendar-day-button-content-pressed: #F3F1FC;
+  --component-calendar-day-button-content-disabled: #757F88;
+  --component-calendar-day-button-content-selected: #F3F1FC;
+  --component-calendar-day-button-current-bg-default: #34373C;
+  --component-calendar-day-button-current-content-default: #C7CDD3;
+  --component-control-bar-bg-default: #34373C;
+  --component-control-bar-bg-active: #18181B;
+  --component-control-bar-tab-content: #EEE9FE;
+  --component-control-bar-tab-bg-default: rgba(255, 255, 255, 0);
+  --component-control-bar-tab-bg-active: rgba(255, 255, 255, 0.1);
+  --component-control-bar-tab-bg-hover: rgba(255, 255, 255, 0.05);
+  --component-control-bar-button-bg-disabled: #34373C;
+  --component-control-bar-button-content-disabled: #757F88;
+  --component-control-bar-close-button-bg: rgba(255, 255, 255, 0);
+  --component-control-bar-close-button-content: #F3F1FC;
+  --component-control-bar-border: #34373C;
+  --component-chip-bg-disabled: #18181B;
+  --component-chip-content-disabled: #34373C;
+  --component-chip-bg-default: rgba(255, 255, 255, 0);
+  --component-chip-bg-hover: #34373C;
+  --component-chip-bg-active: #1D1440;
+  --component-chip-content-active: #8D6EF7;
+  --component-chip-content-hover: #F7F8F9;
+  --component-chip-border-active: #6137F3;
+  --component-googlebutton-bg-default: #18181B;
+  --component-googlebutton-bg-hover: #34373C;
+  --component-googlebutton-content-default: #F7F8F9;
+  --component-googlebutton-content-hover: #F7F8F9;
+  --component-list-item-bg-disabled: rgba(255, 255, 255, 0);
+  --component-list-item-content-disabled: #34373C;
+  --component-list-item-bg-default: rgba(255, 255, 255, 0);
+  --component-list-item-bg-hover: rgba(255, 255, 255, 0.05);
+  --component-list-item-bg-active: #4F26E4;
+  --component-list-item-content-hover: #F7F8F9;
+  --component-list-item-content-active: #EEE9FE;
+  --component-logo-bg-default: #4F26E4;
+  --component-logo-content-stop-1: #FFFFFF;
+  --component-logo-content-stop-2: #EEE9FE;
+  --component-dialog-bg-overlay: rgba(9, 9, 11, 0.6);
+  --component-quick-task-creator-bg-default: rgba(255, 255, 255, 0.05);
+  --component-quick-task-creator-bg-hover: #8D6EF7;
+  --component-quick-task-creator-border-default: rgba(9, 9, 11, 0.05);
+  --component-quick-task-creator-border-hover: #8D6EF7;
+  --component-quick-task-creator-icon-default: #B5BCC4;
+  --component-quick-task-creator-icon-hover: #F3F1FC;
+  --component-quick-task-creator-content: #A0ABB4;
+  --component-quick-task-creator-content-hover: #F7F8F9;
+  --component-tooltip-bg: #F9FAFA;
+  --component-tooltip-content: #18181B;
+}
+
+/* ========================================
+   USAGE EXAMPLE
+   ======================================== */
+
+/*
+.my-button {
+  background-color: var(--semantic-surface-accent);
+  color: var(--semantic-content-primary);
+  padding: var(--spacing-4);
+  border-radius: var(--spacing-2);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-lg-font-size);
+  line-height: var(--typography-body-lg-line-height);
+}
+*/

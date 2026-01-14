@@ -1,0 +1,315 @@
+/**
+ * Design Tokens - CSS Variables
+ * Generated from Figma tokens
+ * DO NOT EDIT MANUALLY
+ */
+
+/* ========================================
+   ROOT VARIABLES (Light Mode Default)
+   ======================================== */
+
+:root {
+  /* ===== Colors ===== */
+  --color-gray-20: #F9FAFA;
+  --color-gray-50: #F7F8F9;
+  --color-gray-100: #E8EAED;
+  --color-gray-200: #D8DDE0;
+  --color-gray-300: #C7CDD3;
+  --color-gray-400: #B5BCC4;
+  --color-gray-500: #A0ABB4;
+  --color-gray-600: #8A97A2;
+  --color-gray-700: #757F88;
+  --color-gray-800: #596269;
+  --color-gray-900: #34373C;
+  --color-gray-950: #18181B;
+  --color-brand-rimary: #000000;
+  --color-brand-olt: #000000;
+  --color-system-reen: #000000;
+  --color-system-ellow: #000000;
+  --color-system-ed: #000000;
+  --color-system-lue: #000000;
+  --color-system-urple: #000000;
+  --color-bw-white: #FFFFFF;
+  --color-bw-transparent: #FFFFFF;
+  --color-bw-whitetransparent10: #FFFFFF;
+  --color-bw-whitetransparent15: #FFFFFF;
+  --color-bw-whitetransparent20: #FFFFFF;
+  --color-bw-whitetransparent30: #FFFFFF;
+  --color-bw-whitetransparent60: #FFFFFF;
+  --color-bw-whitetransparent80: #FFFFFF;
+  --color-bw-black: #09090B;
+  --color-bw-blacktransparent10: #09090B;
+  --color-bw-blacktransparent15: #09090B;
+  --color-bw-blacktransparent20: #09090B;
+  --color-bw-blacktransparent30: #09090B;
+  --color-bw-blacktransparent60: #09090B;
+  --color-bw-blacktransparent80: #09090B;
+
+  /* ===== Typography ===== */
+  --font-font-family-font-display: Georgia;
+  --font-font-family-font-ui: Poppins;
+  --font-font-family-font-mono: Menlo;
+  --font-font-weight-thin: 100px;
+  --font-font-weight-extralight: 200px;
+  --font-font-weight-light: 300px;
+  --font-font-weight-normal: 400px;
+  --font-font-weight-medium: 500px;
+  --font-font-weight-semibold: 600px;
+  --font-font-weight-bold: 700px;
+  --font-font-weight-extrabold: 800px;
+  --font-font-weight-black: 900px;
+  --font-font-style-italic: italic;
+  --font-font-style-not-italic: normal;
+  --font-letter-spacing-tighter: -0.800000011920929px;
+  --font-letter-spacing-tight: -0.4000000059604645px;
+  --font-letter-spacing-normal: 0px;
+  --font-letter-spacing-wide: 0.4000000059604645px;
+  --font-letter-spacing-wider: 0.800000011920929px;
+  --font-letter-spacing-widest: 1.600000023841858px;
+
+  /* ===== Spacing ===== */
+  --spacing-0: 0px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-7: 28px;
+  --spacing-8: 32px;
+  --spacing-9: 36px;
+  --spacing-10: 40px;
+  --spacing-11: 44px;
+  --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-15: 6px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+  --spacing-25: 10px;
+  --spacing-28: 112px;
+  --spacing-32: 128px;
+  --spacing-35: 14px;
+  --spacing-36: 144px;
+  --spacing-40: 160px;
+  --spacing-44: 176px;
+  --spacing-48: 192px;
+  --spacing-52: 208px;
+  --spacing-56: 224px;
+  --spacing-60: 240px;
+  --spacing-64: 256px;
+  --spacing-72: 288px;
+  --spacing-80: 320px;
+  --spacing-96: 384px;
+  --spacing-275: 11px;
+  --spacing-325: 13px;
+  --spacing-375: 15px;
+  --spacing-px: 1px;
+  --spacing-05: 2px;
+
+  /* ===== Opacity ===== */
+  --opacity-opacity10: 0.1;
+  --opacity-opacity15: 0.15;
+  --opacity-opacity20: 0.2;
+  --opacity-opacity30: 0.3;
+  --opacity-opacity60: 0.6;
+  --opacity-opacity80: 0.8;
+
+  /* ===== Semantic Tokens (Light Mode) ===== */
+  --semantic-content-content-primary: #34373C;
+  --semantic-content-content-secondary: #A0ABB4;
+  --semantic-content-content-tertiary: #B5BCC4;
+  --semantic-content-content-accent: #F3F1FC;
+  --semantic-content-content-subtle: #EEE9FE;
+  --semantic-content-content-disabled: #B5BCC4;
+  --semantic-content-content-positive: #16A34A;
+  --semantic-content-content-negative: #DC2626;
+  --semantic-content-content-warning: #D97706;
+  --semantic-content-content-info: #6137F3;
+  --semantic-surface-surface-primary: #FFFFFF;
+  --semantic-surface-surface-secondary: #F7F8F9;
+  --semantic-surface-surface-tertiary: #E8EAED;
+  --semantic-surface-surface-accent: #4F26E4;
+  --semantic-surface-surface-accent-subtle: #F3F1FC;
+  --semantic-borders-border: #D8DDE0;
+  --semantic-control-control-bg: #FFFFFF;
+  --semantic-control-control-content-placeholder: {Semantic.content.content-tertiary};
+  --semantic-control-control-content: {Semantic.content.content-primary};
+  --semantic-control-control-border-active: #6137F3;
+  --semantic-control-control-focusring: #2563EB;
+  --semantic-elevation-elevation-base: #09090B;
+  --semantic-elevation-elevation-spread: #09090B;
+
+  /* ===== Component Tokens (Light Mode) ===== */
+  --component-button-bg-disabled: #E8EAED;
+  --component-button-content-disabled: {Semantic.content.content-disabled};
+  --component-button-primary-bg-default: {Semantic.surface.surface-accent};
+  --component-button-primary-bg-hover: #3812B7;
+  --component-button-primary-bg-active: #4F26E4;
+  --component-button-primary-content-default: #FFFFFF;
+  --component-button-primary-content-hover: #FFFFFF;
+  --component-button-primary-content-active: #FFFFFF;
+  --component-button-destructive-bg-default: #B91C1C;
+  --component-button-destructive-bg-hover: #991B1B;
+  --component-button-destructive-bg-active: #7F1D1D;
+  --component-button-destructive-content-default: #FFFFFF;
+  --component-button-destructive-content-hover: #FFFFFF;
+  --component-button-destructive-content-active: #FFFFFF;
+  --component-button-secondary-bg-default: #FFFFFF;
+  --component-button-secondary-bg-hover: #E8EAED;
+  --component-button-secondary-bg-active: #EEE9FE;
+  --component-button-secondary-content-default: {Semantic.content.content-primary};
+  --component-button-secondary-content-hover: #8A97A2;
+  --component-button-secondary-content-active: #6137F3;
+  --component-button-secondary-border-active: #DED4FD;
+  --component-button-ghost-bg-default: #FFFFFF;
+  --component-button-ghost-bg-hover: #E8EAED;
+  --component-button-ghost-bg-active: #F7F8F9;
+  --component-button-ghost-content-default: {Semantic.content.content-primary};
+  --component-button-ghost-content-hover: #8A97A2;
+  --component-button-ghost-content-active: #596269;
+  --component-calendar-arrow-button-bg: #FFFFFF;
+  --component-calendar-arrow-button-bg-hover: #EEE9FE;
+  --component-calendar-arrow-button-content: {Semantic.content.content-primary};
+  --component-calendar-arrow-button-content-hover: #6137F3;
+  --component-calendar-day-button-bg-default: #FFFFFF;
+  --component-calendar-day-button-bg-hover: #EEE9FE;
+  --component-calendar-day-button-bg-pressed: #E8EAED;
+  --component-calendar-day-button-bg-disabled: #E8EAED;
+  --component-calendar-day-button-bg-selected: #6137F3;
+  --component-calendar-day-button-content-default: {Semantic.content.content-primary};
+  --component-calendar-day-button-content-hover: #6137F3;
+  --component-calendar-day-button-content-pressed: #A0ABB4;
+  --component-calendar-day-button-content-disabled: {Semantic.content.content-disabled};
+  --component-calendar-day-button-content-selected: #F3F1FC;
+  --component-calendar-day-button-current-bg-default: #E8EAED;
+  --component-calendar-day-button-current-content-default: #757F88;
+  --component-control-bar-bg-default: #18181B;
+  --component-control-bar-bg-active: #18181B;
+  --component-control-bar-border: #34373C;
+  --component-chip-bg-disabled: #E8EAED;
+  --component-chip-content-disabled: {Semantic.content.content-disabled};
+  --component-chip-bg-default: #FFFFFF;
+  --component-chip-bg-hover: #E8EAED;
+  --component-chip-bg-active: #EEE9FE;
+  --component-chip-content-active: #6137F3;
+  --component-chip-content-hover: #8A97A2;
+  --component-chip-border-active: #DED4FD;
+  --component-list-item-bg-disabled: #FFFFFF;
+  --component-list-item-content-disabled: {Semantic.content.content-disabled};
+  --component-list-item-bg-default: #FFFFFF;
+  --component-list-item-bg-hover: #F7F8F9;
+  --component-list-item-bg-active: #F3F1FC;
+  --component-list-item-content-hover: {Semantic.content.content-primary};
+  --component-list-item-content-active: #3812B7;
+  --component-dialog-bg-overlay: #09090B;
+}
+
+/* ========================================
+   DARK MODE OVERRIDES
+   ======================================== */
+
+.dark {
+  /* ===== Semantic Tokens (Dark Mode) ===== */
+  --semantic-content-content-primary: #F7F8F9;
+  --semantic-content-content-secondary: #B5BCC4;
+  --semantic-content-content-tertiary: #A0ABB4;
+  --semantic-content-content-accent: #F3F1FC;
+  --semantic-content-content-subtle: #EEE9FE;
+  --semantic-content-content-disabled: #34373C;
+  --semantic-content-content-positive: #4ADE80;
+  --semantic-content-content-negative: #F87171;
+  --semantic-content-content-warning: #FBBF24;
+  --semantic-content-content-info: #8D6EF7;
+  --semantic-surface-surface-primary: #18181B;
+  --semantic-surface-surface-secondary: #34373C;
+  --semantic-surface-surface-tertiary: #596269;
+  --semantic-surface-surface-accent: #4F26E4;
+  --semantic-surface-surface-accent-subtle: #160F2B;
+  --semantic-borders-border: #34373C;
+  --semantic-control-control-bg: {Semantic.surface.surface-primary};
+  --semantic-control-control-content-placeholder: {Semantic.content.content-tertiary};
+  --semantic-control-control-content: {Semantic.content.content-primary};
+  --semantic-control-control-border-active: #7048F5;
+  --semantic-control-control-focusring: #1D4ED8;
+  --semantic-elevation-elevation-base: #FFFFFF;
+  --semantic-elevation-elevation-spread: #FFFFFF;
+
+  /* ===== Component Tokens (Dark Mode) ===== */
+  --component-button-bg-disabled: #34373C;
+  --component-button-content-disabled: #757F88;
+  --component-button-primary-bg-default: {Semantic.surface.surface-accent};
+  --component-button-primary-bg-hover: #3812B7;
+  --component-button-primary-bg-active: #4F26E4;
+  --component-button-primary-content-default: #FFFFFF;
+  --component-button-primary-content-hover: #FFFFFF;
+  --component-button-primary-content-active: #FFFFFF;
+  --component-button-destructive-bg-default: #DC2626;
+  --component-button-destructive-bg-hover: #B91C1C;
+  --component-button-destructive-bg-active: #991B1B;
+  --component-button-destructive-content-default: #FFFFFF;
+  --component-button-destructive-content-hover: #FFFFFF;
+  --component-button-destructive-content-active: #FFFFFF;
+  --component-button-secondary-bg-default: #09090B;
+  --component-button-secondary-bg-hover: #34373C;
+  --component-button-secondary-bg-active: #1D1440;
+  --component-button-secondary-content-default: {Semantic.content.content-primary};
+  --component-button-secondary-content-hover: {Semantic.content.content-primary};
+  --component-button-secondary-content-active: #8D6EF7;
+  --component-button-secondary-border-active: #4F26E4;
+  --component-button-ghost-bg-default: #FFFFFF;
+  --component-button-ghost-bg-hover: #34373C;
+  --component-button-ghost-bg-active: #34373C;
+  --component-button-ghost-content-default: {Semantic.content.content-primary};
+  --component-button-ghost-content-hover: {Semantic.content.content-secondary};
+  --component-button-ghost-content-active: #D8DDE0;
+  --component-calendar-arrow-button-bg: #FFFFFF;
+  --component-calendar-arrow-button-bg-hover: #3730A3;
+  --component-calendar-arrow-button-content: {Semantic.content.content-disabled};
+  --component-calendar-arrow-button-content-hover: #DED4FD;
+  --component-calendar-day-button-bg-default: #FFFFFF;
+  --component-calendar-day-button-bg-hover: #3812B7;
+  --component-calendar-day-button-bg-pressed: #34373C;
+  --component-calendar-day-button-bg-disabled: #34373C;
+  --component-calendar-day-button-bg-selected: #4F26E4;
+  --component-calendar-day-button-content-default: {Semantic.content.content-primary};
+  --component-calendar-day-button-content-hover: #DED4FD;
+  --component-calendar-day-button-content-pressed: #F3F1FC;
+  --component-calendar-day-button-content-disabled: #757F88;
+  --component-calendar-day-button-content-selected: #F3F1FC;
+  --component-calendar-day-button-current-bg-default: #34373C;
+  --component-calendar-day-button-current-content-default: #C7CDD3;
+  --component-control-bar-bg-default: #34373C;
+  --component-control-bar-bg-active: #18181B;
+  --component-control-bar-border: #18181B;
+  --component-chip-bg-disabled: #18181B;
+  --component-chip-content-disabled: {Semantic.content.content-disabled};
+  --component-chip-bg-default: #FFFFFF;
+  --component-chip-bg-hover: #34373C;
+  --component-chip-bg-active: #1D1440;
+  --component-chip-content-active: #8D6EF7;
+  --component-chip-content-hover: {Semantic.content.content-primary};
+  --component-chip-border-active: #6137F3;
+  --component-list-item-bg-disabled: #FFFFFF;
+  --component-list-item-content-disabled: {Semantic.content.content-disabled};
+  --component-list-item-bg-default: #FFFFFF;
+  --component-list-item-bg-hover: #18181B;
+  --component-list-item-bg-active: #4F26E4;
+  --component-list-item-content-hover: {Semantic.content.content-primary};
+  --component-list-item-content-active: #EEE9FE;
+  --component-dialog-bg-overlay: #09090B;
+}
+
+/* ========================================
+   USAGE EXAMPLE
+   ======================================== */
+
+/*
+.my-button {
+  background-color: var(--semantic-surface-surface-accent);
+  color: var(--semantic-content-content-primary);
+  padding: var(--spacing-4);
+  border-radius: var(--spacing-2);
+  font-family: var(--font-font-family-font-ui);
+}
+*/

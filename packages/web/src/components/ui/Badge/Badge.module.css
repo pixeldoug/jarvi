@@ -1,0 +1,144 @@
+/**
+ * Badge Styles
+ * Using design tokens from CSS variables
+ * Following JarviDS Figma design
+ */
+
+/* ============================================================================
+   BASE BADGE
+   ============================================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-15, 6px);
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--semantic-border-primary);
+  background-color: var(--component-badge-bg-default);
+  cursor: default;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* Interactive badge */
+.badge[role="button"] {
+  cursor: pointer;
+}
+
+/* ============================================================================
+   HOVER STATE
+   ============================================================================ */
+
+.badge:not(.disabled):hover {
+  background-color: var(--component-badge-bg-hover);
+}
+
+.badge:not(.disabled):hover .label {
+  color: var(--component-badge-content-hover);
+}
+
+/* ============================================================================
+   DISABLED STATE
+   ============================================================================ */
+
+.badge.disabled {
+  background-color: var(--component-badge-bg-disabled);
+  cursor: not-allowed;
+}
+
+.badge.disabled .label {
+  color: var(--component-badge-content-disabled);
+}
+
+.badge.disabled .prefixIcon {
+  color: var(--component-badge-content-disabled);
+}
+
+.badge.disabled .closeButton {
+  color: var(--component-badge-content-disabled);
+  pointer-events: none;
+}
+
+/* ============================================================================
+   LABEL
+   ============================================================================ */
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--component-badge-content);
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ============================================================================
+   PREFIX ICON
+   ============================================================================ */
+
+.prefixIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--component-badge-content);
+}
+
+.prefixIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================================
+   CLOSE BUTTON
+   ============================================================================ */
+
+.closeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--component-badge-content);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.closeButton:hover {
+  color: var(--semantic-content-negative);
+}
+
+.closeButton:disabled {
+  cursor: not-allowed;
+}
+
+.closeButton svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================================
+   FOCUS STATES
+   ============================================================================ */
+
+.badge:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 2px;
+}
+
+.closeButton:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+

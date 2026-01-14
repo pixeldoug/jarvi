@@ -1,29 +1,16 @@
 /**
  * Shared Package - Jarvi
  * 
- * Ponto de entrada para funcionalidades compartilhadas
+ * Entry point for shared design tokens
  */
 
 // ============================================================================
 // DESIGN TOKENS
 // ============================================================================
 
-export * from './design-tokens';
+// Export core tokens
+export * from './design-tokens/core';
 
-// ============================================================================
-// COMPONENTS
-// ============================================================================
-
-export * from './components';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-export * from './types';
-
-// ============================================================================
-// UTILS
-// ============================================================================
-
-export * from './utils';
+// Export platform-specific tokens
+export * from './design-tokens/platforms/web';
+export * from './design-tokens/platforms/native';

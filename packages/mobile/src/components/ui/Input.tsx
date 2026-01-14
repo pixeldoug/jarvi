@@ -1,39 +1,42 @@
 /**
  * Input Component - Jarvi Mobile
  * 
- * Implementação mobile do componente Input do design system.
+ * Input component using design tokens from shared package
  */
 
 import React, { forwardRef } from 'react';
-import { View, Text, TextInput as RNTextInput, TouchableOpacity } from 'react-native';
-import {
-  Input as BaseInput,
-  TextInput as BaseTextInput,
-  EmailInput as BaseEmailInput,
-  PasswordInput as BasePasswordInput,
-  NumberInput as BaseNumberInput,
-  SearchInput as BaseSearchInput,
-  getInputStyles,
-  getInputThemeStyles,
-  getLabelThemeStyles,
-  getHelperTextThemeStyles,
-  getPlaceholderThemeStyles,
-  type InputProps as BaseInputProps,
-} from '@jarvi/shared';
-import { useThemeMobile } from '../../hooks/useTheme';
+import { View, Text, TextInput as RNTextInput, ViewStyle, TextStyle, StyleSheet } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
+import { spacing } from '@jarvi/shared/src/design-tokens/platforms/native';
 
 // ============================================================================
-// TIPOS
+// TYPES
 // ============================================================================
 
-export interface InputProps extends BaseInputProps {
+export interface InputProps {
+  label?: string;
+  placeholder?: string;
+  value?: string;
+  defaultValue?: string;
+  type?: 'text' | 'email' | 'password' | 'number' | 'tel';
+  disabled?: boolean;
+  error?: string;
+  helperText?: string;
+  required?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoCorrect?: boolean;
+  multiline?: boolean;
+  numberOfLines?: number;
+  maxLength?: number;
   onChangeText?: (text: string) => void;
   onFocus?: () => void;
   onBlur?: () => void;
+  style?: ViewStyle;
+  testID?: string;
 }
 
 // ============================================================================
-// COMPONENTE
+// COMPONENT
 // ============================================================================
 
 export const Input = forwardRef<RNTextInput, InputProps>(({
@@ -45,82 +48,21 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
   disabled = false,
   error,
   helperText,
-  leftIcon,
-  rightIcon,
   required = false,
-  autoComplete,
   autoCapitalize = 'sentences',
   autoCorrect = true,
-  keyboardType = 'default',
   multiline = false,
   numberOfLines = 1,
   maxLength,
-  onChange,
   onChangeText,
   onFocus,
   onBlur,
-  onSubmitEditing,
-  className = '',
   style,
   testID,
-  ...props
 }, ref) => {
-  const { isDark } = useThemeMobile();
+  const { theme } = useTheme();
 
-  // Obter estilos inline
-  const hasError = !!error;
-  const hasLeftIcon = !!leftIcon;
-  const hasRightIcon = !!rightIcon;
-  
-  const baseStyles = getInputStyles(hasError, hasLeftIcon, hasRightIcon, disabled);
-  const themeStyles = getInputThemeStyles(hasError, isDark);
-  const finalStyles = { ...baseStyles, ...themeStyles, ...style };
-
-  // Obter estilos do label
-  const labelStyles = getLabelThemeStyles(isDark);
-
-  // Obter estilos do helper text
-  const helperStyles = getHelperTextThemeStyles(hasError, isDark);
-
-  // Obter estilos do placeholder
-  const placeholderStyles = getPlaceholderThemeStyles(isDark);
-
-  // Obter estilos do container
-  const containerStyles = {
-    width: '100%',
-  };
-
-  // Obter estilos do input
-  const inputStyles = {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    ...finalStyles,
-  };
-
-  // Obter estilos do label
-  const labelTextStyles = {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    marginBottom: 4,
-    ...labelStyles,
-  };
-
-  // Obter estilos do helper text
-  const helperTextStyles = {
-    fontSize: 12,
-    marginTop: 4,
-    ...helperStyles,
-  };
-
-  // Obter estilos do placeholder
-  const placeholderTextStyles = {
-    ...placeholderStyles,
-  };
-
-  // Mapear keyboardType
+  // Map type to keyboard type
   const getKeyboardType = () => {
     switch (type) {
       case 'email':
@@ -129,92 +71,85 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
         return 'numeric';
       case 'tel':
         return 'phone-pad';
-      case 'url':
-        return 'url';
       default:
         return 'default';
     }
   };
 
-  // Mapear autoCapitalize
+  // Map type to autoCapitalize
   const getAutoCapitalize = () => {
-    switch (type) {
-      case 'email':
-        return 'none';
-      case 'password':
-        return 'none';
-      default:
-        return autoCapitalize;
+    if (type === 'email' || type === 'password') {
+      return 'none';
     }
+    return autoCapitalize;
   };
 
+  // Build styles
+  const inputStyle: TextStyle = StyleSheet.flatten([
+    styles.input,
+    {
+      backgroundColor: theme.semanticControlControlBg,
+      borderColor: error 
+        ? theme.semanticContentContentError 
+        : theme.semanticControlControlBorderDefault,
+      color: theme.semanticContentContentPrimary,
+    },
+    disabled && {
+      backgroundColor: theme.semanticSurfaceSurfaceSecondary,
+      opacity: 0.6,
+    },
+    style,
+  ]);
+
+  const labelStyle: TextStyle = StyleSheet.flatten([
+    styles.label,
+    {
+      color: theme.semanticContentContentSecondary,
+    },
+  ]);
+
+  const helperStyle: TextStyle = StyleSheet.flatten([
+    styles.helper,
+    {
+      color: error 
+        ? theme.semanticContentContentError 
+        : theme.semanticContentContentTertiary,
+    },
+  ]);
+
   return (
-    <View style={containerStyles}>
+    <View style={styles.wrapper}>
       {label && (
-        <Text style={labelTextStyles}>
+        <Text style={labelStyle}>
           {label}
-          {required && <Text style={{ color: '#ef4444' }}> *</Text>}
+          {required && <Text style={styles.required}> *</Text>}
         </Text>
       )}
       
-      <View style={{ position: 'relative' }}>
-        {leftIcon && (
-          <View style={{
-            position: 'absolute',
-            left: 12,
-            top: '50%',
-            transform: [{ translateY: -10 }],
-            zIndex: 1,
-          }}>
-            {leftIcon}
-          </View>
-        )}
-        
-        <RNTextInput
-          ref={ref}
-          style={inputStyles}
-          placeholder={placeholder}
-          placeholderTextColor={placeholderTextStyles.color}
-          value={value}
-          defaultValue={defaultValue}
-          editable={!disabled}
-          autoCapitalize={getAutoCapitalize()}
-          autoCorrect={autoCorrect}
-          keyboardType={getKeyboardType()}
-          multiline={multiline}
-          numberOfLines={numberOfLines}
-          maxLength={maxLength}
-          onChangeText={onChangeText}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onSubmitEditing={onSubmitEditing}
-          secureTextEntry={type === 'password'}
-          testID={testID}
-          {...props}
-        />
-        
-        {rightIcon && (
-          <View style={{
-            position: 'absolute',
-            right: 12,
-            top: '50%',
-            transform: [{ translateY: -10 }],
-            zIndex: 1,
-          }}>
-            {rightIcon}
-          </View>
-        )}
-      </View>
+      <RNTextInput
+        ref={ref}
+        style={inputStyle}
+        placeholder={placeholder}
+        placeholderTextColor={theme.semanticContentContentTertiary}
+        value={value}
+        defaultValue={defaultValue}
+        editable={!disabled}
+        autoCapitalize={getAutoCapitalize()}
+        autoCorrect={autoCorrect}
+        keyboardType={getKeyboardType()}
+        multiline={multiline}
+        numberOfLines={numberOfLines}
+        maxLength={maxLength}
+        onChangeText={onChangeText}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        secureTextEntry={type === 'password'}
+        testID={testID}
+      />
       
-      {error && (
-        <Text style={helperTextStyles}>
-          {error}
-        </Text>
-      )}
-      
-      {helperText && !error && (
-        <Text style={helperTextStyles}>
-          {helperText}
+      {(error || helperText) && (
+        <Text style={helperStyle}>
+          {error || helperText}
         </Text>
       )}
     </View>
@@ -224,7 +159,36 @@ export const Input = forwardRef<RNTextInput, InputProps>(({
 Input.displayName = 'Input';
 
 // ============================================================================
-// COMPONENTES ESPECÍFICOS
+// STYLES
+// ============================================================================
+
+const styles = StyleSheet.create({
+  wrapper: {
+    width: '100%',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: spacing[2],
+  },
+  required: {
+    color: '#ef4444',
+  },
+  input: {
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    fontSize: 16,
+    borderRadius: spacing[2],
+    borderWidth: 1,
+  },
+  helper: {
+    fontSize: 12,
+    marginTop: spacing[1],
+  },
+});
+
+// ============================================================================
+// VARIANT COMPONENTS
 // ============================================================================
 
 export function TextInput(props: Omit<InputProps, 'type'>) {
@@ -242,16 +206,3 @@ export function PasswordInput(props: Omit<InputProps, 'type'>) {
 export function NumberInput(props: Omit<InputProps, 'type'>) {
   return <Input {...props} type="number" />;
 }
-
-export function SearchInput(props: Omit<InputProps, 'type'>) {
-  return (
-    <Input
-      {...props}
-      type="search"
-      leftIcon={
-        <Text style={{ color: '#9ca3af', fontSize: 16 }}>🔍</Text>
-      }
-    />
-  );
-}
-

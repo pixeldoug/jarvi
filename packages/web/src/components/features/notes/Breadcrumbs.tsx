@@ -1,5 +1,5 @@
 import React from 'react';
-import { House, ArrowRight } from 'phosphor-react';
+import { House, ArrowRight } from '@phosphor-icons/react';
 
 interface BreadcrumbItem {
   label: string;

@@ -1,0 +1,121 @@
+/**
+ * ListItem Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  height: 48px;
+  padding: var(--sizes-3) var(--sizes-3) var(--sizes-3) var(--sizes-4);
+  
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-radius-sm);
+  
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background-color 0.15s ease;
+}
+
+.listItem:hover {
+  background: var(--color-gray-100);
+}
+
+/* Active state */
+.active {
+  background: var(--color-brand-primary-50);
+}
+
+.active:hover {
+  background: var(--color-brand-primary-100);
+}
+
+/* Icon container */
+.icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--semantic-content-primary);
+}
+
+.active .icon {
+  color: var(--color-brand-primary-800);
+}
+
+/* Emoji icon */
+.emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Text label */
+.label {
+  flex: 1;
+  min-width: 0;
+  
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.active .label {
+  color: var(--color-brand-primary-800);
+}
+
+/* Counter badge */
+.counter {
+  flex-shrink: 0;
+  
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.active .counter {
+  color: var(--color-brand-primary-600);
+}
+
+/* Dark mode */
+:global(.dark) .listItem:hover {
+  background: var(--color-gray-800);
+}
+
+:global(.dark) .active {
+  background: var(--color-brand-primary-900);
+}
+
+:global(.dark) .active:hover {
+  background: var(--color-brand-primary-800);
+}
+
+:global(.dark) .active .icon,
+:global(.dark) .active .label {
+  color: var(--color-brand-primary-200);
+}
+
+:global(.dark) .active .counter {
+  color: var(--color-brand-primary-300);
+}
+
+
+
+
+
+
+
+
+

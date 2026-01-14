@@ -1,0 +1,214 @@
+/**
+ * CategoryPicker Styles - Jarvi Web
+ * 
+ * Supports three states:
+ * - Empty: When user has no categories
+ * - Filled: List of existing categories
+ * - Create: Form to create new category
+ * 
+ * Based on Figma nodes:
+ * - Empty: 40000402:19887
+ * - Filled: 40000402:20071
+ * - Create: 40000402:20108
+ */
+
+/* ============================================================================
+   BACKDROP
+   ============================================================================ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 999;
+}
+
+/* ============================================================================
+   POPOVER
+   ============================================================================ */
+
+.popover {
+  width: 272px;
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-md);
+  box-shadow: 
+    0px 0px 1px 0px rgba(9, 9, 11, 0.2),
+    0px 4px 18px 0px rgba(9, 9, 11, 0.1),
+    0px 6px 8px 0px rgba(9, 9, 11, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   CONTENT
+   ============================================================================ */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+  padding: var(--sizes-2);
+}
+
+.contentEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+  padding: var(--sizes-6) var(--sizes-2);
+}
+
+/* ============================================================================
+   HEADERS
+   ============================================================================ */
+
+.headerWithIcon {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  padding: var(--sizes-1) var(--sizes-3);
+}
+
+.headerWithIcon svg {
+  color: var(--semantic-content-primary);
+  flex-shrink: 0;
+}
+
+.headerSimple {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--sizes-1) var(--sizes-3);
+}
+
+.title {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.description {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+  padding: 0 var(--sizes-4);
+}
+
+/* ============================================================================
+   CATEGORY LIST
+   ============================================================================ */
+
+.categoryList {
+  display: flex;
+  flex-direction: column;
+}
+
+.categoryItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  height: 48px;
+  padding: var(--sizes-3) var(--sizes-4);
+  background: var(--component-list-item-bg-default);
+  border: none;
+  border-radius: var(--radius-radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.categoryItem:hover {
+  background: var(--component-list-item-bg-hover);
+}
+
+.categoryItem:active {
+  background: var(--component-list-item-bg-active);
+}
+
+.categoryItem.selected {
+  background: var(--component-list-item-bg-active);
+}
+
+.categoryItem svg {
+  color: var(--semantic-content-primary);
+  flex-shrink: 0;
+}
+
+.categoryName {
+  flex: 1;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   INPUT (Create State)
+   ============================================================================ */
+
+.inputContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.input {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--sizes-4);
+  background: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-control-border-active);
+  border-radius: var(--radius-radius-sm);
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+
+.footer {
+  display: flex;
+  padding: var(--sizes-2);
+  border-top: 1px solid var(--semantic-border-primary);
+}
+
+.footerCreate {
+  display: flex;
+  gap: var(--sizes-2);
+  padding: var(--sizes-2);
+  border-top: 1px solid var(--semantic-border-primary);
+}
+
+.newCategoryButton {
+  width: 100%;
+}
+
+.cancelButton {
+  flex: 1;
+}
+
+.createButton {
+  flex: 1;
+}
+
+

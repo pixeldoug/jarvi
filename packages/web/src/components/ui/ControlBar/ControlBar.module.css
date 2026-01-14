@@ -1,0 +1,260 @@
+/**
+ * ControlBar Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.controlBar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  
+  width: 672px;
+  max-width: calc(100vw - 48px);
+  padding: var(--sizes-2);
+  
+  background: var(--component-control-bar-bg-default);
+  border: 1px solid var(--component-control-bar-border);
+  border-radius: var(--radius-radius-lg);
+  box-shadow: 
+    0px 1px 4px 0px rgba(0, 0, 0, 0.15),
+    0px 1px 0px 0px rgba(0, 0, 0, 0.3);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  width: 100%;
+}
+
+/* Tab button - uses ControlBar-specific tokens */
+.tab {
+  flex: 1;
+  white-space: nowrap;
+  width: 100%; 
+  background: var(--component-control-bar-tab-bg-default) !important;
+  color: var(--component-control-bar-tab-content) !important;
+  padding: 0 var(--sizes-3) !important;
+  
+}
+
+.tab:hover {
+  background: var(--component-control-bar-tab-bg-hover) !important;
+}
+
+/* Lock icon for coming soon tabs */
+.lockIcon {
+  width: 14px;
+  height: 14px;
+  margin-right: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+/* Active tab - visual state specific to ControlBar navigation */
+.tabActive {
+  background: var(--component-control-bar-tab-bg-active) !important;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+  color: var(--component-control-bar-tab-content) !important;
+  box-shadow: 0px 1px 0px 0px rgba(0, 0, 0, 0.15);
+}
+
+.tabActive:hover {
+  background: var(--component-control-bar-tab-bg-active) !important;
+  color: var(--component-control-bar-tab-content) !important;
+}
+
+/* Primary action button - extends Button primary with ControlBar-specific styles */
+.actionButton {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ============================================
+   TASK MODE STYLES
+   ============================================ */
+
+.controlBarTask {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  
+  width: 672px;
+  max-width: calc(100vw - 48px);
+  padding: var(--sizes-2);
+
+  
+  background: var(--component-control-bar-bg-active);
+  border: 1px solid var(--component-control-bar-border);
+  border-radius: var(--radius-radius-lg);
+  box-shadow: 
+    0px 1px 4px 0px rgba(0, 0, 0, 0.15),
+    0px 1px 0px 0px rgba(0, 0, 0, 0.3);
+}
+
+/* Task Content Area */
+.taskContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0 var(--sizes-3) var(--sizes-3) 0;
+}
+
+/* Task Input Wrapper */
+.taskWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding-right: var(--sizes-14);
+}
+
+/* Title Input Container */
+.taskInputContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  padding: var(--sizes-3) var(--sizes-3) var(--sizes-2) var(--sizes-4);
+}
+
+/* Title Input */
+.taskTitleInput {
+  width: 100%;
+  padding: 0;
+  
+  background: transparent;
+  border: none;
+  outline: none !important;
+  
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.taskTitleInput::placeholder {
+  color: var(--semantic-content-secondary);
+}
+
+/* Description Textarea Container */
+.taskDescriptionContainer {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);
+  width: 100%;
+  padding: var(--sizes-4) var(--sizes-0) var(--sizes-4) var(--sizes-4);
+  
+  background: var(--color-bw-transparent);
+  border-radius: var(--radius-radius-sm);
+}
+
+/* Description Textarea */
+.taskDescriptionInput {
+  width: 100%;
+  min-height: 22px;
+  padding: 0;
+  resize: none;
+  
+  background: transparent;
+  border: none;
+  outline: none !important;
+
+  max-height: var(--sizes-60); /* 240px */
+  overflow-y: auto;
+  
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+}
+
+.taskDescriptionInput::placeholder {
+  color: var(--semantic-control-content-placeholder);
+}
+
+/* Scrollbar customizada para o textarea de descrição */
+.taskDescriptionContainer::-webkit-scrollbar,
+.taskDescriptionInput::-webkit-scrollbar {
+  width: 6px;
+}
+
+.taskDescriptionContainer::-webkit-scrollbar-track,
+.taskDescriptionInput::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-radius-round);
+}
+
+.taskDescriptionContainer::-webkit-scrollbar-thumb,
+.taskDescriptionInput::-webkit-scrollbar-thumb {
+  background: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-radius-round); 
+}
+
+.taskDescriptionContainer::-webkit-scrollbar-thumb:hover,
+.taskDescriptionInput::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+
+/* Task Footer with Chips */
+.taskFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  width: 100%;
+}
+
+/* Chips Group */
+.chipsGroup {
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: var(--sizes-2);
+  cursor: pointer;
+}
+
+
+/* Submit Button - ControlBar-specific overrides for Button component */
+.submitButton {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.submitButton:disabled {
+  background: var(--component-control-bar-button-bg-disabled) !important;
+  color: var(--component-control-bar-button-content-disabled) !important;
+}
+
+/* Close Button - ControlBar-specific overrides for Button component */
+.closeButton {
+  position: absolute;
+  top: 15px;
+  right: 18px;
+  background: var(--component-control-bar-close-button-bg) !important;
+  border: 1px solid var(--component-control-bar-border) !important;
+  color: var(--component-control-bar-close-button-content) !important;
+}
+
+.closeButton:hover {
+  background: var(--component-control-bar-tab-bg-hover) !important;
+}
+

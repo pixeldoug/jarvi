@@ -1,20 +1,21 @@
 /**
  * Button Component - Jarvi Mobile
  * 
- * Componente Button otimizado para React Native
+ * Button component using design tokens from shared package
  */
 
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, ViewStyle, TextStyle } from 'react-native';
-import { useThemeMobile } from '../../hooks/useTheme';
+import { TouchableOpacity, Text, ActivityIndicator, ViewStyle, TextStyle, StyleSheet } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
+import { spacing } from '@jarvi/shared/src/design-tokens/platforms/native';
 
 // ============================================================================
-// TIPOS
+// TYPES
 // ============================================================================
 
 export interface ButtonProps {
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   disabled?: boolean;
@@ -25,7 +26,7 @@ export interface ButtonProps {
 }
 
 // ============================================================================
-// COMPONENTE
+// COMPONENT
 // ============================================================================
 
 export function Button({
@@ -39,79 +40,102 @@ export function Button({
   style,
   textStyle,
 }: ButtonProps) {
-  const { isDark, colors } = useThemeMobile();
+  const { theme } = useTheme();
 
-  // Estilos base
-  const baseStyle: ViewStyle = {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    opacity: disabled || loading ? 0.5 : 1,
-  };
-
-  // Estilos de tamanho
+  // Size styles
   const sizeStyles = {
-    sm: { paddingHorizontal: 12, paddingVertical: 8 },
-    md: { paddingHorizontal: 16, paddingVertical: 12 },
-    lg: { paddingHorizontal: 24, paddingVertical: 16 },
+    sm: { 
+      paddingHorizontal: spacing[2], 
+      paddingVertical: spacing[1],
+      fontSize: 14,
+    },
+    md: { 
+      paddingHorizontal: spacing[3], 
+      paddingVertical: spacing[2],
+      fontSize: 16,
+    },
+    lg: { 
+      paddingHorizontal: spacing[4], 
+      paddingVertical: spacing[3],
+      fontSize: 18,
+    },
   };
 
-  // Estilos de variante
+  // Variant styles
   const variantStyles = {
     primary: {
-      backgroundColor: colors.brand.primary,
-      borderColor: colors.brand.primary,
+      container: {
+        backgroundColor: theme.componentButtonPrimaryBgDefault,
+        borderColor: theme.componentButtonPrimaryBorderDefault,
+      },
+      text: {
+        color: theme.componentButtonPrimaryContentDefault,
+      },
     },
     secondary: {
-      backgroundColor: colors.brand.secondary,
-      borderColor: colors.brand.secondary,
+      container: {
+        backgroundColor: theme.componentButtonSecondaryBgDefault,
+        borderColor: theme.componentButtonSecondaryBorderDefault,
+      },
+      text: {
+        color: theme.componentButtonSecondaryContentDefault,
+      },
     },
     outline: {
-      backgroundColor: 'transparent',
-      borderColor: colors.border.primary,
+      container: {
+        backgroundColor: 'transparent',
+        borderColor: theme.componentButtonGhostBorderDefault,
+      },
+      text: {
+        color: theme.componentButtonGhostContentDefault,
+      },
     },
     ghost: {
-      backgroundColor: 'transparent',
-      borderColor: 'transparent',
+      container: {
+        backgroundColor: theme.componentButtonGhostBgDefault,
+        borderColor: 'transparent',
+      },
+      text: {
+        color: theme.componentButtonGhostContentDefault,
+      },
     },
-    danger: {
-      backgroundColor: colors.semantic.error,
-      borderColor: colors.semantic.error,
+    destructive: {
+      container: {
+        backgroundColor: theme.componentButtonDestructiveBgDefault,
+        borderColor: theme.componentButtonDestructiveBorderDefault,
+      },
+      text: {
+        color: theme.componentButtonDestructiveContentDefault,
+      },
     },
   };
 
-  // Estilos de texto
-  const textStyles: TextStyle = {
-    fontWeight: '600',
-    textAlign: 'center',
-    color: variant === 'outline' || variant === 'ghost' 
-      ? colors.text.primary 
-      : colors.text.inverse,
-  };
+  // Build styles
+  const buttonStyle: ViewStyle = StyleSheet.flatten([
+    styles.base,
+    {
+      paddingHorizontal: sizeStyles[size].paddingHorizontal,
+      paddingVertical: sizeStyles[size].paddingVertical,
+    },
+    variantStyles[variant].container,
+    fullWidth && styles.fullWidth,
+    (disabled || loading) && {
+      backgroundColor: theme.componentButtonBgDisabled,
+      borderColor: theme.componentButtonBgDisabled,
+      opacity: 0.6,
+    },
+    style,
+  ]);
 
-  // Estilos de tamanho do texto
-  const textSizeStyles = {
-    sm: { fontSize: 14 },
-    md: { fontSize: 16 },
-    lg: { fontSize: 18 },
-  };
-
-  // Estilos finais
-  const buttonStyle: ViewStyle = {
-    ...baseStyle,
-    ...sizeStyles[size],
-    ...variantStyles[variant],
-    ...(fullWidth && { width: '100%' }),
-    ...style,
-  };
-
-  const finalTextStyle: TextStyle = {
-    ...textStyles,
-    ...textSizeStyles[size],
-    ...textStyle,
-  };
+  const finalTextStyle: TextStyle = StyleSheet.flatten([
+    styles.text,
+    { fontSize: sizeStyles[size].fontSize },
+    variantStyles[variant].text,
+    (disabled || loading) && {
+      color: theme.componentButtonContentDisabled,
+    },
+    textStyle,
+  ]);
 
   return (
     <TouchableOpacity
@@ -124,11 +148,10 @@ export function Button({
         <>
           <ActivityIndicator 
             size="small" 
-            color={variant === 'outline' || variant === 'ghost' 
-              ? colors.text.primary 
-              : colors.text.inverse} 
+            color={finalTextStyle.color as string}
+            style={styles.spinner}
           />
-          <Text style={[finalTextStyle, { marginLeft: 8 }]}>
+          <Text style={finalTextStyle}>
             {children}
           </Text>
         </>
@@ -142,7 +165,31 @@ export function Button({
 }
 
 // ============================================================================
-// COMPONENTES ESPECÍFICOS
+// STYLES
+// ============================================================================
+
+const styles = StyleSheet.create({
+  base: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: spacing[2],
+    borderWidth: 1,
+  },
+  text: {
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  fullWidth: {
+    width: '100%',
+  },
+  spinner: {
+    marginRight: spacing[2],
+  },
+});
+
+// ============================================================================
+// VARIANT COMPONENTS
 // ============================================================================
 
 export function PrimaryButton(props: Omit<ButtonProps, 'variant'>) {
@@ -161,6 +208,6 @@ export function GhostButton(props: Omit<ButtonProps, 'variant'>) {
   return <Button {...props} variant="ghost" />;
 }
 
-export function DangerButton(props: Omit<ButtonProps, 'variant'>) {
-  return <Button {...props} variant="danger" />;
+export function DestructiveButton(props: Omit<ButtonProps, 'variant'>) {
+  return <Button {...props} variant="destructive" />;
 }

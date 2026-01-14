@@ -1,0 +1,165 @@
+/**
+ * Calendar Component Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  padding: var(--sizes-3);
+  width: 100%;
+  background: var(--color-bw-transparent);
+}
+
+/* Header with month navigation */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.monthLabel {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+.arrowButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  
+  background: var(--component-calendar-arrow-button-bg);
+  border: 1px solid var(--semantic-control-bg);
+  border-radius: var(--radius-radius-sm);
+  
+  /* Adicionar cor no button para que o SVG possa herdar */
+  color: var(--component-calendar-arrow-button-content);
+  
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.arrowButton:hover {
+  background: var(--component-calendar-arrow-button-bg-hover);
+  /* Adicionar cor no hover também */
+  color: var(--component-calendar-arrow-button-content-hover);
+}
+
+.arrowButton svg {
+  width: 16px;
+  height: 16px;
+  /* Herdar cor do button ao invés de usar o token diretamente */
+  color: inherit;
+  transition: color 0.15s ease;
+}
+
+.arrowButton:hover svg {
+  /* Herdar cor do button no hover também */
+  color: inherit;
+}
+
+/* Days grid container */
+.month {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  width: 100%;
+}
+
+/* Week row */
+.week {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Day header (Su, Mo, Tu, etc.) */
+.dayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 21px;
+  border-radius: var(--radius-radius-sm);
+  
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  white-space: nowrap;
+}
+
+/* Day button */
+.dayButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  
+  background: var(--component-calendar-day-button-bg-default);
+  border: none;
+  border-radius: var(--radius-calendar-day-button-radius);
+  
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--component-calendar-day-button-content-default);
+  
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.dayButton:hover:not(.dayButtonSelected):not(.dayButtonDisabled) {
+  background: var(--component-calendar-day-button-bg-hover);
+  color: var(--component-calendar-day-button-content-hover);
+}
+
+.dayButton:active:not(.dayButtonSelected):not(.dayButtonDisabled) {
+  background: var(--component-calendar-day-button-bg-pressed);
+  color: var(--component-calendar-day-button-content-pressed);
+}
+
+/* Current day (today) */
+.dayButtonCurrent {
+  background: var(--component-calendar-day-button-current-bg-default);
+  color: var(--component-calendar-day-button-current-content-default);
+}
+
+/* Selected day */
+.dayButtonSelected {
+  background: var(--component-calendar-day-button-bg-selected);
+  color: var(--component-calendar-day-button-content-selected);
+  cursor: pointer;
+}
+
+/* Selected day should maintain style on hover */
+.dayButtonSelected:hover {
+  background: var(--component-calendar-day-button-bg-selected);
+  color: var(--component-calendar-day-button-content-selected);
+}
+
+/* Days outside current month */
+.dayButtonOutside {
+  opacity: var(--opacity-opacity-30);
+}
+
+/* Disabled day */
+.dayButtonDisabled {
+  background: var(--component-calendar-day-button-bg-disabled);
+  color: var(--component-calendar-day-button-content-disabled);
+  cursor: not-allowed;
+}
+

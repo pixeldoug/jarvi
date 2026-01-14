@@ -1,0 +1,176 @@
+/**
+ * TextArea Styles
+ * Following JarviDS Figma design
+ * Using design tokens without fallbacks
+ */
+
+/* ============================================================================
+   WRAPPER
+   ============================================================================ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ============================================================================
+   LABEL
+   ============================================================================ */
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  width: 100%;
+}
+
+/* ============================================================================
+   TEXTAREA CONTAINER
+   ============================================================================ */
+
+.textareaContainer {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sizes-3);
+  width: 100%;
+  padding: var(--sizes-4) var(--sizes-6) var(--sizes-4) var(--sizes-4);
+  background-color: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  transition: border-color 0.15s ease;
+  overflow: hidden;
+}
+
+/* Active state (when textarea is focused) */
+.textareaContainer.focused {
+  border-color: var(--semantic-control-border-active);
+}
+
+/* Focus ring */
+.textareaContainer.focused::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--semantic-control-focusring);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* Error state */
+.textareaContainer.error {
+  border-color: var(--semantic-content-negative);
+}
+
+.textareaContainer.error.focused::after {
+  border-color: var(--semantic-content-negative);
+}
+
+/* Disabled state */
+.textareaContainer.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semantic-surface-secondary);
+}
+
+/* ============================================================================
+   TEXTAREA
+   ============================================================================ */
+
+.textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 88px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  
+  /* Typography */
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+}
+
+.textarea::placeholder {
+  color: var(--semantic-control-content-placeholder);
+}
+
+.textarea:disabled {
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   RESIZE OPTIONS
+   ============================================================================ */
+
+.textarea.resize-none {
+  resize: none;
+}
+
+.textarea.resize-vertical {
+  resize: vertical;
+}
+
+.textarea.resize-horizontal {
+  resize: horizontal;
+}
+
+.textarea.resize-both {
+  resize: both;
+}
+
+/* ============================================================================
+   CUSTOM SCROLLBAR
+   ============================================================================ */
+
+.textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.textarea::-webkit-scrollbar-thumb {
+  background-color: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-radius-round);
+}
+
+.textarea::-webkit-scrollbar-thumb:hover {
+  background-color: var(--semantic-content-secondary);
+}
+
+/* Firefox scrollbar */
+.textarea {
+  scrollbar-width: thin;
+  scrollbar-color: var(--semantic-surface-tertiary) transparent;
+}
+
+/* ============================================================================
+   HELPER TEXT
+   ============================================================================ */
+
+.helper {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.helperError {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-negative);
+}
+
+

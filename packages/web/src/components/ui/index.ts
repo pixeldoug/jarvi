@@ -10,6 +10,10 @@
 
 export {
   Button,
+  PrimaryButton,
+  SecondaryButton,
+  GhostButton,
+  DestructiveButton,
   type ButtonProps,
 } from './Button';
 
@@ -18,9 +22,11 @@ export {
 // ============================================================================
 
 export {
+  TextInput,
   Input,
+  type TextInputProps,
   type InputProps,
-} from './Input';
+} from './TextInput/TextInput';
 
 // ============================================================================
 // CARD COMPONENTS
@@ -37,9 +43,17 @@ export {
 // ============================================================================
 
 export {
+  TextArea,
   Textarea,
+  type TextAreaProps,
   type TextareaProps,
-} from './Textarea';
+} from './TextArea/TextArea';
+
+export {
+  TagInput,
+  type TagInputProps,
+  type Tag,
+} from './TagInput/TagInput';
 
 export {
   Select,
@@ -67,14 +81,10 @@ export {
 } from './Accordion';
 
 export {
-  CategoryDropdown,
-  type CategoryDropdownProps,
-} from './CategoryDropdown';
+  Collapsible,
+  type CollapsibleProps,
+} from './Collapsible';
 
-export {
-  CategoryBadge,
-  type CategoryBadgeProps,
-} from './CategoryBadge';
 
 // ============================================================================
 // DISPLAY COMPONENTS
@@ -83,7 +93,59 @@ export {
 export {
   Badge,
   type BadgeProps,
-} from './Badge';
+} from './Badge/Badge';
+
+export {
+  Chip,
+  type ChipProps,
+} from './Chip';
+
+export {
+  Loading,
+} from './Loading';
+
+export {
+  Divider,
+  type DividerProps,
+} from './Divider';
+
+export {
+  Logo,
+  type LogoProps,
+} from './Logo';
+
+export {
+  Tooltip,
+  type TooltipProps,
+  type TooltipPosition,
+} from './Tooltip';
+
+// ============================================================================
+// NAVIGATION COMPONENTS
+// ============================================================================
+
+export {
+  ControlBar,
+  type ControlBarProps,
+  type TaskCreationData,
+} from './ControlBar';
+
+export {
+  ListItem,
+  type ListItemProps,
+} from './ListItem';
+
+// ============================================================================
+// DATE & TIME COMPONENTS (Generic)
+// ============================================================================
+
+export {
+  Calendar,
+  type CalendarProps,
+} from './Calendar';
+
+// Note: TaskDatePicker and TaskTimePicker are in features/tasks/
+// They are task-specific and not generic UI components
 
 // ============================================================================
 // NOTIFICATION COMPONENTS

@@ -1,14 +1,14 @@
 /**
  * Card Component - Jarvi Web
  * 
- * Componente Card otimizado para web com design tokens
+ * Card component using CSS Modules and design tokens
  */
 
 import React from 'react';
-import { useThemeClasses } from '../../hooks/useTheme';
+import styles from './Card.module.css';
 
 // ============================================================================
-// TIPOS
+// TYPES
 // ============================================================================
 
 export interface CardProps {
@@ -21,7 +21,7 @@ export interface CardProps {
 }
 
 // ============================================================================
-// COMPONENTE
+// COMPONENT
 // ============================================================================
 
 export function Card({
@@ -32,56 +32,15 @@ export function Card({
   rounded = 'lg',
   border = true,
 }: CardProps) {
-  const { isDark } = useThemeClasses();
-
-  // Classes base
-  const baseClasses = [
-    'transition-all duration-200',
+  // Build class names
+  const cardClasses = [
+    styles.card,
+    styles[`padding-${padding}`],
+    styles[`shadow-${shadow}`],
+    styles[`rounded-${rounded}`],
+    border && styles.border,
     className,
   ].filter(Boolean).join(' ');
-
-  // Classes de padding
-  const paddingClasses = {
-    none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8',
-  };
-
-  // Classes de sombra
-  const shadowClasses = {
-    none: '',
-    sm: 'shadow-sm',
-    md: 'shadow-md',
-    lg: 'shadow-lg',
-  };
-
-  // Classes de borda arredondada
-  const roundedClasses = {
-    none: '',
-    sm: 'rounded-sm',
-    md: 'rounded-md',
-    lg: 'rounded-lg',
-    xl: 'rounded-xl',
-  };
-
-  // Classes de tema
-  const themeClasses = isDark
-    ? 'bg-gray-800 border-gray-700'
-    : 'bg-white border-gray-200';
-
-  // Classes de borda
-  const borderClasses = border ? 'border' : '';
-
-  // Classes finais
-  const cardClasses = [
-    baseClasses,
-    paddingClasses[padding],
-    shadowClasses[shadow],
-    roundedClasses[rounded],
-    themeClasses,
-    borderClasses,
-  ].join(' ');
 
   return (
     <div className={cardClasses}>

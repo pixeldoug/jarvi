@@ -1,0 +1,125 @@
+/**
+ * Select Styles
+ * Using design tokens from CSS variables (similar to Input)
+ */
+
+/* ============================================================================
+   WRAPPER
+   ============================================================================ */
+
+.wrapper {
+  width: 100%;
+}
+
+/* ============================================================================
+   LABEL
+   ============================================================================ */
+
+.label {
+  display: block;
+  font-size: 14px;
+  font-weight: var(--font-font-weight-medium);
+  margin-bottom: var(--sizes-2);
+  color: var(--semantic-content-secondary);
+}
+
+.required {
+  color: var(--semantic-content-error);
+  margin-left: var(--sizes-1);
+}
+
+/* ============================================================================
+   SELECT
+   ============================================================================ */
+
+.select {
+  display: block;
+  width: 100%;
+  border-radius: var(--sizes-2);
+  border: 1px solid var(--semantic-control-border-default);
+  background-color: var(--semantic-control-bg);
+  color: var(--semantic-content-primary);
+  font-family: var(--font-font-family-font-ui);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--semantic-control-border-active);
+  box-shadow: 0 0 0 2px var(--semantic-control-border-active);
+}
+
+/* ============================================================================
+   SIZES
+   ============================================================================ */
+
+.select.sm {
+  padding: var(--sizes-2) var(--sizes-3);
+  font-size: 14px;
+}
+
+.select.md {
+  padding: var(--sizes-3) var(--sizes-4);
+  font-size: 16px;
+}
+
+.select.lg {
+  padding: var(--sizes-4) var(--sizes-5);
+  font-size: 18px;
+}
+
+/* ============================================================================
+   STATES
+   ============================================================================ */
+
+.select.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--semantic-surface-secondary);
+}
+
+.select.error {
+  border-color: var(--semantic-content-error);
+}
+
+.select.error:focus {
+  border-color: var(--semantic-content-error);
+  box-shadow: 0 0 0 2px var(--semantic-content-error);
+}
+
+/* ============================================================================
+   HELPER TEXT
+   ============================================================================ */
+
+.helper {
+  margin-top: var(--sizes-1);
+  font-size: 14px;
+  color: var(--semantic-content-tertiary);
+}
+
+.helperError {
+  margin-top: var(--sizes-1);
+  font-size: 14px;
+  color: var(--semantic-content-error);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

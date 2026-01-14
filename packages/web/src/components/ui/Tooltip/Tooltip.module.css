@@ -1,0 +1,130 @@
+/**
+ * Tooltip Styles - Jarvi Web
+ * 
+ * Following JarviDS design system from Figma
+ * Based on Figma node 40000374:1509
+ */
+
+/* ============================================================================
+   TRIGGER WRAPPER
+   ============================================================================ */
+
+.trigger {
+  display: flex;
+  width: 100%;
+}
+
+/* ============================================================================
+   BASE TOOLTIP
+   ============================================================================ */
+
+.tooltip {
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ============================================================================
+   CONTAINER
+   ============================================================================ */
+
+.container {
+  background-color: var(--component-tooltip-bg);
+  color: var(--component-tooltip-content);
+  border-radius: var(--radius-tooltip-tooltip-radius);
+  padding: var(--sizes-2) var(--sizes-4);
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0px 0px 1px 0px rgba(9, 9, 11, 0.2),
+    0px 4px 18px 0px rgba(9, 9, 11, 0.1),
+    0px 6px 8px 0px rgba(9, 9, 11, 0.05);
+}
+
+/* ============================================================================
+   LABEL
+   ============================================================================ */
+
+.label {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   POINTER
+   ============================================================================ */
+
+.pointer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--component-tooltip-bg);
+}
+
+.pointerSvg {
+  width: 10px;
+  height: 6px;
+  display: block;
+}
+
+/* ============================================================================
+   POSITIONS
+   ============================================================================ */
+
+/* Bottom (pointer on top) */
+.bottom {
+  flex-direction: column;
+}
+
+.bottom .pointer {
+  order: -1;
+  transform: rotate(180deg);
+}
+
+/* Top (pointer on bottom) */
+.top {
+  flex-direction: column;
+}
+
+.top .pointer {
+  order: 1;
+}
+
+/* Left (pointer on right) */
+.left {
+  flex-direction: row;
+}
+
+.left .pointer {
+  order: 1;
+  transform: rotate(-90deg);
+}
+
+/* Right (pointer on left) */
+.right {
+  flex-direction: row;
+}
+
+.right .pointer {
+  order: -1;
+  transform: rotate(90deg);
+}
+

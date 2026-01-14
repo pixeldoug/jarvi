@@ -1,0 +1,139 @@
+import { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Button, Input, Divider, Logo } from '../../components/ui';
+import { GoogleLogin } from '../../components/features/auth';
+import styles from './Login.module.css';
+
+export const Login: React.FC = () => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const { login, register } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    try {
+      if (isLogin) {
+        await login(email, password);
+      } else {
+        await register(email, name, password);
+      }
+      navigate('/');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleMode = () => {
+    setIsLogin(!isLogin);
+    setError('');
+    setName('');
+    setEmail('');
+    setPassword('');
+  };
+
+  return (
+    <div className={styles.container}>
+      <div className={styles.loginWrapper}>
+        <Logo className={styles.logo} />
+        
+        <div className={styles.loginContent}>
+          <h1 className={styles.title}>{isLogin ? 'Login' : 'Criar conta'}</h1>
+          
+          <div className={styles.formContainer}>
+            <GoogleLogin
+              buttonText={isLogin ? 'Entrar com Google' : 'Continuar com Google'}
+              onSuccess={() => navigate('/')}
+              onError={(error) => setError(error)}
+            />
+            
+            <div className={styles.dividerContainer}>
+              <Divider />
+              <span>Ou continue com</span>
+              <Divider />
+            </div>
+            
+            <form className={styles.form} onSubmit={handleSubmit}>
+              {!isLogin && (
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  label="Nome"
+                  autoComplete="name"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Como você gostaria de ser chamado?"
+                />
+              )}
+
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                label="Email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Digite seu email"
+              />
+
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                label="Senha"
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Digite sua senha"
+              />
+
+              {error && (
+                <div className={styles.error}>
+                  {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="medium"
+                fullWidth
+                disabled={isLoading}
+                loading={isLoading}
+              >
+                {isLogin ? 'Entrar' : 'Criar conta'}
+              </Button>
+            </form>
+            
+            <div className={styles.footer}>
+              <span>{isLogin ? 'Não tem uma conta?' : 'Já tem uma conta?'} </span>
+              <button 
+                type="button"
+                className={styles.footerLink}
+                onClick={toggleMode}
+              >
+                {isLogin ? 'Criar conta' : 'Entrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

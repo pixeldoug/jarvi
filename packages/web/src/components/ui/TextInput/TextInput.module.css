@@ -1,0 +1,175 @@
+/**
+ * TextInput Styles
+ * Following JarviDS Figma design
+ * Using design tokens without fallbacks
+ */
+
+/* ============================================================================
+   WRAPPER
+   ============================================================================ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ============================================================================
+   LABEL
+   ============================================================================ */
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  width: 100%;
+}
+
+/* ============================================================================
+   INPUT CONTAINER
+   ============================================================================ */
+
+.inputContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);
+  width: 100%;
+  height: 48px;
+  padding-left: var(--sizes-4);
+  padding-right: var(--sizes-2);
+  background-color: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  transition: border-color 0.15s ease;
+}
+
+/* Active state (when input is focused) */
+.inputContainer.focused {
+  border-color: var(--semantic-control-border-active);
+}
+
+/* Focus ring */
+.inputContainer.focused::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--semantic-control-focusring);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* Error state */
+.inputContainer.error {
+  border-color: var(--semantic-content-negative);
+}
+
+.inputContainer.error.focused::after {
+  border-color: var(--semantic-content-negative);
+}
+
+/* Disabled state */
+.inputContainer.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semantic-surface-secondary);
+}
+
+/* ============================================================================
+   INPUT
+   ============================================================================ */
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  
+  /* Typography */
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+  
+  /* Text overflow */
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.input::placeholder {
+  color: var(--semantic-control-content-placeholder);
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   ACTION BUTTON
+   ============================================================================ */
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background-color: var(--component-button-ghost-bg-default);
+  border: none;
+  border-radius: var(--radius-button-icon-radius);
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.actionButton:hover:not(:disabled) {
+  background-color: var(--component-button-ghost-bg-hover);
+  color: var(--component-button-ghost-content-hover);
+}
+
+.actionButton:active:not(:disabled) {
+  background-color: var(--component-button-ghost-bg-active);
+  color: var(--component-button-ghost-content-active);
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.actionButton:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+   HELPER TEXT
+   ============================================================================ */
+
+.helper {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.helperError {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-negative);
+}
+
+

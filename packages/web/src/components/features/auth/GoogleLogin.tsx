@@ -1,6 +1,14 @@
-import React, { useEffect, useState, useRef } from 'react';
+/**
+ * Google Login Component - Jarvi Web
+ * 
+ * Custom Google Sign-In button following JarviDS Web design system
+ * using Google Identity Services with full account chooser
+ */
+
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
-// import { Button } from './ui';
+import googleLogo from '../../../assets/google-logo.svg';
+import styles from './GoogleLogin.module.css';
 
 declare global {
   interface Window {
@@ -11,14 +19,19 @@ declare global {
 interface GoogleLoginProps {
   onSuccess?: () => void;
   onError?: (error: string) => void;
+  buttonText?: string;
 }
 
-export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) => {
+export const GoogleLogin: React.FC<GoogleLoginProps> = ({ 
+  onSuccess, 
+  onError,
+  buttonText = 'Entrar com Google'
+}) => {
   const { loginWithGoogle } = useAuth();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  // const [isReady, setIsReady] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
-  // const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,41 +56,22 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
             auto_select: false,
             cancel_on_tap_outside: true,
           });
-
-          // Aguarda um pouco para garantir que está totalmente inicializado
-          setTimeout(() => {
-            const buttonElement = buttonRef.current;
-            
-            if (buttonElement) {
-              window.google.accounts.id.renderButton(buttonElement, {
+          
+          // Renderiza um botão invisível do Google que sempre abre o account chooser
+          if (buttonRef.current) {
+            window.google.accounts.id.renderButton(
+              buttonRef.current,
+              {
+                type: 'standard',
                 theme: 'outline',
                 size: 'large',
-                text: 'signin_with',
-                shape: 'rectangular',
-                logo_alignment: 'left',
-                width: 350,
-              });
-              // setIsReady(true);
-            } else {
-              // Tenta novamente em mais 200ms
-              setTimeout(() => {
-                const retryElement = buttonRef.current;
-                if (retryElement) {
-                  window.google.accounts.id.renderButton(retryElement, {
-                    theme: 'outline',
-                    size: 'large',
-                    text: 'signin_with',
-                    shape: 'rectangular',
-                    logo_alignment: 'left',
-                    width: 350,
-                  });
-                  // setIsReady(true);
-                } else {
-                  setHasError(true);
-                }
-              }, 200);
-            }
-          }, 150);
+                text: 'continue_with',
+                width: 250,
+              }
+            );
+          }
+          
+          setIsReady(true);
         } catch (error) {
           console.error('Google Sign-In initialization failed:', error);
           setHasError(true);
@@ -98,7 +92,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
 
   const handleCredentialResponse = async (response: any) => {
     try {
-      // setIsLoading(true);
+      setIsLoading(true);
       if (response.credential) {
         await loginWithGoogle(response.credential);
         onSuccess?.();
@@ -108,44 +102,70 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess, onError }) 
     } catch (error) {
       console.error('Google login error:', error);
       onError?.(error instanceof Error ? error.message : 'Google login failed');
+      setHasError(true);
     } finally {
-      // setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
-  // const handleCustomGoogleLogin = () => {
-  //   if (isReady && window.google?.accounts?.id) {
-  //     window.google.accounts.id.prompt();
-  //   }
-  // };
+  const handleClick = () => {
+    if (isReady && buttonRef.current && !isLoading) {
+      // Clica no botão invisível do Google que abre o account chooser
+      const googleButton = buttonRef.current.querySelector('div[role="button"]') as HTMLElement;
+      if (googleButton) {
+        googleButton.click();
+      }
+    }
+  };
 
   if (!clientId) {
     return (
-      <div className="text-red-600 text-sm">
+      <div className={styles.error}>
         ⚠️ Google Client ID não configurado. Verifique o arquivo .env
       </div>
     );
   }
 
+  if (hasError) {
+    return (
+      <div className={styles.error}>
+        Failed to load Google Sign-In
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full flex justify-center">
-      {hasError ? (
-        <div className="flex items-center justify-center py-3 px-4 border border-red-300 bg-red-50 rounded-md">
-          <span className="text-red-600">Failed to load Google Sign-In</span>
+    <div className={styles.wrapper}>
+      {/* Botão invisível do Google (renderizado pela API) */}
+      <div 
+        ref={buttonRef} 
+        style={{ 
+          position: 'absolute', 
+          left: '-9999px',
+          visibility: 'hidden'
+        }} 
+      />
+      
+      {/* Botão customizado visível */}
+      <button
+        type="button"
+        className={styles.button}
+        onClick={handleClick}
+        disabled={!isReady || isLoading}
+      >
+        {isLoading ? (
+          <div className={styles.loading} />
+        ) : (
+          <img 
+            src={googleLogo} 
+            alt="Google logo" 
+            className={styles.logo}
+          />
+        )}
+        <div className={styles.text}>
+          <p>{buttonText}</p>
         </div>
-      ) : (
-        <div className="w-full max-w-sm">
-          {/* Botão original do Google Sign-In */}
-          <div 
-            ref={buttonRef} 
-            className="w-full"
-          ></div>
-        </div>
-      )}
+      </button>
     </div>
   );
 };
-
-
-

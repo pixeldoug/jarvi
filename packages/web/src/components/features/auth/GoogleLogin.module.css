@@ -1,0 +1,108 @@
+/**
+ * Google Login Button Styles
+ * Following JarviDS Web design system with Figma tokens
+ */
+
+.wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.button {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2, 8px);
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--sizes-4, 16px);
+  
+  /* Visual */
+  background-color: var(--component-googlebutton-bg-default);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-radius, 16px);
+  
+  /* Typography */
+  font-family: var(--font-font-family-font-ui, 'Poppins', sans-serif);
+  font-size: var(--typography-label-md-font-size, 15px);
+  font-weight: var(--typography-label-md-font-weight, 400);
+  line-height: var(--typography-label-md-line-height, 22px);
+  color: var(--component-googlebutton-content-default);
+  text-align: center;
+  white-space: nowrap;
+  
+  /* Interaction */
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  /* Remove default button styles */
+  font: inherit;
+  outline: none;
+}
+
+.button:hover:not(:disabled) {
+  background-color: var(--component-googlebutton-bg-hover);
+  color: var(--component-googlebutton-content-hover);
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 2px;
+}
+
+.logo {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 0;
+}
+
+.text p {
+  margin: 0;
+  line-height: var(--typography-label-md-line-height, 22px);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sizes-3, 12px) var(--sizes-4, 16px);
+  border: 1px solid var(--semantic-content-negative);
+  background-color: var(--color-gray-50);
+  border-radius: var(--radius-button-radius, 16px);
+  color: var(--semantic-content-negative);
+  font-size: var(--typography-label-sm-font-size, 14px);
+}
+
+.loading {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--semantic-border-primary);
+  border-top-color: var(--component-googlebutton-content-default);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

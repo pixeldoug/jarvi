@@ -1,0 +1,226 @@
+/**
+ * Login Page Styles
+ * Following Figma design specifications
+ */
+
+/* ============================================================================
+   CONTAINER (Full screen background)
+   ============================================================================ */
+
+.container {
+  width: 100%;
+  height: 100vh;
+  padding: var(--sizes-6); /* 24px */
+  display: flex;
+  align-items: flex-start;
+  overflow: hidden;
+  
+  /* Background Image */
+  background-image: url('../../assets/login-background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* ============================================================================
+   LOGIN WRAPPER (Main card)
+   ============================================================================ */
+
+.loginWrapper {
+  width: 45%;
+  min-width: 674px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-6); /* 24px */
+  
+  /* Glassmorphism effect */
+  background: linear-gradient(
+    154.71deg,
+  var(--semantic-gradient-primary-stop-0) 5.96%,
+  var(--semantic-gradient-primary-stop-78) 74.58%,
+  var(--semantic-gradient-primary-stop-100) 93.94%
+  );
+  border-radius: var(--radius-radius-lg); /* 24px */
+  
+  /* For absolute positioned logo */
+  position: relative;
+}
+
+/* ============================================================================
+   LOGO (Absolute positioned)
+   ============================================================================ */
+
+.logo {
+  position: absolute;
+  top: var(--sizes-6); /* 24px */
+  left: var(--sizes-6); /* 24px */
+}
+
+/* ============================================================================
+   LOGIN CONTENT (Center content area)
+   ============================================================================ */
+
+.loginContent {
+  width: 100%;
+  max-width: 404px;
+  min-width: 320px;
+  padding-bottom: var(--sizes-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-8);
+  align-items: center;
+}
+
+/* ============================================================================
+   TITLE
+   ============================================================================ */
+
+.title {
+  width: 100%;
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+  text-align: left;
+}
+
+/* ============================================================================
+   FORM CONTAINER
+   ============================================================================ */
+
+.formContainer {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ============================================================================
+   DIVIDER CONTAINER
+   ============================================================================ */
+
+.dividerContainer {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+}
+
+.dividerContainer span {
+  flex-shrink: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   FORM
+   ============================================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ============================================================================
+   ERROR MESSAGE
+   ============================================================================ */
+
+.error {
+  padding: var(--sizes-3) var(--sizes-4);
+  border-radius: var(--radius-radius-sm);
+  background-color: #FEF2F2;
+  border: 1px solid var(--semantic-content-negative);
+  color: var(--semantic-content-negative);
+  font-size: var(--typography-label-sm-font-size);
+  text-align: center;
+}
+
+/* ============================================================================
+   FOOTER (Create account link)
+   ============================================================================ */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  width: 100%;
+  text-align: center;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.footer span {
+  color: var(--semantic-content-primary);
+  margin-right: var(--sizes-2);
+}
+
+.footerLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: var(--semantic-content-primary);
+  text-decoration: underline;
+  text-underline-position: from-font;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.footerLink:hover {
+  opacity: 0.7;
+}
+
+.footerLink:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .loginWrapper {
+    width: 100%;
+    min-width: 100%;
+  }
+  
+  .loginContent {
+    width: 90%;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 16px;
+  }
+  
+  .logo {
+    top: 16px;
+    left: 16px;
+  }
+  
+  .loginContent {
+    width: 100%;
+    min-width: 280px;
+  }
+}
+

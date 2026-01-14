@@ -61,7 +61,7 @@ const createTables = async (): Promise<void> => {
       title TEXT NOT NULL,
       description TEXT,
       completed ${booleanType} DEFAULT FALSE,
-      priority TEXT DEFAULT 'medium',
+      priority TEXT,
       category TEXT,
       important ${booleanType} DEFAULT FALSE,
       due_date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
@@ -129,6 +129,17 @@ const createTables = async (): Promise<void> => {
       date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')} NOT NULL,
       notes TEXT,
       created_at ${timestampType}
+    );`,
+    
+    `CREATE TABLE IF NOT EXISTS categories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      color TEXT,
+      icon TEXT,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      UNIQUE(user_id, name)
     );`
   ];
   

@@ -1,9 +1,9 @@
-import { Sticker, Wallet, Tag, Trophy, CheckCircle, User, SignOut } from "phosphor-react";
+import { Sticker, Wallet, Tag, Trophy, CheckCircle, User, SignOut } from '@phosphor-icons/react';
 import { ThemeToggle } from "./ThemeToggle"
 import jarviLogo from '../../assets/jarvi.svg';
 import { useAuth } from "../../contexts/AuthContext";
 import { useDialog } from "../../contexts/DialogContext";
-import { Button } from "../ui/Button";
+import { Button } from "../ui";
 
 const navigation = [
     { name: 'Tarefas', href: '/', icon: CheckCircle },
@@ -38,8 +38,8 @@ export const Header = () => {
           {navigation.map(item => (
             <Button
               key={item.name}
-              variant="outline"
-              size="sm"
+              variant="secondary"
+              size="small"
               icon={item.icon}
               iconPosition="left"
               onClick={() => openDialog(item.href.replace('/', '') || 'tasks')}
@@ -76,8 +76,8 @@ export const Header = () => {
               </div>
               
           <Button
-            variant="danger"
-            size="sm"
+            variant="destructive"
+            size="small"
             icon={SignOut}
             iconPosition="left"
             onClick={handleLogout}

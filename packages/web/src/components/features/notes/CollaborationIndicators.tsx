@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users } from 'phosphor-react';
+import { Users } from '@phosphor-icons/react';
 
 interface Collaborator {
   userId: string;

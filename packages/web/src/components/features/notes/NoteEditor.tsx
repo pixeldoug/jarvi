@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Check, Question, ArrowsOut, ArrowsIn, Share } from 'phosphor-react';
+import { TrashSimple, Check, Question, ArrowsOut, ArrowsIn, Share } from '@phosphor-icons/react';
 import { useKeyboardShortcuts, KeyboardShortcutsHelp } from './KeyboardShortcuts';
 import { CategoryPicker } from './CategoryPicker';
 import { ShareModal } from './ShareModal';
@@ -239,7 +239,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
               disabled={!hasUnsavedChanges || isSaving}
               className="flex items-center space-x-1"
               variant="secondary"
-              size="sm"
+              size="small"
             >
               <Check className="w-4 h-4" />
               <span>Salvar</span>
@@ -272,7 +272,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
                 onClick={handleDelete}
                 className="flex items-center space-x-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                 variant="ghost"
-                size="sm"
+                size="small"
               >
                 <TrashSimple className="w-4 h-4" />
                 <span>Deletar</span>

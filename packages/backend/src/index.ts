@@ -10,6 +10,7 @@ import taskRoutes from './routes/taskRoutes';
 import noteRoutes from './routes/noteRoutes';
 import noteShareRoutes from './routes/noteShareRoutes';
 import authRoutes from './routes/authRoutes';
+import categoryRoutes from './routes/categoryRoutes';
 import { CollaborationService } from './services/collaborationService';
 
 const app = express();
@@ -46,7 +47,7 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = process.env.NODE_ENV === 'production' 
     ? ['https://jarvi.life', 'https://www.jarvi.life']
-    : ['http://localhost:3000', 'http://localhost:5173'];
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
   
   if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
@@ -123,6 +124,7 @@ app.get('/debug/notes-table', async (req, res) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api', noteShareRoutes);
 
 // Initialize database and start server

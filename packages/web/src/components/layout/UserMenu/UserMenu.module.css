@@ -1,0 +1,147 @@
+/**
+ * UserMenu Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.container {
+  display: flex;
+  gap: var(--sizes-2);
+  align-items: flex-start;
+}
+
+/* Theme toggle button container */
+.themeToggle {
+  background: var(--semantic-surface-primary);
+  border-radius: 18px;
+  padding: 2px;
+  box-shadow: 0px 1px 2px 0px var(--semantic-elevation-first-level);
+}
+
+.themeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-radius-md);
+  
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.themeButton:hover {
+  background: var(--color-gray-100);
+}
+
+:global(.dark) .themeButton:hover {
+  background: var(--color-gray-800);
+}
+
+/* User profile container */
+.userProfile {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  padding: 2px;
+  
+  background: var(--semantic-surface-primary);
+  border-radius: 18px;
+  box-shadow: 0px 1px 2px 0px var(--semantic-elevation-first-level);
+}
+
+.profileContent {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  height: 48px;
+  padding: 0 4px 0 var(--sizes-3);
+  
+  background: var(--semantic-surface-primary);
+  border: none;
+  border-radius: var(--radius-radius-md);
+  
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.profileContent:hover {
+  background: var(--color-gray-50);
+}
+
+:global(.dark) .profileContent:hover {
+  background: var(--color-gray-800);
+}
+
+/* User details */
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-items: flex-start;
+  white-space: nowrap;
+}
+
+.userName {
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.userEmail {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+  
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Avatar */
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatarFallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  background: var(--color-brand-primary-100);
+  color: var(--color-brand-primary-700);
+  
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: 600;
+}
+
+
+
+
+
+
+
+
+

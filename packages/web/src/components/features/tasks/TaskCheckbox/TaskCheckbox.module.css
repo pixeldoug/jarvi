@@ -1,0 +1,93 @@
+/**
+ * TaskCheckbox Component Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.checkbox {
+  /* Layout */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  
+  /* Visual */
+  background: transparent;
+  border: 1.5px solid var(--semantic-content-secondary);
+  border-radius: 8px;
+  
+  /* Interaction */
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  
+  /* Hide any text content */
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  text-indent: -9999px;
+  overflow: hidden;
+}
+
+/* Large size variant for TaskDetailsSidebar */
+.checkbox.large {
+  width: var(--size-target-tight);
+  height: var(--size-target-tight);
+  border-radius: var(--radius-radius-sm);
+}
+
+.checkbox:hover {
+  border-color: var(--semantic-content-info);
+  transform: scale(1.05);
+}
+
+.checkbox:active {
+  transform: scale(0.95);
+}
+
+.checkbox:focus,
+.checkbox:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Checked state */
+.checked {
+  background: var(--semantic-content-info);
+  border-color: var(--semantic-content-info);
+}
+
+.checked:hover {
+  background: var(--color-brand-primary-100); /* #EEE9FE - light purple on hover */
+  border-color: var(--color-brand-primary-100);
+}
+
+/* Icon */
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--color-brand-primary-100); /* White/light purple check icon when checked */
+  font-size: initial;
+  line-height: initial;
+  text-indent: initial;
+}
+
+/* Large icon size */
+.checkbox.large .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.checked:hover .icon {
+  color: var(--semantic-content-info); /* Purple check icon on hover */
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+

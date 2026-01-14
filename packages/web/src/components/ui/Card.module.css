@@ -1,0 +1,105 @@
+/**
+ * Card Styles
+ * Using design tokens from CSS variables
+ */
+
+/* ============================================================================
+   BASE CARD
+   ============================================================================ */
+
+.card {
+  background-color: var(--semantic-surface-primary);
+  transition: all 0.2s ease;
+}
+
+/* ============================================================================
+   PADDING
+   ============================================================================ */
+
+.padding-none {
+  padding: 0;
+}
+
+.padding-sm {
+  padding: var(--sizes-4);
+}
+
+.padding-md {
+  padding: var(--sizes-6);
+}
+
+.padding-lg {
+  padding: var(--sizes-8);
+}
+
+/* ============================================================================
+   SHADOW
+   ============================================================================ */
+
+.shadow-none {
+  box-shadow: none;
+}
+
+.shadow-sm {
+  box-shadow: var(--semantic-elevation-shadow-sm);
+}
+
+.shadow-md {
+  box-shadow: var(--semantic-elevation-shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--semantic-elevation-shadow-lg);
+}
+
+/* ============================================================================
+   ROUNDED
+   ============================================================================ */
+
+.rounded-none {
+  border-radius: 0;
+}
+
+.rounded-sm {
+  border-radius: var(--sizes-1);
+}
+
+.rounded-md {
+  border-radius: var(--sizes-2);
+}
+
+.rounded-lg {
+  border-radius: var(--sizes-3);
+}
+
+.rounded-xl {
+  border-radius: var(--sizes-4);
+}
+
+/* ============================================================================
+   BORDER
+   ============================================================================ */
+
+.border {
+  border: 1px solid var(--semantic-border-primary);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

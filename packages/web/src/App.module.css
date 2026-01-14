@@ -1,0 +1,29 @@
+/**
+ * App Styles
+ * Using design tokens from CSS variables
+ */
+
+.app {
+  min-height: 100vh;
+  background-color: var(--semantic-surface-secondary);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

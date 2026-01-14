@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Note } from '../../../contexts/NoteContext';
 import { Button } from '../../ui';
-import { TrashSimple, Check, Eye, EyeSlash } from 'phosphor-react';
+import { TrashSimple, Check, Eye, EyeSlash } from '@phosphor-icons/react';
 import '@uiw/react-md-editor/markdown-editor.css';
 
 interface MarkdownEditorProps {
@@ -168,7 +168,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               onClick={() => setShowPreview(!showPreview)}
               className="flex items-center space-x-1"
               variant="secondary"
-              size="sm"
+              size="small"
             >
               {showPreview ? (
                 <>
@@ -187,7 +187,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               disabled={!hasUnsavedChanges || isSaving}
               className="flex items-center space-x-1"
               variant="secondary"
-              size="sm"
+              size="small"
             >
               <Check className="w-4 h-4" />
               <span>Salvar</span>
@@ -196,7 +196,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               onClick={handleDelete}
               className="flex items-center space-x-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
               variant="ghost"
-              size="sm"
+              size="small"
             >
               <TrashSimple className="w-4 h-4" />
               <span>Deletar</span>
