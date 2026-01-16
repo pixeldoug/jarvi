@@ -6,16 +6,26 @@
   "devCommand": "npm run dev",
   "rewrites": [
     {
-      "source": "/ingest/static/:path*",
-      "destination": "https://us-assets.i.posthog.com/static/:path*"
+      "source": "/ingest/static/:match*",
+      "destination": "https://us-assets.i.posthog.com/static/:match*"
     },
     {
-      "source": "/ingest/:path*",
-      "destination": "https://us.i.posthog.com/:path*"
+      "source": "/ingest/:match*",
+      "destination": "https://us.i.posthog.com/:match*"
     },
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/ingest/:match*",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
+      ]
     }
   ],
   "env": {

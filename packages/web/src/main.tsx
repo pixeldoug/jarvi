@@ -14,7 +14,7 @@ const AppWrapper = () => {
   if (import.meta.env.PROD) {
     return (
       <PostHogProvider apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY} options={options}>
-        <App />
+    <App />
       </PostHogProvider>
     );
   }
