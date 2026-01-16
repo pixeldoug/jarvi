@@ -2,19 +2,25 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
+import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
 
-const options = {
-  api_host: import.meta.env.PROD ? '/ingest' : import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
-  ui_host: 'https://us.posthog.com', // Necessário para o toolbar funcionar com proxy
-} as const;
+// Inicializa PostHog apenas em produção
+if (import.meta.env.PROD && import.meta.env.VITE_PUBLIC_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
+    api_host: '/ingest',
+    ui_host: 'https://us.posthog.com',
+    capture_pageview: true,
+    capture_pageleave: true,
+  });
+}
 
-// Só renderiza com PostHog em produção
+// Renderiza com PostHogProvider em produção
 const AppWrapper = () => {
-  if (import.meta.env.PROD) {
+  if (import.meta.env.PROD && import.meta.env.VITE_PUBLIC_POSTHOG_KEY) {
     return (
-      <PostHogProvider apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_KEY} options={options}>
-    <App />
+      <PostHogProvider client={posthog}>
+        <App />
       </PostHogProvider>
     );
   }
