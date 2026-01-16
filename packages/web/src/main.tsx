@@ -8,8 +8,7 @@ import { PostHogProvider } from 'posthog-js/react';
 // Inicializa PostHog apenas em produção
 if (import.meta.env.PROD && import.meta.env.VITE_PUBLIC_POSTHOG_KEY) {
   posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
-    api_host: '/ingest',
-    ui_host: 'https://us.posthog.com',
+    api_host: 'https://us.i.posthog.com',
     capture_pageview: true,
     capture_pageleave: true,
   });

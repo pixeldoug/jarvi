@@ -6,26 +6,8 @@
   "devCommand": "cd packages/web && npm run dev",
   "rewrites": [
     {
-      "source": "/ingest/static/:match*",
-      "destination": "https://us-assets.i.posthog.com/static/:match*"
-    },
-    {
-      "source": "/ingest/:match*",
-      "destination": "https://us.i.posthog.com/:match*"
-    },
-    {
       "source": "/:path*",
       "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/ingest/:match*",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
-      ]
     }
   ],
   "env": {
