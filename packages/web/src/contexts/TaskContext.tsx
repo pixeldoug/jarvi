@@ -554,6 +554,18 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }
 
       const updatedTask = await response.json();
+
+      // Rastrear evento no PostHog quando tarefa é concluída (apenas em produção)
+      if (updatedTask.completed && posthog && import.meta.env.PROD) {
+        posthog.capture('task_completed', {
+          task_id: updatedTask.id,
+          priority: updatedTask.priority,
+          had_due_date: !!updatedTask.due_date,
+          had_category: !!updatedTask.category,
+          was_important: updatedTask.important || false,
+          had_recurrence: updatedTask.recurrence_type && updatedTask.recurrence_type !== 'none',
+        });
+      }
       
       // Confirmar com dados do servidor e manter a reordenação
       setTasks(prev => {
