@@ -157,3 +157,16 @@
 
 /* Dark mode: gradients automatically update via CSS variables */
 
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1600px) {
+  .main {
+    padding-left: var(--sizes-12);
+  }
+}
+
+@media (max-width: 1440px) {
+  .sidebar {
+    width: 260px;
+    max-width: 260px;
+  }
+}
