@@ -579,6 +579,7 @@ export function TasksV2() {
     onClick?: (task: Task) => void;
     insertionIndicator: { sectionId: string; index: number } | null;
     movingTask: { taskId: string; fromSection: string; toSection: string } | null;
+    selectedTaskId?: string | null;
     // onQuickCreate?: (title: string, sectionId: string) => Promise<void>; // NOT USED IN MVP INITIAL
   }> = memo(({ 
     title, 
@@ -596,6 +597,7 @@ export function TasksV2() {
     onClick,
     insertionIndicator,
     movingTask,
+    selectedTaskId,
     // onQuickCreate, // NOT USED IN MVP INITIAL
   }) => {
     const { setNodeRef, isOver } = useDroppable({
@@ -663,6 +665,7 @@ export function TasksV2() {
                       onOpenDatePicker={onOpenDatePicker}
                       onClick={onClick}
                       showInsertionLine={insertionIndicator?.sectionId === sectionId && insertionIndicator?.index === index}
+                      isActive={selectedTaskId === task.id}
                     />
                   </motion.div>
                 );
@@ -789,6 +792,7 @@ export function TasksV2() {
                   onOpenDatePicker={handleOpenDatePicker}
                   onClick={handleTaskClick}
                   showInsertionLine={false}
+                  isActive={selectedTask?.id === task.id}
                 />
               ))
             ) : (
@@ -851,6 +855,7 @@ export function TasksV2() {
             onClick={handleTaskClick}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -871,6 +876,7 @@ export function TasksV2() {
             onClick={handleTaskClick}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -891,6 +897,7 @@ export function TasksV2() {
             onClick={handleTaskClick}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -911,6 +918,7 @@ export function TasksV2() {
             onClick={handleTaskClick}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -931,8 +939,10 @@ export function TasksV2() {
               onDelete={handleDeleteTask}
               onUpdateTask={handleUpdateTask}
               onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
               insertionIndicator={insertionIndicator}
               movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
               // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
             />
           )}
@@ -954,6 +964,7 @@ export function TasksV2() {
             onClick={handleTaskClick}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -972,8 +983,10 @@ export function TasksV2() {
               onDelete={handleDeleteTask}
               onUpdateTask={handleUpdateTask}
               onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
               insertionIndicator={insertionIndicator}
               movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
             />
           )}
         </div>

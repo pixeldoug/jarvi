@@ -31,6 +31,7 @@ export interface TaskItemV2Props {
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
   onClick?: (task: Task) => void;
   showInsertionLine?: boolean;
+  isActive?: boolean;
 }
 
 const TaskItemV2Component: React.FC<TaskItemV2Props> = ({
@@ -43,6 +44,7 @@ const TaskItemV2Component: React.FC<TaskItemV2Props> = ({
   onOpenDatePicker,
   onClick,
   showInsertionLine = false,
+  isActive = false,
 }) => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -257,7 +259,7 @@ const TaskItemV2Component: React.FC<TaskItemV2Props> = ({
               />
             ) : (
               <p
-                className={`${styles.title} ${task.completed ? styles.titleCompleted : ''}`}
+                className={`${styles.title} ${task.completed ? styles.titleCompleted : ''} ${isActive ? styles.titleActive : ''}`}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();

@@ -13,6 +13,7 @@
   margin-left: 24px;
   border-radius: var(--radius-radius-sm);
   transition: background-color 0.15s ease;
+  cursor: pointer; 
   /* Ensure drag handle is not hidden by overflow */
   overflow: visible;
 }
@@ -61,6 +62,18 @@
 
 .title:hover {
   color: var(--semantic-content-info);
+}
+
+/* 
+ * TODO: Criar variável apropriada para estado ativo do título de task
+ * Usando list-item/content-active provisoriamente
+ */
+.titleActive {
+  color: var(--component-list-item-content-active);
+}
+
+.titleActive:hover {
+  color: var(--component-list-item-content-active);
 }
 
 /* Completed state */
