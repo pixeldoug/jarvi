@@ -32,6 +32,7 @@ export interface TaskItemV2Props {
   onClick?: (task: Task) => void;
   showInsertionLine?: boolean;
   isActive?: boolean;
+  hideCategoryChip?: boolean;
 }
 
 const TaskItemV2Component: React.FC<TaskItemV2Props> = ({
@@ -45,6 +46,7 @@ const TaskItemV2Component: React.FC<TaskItemV2Props> = ({
   onClick,
   showInsertionLine = false,
   isActive = false,
+  hideCategoryChip = false,
 }) => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -275,12 +277,14 @@ const TaskItemV2Component: React.FC<TaskItemV2Props> = ({
 
         {/* Right: Category + Actions */}
         <div className={styles.taskMeta}>
-          {/* Category chip */}
-          <Chip 
-            label={task.category || 'Categoria'}
-            icon={<Hash weight="regular" />}
-            size="small"
-          />
+          {/* Category chip - hidden when details sidebar is open */}
+          {!hideCategoryChip && (
+            <Chip 
+              label={task.category || 'Categoria'}
+              icon={<Hash weight="regular" />}
+              size="small"
+            />
+          )}
 
           {/* Action buttons - appear on hover */}
           <div className={styles.actions}>

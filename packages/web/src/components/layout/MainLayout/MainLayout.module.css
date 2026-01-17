@@ -162,11 +162,21 @@
   .main {
     padding-left: var(--sizes-12);
   }
+
+  .rightSidebar {
+    width: 520px;
+    max-width: 520px;
+  }
 }
 
 @media (max-width: 1440px) {
   .sidebar {
     width: 260px;
     max-width: 260px;
+  }
+
+  .rightSidebar {
+    width: 496px;
+    max-width: 496px;
   }
 }

@@ -580,6 +580,7 @@ export function TasksV2() {
     insertionIndicator: { sectionId: string; index: number } | null;
     movingTask: { taskId: string; fromSection: string; toSection: string } | null;
     selectedTaskId?: string | null;
+    hideCategoryChip?: boolean;
     // onQuickCreate?: (title: string, sectionId: string) => Promise<void>; // NOT USED IN MVP INITIAL
   }> = memo(({ 
     title, 
@@ -598,6 +599,7 @@ export function TasksV2() {
     insertionIndicator,
     movingTask,
     selectedTaskId,
+    hideCategoryChip = false,
     // onQuickCreate, // NOT USED IN MVP INITIAL
   }) => {
     const { setNodeRef, isOver } = useDroppable({
@@ -666,6 +668,7 @@ export function TasksV2() {
                       onClick={onClick}
                       showInsertionLine={insertionIndicator?.sectionId === sectionId && insertionIndicator?.index === index}
                       isActive={selectedTaskId === task.id}
+                      hideCategoryChip={hideCategoryChip}
                     />
                   </motion.div>
                 );
@@ -793,6 +796,7 @@ export function TasksV2() {
                   onClick={handleTaskClick}
                   showInsertionLine={false}
                   isActive={selectedTask?.id === task.id}
+                  hideCategoryChip={!!selectedTask}
                 />
               ))
             ) : (
@@ -856,6 +860,7 @@ export function TasksV2() {
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -877,6 +882,7 @@ export function TasksV2() {
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -898,6 +904,7 @@ export function TasksV2() {
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -919,6 +926,7 @@ export function TasksV2() {
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -943,6 +951,7 @@ export function TasksV2() {
               insertionIndicator={insertionIndicator}
               movingTask={movingTask}
               selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
               // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
             />
           )}
@@ -965,6 +974,7 @@ export function TasksV2() {
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
@@ -987,6 +997,7 @@ export function TasksV2() {
               insertionIndicator={insertionIndicator}
               movingTask={movingTask}
               selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
             />
           )}
         </div>
