@@ -22,6 +22,8 @@ export interface CollapsibleProps {
   onOpenChange?: (isOpen: boolean) => void;
   /** Additional CSS classes */
   className?: string;
+  /** Disable toggle interaction (e.g., when section is empty) */
+  disabled?: boolean;
 }
 
 export function Collapsible({
@@ -31,6 +33,7 @@ export function Collapsible({
   isOpen: controlledIsOpen,
   onOpenChange,
   className = '',
+  disabled = false,
 }: CollapsibleProps) {
   const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultOpen);
   
@@ -51,7 +54,16 @@ export function Collapsible({
   const collapsibleClasses = [styles.collapsible, className].filter(Boolean).join(' ');
   const iconClasses = [
     styles.toggleIcon,
-    !isOpen && styles.toggleIconClosed,
+    (!isOpen || disabled) && styles.toggleIconClosed,
+    disabled && styles.toggleIconDisabled,
+  ].filter(Boolean).join(' ');
+  const buttonClasses = [
+    styles.toggleButton,
+    disabled && styles.toggleButtonDisabled,
+  ].filter(Boolean).join(' ');
+  const labelClasses = [
+    styles.label,
+    disabled && styles.labelDisabled,
   ].filter(Boolean).join(' ');
   const contentClasses = [
     styles.content,
@@ -65,16 +77,17 @@ export function Collapsible({
         <div className={styles.headerContent}>
           <button
             type="button"
-            className={styles.toggleButton}
-            onClick={handleToggle}
+            className={buttonClasses}
+            onClick={disabled ? undefined : handleToggle}
             aria-expanded={isOpen}
             aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${label}`}
+            disabled={disabled}
           >
             <span className={iconClasses}>
               <CaretDown weight="bold" />
             </span>
           </button>
-          <h3 className={styles.label}>{label}</h3>
+          <h3 className={labelClasses}>{label}</h3>
         </div>
         <hr className={styles.divider} />
       </div>

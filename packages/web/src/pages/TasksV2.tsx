@@ -697,6 +697,7 @@ export function TasksV2() {
         defaultOpen={defaultOpen}
         isOpen={controlledIsOpen}
         onOpenChange={onOpenChange}
+        disabled={sectionTasks.length === 0}
       >
         {content}
       </Collapsible>

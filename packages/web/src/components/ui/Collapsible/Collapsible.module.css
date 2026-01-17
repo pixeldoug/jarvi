@@ -116,3 +116,19 @@
   opacity: 0;
 }
 
+/* Disabled state (when section is empty) */
+.toggleButtonDisabled {
+  cursor: default;
+}
+
+.toggleButtonDisabled:hover {
+  background: var(--color-bw-transparent);
+}
+
+.toggleIconDisabled {
+  color: var(--semantic-content-disabled);
+}
+
+.labelDisabled {
+  color: var(--semantic-content-secondary);
+}
