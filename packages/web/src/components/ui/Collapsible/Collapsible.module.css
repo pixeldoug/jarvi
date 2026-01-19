@@ -11,6 +11,15 @@
   width: 100%;
 }
 
+/* Invisible sentinel to detect sticky state */
+.sentinel {
+  position: absolute;
+  top: 0;
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+}
+
 /* Header with toggle and label */
 .header {
   position: sticky;
@@ -23,7 +32,13 @@
   padding-left: 24px;
   padding-top: var(--sizes-2);
   padding-bottom: var(--sizes-2);
-  /* Always show background for sticky header */
+  /* Transparent by default */
+  background-color: transparent;
+  transition: background-color 0.15s ease, backdrop-filter 0.15s ease;
+}
+
+/* Show background when stuck to top */
+.headerStuck {
   background-color: var(--semantic-surface-primary);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

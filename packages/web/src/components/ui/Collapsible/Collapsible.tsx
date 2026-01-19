@@ -5,7 +5,7 @@
  * Following JarviDS design system from Figma
  */
 
-import { useState, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode } from 'react';
 import { CaretDown } from '@phosphor-icons/react';
 import styles from './Collapsible.module.css';
 
@@ -36,10 +36,29 @@ export function Collapsible({
   disabled = false,
 }: CollapsibleProps) {
   const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultOpen);
+  const [isStuck, setIsStuck] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   
   // Support both controlled and uncontrolled modes
   const isControlled = controlledIsOpen !== undefined;
   const isOpen = isControlled ? controlledIsOpen : uncontrolledIsOpen;
+
+  // Detect when header becomes stuck to top
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // When sentinel is not visible, header is stuck
+        setIsStuck(!entry.isIntersecting);
+      },
+      { threshold: 0 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   const handleToggle = () => {
     const newState = !isOpen;
@@ -69,11 +88,18 @@ export function Collapsible({
     styles.content,
     isOpen ? styles.contentOpen : styles.contentClosed,
   ].filter(Boolean).join(' ');
+  const headerClasses = [
+    styles.header,
+    isStuck && styles.headerStuck,
+  ].filter(Boolean).join(' ');
 
   return (
     <div className={collapsibleClasses}>
+      {/* Sentinel to detect sticky state */}
+      <div ref={sentinelRef} className={styles.sentinel} />
+      
       {/* Header */}
-      <div className={styles.header}>
+      <div className={headerClasses}>
         <div className={styles.headerContent}>
           <button
             type="button"
