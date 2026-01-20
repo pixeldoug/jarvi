@@ -14,6 +14,7 @@ import { TaskDatePicker } from '../TaskDatePicker';
 import { PriorityPicker, type Priority } from '../PriorityPicker';
 import { CategoryPicker } from '../CategoryPicker';
 import { Button, Chip } from '../../../ui';
+import { parseDateString } from '../../../../lib/utils';
 import styles from './TaskDetailsSidebar.module.css';
 
 export interface TaskDetailsSidebarProps {
@@ -48,7 +49,7 @@ export function TaskDetailsSidebar({
   useEffect(() => {
     if (task) {
       setDescription(task.description || '');
-      setSelectedDate(task.due_date ? new Date(task.due_date) : null);
+      setSelectedDate(parseDateString(task.due_date));
       setSelectedTime(task.time || '');
     }
   }, [task]);
@@ -113,7 +114,7 @@ export function TaskDetailsSidebar({
     } catch (error) {
       console.error('Failed to clear task date:', error);
       // Rollback on error
-      setSelectedDate(task.due_date ? new Date(task.due_date) : null);
+      setSelectedDate(parseDateString(task.due_date));
       setSelectedTime(task.time || '');
     }
   };

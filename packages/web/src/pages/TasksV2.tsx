@@ -79,7 +79,19 @@ export function TasksV2() {
     await updateTask(taskId, taskData, false);
     // Update selectedTask if it's the one being updated
     if (selectedTask?.id === taskId) {
-      setSelectedTask(prev => prev ? { ...prev, ...taskData } : null);
+      setSelectedTask(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          title: taskData.title ?? prev.title,
+          description: taskData.description ?? prev.description,
+          priority: taskData.priority !== undefined ? taskData.priority : prev.priority,
+          category: taskData.category !== undefined ? taskData.category : prev.category,
+          completed: taskData.completed ?? prev.completed,
+          due_date: taskData.dueDate !== undefined ? taskData.dueDate : prev.due_date,
+          time: taskData.time !== undefined ? taskData.time : prev.time,
+        };
+      });
     }
   };
 

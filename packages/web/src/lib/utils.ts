@@ -6,21 +6,37 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Parse a date string into a Date object in local timezone
+ * Avoids UTC interpretation issues with new Date("YYYY-MM-DD")
+ * @param dateString - ISO date string (e.g., "2024-01-03" or "2024-01-03T10:00:00")
+ * @returns Date object in local timezone, or null if invalid
+ */
+export function parseDateString(dateString?: string): Date | null {
+  if (!dateString) return null;
+  
+  try {
+    const dateOnly = dateString.split('T')[0];
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    
+    if (isNaN(date.getTime())) return null;
+    return date;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Format task date for display
  * @param dueDate - ISO date string (e.g., "2024-01-03" or "2024-01-03T10:00:00")
  * @param time - Optional time string (e.g., "10:00")
  * @returns Formatted string like "09:00, 7 Jan" (with time) or "7 Jan" (without time), or null if invalid
  */
 export function formatTaskDate(dueDate?: string, time?: string): string | null {
-  if (!dueDate) return null;
+  const date = parseDateString(dueDate);
+  if (!date) return null;
   
   try {
-    const dateOnly = dueDate.split('T')[0];
-    const [year, month, day] = dateOnly.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    
-    if (isNaN(date.getTime())) return null;
-    
     const dayNum = date.getDate();
     const monthStr = date.toLocaleDateString('pt-BR', { month: 'short' })
       .replace('.', '')
