@@ -6,7 +6,11 @@
     "dev": "nodemon src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
+    "stripe:listen": "stripe listen --forward-to localhost:3001/webhooks/stripe",
+    "stripe:trigger:trial-end": "stripe trigger customer.subscription.trial_will_end",
+    "stripe:trigger:payment-success": "stripe trigger invoice.payment_succeeded",
+    "stripe:trigger:payment-failed": "stripe trigger invoice.payment_failed"
   },
   "dependencies": {
     "@jarvi/shared": "file:../shared",
@@ -29,6 +33,7 @@
     "socket.io": "^4.8.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
+    "stripe": "^20.2.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

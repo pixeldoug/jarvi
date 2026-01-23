@@ -76,10 +76,80 @@ Para produção:
 | `JWT_EXPIRES_IN` | Expiração do JWT | `7d` |
 | `GOOGLE_CLIENT_ID` | Google OAuth ID | `123...googleusercontent.com` |
 | `CORS_ORIGIN` | Origem permitida | `http://localhost:3000` |
+| `STRIPE_SECRET_KEY` | Chave secreta Stripe | `sk_test_...` |
+| `STRIPE_WEBHOOK_SECRET` | Secret do webhook | `whsec_...` |
+| `STRIPE_PRICE_ID` | ID do preço/produto | `price_...` |
 
+## 💳 Stripe - Configuração de Pagamentos
 
+### 1. Criar Produto no Stripe
 
+1. Acesse [dashboard.stripe.com](https://dashboard.stripe.com)
+2. Vá em **Products** → **Add product**
+3. Configure:
+   - **Name**: Jarvi Pro
+   - **Price**: R$ 29,00/mês (ou seu valor)
+4. Copie o **Price ID** (`price_...`)
 
+### 2. Obter API Keys
+
+1. Vá em **Developers** → **API keys**
+2. Copie:
+   - **Secret key** (`sk_test_...`) → para o backend
+   - **Publishable key** (`pk_test_...`) → para o frontend
+
+### 3. Configurar Webhook (Produção)
+
+1. Vá em **Developers** → **Webhooks** → **Add endpoint**
+2. **URL**: `https://seu-backend.com/webhooks/stripe`
+3. **Events**:
+   - `customer.subscription.trial_will_end`
+   - `customer.subscription.updated`
+   - `customer.subscription.deleted`
+   - `invoice.payment_succeeded`
+   - `invoice.payment_failed`
+4. Copie o **Webhook signing secret** (`whsec_...`)
+
+### 4. Desenvolvimento Local com Stripe CLI
+
+Para receber webhooks localmente, use o Stripe CLI:
+
+```bash
+# Setup inicial (instala CLI e faz login)
+npm run stripe:setup
+
+# Iniciar listener de webhooks
+npm run stripe:listen
+```
+
+O CLI vai mostrar um `whsec_` temporário - use no seu `.env` local.
+
+**Comando completo para desenvolvimento:**
+
+```bash
+# Roda backend + frontend + webhook listener
+npm run dev:stripe
+```
+
+### 5. Testar Eventos
+
+```bash
+npm run stripe:trigger:trial-end       # Fim do trial (3 dias antes)
+npm run stripe:trigger:payment-success # Pagamento OK
+npm run stripe:trigger:payment-failed  # Pagamento falhou
+```
+
+### 6. Cartões de Teste
+
+| Cenário | Número do Cartão |
+|---------|------------------|
+| ✅ Sucesso | `4242 4242 4242 4242` |
+| ❌ Recusado | `4000 0000 0000 0002` |
+| 🔐 Autenticação 3DS | `4000 0025 0000 3155` |
+
+Use qualquer data futura e CVC de 3 dígitos.
+
+📚 Mais detalhes: [docs/STRIPE_SETUP.md](../../docs/STRIPE_SETUP.md)
 
 
 

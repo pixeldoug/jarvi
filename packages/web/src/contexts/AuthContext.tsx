@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   avatar?: string;
+  subscription_status?: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled';
 }
 
 interface AuthContextType {

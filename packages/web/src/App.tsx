@@ -1,4 +1,4 @@
-import React from 'react';
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -6,10 +6,14 @@ import { TaskProvider } from './contexts/TaskContext';
 import { NoteProvider } from './contexts/NoteContext';
 import { CategoryProvider } from './contexts/CategoryContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ToastProvider } from './components/ui';
 import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
+
+// Lazy load Subscribe page
+const SubscribePage = lazy(() => import('./pages/Subscribe'));
 
 const queryClient = new QueryClient();
 
@@ -34,6 +38,16 @@ const AppRoutes: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route
+          path="/subscribe"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<Loading centered size="lg" />}>
+                <SubscribePage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/"
           element={
@@ -100,15 +114,17 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <CategoryProvider>
-            <TaskProvider>
-              <NoteProvider>
-                <ToastProvider>
-                  <AppRoutes />
-                </ToastProvider>
-              </NoteProvider>
-            </TaskProvider>
-          </CategoryProvider>
+          <SubscriptionProvider>
+            <CategoryProvider>
+              <TaskProvider>
+                <NoteProvider>
+                  <ToastProvider>
+                    <AppRoutes />
+                  </ToastProvider>
+                </NoteProvider>
+              </TaskProvider>
+            </CategoryProvider>
+          </SubscriptionProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

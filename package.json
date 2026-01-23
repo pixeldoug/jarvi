@@ -37,7 +37,10 @@
     "docker:build": "docker-compose build",
     "db:migrate": "cd packages/backend && npm run db:migrate",
     "db:seed": "cd packages/backend && npm run db:seed",
-    "type-check": "npm run type-check --workspaces"
+    "type-check": "npm run type-check --workspaces",
+    "stripe:setup": "./scripts/stripe-dev-setup.sh",
+    "stripe:listen": "cd packages/backend && npm run stripe:listen",
+    "dev:stripe": "concurrently \"npm run dev:backend\" \"npm run dev:web\" \"npm run stripe:listen\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

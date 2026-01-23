@@ -11,6 +11,8 @@ import noteRoutes from './routes/noteRoutes';
 import noteShareRoutes from './routes/noteShareRoutes';
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
+import subscriptionRoutes from './routes/subscriptionRoutes';
+import webhookRoutes from './routes/webhookRoutes';
 import { CollaborationService } from './services/collaborationService';
 
 const app = express();
@@ -66,6 +68,10 @@ app.use((req, res, next) => {
 
 console.log('🔧 CORS: Permitindo origens:', process.env.NODE_ENV === 'production' ? 'produção' : 'desenvolvimento');
 app.use(morgan('combined'));
+
+// Stripe webhooks need raw body - must be before express.json()
+app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+
 app.use(express.json());
 app.use(limiter);
 
@@ -125,6 +131,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api', noteShareRoutes);
 
 // Initialize database and start server

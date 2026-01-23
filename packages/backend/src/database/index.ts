@@ -51,6 +51,10 @@ const createTables = async (): Promise<void> => {
       name TEXT NOT NULL,
       password TEXT NOT NULL,
       avatar TEXT,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      subscription_status TEXT DEFAULT 'none',
+      trial_ends_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,

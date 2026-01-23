@@ -1,0 +1,149 @@
+/**
+ * PaymentForm Styles
+ * Stripe Elements integration following JarviDS design system
+ */
+
+/* ============================================================================
+   FORM CONTAINER
+   ============================================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+/* ============================================================================
+   CARD ELEMENT WRAPPER
+   ============================================================================ */
+
+.cardWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.cardContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--sizes-4);
+  background-color: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  transition: border-color 0.15s ease;
+}
+
+.cardContainer.focused {
+  border-color: var(--semantic-control-border-active);
+}
+
+.cardContainer.focused::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--semantic-control-focusring);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.cardContainer.error {
+  border-color: var(--semantic-content-negative);
+}
+
+.cardElement {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================================
+   ERROR MESSAGE
+   ============================================================================ */
+
+.errorMessage {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  padding: var(--sizes-3) var(--sizes-4);
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--semantic-content-negative);
+  border-radius: var(--radius-radius-sm);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-negative);
+}
+
+/* ============================================================================
+   SUBMIT BUTTON
+   ============================================================================ */
+
+.submitButton {
+  width: 100%;
+  margin-top: var(--sizes-2);
+}
+
+/* ============================================================================
+   TRIAL INFO
+   ============================================================================ */
+
+.trialInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding: var(--sizes-4);
+  background-color: var(--semantic-surface-secondary);
+  border-radius: var(--radius-radius-sm);
+  text-align: center;
+}
+
+.trialBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sizes-1) var(--sizes-3);
+  background-color: var(--semantic-content-brand);
+  border-radius: var(--sizes-4);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: 600;
+  color: white;
+  align-self: center;
+}
+
+.trialText {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+/* ============================================================================
+   SECURE BADGE
+   ============================================================================ */
+
+.secureInfo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-xs-font-size);
+  color: var(--semantic-content-tertiary);
+}
+
+.lockIcon {
+  width: 14px;
+  height: 14px;
+}
