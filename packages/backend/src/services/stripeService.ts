@@ -126,15 +126,22 @@ export async function getSubscriptionStatus(userId: string): Promise<{
   }
 
   const subscription = await stripe.subscriptions.retrieve(
-    user.stripe_subscription_id
+    user.stripe_subscription_id,
+    { expand: ['items.data'] }
   );
+
+  // Get current_period_end from the first subscription item
+  const firstItem = subscription.items?.data?.[0];
+  const currentPeriodEnd = firstItem?.current_period_end 
+    ? new Date(firstItem.current_period_end * 1000)
+    : null;
 
   return {
     status: subscription.status,
     trialEndsAt: subscription.trial_end
       ? new Date(subscription.trial_end * 1000)
       : null,
-    currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+    currentPeriodEnd,
   };
 }
 
@@ -216,16 +223,18 @@ export async function updateUserSubscription(
   }
 }
 
-/**
- * Get user by ID
- */
-async function getUserById(userId: string): Promise<{
+interface UserWithStripeInfo {
   id: string;
   email: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: string;
-} | null> {
+}
+
+/**
+ * Get user by ID
+ */
+async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
   if (isPostgreSQL()) {
     const pool = getPool();
     const client = await pool.connect();
@@ -240,21 +249,24 @@ async function getUserById(userId: string): Promise<{
     }
   } else {
     const db = getDatabase();
-    return db.get(
+    const result = await db.get<UserWithStripeInfo>(
       'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status FROM users WHERE id = ?',
       [userId]
     );
+    return result ?? null;
   }
+}
+
+interface UserBasicInfo {
+  id: string;
+  email: string;
+  subscription_status: string;
 }
 
 /**
  * Get user by Stripe customer ID
  */
-export async function getUserByStripeCustomerId(customerId: string): Promise<{
-  id: string;
-  email: string;
-  subscription_status: string;
-} | null> {
+export async function getUserByStripeCustomerId(customerId: string): Promise<UserBasicInfo | null> {
   if (isPostgreSQL()) {
     const pool = getPool();
     const client = await pool.connect();
@@ -269,10 +281,11 @@ export async function getUserByStripeCustomerId(customerId: string): Promise<{
     }
   } else {
     const db = getDatabase();
-    return db.get(
+    const result = await db.get<UserBasicInfo>(
       'SELECT id, email, subscription_status FROM users WHERE stripe_customer_id = ?',
       [customerId]
     );
+    return result ?? null;
   }
 }
 

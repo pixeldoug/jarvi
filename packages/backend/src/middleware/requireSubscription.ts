@@ -109,9 +109,10 @@ async function getUserSubscriptionStatus(
     }
   } else {
     const db = getDatabase();
-    return db.get(
+    const result = await db.get<UserWithSubscription>(
       'SELECT id, subscription_status, trial_ends_at FROM users WHERE id = ?',
       [userId]
     );
+    return result ?? null;
   }
 }
