@@ -2,7 +2,7 @@
 // Route-based page switching using MainLayout internally
 import { useLocation } from 'react-router-dom';
 import { DialogProvider } from '../../contexts/DialogContext';
-import { TasksV2 } from '../../pages/TasksV2';
+import { Tasks } from '../../pages/Tasks';
 import { Notes } from '../../pages/Notes';
 import { Finances } from '../../pages/Finances';
 import { Habits } from '../../pages/Habits';
@@ -15,7 +15,7 @@ const LayoutContent = () => {
   switch (path) {
     case '/tasks':
     case '/':
-      return <TasksV2 />;
+      return <Tasks />;
     case '/notes':
       return <Notes />;
     case '/finances':
@@ -26,7 +26,7 @@ const LayoutContent = () => {
     case '/categories':
       return <Categories />;
     default:
-      return <TasksV2 />;
+      return <Tasks />;
   }
 };
 

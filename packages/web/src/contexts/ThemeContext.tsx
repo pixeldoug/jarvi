@@ -1,5 +1,5 @@
 /**
- * useTheme Hook and ThemeProvider for Web
+ * ThemeContext - Theme Provider and useTheme Hook
  * 
  * Provides theme switching functionality for the web application
  * Manages dark/light mode and persists preference to localStorage

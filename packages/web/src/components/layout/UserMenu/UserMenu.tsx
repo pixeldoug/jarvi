@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { Sun, Moon } from '@phosphor-icons/react';
-import { useTheme } from '../../../hooks/useTheme';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import styles from './UserMenu.module.css';
 

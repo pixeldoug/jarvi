@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { X } from '@phosphor-icons/react';
-// import { useThemeClasses } from '../../hooks/useTheme';
+// import { useThemeClasses } from '../../contexts/ThemeContext';
 
 // ============================================================================
 // TIPOS

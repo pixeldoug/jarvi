@@ -1,10 +1,3 @@
-import { type ClassValue, clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-
 /**
  * Parse a date string into a Date object in local timezone
  * Avoids UTC interpretation issues with new Date("YYYY-MM-DD")

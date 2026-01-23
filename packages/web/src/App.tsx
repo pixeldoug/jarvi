@@ -5,12 +5,11 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
 import { NoteProvider } from './contexts/NoteContext';
 import { CategoryProvider } from './contexts/CategoryContext';
-import { ThemeProvider } from './hooks/useTheme';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './components/ui';
 import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
-import styles from './App.module.css';
 
 const queryClient = new QueryClient();
 
@@ -105,9 +104,7 @@ function App() {
             <TaskProvider>
               <NoteProvider>
                 <ToastProvider>
-                  <div className={styles.app}>
-                    <AppRoutes />
-                  </div>
+                  <AppRoutes />
                 </ToastProvider>
               </NoteProvider>
             </TaskProvider>

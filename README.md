@@ -129,8 +129,13 @@ Jarvi/
 │   │   └── .env             # Mobile environment variables
 │   └── shared/              # Shared TypeScript types
 │       └── src/types/       # Common interfaces
-├── ARCHITECTURE.md          # Technical architecture
-└── README.md               # This file
+├── docs/
+│   ├── ARCHITECTURE.md      # Technical architecture
+│   └── PRODUCTION_PLAN.md   # Production deployment guide
+├── scripts/
+│   ├── dev-setup.sh         # Development environment setup
+│   └── test-google-oauth.sh # OAuth configuration test
+└── README.md                # This file
 ```
 
 ## 🔧 Available Scripts
@@ -296,19 +301,11 @@ This project is licensed under the MIT License.
 
 ## 📚 Documentation
 
-For comprehensive documentation, see the [docs/](./docs/) folder:
-
 - **[Architecture](./docs/ARCHITECTURE.md)** - Technical architecture and system design
 - **[Production Plan](./docs/PRODUCTION_PLAN.md)** - Deployment guide for all platforms
-- **[Design System](./docs/IMPLEMENTATION_COMPLETE.md)** - Design system overview and implementation
-- **[Quick Reference](./docs/DESIGN_SYSTEM_QUICK_REFERENCE.md)** - Daily reference for tokens and components
-- **[Migration Guide](./docs/MIGRATION_GUIDE.md)** - Migrate components to new design system
-
-📖 **[View all documentation →](./docs/README.md)**
 
 ## 🆘 Support
 
-- 📚 Check [docs/](./docs/) for comprehensive documentation
 - 🔧 Check [packages/backend/SETUP.md](packages/backend/SETUP.md) for backend setup
 - 🐛 Open an issue for bugs or feature requests
 - 💬 Discussions for questions and help

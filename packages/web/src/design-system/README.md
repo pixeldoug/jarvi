@@ -169,7 +169,7 @@ The design system supports light and dark themes using CSS classes.
 ### Theme Switching
 
 ```typescript
-import { useTheme } from '../../hooks/useTheme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 function ThemeToggle() {
   const { theme, toggleTheme, isDark } = useTheme();

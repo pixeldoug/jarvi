@@ -2,7 +2,8 @@
  * Tasks Components
  */
 
-export { TaskItemV2 } from './TaskItemV2';
+export { TaskItem } from './TaskItem';
+export type { TaskItemProps } from './TaskItem';
 export { TaskCheckbox } from './TaskCheckbox';
 export type { TaskCheckboxProps } from './TaskCheckbox';
 export { TaskDetailsSidebar } from './TaskDetailsSidebar';

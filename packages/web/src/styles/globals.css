@@ -3,7 +3,7 @@
  * Application-wide styles using design tokens
  */
 
-@import './tokens.css';
+@import '../design-system/tokens/css-variables.css';
 @import './reset.css';
 
 /* Ensure font is applied */
@@ -19,6 +19,7 @@ html {
 }
 
 body {
+  min-height: 100vh;
   background-color: var(--semantic-surface-primary);
   color: var(--semantic-content-primary);
   transition: background-color 0.2s ease, color 0.2s ease;

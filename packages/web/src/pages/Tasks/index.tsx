@@ -1,16 +1,16 @@
 /**
- * TasksV2 Page - Simplified version for debugging
+ * Tasks Page
  * 
- * Minimal implementation to isolate the remounting issue
+ * Main tasks page with categorized sections and drag-and-drop support
  */
 
 import { useState, useMemo, useCallback, memo } from 'react';
-import { useTasks, Task } from '../contexts/TaskContext';
-import { TaskItemV2, TaskDetailsSidebar } from '../components/features/tasks';
-import { MainLayout } from '../components/layout';
-import { TasksSidebar, ListType } from '../components/features/tasks';
-import { TaskCreationData, Collapsible } from '../components/ui';
-import { toast } from '../components/ui/Sonner';
+import { useTasks, Task } from '../../contexts/TaskContext';
+import { TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
+import { MainLayout } from '../../components/layout';
+import { TasksSidebar, ListType } from '../../components/features/tasks';
+import { TaskCreationData, Collapsible } from '../../components/ui';
+import { toast } from '../../components/ui/Sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DndContext,
@@ -62,7 +62,7 @@ function getNextWeekBounds(today: Date): { start: string; end: string } {
   };
 }
 
-export function TasksV2() {
+export function Tasks() {
   const [selectedList, setSelectedList] = useState<ListType>('all');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
@@ -681,7 +681,7 @@ export function TasksV2() {
                     }}
                     layout
                   >
-                    <TaskItemV2
+                    <TaskItem
                       task={task}
                       section={sectionId}
                       onToggleCompletion={onToggleCompletion}
@@ -809,7 +809,7 @@ export function TasksV2() {
           <div className={styles.sectionContent}>
             {filteredTasks.length > 0 ? (
               filteredTasks.map((task) => (
-                <TaskItemV2
+                <TaskItem
                   key={task.id}
                   task={task}
                   section={selectedList}
@@ -1030,7 +1030,7 @@ export function TasksV2() {
         <DragOverlay>
           {activeTask ? (
             <div style={{ opacity: 0.5 }}>
-              <TaskItemV2
+              <TaskItem
                 task={activeTask}
                 section={activeTask.due_date ? 'hoje' : 'sem-data'}
                 onToggleCompletion={handleToggleCompletion}

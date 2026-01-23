@@ -5,7 +5,7 @@
  */
 
 import { Sun, Moon } from '@phosphor-icons/react';
-import { useTheme } from '../../hooks/useTheme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // ============================================================================
 // TIPOS

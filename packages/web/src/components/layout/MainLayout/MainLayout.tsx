@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
 import { UserMenu } from '../UserMenu';
-import { useTheme } from '../../../hooks/useTheme';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 // Background images
 import bgLight from '../../../assets/login-background.png';
