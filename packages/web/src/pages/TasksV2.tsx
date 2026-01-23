@@ -33,6 +33,35 @@ import {
 import { useDroppable } from '@dnd-kit/core';
 import styles from './Tasks.module.css';
 
+/**
+ * Calcula os limites da próxima semana do calendário.
+ * "Semana que vem" = próxima segunda-feira até o domingo seguinte (inclusive).
+ * Retorna strings no formato YYYY-MM-DD para comparação.
+ */
+function getNextWeekBounds(today: Date): { start: string; end: string } {
+  const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  
+  // Calcular dias até a próxima segunda-feira
+  // Se hoje é domingo (0), próxima segunda é em 1 dia
+  // Se hoje é segunda (1), próxima segunda é em 7 dias
+  // Se hoje é terça (2), próxima segunda é em 6 dias
+  // etc.
+  const daysUntilNextMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+  
+  const nextMonday = new Date(today);
+  nextMonday.setDate(today.getDate() + daysUntilNextMonday);
+  
+  // O fim da semana é o domingo seguinte (6 dias depois da segunda)
+  // Usamos segunda-feira seguinte para comparação exclusiva (< endStr)
+  const mondayAfterNextWeek = new Date(nextMonday);
+  mondayAfterNextWeek.setDate(nextMonday.getDate() + 7);
+  
+  return {
+    start: nextMonday.toISOString().split('T')[0],
+    end: mondayAfterNextWeek.toISOString().split('T')[0],
+  };
+}
+
 export function TasksV2() {
   const [selectedList, setSelectedList] = useState<ListType>('all');
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -266,13 +295,7 @@ export function TasksV2() {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const nextWeekStart = new Date(today);
-    nextWeekStart.setDate(today.getDate() + 7);
-    const nextWeekStartStr = nextWeekStart.toISOString().split('T')[0];
-
-    const nextWeekEnd = new Date(today);
-    nextWeekEnd.setDate(today.getDate() + 14);
-    const nextWeekEndStr = nextWeekEnd.toISOString().split('T')[0];
+    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
 
     return tasks.filter(task => {
       // For list views, we typically show incomplete tasks only
@@ -313,13 +336,7 @@ export function TasksV2() {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const nextWeekStart = new Date(today);
-    nextWeekStart.setDate(today.getDate() + 7);
-    const nextWeekStartStr = nextWeekStart.toISOString().split('T')[0];
-
-    const nextWeekEnd = new Date(today);
-    nextWeekEnd.setDate(today.getDate() + 14);
-    const nextWeekEndStr = nextWeekEnd.toISOString().split('T')[0];
+    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
 
     const categories = {
       vencidas: [] as Task[],
@@ -509,12 +526,7 @@ export function TasksV2() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    const nextWeekStart = new Date(today);
-    nextWeekStart.setDate(today.getDate() + 7);
-    const nextWeekStartStr = nextWeekStart.toISOString().split('T')[0];
-    const nextWeekEnd = new Date(today);
-    nextWeekEnd.setDate(today.getDate() + 14);
-    const nextWeekEndStr = nextWeekEnd.toISOString().split('T')[0];
+    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
     
     let newDueDate: string | undefined;
     switch (overSection) {
