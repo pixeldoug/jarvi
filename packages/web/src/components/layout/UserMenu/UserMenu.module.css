@@ -6,7 +6,7 @@
 .container {
   display: flex;
   gap: var(--sizes-2);
-  align-items: flex-start;
+  align-items: center;
 }
 
 /* Theme toggle button container */

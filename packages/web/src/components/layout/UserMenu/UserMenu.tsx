@@ -1,14 +1,19 @@
 /**
  * UserMenu Component - Jarvi Web
  * 
- * User profile and theme toggle in the top right corner
+ * User profile, upgrade button and theme toggle in the top right corner
  * Following JarviDS design system from Figma
+ * 
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-Web
+ * Node: 40000503-11686
  */
 
 import { useState } from 'react';
 import { Sun, Moon } from '@phosphor-icons/react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useSubscription } from '../../../contexts/SubscriptionContext';
+import { UpgradeButton } from '../../ui/UpgradeButton/UpgradeButton';
 import styles from './UserMenu.module.css';
 
 export interface UserMenuProps {
@@ -19,7 +24,11 @@ export interface UserMenuProps {
 export function UserMenu({ className = '' }: UserMenuProps) {
   const { toggleTheme, isDark } = useTheme();
   const { user } = useAuth();
+  const { hasActiveSubscription, isLoading: isSubscriptionLoading } = useSubscription();
   const [imageError, setImageError] = useState(false);
+
+  // Show upgrade button only if user doesn't have an active subscription
+  const showUpgradeButton = !isSubscriptionLoading && !hasActiveSubscription;
 
   // Get user initials for avatar fallback
   const getInitials = (name: string) => {
@@ -37,6 +46,11 @@ export function UserMenu({ className = '' }: UserMenuProps) {
 
   return (
     <div className={`${styles.container} ${className}`}>
+      {/* Upgrade Button - Only show if user doesn't have active subscription */}
+      {showUpgradeButton && (
+        <UpgradeButton size="medium" label="Upgrade" />
+      )}
+
       {/* Theme Toggle */}
       <div className={styles.themeToggle}>
         <button
