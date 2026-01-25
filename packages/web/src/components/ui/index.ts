@@ -81,6 +81,11 @@ export {
 } from './Drawer';
 
 export {
+  Dropdown,
+  type DropdownProps,
+} from './Dropdown/Dropdown';
+
+export {
   Accordion,
   type AccordionProps,
 } from './Accordion';

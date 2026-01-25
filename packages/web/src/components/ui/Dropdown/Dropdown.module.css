@@ -1,0 +1,127 @@
+/**
+ * Dropdown Styles - Jarvi Web
+ * 
+ * Reusable dropdown component styles
+ * Following JarviDS design system from Figma
+ * 
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-Web
+ * Node: 40000504-20845
+ */
+
+/* ============================================================================
+   BACKDROP
+   ============================================================================ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: transparent;
+}
+
+/* ============================================================================
+   DROPDOWN CONTAINER
+   ============================================================================ */
+
+.dropdown {
+  display: flex;
+  flex-direction: column;
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-md);
+  box-shadow: 
+    0px 0px 1px 0px rgba(9, 9, 11, 0.2),
+    0px 4px 18px 0px rgba(9, 9, 11, 0.1),
+    0px 6px 8px 0px rgba(9, 9, 11, 0.05);
+  overflow: hidden;
+  
+  /* Animation */
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================================
+   HEADER
+   ============================================================================ */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--sizes-3);
+  padding-bottom: var(--sizes-1);
+  border-bottom: 1px solid var(--semantic-border-primary);
+}
+
+.title {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* ============================================================================
+   CONTENT
+   ============================================================================ */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sizes-2);
+}
+
+/* ============================================================================
+   DROPDOWN ITEM STYLES (for ListItem usage)
+   ============================================================================ */
+
+/* When ListItem is used inside dropdown, apply these styles */
+.content > button,
+.content > a,
+.content > div[role="menuitem"] {
+  width: 100%;
+}
+
+/* ============================================================================
+   DIVIDER (can be used between items)
+   ============================================================================ */
+
+.divider {
+  height: 1px;
+  background: var(--semantic-border-primary);
+  margin: var(--sizes-2) 0;
+}
+
+/* ============================================================================
+   SECTION (for grouping items)
+   ============================================================================ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.sectionTitle {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  padding: var(--sizes-2) var(--sizes-3);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
