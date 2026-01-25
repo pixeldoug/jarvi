@@ -1,0 +1,189 @@
+/**
+ * AccountDialog Styles - Jarvi Web
+ * 
+ * Styles for account dialog sections
+ * Following JarviDS design system from Figma
+ * 
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-Web
+ * Node: 40000506-20916
+ */
+
+/* ============================================================================
+   SECTION BASE
+   ============================================================================ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+/* ============================================================================
+   SECTION LABELS
+   ============================================================================ */
+
+.sectionLabel {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* ============================================================================
+   PLAN SECTION
+   ============================================================================ */
+
+.planHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+.planInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  flex: 1;
+}
+
+.planName {
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+.planDescription {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* ============================================================================
+   PROFILE SECTION
+   ============================================================================ */
+
+.profileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.profileDetails {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+}
+
+.profileActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding-top: 2px;
+}
+
+.nameInput {
+  width: 352px;
+  max-width: 100%;
+}
+
+/* ============================================================================
+   EMAIL SECTION
+   ============================================================================ */
+
+.emailInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.emailValue {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* ============================================================================
+   DELETE ACCOUNT SECTION
+   ============================================================================ */
+
+.deleteInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sizes-4);
+}
+
+.deleteWarning {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  max-width: 400px;
+}
+
+/* ============================================================================
+   SHARED STYLES
+   ============================================================================ */
+
+.actions {
+  display: flex;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: var(--sizes-2);
+}
+
+.helpText {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .planHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .profileDetails {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .nameInput {
+    width: 100%;
+  }
+  
+  .deleteInfo {
+    flex-direction: column;
+  }
+  
+  .deleteWarning {
+    max-width: 100%;
+  }
+}

@@ -86,6 +86,11 @@ export {
 } from './Dropdown/Dropdown';
 
 export {
+  Dialog,
+  type DialogProps,
+} from './Dialog/Dialog';
+
+export {
   Accordion,
   type AccordionProps,
 } from './Accordion';

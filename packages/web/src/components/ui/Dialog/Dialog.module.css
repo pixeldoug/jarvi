@@ -1,0 +1,191 @@
+/**
+ * Dialog Styles - Jarvi Web
+ * 
+ * Global dialog component styles
+ * Following JarviDS design system from Figma
+ * 
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-Web
+ * Node: 40000506-20916
+ */
+
+/* ============================================================================
+   OVERLAY
+   ============================================================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  background: rgba(9, 9, 11, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  
+  /* Animation */
+  animation: overlayFadeIn 0.2s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ============================================================================
+   DIALOG CONTAINER
+   ============================================================================ */
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-10);
+  
+  padding: var(--sizes-14) var(--sizes-10) var(--sizes-14);
+  border-radius: 18px;
+  
+  /* Gradient background */
+  background: linear-gradient(
+    156.65deg,
+    var(--semantic-gradient-primary-stop-0) 5.96%,
+    var(--semantic-gradient-primary-stop-78) 74.58%,
+    var(--semantic-gradient-primary-stop-100) 93.94%
+  );
+  
+  box-shadow: 0px 1px 2px 0px var(--semantic-elevation-first-level);
+  
+  /* Animation */
+  animation: dialogSlideIn 0.2s ease-out;
+  
+  /* Scrollable content */
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+@keyframes dialogSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ============================================================================
+   WIDTH VARIANTS
+   ============================================================================ */
+
+.sm {
+  width: 100%;
+  max-width: 384px;
+}
+
+.md {
+  width: 100%;
+  max-width: 512px;
+}
+
+.lg {
+  width: 100%;
+  max-width: 768px;
+}
+
+.xl {
+  width: 100%;
+  max-width: 1024px;
+}
+
+/* ============================================================================
+   CLOSE BUTTON
+   ============================================================================ */
+
+.closeButton {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  width: 48px;
+  height: 48px;
+  
+  background: var(--components-button-secondary-bg-default);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-icon-radius);
+  
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.closeButton:hover {
+  background: var(--color-gray-100);
+}
+
+:global(.dark) .closeButton:hover {
+  background: var(--color-gray-800);
+}
+
+/* ============================================================================
+   TITLE
+   ============================================================================ */
+
+.title {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  padding-right: 60px; /* Space for close button */
+}
+
+/* ============================================================================
+   CONTENT
+   ============================================================================ */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .dialog {
+    margin: 16px;
+    padding: var(--sizes-8) var(--sizes-6) var(--sizes-10);
+  }
+  
+  .lg,
+  .xl {
+    max-width: calc(100% - 32px);
+  }
+  
+  .closeButton {
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+  }
+  
+  .title {
+    font-size: var(--typography-heading-md-font-size);
+    padding-right: 50px;
+  }
+}

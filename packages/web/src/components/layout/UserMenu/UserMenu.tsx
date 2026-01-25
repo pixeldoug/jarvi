@@ -15,6 +15,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { UpgradeButton } from '../../ui/UpgradeButton/UpgradeButton';
 import { Avatar, Dropdown, ListItem } from '../../ui';
+import { AccountDialog } from '../../features/account/AccountDialog/AccountDialog';
 import styles from './UserMenu.module.css';
 
 export interface UserMenuProps {
@@ -27,6 +28,7 @@ export function UserMenu({ className = '' }: UserMenuProps) {
   const { user, logout } = useAuth();
   const { hasActiveSubscription, isLoading: isSubscriptionLoading } = useSubscription();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   // Show upgrade button only if user doesn't have an active subscription
@@ -39,7 +41,7 @@ export function UserMenu({ className = '' }: UserMenuProps) {
 
   const handleMyAccount = () => {
     setIsDropdownOpen(false);
-    // TODO: Navigate to account page
+    setIsAccountDialogOpen(true);
   };
 
   const userName = user?.name || 'Usuário';
@@ -108,6 +110,12 @@ export function UserMenu({ className = '' }: UserMenuProps) {
           />
         </Dropdown>
       </div>
+
+      {/* Account Dialog */}
+      <AccountDialog
+        isOpen={isAccountDialogOpen}
+        onClose={() => setIsAccountDialogOpen(false)}
+      />
     </div>
   );
 }
