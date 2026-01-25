@@ -14,7 +14,7 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { UpgradeButton } from '../../ui/UpgradeButton/UpgradeButton';
-import { Dropdown, ListItem } from '../../ui';
+import { Avatar, Dropdown, ListItem } from '../../ui';
 import styles from './UserMenu.module.css';
 
 export interface UserMenuProps {
@@ -26,7 +26,6 @@ export function UserMenu({ className = '' }: UserMenuProps) {
   const { toggleTheme, isDark } = useTheme();
   const { user, logout } = useAuth();
   const { hasActiveSubscription, isLoading: isSubscriptionLoading } = useSubscription();
-  const [imageError, setImageError] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -43,19 +42,9 @@ export function UserMenu({ className = '' }: UserMenuProps) {
     // TODO: Navigate to account page
   };
 
-  // Get user initials for avatar fallback
-  const getInitials = (name: string) => {
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
-  };
-
   const userName = user?.name || 'Usuário';
   const userEmail = user?.email || 'usuario@email.com';
   const userAvatar = user?.avatar;
-  const showAvatarImage = userAvatar && !imageError;
 
   return (
     <div className={`${styles.container} ${className}`}>
@@ -96,20 +85,7 @@ export function UserMenu({ className = '' }: UserMenuProps) {
             <p className={styles.userEmail}>{userEmail}</p>
           </div>
           
-          <div className={styles.avatar}>
-            {showAvatarImage ? (
-              <img 
-                src={userAvatar} 
-                alt={userName}
-                className={styles.avatarImage}
-                onError={() => setImageError(true)}
-              />
-            ) : (
-              <div className={styles.avatarFallback}>
-                {getInitials(userName)}
-              </div>
-            )}
-          </div>
+          <Avatar src={userAvatar} name={userName} size="medium" />
         </button>
 
         {/* User Dropdown Menu */}

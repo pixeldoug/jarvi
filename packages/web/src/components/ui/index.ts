@@ -101,6 +101,11 @@ export {
 // ============================================================================
 
 export {
+  Avatar,
+  type AvatarProps,
+} from './Avatar/Avatar';
+
+export {
   Badge,
   type BadgeProps,
 } from './Badge/Badge';
