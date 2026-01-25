@@ -31,7 +31,7 @@ export interface AccountDialogProps {
 
 export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   const { user } = useAuth();
-  const { subscriptionStatus, trialEndsAt } = useSubscription();
+  const { subscription } = useSubscription();
   const navigate = useNavigate();
   
   const [name, setName] = useState(user?.name || '');
@@ -42,8 +42,8 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
 
   // Format trial end date
   const formatTrialEndDate = () => {
-    if (!trialEndsAt) return null;
-    const date = new Date(trialEndsAt);
+    if (!subscription?.trialEndsAt) return null;
+    const date = new Date(subscription.trialEndsAt);
     return date.toLocaleDateString('pt-BR', {
       day: 'numeric',
       month: 'long',
@@ -53,7 +53,7 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
 
   // Get plan display info
   const getPlanInfo = () => {
-    switch (subscriptionStatus) {
+    switch (subscription?.status) {
       case 'active':
         return { name: 'Pro', description: null };
       case 'trialing':
@@ -79,23 +79,23 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   };
 
   const handleUpdateImage = () => {
-    toast('Em breve: Upload de imagem');
+    toast.info('Em breve: Upload de imagem');
   };
 
   const handleRemoveImage = () => {
-    toast('Em breve: Remover imagem');
+    toast.info('Em breve: Remover imagem');
   };
 
   const handleChangeEmail = () => {
-    toast('Em breve: Alterar email');
+    toast.info('Em breve: Alterar email');
   };
 
   const handleChangePassword = () => {
-    toast('Em breve: Alterar senha');
+    toast.info('Em breve: Alterar senha');
   };
 
   const handleDeleteAccount = () => {
-    toast('Em breve: Deletar conta');
+    toast.info('Em breve: Deletar conta');
   };
 
   return (
