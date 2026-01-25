@@ -17,6 +17,11 @@ export {
   type ButtonProps,
 } from './Button';
 
+export {
+  UpgradeButton,
+  type UpgradeButtonProps,
+} from './UpgradeButton/UpgradeButton';
+
 // ============================================================================
 // INPUT COMPONENTS
 // ============================================================================
