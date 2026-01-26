@@ -13,6 +13,7 @@ import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 import webhookRoutes from './routes/webhookRoutes';
+import userRoutes from './routes/userRoutes';
 import { CollaborationService } from './services/collaborationService';
 
 const app = express();
@@ -72,7 +73,7 @@ app.use(morgan('combined'));
 // Stripe webhooks need raw body - must be before express.json()
 app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
 // Health check
@@ -132,6 +133,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api', noteShareRoutes);
 
 // Initialize database and start server

@@ -8,7 +8,7 @@
  * Node: 40000223-14354
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styles from './Avatar.module.css';
 
 export interface AvatarProps {
@@ -45,6 +45,11 @@ export function Avatar({
   alt,
 }: AvatarProps) {
   const [imageError, setImageError] = useState(false);
+
+  // Reset error state when src changes
+  useEffect(() => {
+    setImageError(false);
+  }, [src]);
 
   const showImage = src && !imageError;
   const initials = getInitials(name);

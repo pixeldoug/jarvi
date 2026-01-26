@@ -20,13 +20,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-bottom: 40px;
   
-  background: rgba(9, 9, 11, 0.3);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Light mode */
+  background: rgba(9, 9, 11, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   
   /* Animation */
   animation: overlayFadeIn 0.2s ease-out;
+}
+
+/* Dark mode */
+:global(.dark) .overlay {
+  background: rgba(9, 9, 11, 0.9);
 }
 
 @keyframes overlayFadeIn {
@@ -48,25 +55,43 @@
   flex-direction: column;
   gap: var(--sizes-10);
   
-  padding: var(--sizes-14) var(--sizes-10) var(--sizes-14);
+  padding: var(--sizes-10) var(--sizes-10) var(--sizes-14);
   border-radius: 18px;
   
   /* Gradient background */
-  background: linear-gradient(
-    156.65deg,
-    var(--semantic-gradient-primary-stop-0) 5.96%,
-    var(--semantic-gradient-primary-stop-78) 74.58%,
-    var(--semantic-gradient-primary-stop-100) 93.94%
-  );
+  background: var(--semantic-surface-primary);
   
   box-shadow: 0px 1px 2px 0px var(--semantic-elevation-first-level);
   
   /* Animation */
   animation: dialogSlideIn 0.2s ease-out;
   
-  /* Scrollable content */
+  /* Max height without overflow - content will scroll */
   max-height: calc(100vh - 80px);
-  overflow-y: auto;
+}
+
+/* Custom Scrollbar */
+.content::-webkit-scrollbar {
+  width: 12px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: var(--semantic-surface-secondary);
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(--semantic-content-tertiary);
+  border-radius: var(--sizes-2);
+}
+
+.content::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+/* Firefox scrollbar */
+.content {
+  scrollbar-width: thin;
+  scrollbar-color: var(--semantic-content-tertiary) var(--semantic-surface-secondary);
 }
 
 @keyframes dialogSlideIn {
@@ -96,7 +121,7 @@
 
 .lg {
   width: 100%;
-  max-width: 768px;
+  max-width: 704px;
 }
 
 .xl {
@@ -112,6 +137,7 @@
   position: absolute;
   top: 24px;
   right: 24px;
+  z-index: 10;
   
   display: flex;
   align-items: center;
@@ -160,6 +186,11 @@
   display: flex;
   flex-direction: column;
   gap: 32px;
+  
+  /* Scrollable content area */
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ============================================================================
@@ -167,14 +198,27 @@
    ============================================================================ */
 
 @media (max-width: 768px) {
-  .dialog {
-    margin: 16px;
-    padding: var(--sizes-8) var(--sizes-6) var(--sizes-10);
+  .overlay {
+    height: 100vh;
+    align-items: flex-start;
+    padding-top: 24px;
+    padding-bottom: 0;
   }
   
+  .dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    border-radius: 18px;
+    padding: var(--sizes-8) var(--sizes-6) var(--sizes-10);
+    max-height: calc(100vh - 48px);
+  }
+  
+  .sm,
+  .md,
   .lg,
   .xl {
-    max-width: calc(100% - 32px);
+    max-width: 100%;
   }
   
   .closeButton {

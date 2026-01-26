@@ -17,6 +17,7 @@ interface AuthContextType {
   loginWithGoogle: (idToken: string) => Promise<void>;
   register: (email: string, name: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -206,6 +207,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.location.href = '/login';
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser((prevUser) => {
+      if (!prevUser) return null;
+      return { ...prevUser, ...updates };
+    });
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -214,6 +222,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loginWithGoogle,
     register,
     logout,
+    updateUser,
   };
 
   return (

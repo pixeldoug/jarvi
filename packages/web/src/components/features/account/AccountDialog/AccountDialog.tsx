@@ -8,7 +8,7 @@
  * Node: 40000506-20916
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
@@ -22,6 +22,10 @@ import {
 } from '../../../ui';
 import styles from './AccountDialog.module.css';
 
+// Constants for validation
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
 export interface AccountDialogProps {
   /** Whether the dialog is open */
   isOpen: boolean;
@@ -30,20 +34,25 @@ export interface AccountDialogProps {
 }
 
 export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { subscription } = useSubscription();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [name, setName] = useState(user?.name || '');
+  const [isUploading, setIsUploading] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   const userName = user?.name || 'Usuário';
   const userEmail = user?.email || 'usuario@email.com';
   const userAvatar = user?.avatar;
 
-  // Format trial end date
-  const formatTrialEndDate = () => {
-    if (!subscription?.trialEndsAt) return null;
-    const date = new Date(subscription.trialEndsAt);
+  // Format date to Brazilian Portuguese
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
     return date.toLocaleDateString('pt-BR', {
       day: 'numeric',
       month: 'long',
@@ -55,16 +64,23 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   const getPlanInfo = () => {
     switch (subscription?.status) {
       case 'active':
-        return { name: 'Pro', description: null };
+        return {
+          name: 'Jarvi Plus',
+          description: subscription?.currentPeriodEnd
+            ? `Seu plano renovará automaticamente em ${formatDate(subscription.currentPeriodEnd)}.`
+            : null,
+        };
       case 'trialing':
         return {
           name: 'Gratuito',
-          description: `Seu plano gratuito expira em ${formatTrialEndDate()}.`,
+          description: subscription?.trialEndsAt
+            ? `Seu plano gratuito expira em ${formatDate(subscription.trialEndsAt)}.`
+            : null,
         };
       case 'past_due':
         return { name: 'Pagamento pendente', description: 'Atualize seu método de pagamento.' };
       case 'canceled':
-        return { name: 'Cancelado', description: null };
+        return { name: 'Cancelado', description: 'Seu plano foi cancelado.' };
       default:
         return { name: 'Gratuito', description: null };
     }
@@ -79,11 +95,99 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   };
 
   const handleUpdateImage = () => {
-    toast.info('Em breve: Upload de imagem');
+    fileInputRef.current?.click();
   };
 
-  const handleRemoveImage = () => {
-    toast.info('Em breve: Remover imagem');
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input value to allow selecting the same file again
+    e.target.value = '';
+
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Formato inválido. Use JPG, PNG ou WebP.');
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('Imagem muito grande. Máximo 4MB.');
+      return;
+    }
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      
+      try {
+        setIsUploading(true);
+        const token = localStorage.getItem('jarvi_token');
+        
+        const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ avatar: base64 }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Erro ao atualizar avatar');
+        }
+
+        const data = await response.json();
+        updateUser({ avatar: data.avatar });
+        toast.success('Avatar atualizado com sucesso!');
+      } catch (error) {
+        console.error('Error uploading avatar:', error);
+        toast.error(error instanceof Error ? error.message : 'Erro ao atualizar avatar');
+      } finally {
+        setIsUploading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      toast.error('Erro ao ler o arquivo');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = async () => {
+    if (!user?.avatar) {
+      toast.info('Você não tem uma imagem de perfil para remover.');
+      return;
+    }
+
+    try {
+      setIsRemoving(true);
+      const token = localStorage.getItem('jarvi_token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/users/avatar`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao remover avatar');
+      }
+
+      updateUser({ avatar: undefined });
+      toast.success('Avatar removido com sucesso!');
+    } catch (error) {
+      console.error('Error removing avatar:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao remover avatar');
+    } finally {
+      setIsRemoving(false);
+    }
   };
 
   const handleChangeEmail = () => {
@@ -135,11 +239,29 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
             
             <div className={styles.profileActions}>
               <div className={styles.buttonGroup}>
-                <Button variant="secondary" onClick={handleUpdateImage}>
-                  Atualizar Imagem
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                />
+                <Button 
+                  variant="secondary" 
+                  onClick={handleUpdateImage}
+                  loading={isUploading}
+                  disabled={isUploading || isRemoving}
+                >
+                  {isUploading ? 'Enviando...' : 'Atualizar Imagem'}
                 </Button>
-                <Button variant="secondary" onClick={handleRemoveImage}>
-                  Remover
+                <Button 
+                  variant="secondary" 
+                  onClick={handleRemoveImage}
+                  loading={isRemoving}
+                  disabled={isUploading || isRemoving || !userAvatar}
+                >
+                  {isRemoving ? 'Removendo...' : 'Remover'}
                 </Button>
               </div>
               <p className={styles.helpText}>Escolha uma imagem de até 4MB.</p>
