@@ -160,7 +160,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             {/* Date chip - always present */}
             <Chip
               label={dateLabel}
-              icon={<Calendar weight="regular" />}
+              icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
               interactive
               onClick={() => onOpenDatePicker?.(task)}
               size="small"
