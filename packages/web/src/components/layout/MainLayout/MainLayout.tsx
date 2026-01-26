@@ -71,7 +71,7 @@ export function MainLayout({
         <main className={styles.main}>
           {/* User Menu */}
           <div className={styles.userMenuArea}>
-            <UserMenu />
+            <UserMenu compact={!!rightSidebar} />
           </div>
 
           <header className={styles.mainHeader}>

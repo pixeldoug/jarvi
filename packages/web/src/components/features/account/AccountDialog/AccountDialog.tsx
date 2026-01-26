@@ -42,6 +42,7 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   const [name, setName] = useState(user?.name || '');
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isSavingName, setIsSavingName] = useState(false);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -190,6 +191,48 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
     }
   };
 
+  const handleNameBlur = async () => {
+    const trimmedName = name.trim();
+    
+    // Don't save if empty or unchanged
+    if (!trimmedName || trimmedName === user?.name) {
+      // Reset to original if empty
+      if (!trimmedName) {
+        setName(user?.name || '');
+      }
+      return;
+    }
+
+    try {
+      setIsSavingName(true);
+      const token = localStorage.getItem('jarvi_token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao atualizar nome');
+      }
+
+      updateUser({ name: trimmedName });
+      toast.success('Nome atualizado com sucesso!');
+    } catch (error) {
+      console.error('Error updating name:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao atualizar nome');
+      // Reset to original name on error
+      setName(user?.name || '');
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
   const handleChangeEmail = () => {
     toast.info('Em breve: Alterar email');
   };
@@ -274,7 +317,9 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
               label="Nome"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={handleNameBlur}
               placeholder="Seu nome"
+              disabled={isSavingName}
             />
           </div>
         </div>

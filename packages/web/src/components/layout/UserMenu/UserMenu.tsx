@@ -21,9 +21,11 @@ import styles from './UserMenu.module.css';
 export interface UserMenuProps {
   /** Additional className */
   className?: string;
+  /** Compact mode - hide user name and email */
+  compact?: boolean;
 }
 
-export function UserMenu({ className = '' }: UserMenuProps) {
+export function UserMenu({ className = '', compact = false }: UserMenuProps) {
   const { toggleTheme, isDark } = useTheme();
   const { user, logout } = useAuth();
   const { hasActiveSubscription, isLoading: isSubscriptionLoading } = useSubscription();
@@ -82,10 +84,12 @@ export function UserMenu({ className = '' }: UserMenuProps) {
           aria-expanded={isDropdownOpen}
           aria-haspopup="menu"
         >
-          <div className={styles.userDetails}>
-            <p className={styles.userName}>{userName}</p>
-            <p className={styles.userEmail}>{userEmail}</p>
-          </div>
+          {!compact && (
+            <div className={styles.userDetails}>
+              <p className={styles.userName}>{userName}</p>
+              <p className={styles.userEmail}>{userEmail}</p>
+            </div>
+          )}
           
           <Avatar src={userAvatar} name={userName} size="medium" />
         </button>
