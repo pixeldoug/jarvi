@@ -108,8 +108,8 @@ export function TaskDetailsSidebar({
         priority: task.priority,
         category: task.category,
         completed: task.completed,
-        dueDate: undefined,
-        time: undefined,
+        dueDate: '',
+        time: '',
       });
     } catch (error) {
       console.error('Failed to clear task date:', error);
@@ -153,8 +153,8 @@ export function TaskDetailsSidebar({
         priority: task.priority,
         category: task.category,
         completed: task.completed,
-        dueDate: date ? date.toISOString().split('T')[0] : undefined,
-        time: date ? selectedTime : undefined,
+        dueDate: date ? date.toISOString().split('T')[0] : '',
+        time: date ? selectedTime : '',
       });
     } catch (error) {
       console.error('Failed to update task date:', error);
@@ -181,7 +181,7 @@ export function TaskDetailsSidebar({
         category: task.category,
         completed: task.completed,
         dueDate: selectedDate ? selectedDate.toISOString().split('T')[0] : task.due_date,
-        time: time || undefined,
+        time: time ?? '',
       });
     } catch (error) {
       console.error('Failed to update task time:', error);

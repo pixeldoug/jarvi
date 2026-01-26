@@ -148,9 +148,25 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     return [...tasks].sort((a, b) => {
       // Se ambas têm data, ordenar por data e horário
       if (a.due_date && b.due_date) {
-        const dateA = new Date(a.due_date + (a.time ? `T${a.time}` : ''));
-        const dateB = new Date(b.due_date + (b.time ? `T${b.time}` : ''));
-        return dateA.getTime() - dateB.getTime();
+        // Comparar apenas a data primeiro
+        const dateOnlyA = a.due_date;
+        const dateOnlyB = b.due_date;
+        
+        if (dateOnlyA !== dateOnlyB) {
+          return dateOnlyA.localeCompare(dateOnlyB);
+        }
+        
+        // Mesma data: tarefas com horário vêm primeiro
+        if (a.time && !b.time) return -1;
+        if (!a.time && b.time) return 1;
+        
+        // Ambas têm horário: ordenar por horário
+        if (a.time && b.time) {
+          return a.time.localeCompare(b.time);
+        }
+        
+        // Nenhuma tem horário: manter ordem de criação
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       }
       
       // Se apenas A tem data, A vem primeiro
