@@ -14,7 +14,6 @@ const LayoutContent = () => {
 
   switch (path) {
     case '/tasks':
-    case '/':
       return <Tasks />;
     case '/notes':
       return <Notes />;

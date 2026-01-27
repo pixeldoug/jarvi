@@ -1,0 +1,84 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6x);
+  background: var(--semantic-surface-primary);
+}
+
+.content {
+  max-width: 800px;
+  text-align: center;
+}
+
+.title {
+  font-size: 4rem;
+  font-weight: 700;
+  color: var(--semantic-content-primary);
+  margin-bottom: var(--space-4x);
+  background: linear-gradient(135deg, var(--semantic-content-primary) 0%, var(--semantic-content-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--semantic-content-primary);
+  margin-bottom: var(--space-3x);
+}
+
+.description {
+  font-size: 1.125rem;
+  color: var(--semantic-content-secondary);
+  margin-bottom: var(--space-8x);
+  line-height: 1.6;
+}
+
+.cta {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-4x);
+}
+
+.ctaButton {
+  padding: var(--space-4x) var(--space-8x);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semantic-content-on-primary);
+  background: var(--semantic-content-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ctaButton:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+.ctaButton:active {
+  transform: translateY(0);
+}
+
+.loading {
+  color: var(--semantic-content-secondary);
+  font-size: 1.125rem;
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .subtitle {
+    font-size: 1.25rem;
+  }
+
+  .description {
+    font-size: 1rem;
+  }
+}
