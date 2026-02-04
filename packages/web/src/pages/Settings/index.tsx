@@ -102,8 +102,6 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const isGoogleUser = !user?.email?.includes('@'); // Simple check, improve as needed
-
   return (
     <div className={styles.container}>
       <div className={styles.header}>
