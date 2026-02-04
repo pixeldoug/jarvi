@@ -12,8 +12,13 @@ import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
 
-// Lazy load Subscribe page
+// Lazy load pages
 const SubscribePage = lazy(() => import('./pages/Subscribe'));
+const VerifyPendingPage = lazy(() => import('./pages/VerifyPending'));
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmail'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPassword'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
+const SettingsPage = lazy(() => import('./pages/Settings'));
 
 const queryClient = new QueryClient();
 
@@ -37,13 +42,58 @@ const AppRoutes: React.FC = () => {
   return (
     <Router>
       <Routes>
+        {/* Public routes */}
         <Route path="/login" element={<Login />} />
+        <Route
+          path="/verify-pending"
+          element={
+            <Suspense fallback={<Loading centered size="lg" />}>
+              <VerifyPendingPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/verify-email"
+          element={
+            <Suspense fallback={<Loading centered size="lg" />}>
+              <VerifyEmailPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <Suspense fallback={<Loading centered size="lg" />}>
+              <ForgotPasswordPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <Suspense fallback={<Loading centered size="lg" />}>
+              <ResetPasswordPage />
+            </Suspense>
+          }
+        />
+        
+        {/* Protected routes */}
         <Route
           path="/subscribe"
           element={
             <ProtectedRoute>
               <Suspense fallback={<Loading centered size="lg" />}>
                 <SubscribePage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Suspense fallback={<Loading centered size="lg" />}>
+                <SettingsPage />
               </Suspense>
             </ProtectedRoute>
           }

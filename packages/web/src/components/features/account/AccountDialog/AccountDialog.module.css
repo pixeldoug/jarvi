@@ -161,6 +161,36 @@
 }
 
 /* ============================================================================
+   FORM STYLES
+   ============================================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  padding: var(--sizes-4);
+  background: var(--semantic-surface-secondary);
+  border-radius: var(--radius-radius-md);
+  margin-top: var(--sizes-2);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  margin-top: var(--sizes-2);
+}
+
+.formHelpText {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* ============================================================================
    RESPONSIVE
    ============================================================================ */
 
@@ -185,5 +215,22 @@
   
   .deleteWarning {
     max-width: 100%;
+  }
+  
+  .buttonGroup {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .buttonGroup > button {
+    width: 100%;
+  }
+  
+  .formActions {
+    flex-direction: column-reverse;
+  }
+  
+  .formActions > button {
+    width: 100%;
   }
 }

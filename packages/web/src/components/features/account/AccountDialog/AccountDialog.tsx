@@ -44,6 +44,19 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   const [isRemoving, setIsRemoving] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
 
+  // Email change form states
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+
+  // Password change form states
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   const userName = user?.name || 'Usuário';
@@ -233,12 +246,130 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
     }
   };
 
-  const handleChangeEmail = () => {
-    toast.info('Em breve: Alterar email');
+  const handleToggleEmailForm = () => {
+    setShowEmailForm(!showEmailForm);
+    setShowPasswordForm(false);
+    // Reset form fields
+    setNewEmail('');
+    setEmailPassword('');
   };
 
-  const handleChangePassword = () => {
-    toast.info('Em breve: Alterar senha');
+  const handleTogglePasswordForm = () => {
+    setShowPasswordForm(!showPasswordForm);
+    setShowEmailForm(false);
+    // Reset form fields
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleSubmitEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newEmail.trim()) {
+      toast.error('Digite o novo email');
+      return;
+    }
+
+    if (!emailPassword) {
+      toast.error('Digite sua senha atual');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      toast.error('Formato de email inválido');
+      return;
+    }
+
+    try {
+      setIsChangingEmail(true);
+      const token = localStorage.getItem('jarvi_token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/users/email`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          newEmail: newEmail.trim(), 
+          currentPassword: emailPassword 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao alterar email');
+      }
+
+      toast.success(data.message || 'Email de confirmação enviado!');
+      setShowEmailForm(false);
+      setNewEmail('');
+      setEmailPassword('');
+    } catch (error) {
+      console.error('Error changing email:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao alterar email');
+    } finally {
+      setIsChangingEmail(false);
+    }
+  };
+
+  const handleSubmitPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!currentPassword) {
+      toast.error('Digite sua senha atual');
+      return;
+    }
+
+    if (!newPassword) {
+      toast.error('Digite a nova senha');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('A nova senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      const token = localStorage.getItem('jarvi_token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/users/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao alterar senha');
+      }
+
+      toast.success(data.message || 'Senha alterada com sucesso!');
+      setShowPasswordForm(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao alterar senha');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -335,13 +466,115 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
         </div>
         
         <div className={styles.buttonGroup}>
-          <Button variant="secondary" onClick={handleChangeEmail}>
+          <Button 
+            variant={showEmailForm ? 'primary' : 'secondary'} 
+            onClick={handleToggleEmailForm}
+          >
             Alterar Email
           </Button>
-          <Button variant="secondary" onClick={handleChangePassword}>
+          <Button 
+            variant={showPasswordForm ? 'primary' : 'secondary'} 
+            onClick={handleTogglePasswordForm}
+          >
             Alterar Senha
           </Button>
         </div>
+
+        {/* Email Change Form */}
+        {showEmailForm && (
+          <form className={styles.form} onSubmit={handleSubmitEmail}>
+            <TextInput
+              id="new-email"
+              label="Novo email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="Digite seu novo email"
+              disabled={isChangingEmail}
+            />
+            <TextInput
+              id="email-password"
+              label="Senha atual"
+              type="password"
+              value={emailPassword}
+              onChange={(e) => setEmailPassword(e.target.value)}
+              placeholder="Confirme sua senha"
+              disabled={isChangingEmail}
+            />
+            <p className={styles.formHelpText}>
+              Você receberá um email de confirmação no novo endereço.
+            </p>
+            <div className={styles.formActions}>
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={handleToggleEmailForm}
+                disabled={isChangingEmail}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                variant="primary"
+                loading={isChangingEmail}
+                disabled={isChangingEmail}
+              >
+                {isChangingEmail ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {/* Password Change Form */}
+        {showPasswordForm && (
+          <form className={styles.form} onSubmit={handleSubmitPassword}>
+            <TextInput
+              id="current-password"
+              label="Senha atual"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Digite sua senha atual"
+              disabled={isChangingPassword}
+            />
+            <TextInput
+              id="new-password"
+              label="Nova senha"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Digite sua nova senha"
+              disabled={isChangingPassword}
+            />
+            <TextInput
+              id="confirm-password"
+              label="Confirmar nova senha"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirme sua nova senha"
+              disabled={isChangingPassword}
+            />
+            <div className={styles.formActions}>
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={handleTogglePasswordForm}
+                disabled={isChangingPassword}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                variant="primary"
+                loading={isChangingPassword}
+                disabled={isChangingPassword}
+              >
+                {isChangingPassword ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </form>
+        )}
       </section>
 
       <Divider />

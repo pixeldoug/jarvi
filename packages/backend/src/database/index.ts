@@ -32,6 +32,9 @@ export const initializeDatabase = async (): Promise<void> => {
 
   // Create tables
   await createTables();
+  
+  // Run migrations for existing databases
+  await runMigrations();
 
   console.log('✅ Database initialized successfully');
 };
@@ -51,6 +54,11 @@ const createTables = async (): Promise<void> => {
       name TEXT NOT NULL,
       password TEXT NOT NULL,
       avatar TEXT,
+      email_verified ${booleanType} DEFAULT FALSE,
+      email_verification_token TEXT,
+      email_verification_expires ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      password_reset_token TEXT,
+      password_reset_expires ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
       subscription_status TEXT DEFAULT 'none',
@@ -160,6 +168,43 @@ const createTables = async (): Promise<void> => {
   } else {
     // Execute all queries at once for SQLite
     await db.exec(queries.join('\n\n'));
+  }
+};
+
+const runMigrations = async (): Promise<void> => {
+  const databaseUrl = process.env.DATABASE_URL || 'sqlite:./jarvi.db';
+  const isPostgres = databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://');
+  
+  // Migration: Add email verification columns to users table
+  const emailVerificationMigrations = [
+    'ALTER TABLE users ADD COLUMN email_verified BOOLEAN DEFAULT FALSE',
+    'ALTER TABLE users ADD COLUMN email_verification_token TEXT',
+    'ALTER TABLE users ADD COLUMN email_verification_expires TIMESTAMP',
+    'ALTER TABLE users ADD COLUMN password_reset_token TEXT',
+    'ALTER TABLE users ADD COLUMN password_reset_expires TIMESTAMP',
+  ];
+  
+  if (isPostgres) {
+    const client = await pgPool.connect();
+    try {
+      for (const migration of emailVerificationMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+    } finally {
+      client.release();
+    }
+  } else {
+    for (const migration of emailVerificationMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
   }
 };
 

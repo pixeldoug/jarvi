@@ -1,6 +1,21 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { authenticateToken } from '../middleware/auth';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+import { sendEmailChangeConfirmation } from '../services/emailService';
+
+// Helper to generate secure token
+const generateSecureToken = (): string => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
+// Helper to get token expiration
+const getTokenExpiration = (hours: number): string => {
+  const date = new Date();
+  date.setHours(date.getHours() + hours);
+  return date.toISOString();
+};
 
 const router = Router();
 
@@ -168,6 +183,244 @@ router.put('/profile', authenticateToken, async (req: Request, res: Response) =>
   } catch (error) {
     console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Erro ao atualizar perfil' });
+  }
+});
+
+/**
+ * PUT /api/users/email
+ * Update user email (requires current password and re-verification)
+ */
+router.put('/email', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const { newEmail, currentPassword } = req.body;
+
+    if (!newEmail || !currentPassword) {
+      res.status(400).json({ error: 'Novo email e senha atual são obrigatórios' });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      res.status(400).json({ error: 'Formato de email inválido' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const verificationToken = generateSecureToken();
+    const tokenExpires = getTokenExpiration(24);
+    let user;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Get current user
+        const userResult = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = userResult.rows[0];
+
+        if (!user) {
+          res.status(404).json({ error: 'Usuário não encontrado' });
+          return;
+        }
+
+        // Check if user is Google-only
+        if (user.password === 'google-auth') {
+          res.status(400).json({ error: 'Usuários Google não podem alterar o email por aqui. Use sua conta Google.' });
+          return;
+        }
+
+        // Verify current password
+        const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+        if (!isValidPassword) {
+          res.status(401).json({ error: 'Senha atual incorreta' });
+          return;
+        }
+
+        // Check if new email is already in use
+        const existingResult = await client.query('SELECT id FROM users WHERE email = $1 AND id != $2', [newEmail, userId]);
+        if (existingResult.rows.length > 0) {
+          res.status(400).json({ error: 'Este email já está em uso' });
+          return;
+        }
+
+        // Store new email pending verification
+        // We'll use a temporary approach: store in verification fields
+        await client.query(
+          `UPDATE users 
+           SET email_verification_token = $1, email_verification_expires = $2, updated_at = $3
+           WHERE id = $4`,
+          [`${verificationToken}:${newEmail}`, tokenExpires, now, userId]
+        );
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      
+      // Get current user
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+
+      if (!user) {
+        res.status(404).json({ error: 'Usuário não encontrado' });
+        return;
+      }
+
+      // Check if user is Google-only
+      if (user.password === 'google-auth') {
+        res.status(400).json({ error: 'Usuários Google não podem alterar o email por aqui. Use sua conta Google.' });
+        return;
+      }
+
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!isValidPassword) {
+        res.status(401).json({ error: 'Senha atual incorreta' });
+        return;
+      }
+
+      // Check if new email is already in use
+      const existingUser = await db.get('SELECT id FROM users WHERE email = ? AND id != ?', [newEmail, userId]);
+      if (existingUser) {
+        res.status(400).json({ error: 'Este email já está em uso' });
+        return;
+      }
+
+      // Store new email pending verification
+      await db.run(
+        `UPDATE users 
+         SET email_verification_token = ?, email_verification_expires = ?, updated_at = ?
+         WHERE id = ?`,
+        [`${verificationToken}:${newEmail}`, tokenExpires, now, userId]
+      );
+    }
+
+    // Send verification email to new address
+    try {
+      await sendEmailChangeConfirmation(newEmail, user.name, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send email change confirmation:', emailError);
+      res.status(500).json({ error: 'Erro ao enviar email de confirmação' });
+      return;
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Email de confirmação enviado para o novo endereço. Verifique sua caixa de entrada.' 
+    });
+  } catch (error) {
+    console.error('Error updating email:', error);
+    res.status(500).json({ error: 'Erro ao atualizar email' });
+  }
+});
+
+/**
+ * PUT /api/users/password
+ * Update user password (requires current password)
+ */
+router.put('/password', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let user;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        // Get current user
+        const userResult = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = userResult.rows[0];
+
+        if (!user) {
+          res.status(404).json({ error: 'Usuário não encontrado' });
+          return;
+        }
+
+        // Check if user is Google-only
+        if (user.password === 'google-auth') {
+          res.status(400).json({ error: 'Usuários Google não podem alterar a senha. Use sua conta Google para fazer login.' });
+          return;
+        }
+
+        // Verify current password
+        const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+        if (!isValidPassword) {
+          res.status(401).json({ error: 'Senha atual incorreta' });
+          return;
+        }
+
+        // Hash and update new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await client.query(
+          'UPDATE users SET password = $1, updated_at = $2 WHERE id = $3',
+          [hashedPassword, now, userId]
+        );
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      
+      // Get current user
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+
+      if (!user) {
+        res.status(404).json({ error: 'Usuário não encontrado' });
+        return;
+      }
+
+      // Check if user is Google-only
+      if (user.password === 'google-auth') {
+        res.status(400).json({ error: 'Usuários Google não podem alterar a senha. Use sua conta Google para fazer login.' });
+        return;
+      }
+
+      // Verify current password
+      const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+      if (!isValidPassword) {
+        res.status(401).json({ error: 'Senha atual incorreta' });
+        return;
+      }
+
+      // Hash and update new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await db.run(
+        'UPDATE users SET password = ?, updated_at = ? WHERE id = ?',
+        [hashedPassword, now, userId]
+      );
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Senha atualizada com sucesso' 
+    });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({ error: 'Erro ao atualizar senha' });
   }
 });
 

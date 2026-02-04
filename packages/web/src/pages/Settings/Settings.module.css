@@ -1,0 +1,152 @@
+/**
+ * Settings Page Styles
+ */
+
+.container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: var(--sizes-6);
+}
+
+.header {
+  margin-bottom: var(--sizes-8);
+}
+
+.title {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0 0 var(--sizes-2);
+}
+
+.subtitle {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-md-font-size);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* ============================================================================
+   SECTIONS
+   ============================================================================ */
+
+.section {
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-default);
+  border-radius: var(--radius-radius-md);
+  padding: var(--sizes-6);
+  margin-bottom: var(--sizes-6);
+}
+
+.sectionTitle {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0 0 var(--sizes-4);
+}
+
+.sectionDescription {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0 0 var(--sizes-4);
+}
+
+/* ============================================================================
+   FORM
+   ============================================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sizes-2);
+}
+
+/* ============================================================================
+   MESSAGES
+   ============================================================================ */
+
+.success {
+  padding: var(--sizes-3) var(--sizes-4);
+  border-radius: var(--radius-radius-sm);
+  background-color: #ECFDF5;
+  border: 1px solid var(--semantic-content-positive);
+  color: var(--semantic-content-positive);
+  font-size: var(--typography-label-sm-font-size);
+  margin-bottom: var(--sizes-4);
+}
+
+.error {
+  padding: var(--sizes-3) var(--sizes-4);
+  border-radius: var(--radius-radius-sm);
+  background-color: #FEF2F2;
+  border: 1px solid var(--semantic-content-negative);
+  color: var(--semantic-content-negative);
+  font-size: var(--typography-label-sm-font-size);
+  margin-bottom: var(--sizes-4);
+}
+
+/* ============================================================================
+   INFO BOX
+   ============================================================================ */
+
+.infoBox {
+  padding: var(--sizes-3) var(--sizes-4);
+  border-radius: var(--radius-radius-sm);
+  background-color: #EFF6FF;
+  border: 1px solid #3B82F6;
+  color: #1E40AF;
+  font-size: var(--typography-label-sm-font-size);
+  margin-bottom: var(--sizes-4);
+}
+
+/* ============================================================================
+   CURRENT INFO
+   ============================================================================ */
+
+.currentInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  padding: var(--sizes-3) var(--sizes-4);
+  background: var(--semantic-surface-secondary);
+  border-radius: var(--radius-radius-sm);
+  margin-bottom: var(--sizes-4);
+}
+
+.currentInfoLabel {
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-secondary);
+}
+
+.currentInfoValue {
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-primary);
+  font-weight: 500;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .container {
+    padding: var(--sizes-4);
+  }
+  
+  .section {
+    padding: var(--sizes-4);
+  }
+}

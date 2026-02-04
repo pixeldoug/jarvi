@@ -9,13 +9,23 @@ interface User {
   subscription_status?: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled';
 }
 
+interface RegisterResult {
+  pendingVerification: boolean;
+  email: string;
+}
+
+interface LoginError extends Error {
+  pendingVerification?: boolean;
+  email?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
-  register: (email: string, name: string, password: string) => Promise<void>;
+  register: (email: string, name: string, password: string) => Promise<RegisterResult>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
 }
@@ -99,12 +109,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
+        // Check if email verification is pending
+        if (data.pendingVerification) {
+          const error = new Error(data.message || 'Email não verificado') as LoginError;
+          error.pendingVerification = true;
+          error.email = data.email;
+          throw error;
+        }
+        throw new Error(data.error || 'Login failed');
       }
 
-      const data = await response.json();
       setToken(data.token);
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
@@ -162,7 +179,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (email: string, name: string, password: string) => {
+  const register = async (email: string, name: string, password: string): Promise<RegisterResult> => {
     try {
       setIsLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
@@ -173,24 +190,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify({ email, name, password }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Registration failed');
-      }
-
       const data = await response.json();
-      setToken(data.token);
-      setUser(data.user);
-      localStorage.setItem('jarvi_token', data.token);
 
-      // Identificar usuário no PostHog (apenas em produção)
-      if (posthog && import.meta.env.PROD) {
-        posthog.identify(data.user.email, {
-          email: data.user.email,
-          name: data.user.name,
-          user_id: data.user.id,
-        });
+      if (!response.ok) {
+        throw new Error(data.error || 'Registration failed');
       }
+
+      // Registration now returns pendingVerification instead of token
+      if (data.pendingVerification) {
+        return {
+          pendingVerification: true,
+          email: data.email,
+        };
+      }
+
+      // Fallback for old behavior (shouldn't happen with new backend)
+      if (data.token) {
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('jarvi_token', data.token);
+
+        if (posthog && import.meta.env.PROD) {
+          posthog.identify(data.user.email, {
+            email: data.user.email,
+            name: data.user.name,
+            user_id: data.user.id,
+          });
+        }
+      }
+
+      return {
+        pendingVerification: data.pendingVerification || false,
+        email: data.email || email,
+      };
     } catch (error) {
       console.error('Registration error:', error);
       throw error;

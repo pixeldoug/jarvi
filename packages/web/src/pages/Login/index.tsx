@@ -24,11 +24,25 @@ export const Login: React.FC = () => {
     try {
       if (isLogin) {
         await login(email, password);
+        navigate('/');
       } else {
-        await register(email, name, password);
+        const result = await register(email, name, password);
+        if (result.pendingVerification) {
+          // Redirect to verify pending page
+          navigate('/verify-pending', { state: { email: result.email } });
+        } else {
+          navigate('/');
+        }
       }
-      navigate('/');
-    } catch (error) {
+    } catch (error: unknown) {
+      // Check if it's a pending verification error from login
+      if (error && typeof error === 'object' && 'pendingVerification' in error) {
+        const loginError = error as { pendingVerification?: boolean; email?: string; message?: string };
+        if (loginError.pendingVerification) {
+          navigate('/verify-pending', { state: { email: loginError.email } });
+          return;
+        }
+      }
       setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setIsLoading(false);
@@ -102,6 +116,18 @@ export const Login: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Digite sua senha"
               />
+
+              {isLogin && (
+                <div style={{ textAlign: 'right', marginTop: '-8px' }}>
+                  <button 
+                    type="button"
+                    className={styles.footerLink}
+                    onClick={() => navigate('/forgot-password')}
+                  >
+                    Esqueceu a senha?
+                  </button>
+                </div>
+              )}
 
               {error && (
                 <div className={styles.error}>
