@@ -54,6 +54,8 @@ const createTables = async (): Promise<void> => {
       name TEXT NOT NULL,
       password TEXT NOT NULL,
       avatar TEXT,
+      auth_provider TEXT DEFAULT 'email',
+      has_password ${booleanType} DEFAULT TRUE,
       email_verified ${booleanType} DEFAULT FALSE,
       email_verification_token TEXT,
       email_verification_expires ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
@@ -194,6 +196,26 @@ const runMigrations = async (): Promise<void> => {
           // Column already exists, ignore
         }
       }
+      
+      // Migration: Add auth_provider column
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT \'email\'');
+        // Update existing users based on password field
+        await client.query('UPDATE users SET auth_provider = \'google\' WHERE password = \'google-auth\'');
+        await client.query('UPDATE users SET auth_provider = \'email\' WHERE password != \'google-auth\' AND auth_provider IS NULL');
+      } catch (e) {
+        // Column already exists or migration already ran, ignore
+      }
+      
+      // Migration: Add has_password column
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN has_password BOOLEAN DEFAULT TRUE');
+        // Update existing users: Google users have no password
+        await client.query('UPDATE users SET has_password = FALSE WHERE password = \'google-auth\'');
+        await client.query('UPDATE users SET has_password = TRUE WHERE password != \'google-auth\' AND has_password IS NULL');
+      } catch (e) {
+        // Column already exists or migration already ran, ignore
+      }
     } finally {
       client.release();
     }
@@ -204,6 +226,26 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+    }
+    
+    // Migration: Add auth_provider column for SQLite
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT \'email\'');
+      // Update existing users based on password field
+      await db.exec('UPDATE users SET auth_provider = \'google\' WHERE password = \'google-auth\'');
+      await db.exec('UPDATE users SET auth_provider = \'email\' WHERE password != \'google-auth\' AND auth_provider IS NULL');
+    } catch (e) {
+      // Column already exists or migration already ran, ignore
+    }
+    
+    // Migration: Add has_password column for SQLite
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN has_password BOOLEAN DEFAULT TRUE');
+      // Update existing users: Google users have no password
+      await db.exec('UPDATE users SET has_password = FALSE WHERE password = \'google-auth\'');
+      await db.exec('UPDATE users SET has_password = TRUE WHERE password != \'google-auth\' AND has_password IS NULL');
+    } catch (e) {
+      // Column already exists or migration already ran, ignore
     }
   }
 };

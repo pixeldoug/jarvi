@@ -5,25 +5,32 @@
  * Manages dark/light mode and persists preference to localStorage
  */
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState, ReactNode } from 'react';
 
 export type ThemeMode = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'jarvi-theme-mode';
 
 interface ThemeContextType {
+  /** User preference (persisted) */
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
+  /** Temporary override (not persisted) */
+  forcedTheme: ThemeMode | null;
+  setForcedTheme: (theme: ThemeMode | null) => void;
   isDark: boolean;
   isLight: boolean;
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 interface ThemeProviderProps {
   children: ReactNode;
 }
+
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
@@ -41,13 +48,19 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return 'light';
   });
 
-  useEffect(() => {
-    // Apply theme class to html element
+  const [forcedTheme, setForcedTheme] = useState<ThemeMode | null>(null);
+
+  const appliedTheme = forcedTheme ?? theme;
+
+  useIsomorphicLayoutEffect(() => {
+    // Apply theme class to html element (supports temporary overrides)
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
-    root.classList.add(theme);
-    
-    // Save to localStorage
+    root.classList.add(appliedTheme);
+  }, [appliedTheme]);
+
+  useEffect(() => {
+    // Persist only the user's preference (never persist forced overrides)
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
@@ -59,13 +72,15 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setThemeState(newTheme);
   };
 
-  const value: ThemeContextType = {
+  const value: ThemeContextType = useMemo(() => ({
     theme,
     setTheme,
     toggleTheme,
-    isDark: theme === 'dark',
-    isLight: theme === 'light',
-  };
+    forcedTheme,
+    setForcedTheme,
+    isDark: appliedTheme === 'dark',
+    isLight: appliedTheme === 'light',
+  }), [theme, forcedTheme, appliedTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

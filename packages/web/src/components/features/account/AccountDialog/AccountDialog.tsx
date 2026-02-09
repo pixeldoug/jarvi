@@ -18,6 +18,7 @@ import {
   Button,
   Divider,
   TextInput,
+  PasswordInput,
   toast,
 } from '../../../ui';
 import styles from './AccountDialog.module.css';
@@ -57,11 +58,19 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+  // Add password to Google account states
+  const [showAddPasswordForm, setShowAddPasswordForm] = useState(false);
+  const [googleNewPassword, setGoogleNewPassword] = useState('');
+  const [googleConfirmPassword, setGoogleConfirmPassword] = useState('');
+  const [googlePasswordStrength, setGooglePasswordStrength] = useState(0);
+  const [isAddingPassword, setIsAddingPassword] = useState(false);
+
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   const userName = user?.name || 'Usuário';
   const userEmail = user?.email || 'usuario@email.com';
   const userAvatar = user?.avatar;
+  const isGoogleUser = user?.authProvider === 'google' && !user?.hasPassword;
 
   // Format date to Brazilian Portuguese
   const formatDate = (dateString: string | null | undefined) => {
@@ -376,6 +385,62 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
     toast.info('Em breve: Deletar conta');
   };
 
+  const handleAddPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validations
+    if (!googleNewPassword || googleNewPassword.length < 8) {
+      toast.error('A senha deve ter pelo menos 8 caracteres');
+      return;
+    }
+
+    if (googlePasswordStrength < 2) {
+      toast.error('Por favor, escolha uma senha mais forte');
+      return;
+    }
+
+    if (googleNewPassword !== googleConfirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+
+    try {
+      setIsAddingPassword(true);
+      const token = localStorage.getItem('jarvi_token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/auth/google/add-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: googleNewPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao criar senha');
+      }
+
+      // Update user context to reflect that now they have password
+      updateUser({ hasPassword: true });
+      
+      toast.success('Senha criada com sucesso! Sua conta agora usa email/senha.');
+      
+      // Reset form
+      setShowAddPasswordForm(false);
+      setGoogleNewPassword('');
+      setGoogleConfirmPassword('');
+      setGooglePasswordStrength(0);
+    } catch (error) {
+      console.error('Error adding password:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao criar senha');
+    } finally {
+      setIsAddingPassword(false);
+    }
+  };
+
   return (
     <Dialog
       isOpen={isOpen}
@@ -458,124 +523,213 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
 
       <Divider />
 
-      {/* Email Section */}
+      {/* Email Section - Conditional based on auth provider */}
       <section className={styles.section}>
         <div className={styles.emailInfo}>
           <p className={styles.sectionLabel}>Email</p>
           <p className={styles.emailValue}>{userEmail}</p>
         </div>
         
-        <div className={styles.buttonGroup}>
-          <Button 
-            variant={showEmailForm ? 'primary' : 'secondary'} 
-            onClick={handleToggleEmailForm}
-          >
-            Alterar Email
-          </Button>
-          <Button 
-            variant={showPasswordForm ? 'primary' : 'secondary'} 
-            onClick={handleTogglePasswordForm}
-          >
-            Alterar Senha
-          </Button>
-        </div>
-
-        {/* Email Change Form */}
-        {showEmailForm && (
-          <form className={styles.form} onSubmit={handleSubmitEmail}>
-            <TextInput
-              id="new-email"
-              label="Novo email"
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="Digite seu novo email"
-              disabled={isChangingEmail}
-            />
-            <TextInput
-              id="email-password"
-              label="Senha atual"
-              type="password"
-              value={emailPassword}
-              onChange={(e) => setEmailPassword(e.target.value)}
-              placeholder="Confirme sua senha"
-              disabled={isChangingEmail}
-            />
-            <p className={styles.formHelpText}>
-              Você receberá um email de confirmação no novo endereço.
-            </p>
-            <div className={styles.formActions}>
+        {/* Show buttons only for non-Google users */}
+        {!isGoogleUser && (
+          <>
+            <div className={styles.buttonGroup}>
               <Button 
-                type="button" 
-                variant="secondary" 
+                variant={showEmailForm ? 'primary' : 'secondary'} 
                 onClick={handleToggleEmailForm}
-                disabled={isChangingEmail}
               >
-                Cancelar
+                Alterar Email
               </Button>
               <Button 
-                type="submit" 
-                variant="primary"
-                loading={isChangingEmail}
-                disabled={isChangingEmail}
-              >
-                {isChangingEmail ? 'Salvando...' : 'Salvar'}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {/* Password Change Form */}
-        {showPasswordForm && (
-          <form className={styles.form} onSubmit={handleSubmitPassword}>
-            <TextInput
-              id="current-password"
-              label="Senha atual"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Digite sua senha atual"
-              disabled={isChangingPassword}
-            />
-            <TextInput
-              id="new-password"
-              label="Nova senha"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Digite sua nova senha"
-              disabled={isChangingPassword}
-            />
-            <TextInput
-              id="confirm-password"
-              label="Confirmar nova senha"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirme sua nova senha"
-              disabled={isChangingPassword}
-            />
-            <div className={styles.formActions}>
-              <Button 
-                type="button" 
-                variant="secondary" 
+                variant={showPasswordForm ? 'primary' : 'secondary'} 
                 onClick={handleTogglePasswordForm}
-                disabled={isChangingPassword}
               >
-                Cancelar
-              </Button>
-              <Button 
-                type="submit" 
-                variant="primary"
-                loading={isChangingPassword}
-                disabled={isChangingPassword}
-              >
-                {isChangingPassword ? 'Salvando...' : 'Salvar'}
+                Alterar Senha
               </Button>
             </div>
-          </form>
+
+            {/* Email Change Form */}
+            {showEmailForm && (
+              <form className={styles.form} onSubmit={handleSubmitEmail}>
+                <TextInput
+                  id="new-email"
+                  label="Novo email"
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="Digite seu novo email"
+                  disabled={isChangingEmail}
+                />
+                <TextInput
+                  id="email-password"
+                  label="Senha atual"
+                  type="password"
+                  value={emailPassword}
+                  onChange={(e) => setEmailPassword(e.target.value)}
+                  placeholder="Confirme sua senha"
+                  disabled={isChangingEmail}
+                />
+                <p className={styles.formHelpText}>
+                  Você receberá um email de confirmação no novo endereço.
+                </p>
+                <div className={styles.formActions}>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={handleToggleEmailForm}
+                    disabled={isChangingEmail}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    variant="primary"
+                    loading={isChangingEmail}
+                    disabled={isChangingEmail}
+                  >
+                    {isChangingEmail ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Password Change Form */}
+            {showPasswordForm && (
+              <form className={styles.form} onSubmit={handleSubmitPassword}>
+                <TextInput
+                  id="current-password"
+                  label="Senha atual"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Digite sua senha atual"
+                  disabled={isChangingPassword}
+                />
+                <TextInput
+                  id="new-password"
+                  label="Nova senha"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Digite sua nova senha"
+                  disabled={isChangingPassword}
+                />
+                <TextInput
+                  id="confirm-password"
+                  label="Confirmar nova senha"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirme sua nova senha"
+                  disabled={isChangingPassword}
+                />
+                <div className={styles.formActions}>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={handleTogglePasswordForm}
+                    disabled={isChangingPassword}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    variant="primary"
+                    loading={isChangingPassword}
+                    disabled={isChangingPassword}
+                  >
+                    {isChangingPassword ? 'Salvando...' : 'Salvar'}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </>
         )}
       </section>
+
+      {/* Google Connected Account Section - Only for Google users */}
+      {isGoogleUser && (
+        <>
+          <Divider />
+          <section className={styles.section}>
+            <p className={styles.sectionLabel}>Conta connectada</p>
+            <p className={styles.formHelpText}>
+              Você faz login no Jarvi com sua conta do Google {userEmail}
+            </p>
+            
+            {!showAddPasswordForm ? (
+              <>
+                <p className={styles.formHelpText} style={{ marginTop: '12px' }}>
+                  Para desconectar sua conta do Google, primeiro crie uma senha para acessar sua conta com email/senha.
+                </p>
+                <Button 
+                  variant="primary" 
+                  onClick={() => setShowAddPasswordForm(true)}
+                  style={{ marginTop: '16px' }}
+                >
+                  Criar Senha
+                </Button>
+              </>
+            ) : (
+              <form className={styles.form} onSubmit={handleAddPassword}>
+                <PasswordInput
+                  id="google-new-password"
+                  name="google-new-password"
+                  label="Nova senha"
+                  autoComplete="new-password"
+                  required
+                  value={googleNewPassword}
+                  onChange={(e) => setGoogleNewPassword(e.target.value)}
+                  placeholder="Digite sua nova senha"
+                  showStrengthMeter={true}
+                  minStrength={2}
+                  onStrengthChange={setGooglePasswordStrength}
+                  userInputs={[user?.email || '', user?.name || '']}
+                  helperText="Mínimo de 8 caracteres"
+                  disabled={isAddingPassword}
+                />
+                <PasswordInput
+                  id="google-confirm-password"
+                  name="google-confirm-password"
+                  label="Confirmar nova senha"
+                  autoComplete="new-password"
+                  required
+                  value={googleConfirmPassword}
+                  onChange={(e) => setGoogleConfirmPassword(e.target.value)}
+                  placeholder="Confirme sua nova senha"
+                  disabled={isAddingPassword}
+                />
+                <p className={styles.formHelpText}>
+                  Após criar uma senha, você poderá fazer login com email/senha e sua conta será desconectada do Google.
+                </p>
+                <div className={styles.formActions}>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={() => {
+                      setShowAddPasswordForm(false);
+                      setGoogleNewPassword('');
+                      setGoogleConfirmPassword('');
+                      setGooglePasswordStrength(0);
+                    }}
+                    disabled={isAddingPassword}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    variant="primary"
+                    loading={isAddingPassword}
+                    disabled={isAddingPassword}
+                  >
+                    {isAddingPassword ? 'Criando...' : 'Criar Senha'}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </section>
+        </>
+      )}
 
       <Divider />
 

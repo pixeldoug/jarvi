@@ -53,6 +53,11 @@ body {
 /* Selection */
 ::selection {
   background-color: var(--semantic-surface-accent);
-  color: var(--semantic-content-primary);
+  color: var(--color-bw-white);
+}
+
+::-moz-selection {
+  background-color: var(--semantic-surface-accent);
+  color: var(--color-bw-white);
 }
 

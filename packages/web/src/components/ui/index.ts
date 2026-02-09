@@ -33,6 +33,16 @@ export {
   type InputProps,
 } from './TextInput/TextInput';
 
+export {
+  PasswordInput,
+  type PasswordInputProps,
+} from './PasswordInput';
+
+export {
+  OtpInput,
+  type OtpInputProps,
+} from './OtpInput';
+
 // ============================================================================
 // CARD COMPONENTS
 // ============================================================================

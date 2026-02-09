@@ -1,0 +1,147 @@
+/**
+ * OtpInput Styles
+ * Apple-like OTP boxes aligned with JarviDS tokens
+ */
+
+/* ============================================================================
+  WRAPPER
+  ============================================================================ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ============================================================================
+  LABEL
+  ============================================================================ */
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  width: 100%;
+}
+
+/* ============================================================================
+  ROW (boxes)
+  ============================================================================ */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2);
+  width: 100%;
+}
+
+.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ============================================================================
+  CELL
+  ============================================================================ */
+
+.cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sizes-11);
+  flex: 0 0 var(--sizes-11);
+  height: 56px;
+  background-color: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  transition: border-color 0.15s ease;
+}
+
+@media (max-width: 360px) {
+  .cell {
+    width: var(--sizes-10);
+    flex-basis: var(--sizes-10);
+  }
+}
+
+.cell.focused {
+  border-color: var(--semantic-control-border-active);
+}
+
+.cell.focused::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--semantic-control-focusring);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.cell.error {
+  border-color: var(--semantic-content-negative);
+}
+
+.cell.error.focused::after {
+  border-color: var(--semantic-content-negative);
+}
+
+/* ============================================================================
+  INPUT
+  ============================================================================ */
+
+.input {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: center;
+
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  color: var(--semantic-control-content);
+}
+
+.input::placeholder {
+  color: var(--semantic-control-content-placeholder);
+}
+
+/* Remove spinners on number inputs (just in case) */
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input[type="number"] {
+  appearance: textfield;
+}
+
+/* ============================================================================
+  HELPER TEXT
+  ============================================================================ */
+
+.helper {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.helperError {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-negative);
+}
+

@@ -7,6 +7,8 @@ interface User {
   name: string;
   avatar?: string;
   subscription_status?: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled';
+  authProvider?: 'email' | 'google';
+  hasPassword?: boolean;
 }
 
 interface RegisterResult {

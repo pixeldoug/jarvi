@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Logo } from '../../components/ui';
+import { useForceTheme } from '../../hooks/useForceTheme';
 import styles from './ForgotPassword.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const ForgotPassword: React.FC = () => {
+  useForceTheme('light');
+
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,6 +49,26 @@ export const ForgotPassword: React.FC = () => {
 
   const handleBackToLogin = () => {
     navigate('/login');
+  };
+
+  const handleResend = async () => {
+    if (!email) return;
+    setError('');
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao processar solicitação');
+      setMessage(data.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao reenviar');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -93,9 +116,11 @@ export const ForgotPassword: React.FC = () => {
               variant="primary"
               size="medium"
               fullWidth
-              onClick={handleBackToLogin}
+              onClick={handleResend}
+              disabled={isLoading}
+              loading={isLoading}
             >
-              Voltar ao login
+              Reenviar email
             </Button>
           )}
 

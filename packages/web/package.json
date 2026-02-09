@@ -25,6 +25,7 @@
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.6.4",
     "@tanstack/react-query": "^5.85.5",
+    "@types/zxcvbn": "^4.4.5",
     "@uiw/react-md-editor": "^4.0.8",
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.1",
@@ -38,7 +39,8 @@
     "react-hook-form": "^7.48.2",
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.30.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.6.14",

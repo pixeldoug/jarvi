@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { authenticateToken } from '../middleware/auth';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sendEmailChangeConfirmation } from '../services/emailService';
+import { validatePasswordStrength } from '../utils/passwordValidator';
 
 // Helper to generate secure token
 const generateSecureToken = (): string => {
@@ -231,7 +232,7 @@ router.put('/email', authenticateToken, async (req: Request, res: Response) => {
         }
 
         // Check if user is Google-only
-        if (user.password === 'google-auth') {
+        if (user.auth_provider === 'google' || user.password === 'google-auth') {
           res.status(400).json({ error: 'Usuários Google não podem alterar o email por aqui. Use sua conta Google.' });
           return;
         }
@@ -273,7 +274,7 @@ router.put('/email', authenticateToken, async (req: Request, res: Response) => {
       }
 
       // Check if user is Google-only
-      if (user.password === 'google-auth') {
+      if (user.auth_provider === 'google' || user.password === 'google-auth') {
         res.status(400).json({ error: 'Usuários Google não podem alterar o email por aqui. Use sua conta Google.' });
         return;
       }
@@ -339,8 +340,13 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
       return;
     }
 
-    if (newPassword.length < 6) {
-      res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres' });
+    // Validate password strength
+    const passwordValidation = validatePasswordStrength(newPassword, [], 2);
+    if (!passwordValidation.isValid) {
+      res.status(400).json({ 
+        error: passwordValidation.message,
+        feedback: passwordValidation.feedback,
+      });
       return;
     }
 
@@ -361,7 +367,7 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
         }
 
         // Check if user is Google-only
-        if (user.password === 'google-auth') {
+        if (user.auth_provider === 'google' || user.password === 'google-auth') {
           res.status(400).json({ error: 'Usuários Google não podem alterar a senha. Use sua conta Google para fazer login.' });
           return;
         }
@@ -394,7 +400,7 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
       }
 
       // Check if user is Google-only
-      if (user.password === 'google-auth') {
+      if (user.auth_provider === 'google' || user.password === 'google-auth') {
         res.status(400).json({ error: 'Usuários Google não podem alterar a senha. Use sua conta Google para fazer login.' });
         return;
       }

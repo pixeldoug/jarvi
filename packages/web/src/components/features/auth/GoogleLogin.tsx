@@ -20,12 +20,14 @@ interface GoogleLoginProps {
   onSuccess?: () => void;
   onError?: (error: string) => void;
   buttonText?: string;
+  onClick?: () => void | Promise<void>;
 }
 
 export const GoogleLogin: React.FC<GoogleLoginProps> = ({ 
   onSuccess, 
   onError,
-  buttonText = 'Entrar com Google'
+  buttonText = 'Entrar com Google',
+  onClick
 }) => {
   const { loginWithGoogle } = useAuth();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -108,7 +110,22 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
     }
   };
 
-  const handleClick = () => {
+  const handleClick = async () => {
+    // If custom onClick is provided, use it instead of default Google login flow
+    if (onClick) {
+      try {
+        setIsLoading(true);
+        await onClick();
+      } catch (error) {
+        console.error('Custom onClick error:', error);
+        onError?.(error instanceof Error ? error.message : 'Action failed');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Default Google login flow
     if (isReady && buttonRef.current && !isLoading) {
       // Clica no botão invisível do Google que abre o account chooser
       const googleButton = buttonRef.current.querySelector('div[role="button"]') as HTMLElement;
@@ -136,22 +153,24 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
 
   return (
     <div className={styles.wrapper}>
-      {/* Botão invisível do Google (renderizado pela API) */}
-      <div 
-        ref={buttonRef} 
-        style={{ 
-          position: 'absolute', 
-          left: '-9999px',
-          visibility: 'hidden'
-        }} 
-      />
+      {/* Botão invisível do Google (renderizado pela API) - only if no custom onClick */}
+      {!onClick && (
+        <div 
+          ref={buttonRef} 
+          style={{ 
+            position: 'absolute', 
+            left: '-9999px',
+            visibility: 'hidden'
+          }} 
+        />
+      )}
       
       {/* Botão customizado visível */}
       <button
         type="button"
         className={styles.button}
         onClick={handleClick}
-        disabled={!isReady || isLoading}
+        disabled={(!isReady && !onClick) || isLoading}
       >
         {isLoading ? (
           <div className={styles.loading} />

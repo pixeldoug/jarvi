@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Input, Logo } from '../../components/ui';
+import { Button, PasswordInput, Logo } from '../../components/ui';
+import { useForceTheme } from '../../hooks/useForceTheme';
 import styles from './ResetPassword.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export const ResetPassword: React.FC = () => {
+  useForceTheme('light');
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -30,8 +34,13 @@ export const ResetPassword: React.FC = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('A senha deve ter pelo menos 6 caracteres');
+    if (password.length < 8) {
+      setError('A senha deve ter pelo menos 8 caracteres');
+      return;
+    }
+
+    if (passwordStrength < 2) {
+      setError('Por favor, escolha uma senha mais forte');
       return;
     }
 
@@ -114,22 +123,24 @@ export const ResetPassword: React.FC = () => {
           {error && <div className={styles.error}>{error}</div>}
 
           <form className={styles.form} onSubmit={handleSubmit}>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               label="Nova senha"
               autoComplete="new-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Digite sua nova senha"
+              showStrengthMeter={true}
+              minStrength={2}
+              onStrengthChange={setPasswordStrength}
+              helperText="Mínimo de 8 caracteres"
             />
 
-            <Input
+            <PasswordInput
               id="confirmPassword"
               name="confirmPassword"
-              type="password"
               label="Confirmar senha"
               autoComplete="new-password"
               required
