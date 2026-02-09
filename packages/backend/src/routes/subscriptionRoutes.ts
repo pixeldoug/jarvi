@@ -10,7 +10,10 @@ const router = Router();
 
 /**
  * POST /api/subscriptions/create
- * Create a new subscription with trial period
+ * Create a new subscription and attach a payment method.
+ *
+ * If the user is currently in an internal trial, the trial end is mirrored into Stripe
+ * (so we don't grant extra trial time).
  */
 router.post('/create', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -39,8 +42,9 @@ router.post('/create', authenticateToken, async (req: Request, res: Response) =>
       subscription: {
         id: result.subscriptionId,
         status: result.status,
-        trialEndsAt: result.trialEndsAt.toISOString(),
+        trialEndsAt: result.trialEndsAt?.toISOString() || null,
       },
+      clientSecret: result.clientSecret ?? null,
     });
   } catch (error) {
     console.error('Create subscription error:', error);

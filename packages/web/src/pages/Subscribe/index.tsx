@@ -6,6 +6,7 @@ import { Check, CheckCircle } from '@phosphor-icons/react';
 import { PaymentForm } from '../../components/features/subscription/PaymentForm';
 import { Button } from '../../components/ui/Button/Button';
 import { Logo } from '../../components/ui/Logo/Logo';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import styles from './Subscribe.module.css';
 
 // Initialize Stripe
@@ -25,6 +26,7 @@ const FEATURES = [
 export default function SubscribePage() {
   const navigate = useNavigate();
   const [isSuccess, setIsSuccess] = useState(false);
+  const { subscription, daysLeftInTrial } = useSubscription();
 
   const handleSuccess = (subscriptionId: string) => {
     console.log('Subscription created:', subscriptionId);
@@ -62,8 +64,8 @@ export default function SubscribePage() {
               <CheckCircle className={styles.successIcon} weight="fill" />
               <h2 className={styles.successTitle}>Tudo pronto!</h2>
               <p className={styles.successText}>
-                Sua assinatura foi criada com sucesso. Aproveite 14 dias gratis
-                para explorar todas as funcionalidades do Jarvi.
+                Seu pagamento foi configurado com sucesso. Se voce ainda estiver no periodo gratuito,
+                a cobranca comeca automaticamente ao final dele.
               </p>
             </div>
             <Button variant="primary" fullWidth onClick={handleContinue}>
@@ -87,7 +89,9 @@ export default function SubscribePage() {
                 <span className={styles.period}>/mes</span>
               </div>
               <span className={styles.billingNote}>
-                Cobrado mensalmente apos o trial
+                {subscription?.status === 'trialing'
+                  ? `Voce tem ${daysLeftInTrial ?? 0} dia(s) restantes no periodo gratuito`
+                  : 'Cobrado mensalmente'}
               </span>
             </div>
 

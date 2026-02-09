@@ -97,7 +97,7 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
         return {
           name: 'Gratuito',
           description: subscription?.trialEndsAt
-            ? `Seu plano gratuito expira em ${formatDate(subscription.trialEndsAt)}.`
+            ? `Seu período de teste termina em ${formatDate(subscription.trialEndsAt)}.`
             : null,
         };
       case 'past_due':

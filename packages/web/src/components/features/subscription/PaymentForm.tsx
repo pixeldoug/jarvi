@@ -7,6 +7,7 @@ import {
 import type { StripeCardElementChangeEvent } from '@stripe/stripe-js';
 import { Button } from '../../ui/Button/Button';
 import { Lock } from '@phosphor-icons/react';
+import { useSubscription } from '../../../contexts/SubscriptionContext';
 import styles from './PaymentForm.module.css';
 
 interface PaymentFormProps {
@@ -34,11 +35,19 @@ const CARD_ELEMENT_OPTIONS = {
 export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
+  const { subscription, daysLeftInTrial, refreshSubscription } = useSubscription();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cardFocused, setCardFocused] = useState(false);
   const [cardError, setCardError] = useState(false);
+
+  const isInTrial = subscription?.status === 'trialing' && !!subscription.trialEndsAt;
+  const trialEndsAtDate = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt) : null;
+  const formattedTrialEnd =
+    trialEndsAtDate && !Number.isNaN(trialEndsAtDate.getTime())
+      ? trialEndsAtDate.toLocaleDateString('pt-BR')
+      : null;
 
   const handleCardChange = (event: StripeCardElementChangeEvent) => {
     setCardError(!!event.error);
@@ -103,6 +112,19 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
         throw new Error(data.message || data.error || 'Failed to create subscription');
       }
 
+      // If the backend returned a client secret, we need to confirm the payment (SCA/on-session).
+      if (data.clientSecret) {
+        const { error: confirmError } = await stripe.confirmCardPayment(data.clientSecret, {
+          payment_method: paymentMethod.id,
+        });
+
+        if (confirmError) {
+          throw new Error(confirmError.message || 'Falha ao confirmar o pagamento');
+        }
+      }
+
+      // Refresh subscription to sync DB status (backend will reconcile with Stripe)
+      await refreshSubscription();
       onSuccess(data.subscription.id);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -116,9 +138,16 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       <div className={styles.trialInfo}>
-        <span className={styles.trialBadge}>14 dias gratis</span>
         <p className={styles.trialText}>
-          Voce nao sera cobrado agora. Seu cartao sera cobrado apos o periodo de teste.
+          {isInTrial ? (
+            <>
+              Voce esta no periodo gratuito
+              {typeof daysLeftInTrial === 'number' ? ` (${daysLeftInTrial} dia(s) restantes)` : ''}.
+              {formattedTrialEnd ? ` Seu cartao sera cobrado em ${formattedTrialEnd}.` : ' Seu cartao sera cobrado ao final do periodo gratuito.'}
+            </>
+          ) : (
+            <>Seu cartao sera cobrado apos a confirmacao e renovara mensalmente.</>
+          )}
         </p>
       </div>
 
@@ -152,7 +181,7 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
         loading={isLoading}
         className={styles.submitButton}
       >
-        {isLoading ? 'Processando...' : 'Iniciar trial gratuito'}
+        {isLoading ? 'Processando...' : isInTrial ? 'Adicionar cartao' : 'Assinar Jarvi Pro'}
       </Button>
 
       <div className={styles.secureInfo}>

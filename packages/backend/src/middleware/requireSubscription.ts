@@ -7,6 +7,13 @@ interface UserWithSubscription {
   trial_ends_at: string | null;
 }
 
+function isTrialStillActive(trialEndsAtIso: string | null): boolean {
+  if (!trialEndsAtIso) return false;
+  const trialEnd = new Date(trialEndsAtIso);
+  if (Number.isNaN(trialEnd.getTime())) return false;
+  return trialEnd.getTime() > Date.now();
+}
+
 /**
  * Middleware to require an active subscription (trialing or active)
  * Use this middleware on routes that require a paid subscription
@@ -31,9 +38,12 @@ export async function requireActiveSubscription(
       return;
     }
 
-    const activeStatuses = ['trialing', 'active'];
+    const isActive =
+      user.subscription_status === 'active' ||
+      (user.subscription_status === 'trialing' &&
+        isTrialStillActive(user.trial_ends_at));
 
-    if (!activeStatuses.includes(user.subscription_status)) {
+    if (!isActive) {
       res.status(403).json({
         error: 'subscription_required',
         message: 'An active subscription is required to access this resource',
@@ -73,7 +83,15 @@ export async function requireSubscription(
       return;
     }
 
-    if (user.subscription_status === 'none') {
+    const hasValidTrial =
+      user.subscription_status === 'trialing' &&
+      isTrialStillActive(user.trial_ends_at);
+
+    const hasSubscription =
+      user.subscription_status !== 'none' &&
+      (user.subscription_status !== 'trialing' || hasValidTrial);
+
+    if (!hasSubscription) {
       res.status(403).json({
         error: 'subscription_required',
         message: 'A subscription is required to access this resource',

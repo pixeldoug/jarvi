@@ -9,8 +9,6 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null;
 
-const TRIAL_PERIOD_DAYS = 14;
-
 interface CreateSubscriptionParams {
   userId: string;
   email: string;
@@ -22,11 +20,16 @@ interface SubscriptionResult {
   customerId: string;
   subscriptionId: string;
   status: string;
-  trialEndsAt: Date;
+  trialEndsAt: Date | null;
+  clientSecret?: string | null;
 }
 
 /**
- * Create a Stripe customer and subscription with a 14-day trial
+ * Create a Stripe customer and subscription.
+ *
+ * If the user is currently in an internal trial (`subscription_status=trialing`)
+ * and `trial_ends_at` is in the future, we mirror that end date into Stripe by
+ * setting `trial_end` (so we don't grant extra trial time).
  */
 export async function createCustomerWithSubscription(
   params: CreateSubscriptionParams
@@ -39,6 +42,17 @@ export async function createCustomerWithSubscription(
   if (!priceId) {
     throw new Error('STRIPE_PRICE_ID not configured');
   }
+
+  const existingUser = await getUserById(params.userId);
+  const internalTrialEndsAt =
+    existingUser?.subscription_status === 'trialing' && existingUser.trial_ends_at
+      ? new Date(existingUser.trial_ends_at)
+      : null;
+
+  const shouldUseInternalTrialEnd =
+    internalTrialEndsAt &&
+    !Number.isNaN(internalTrialEndsAt.getTime()) &&
+    internalTrialEndsAt.getTime() > Date.now();
 
   // 1. Create Stripe Customer
   const customer = await stripe.customers.create({
@@ -53,27 +67,42 @@ export async function createCustomerWithSubscription(
     },
   });
 
-  // 2. Create Subscription with trial
-  const subscription = await stripe.subscriptions.create({
+  // 2. Create Subscription (mirror internal trial end if applicable)
+  const subscriptionParams: Stripe.SubscriptionCreateParams = {
     customer: customer.id,
     items: [{ price: priceId }],
-    trial_period_days: TRIAL_PERIOD_DAYS,
     payment_settings: {
       save_default_payment_method: 'on_subscription',
     },
     metadata: {
       userId: params.userId,
     },
-  });
+  };
 
-  const trialEndsAt = new Date(subscription.trial_end! * 1000);
+  if (shouldUseInternalTrialEnd) {
+    subscriptionParams.trial_end = Math.floor(internalTrialEndsAt.getTime() / 1000);
+  } else {
+    // No trial: generate an invoice/payment intent that can be confirmed client-side (SCA).
+    subscriptionParams.payment_behavior = 'default_incomplete';
+    subscriptionParams.expand = ['latest_invoice.payment_intent'];
+  }
+
+  const subscription = await stripe.subscriptions.create(subscriptionParams);
+
+  const trialEndsAt = subscription.trial_end
+    ? new Date(subscription.trial_end * 1000)
+    : null;
+
+  // Stripe types can vary by API version; keep this extraction resilient.
+  const clientSecret =
+    (subscription as any)?.latest_invoice?.payment_intent?.client_secret ?? null;
 
   // 3. Update user in database
   await updateUserSubscription(params.userId, {
     stripeCustomerId: customer.id,
     stripeSubscriptionId: subscription.id,
     subscriptionStatus: subscription.status,
-    trialEndsAt,
+    trialEndsAt: trialEndsAt ?? undefined,
   });
 
   return {
@@ -81,6 +110,7 @@ export async function createCustomerWithSubscription(
     subscriptionId: subscription.id,
     status: subscription.status,
     trialEndsAt,
+    clientSecret,
   };
 }
 
@@ -117,12 +147,33 @@ export async function getSubscriptionStatus(userId: string): Promise<{
   }
 
   const user = await getUserById(userId);
-  if (!user?.stripe_subscription_id) {
-    return {
-      status: 'none',
-      trialEndsAt: null,
-      currentPeriodEnd: null,
-    };
+  if (!user) {
+    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null };
+  }
+
+  // No Stripe subscription yet: fall back to internal trial (if any)
+  if (!user.stripe_subscription_id) {
+    const trialEnd = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
+    const isTrialing =
+      user.subscription_status === 'trialing' &&
+      trialEnd &&
+      !Number.isNaN(trialEnd.getTime()) &&
+      trialEnd.getTime() > Date.now();
+
+    if (isTrialing) {
+      return {
+        status: 'trialing',
+        trialEndsAt: trialEnd,
+        currentPeriodEnd: trialEnd,
+      };
+    }
+
+    // Trial expired (or invalid) – normalize to none for API consumers.
+    if (user.subscription_status === 'trialing') {
+      await updateUserSubscription(userId, { subscriptionStatus: 'none' });
+    }
+
+    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null };
   }
 
   const subscription = await stripe.subscriptions.retrieve(
@@ -136,11 +187,21 @@ export async function getSubscriptionStatus(userId: string): Promise<{
     ? new Date(firstItem.current_period_end * 1000)
     : null;
 
+  const trialEndsAt = subscription.trial_end
+    ? new Date(subscription.trial_end * 1000)
+    : null;
+
+  // Keep DB in sync so middleware can rely on it.
+  if (subscription.status && subscription.status !== user.subscription_status) {
+    await updateUserSubscription(userId, {
+      subscriptionStatus: subscription.status,
+      trialEndsAt: trialEndsAt ?? undefined,
+    });
+  }
+
   return {
     status: subscription.status,
-    trialEndsAt: subscription.trial_end
-      ? new Date(subscription.trial_end * 1000)
-      : null,
+    trialEndsAt,
     currentPeriodEnd,
   };
 }
@@ -229,6 +290,7 @@ interface UserWithStripeInfo {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: string;
+  trial_ends_at: string | null;
 }
 
 /**
@@ -240,7 +302,7 @@ async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status FROM users WHERE id = $1',
+        'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at FROM users WHERE id = $1',
         [userId]
       );
       return result.rows[0] || null;
@@ -250,7 +312,7 @@ async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
   } else {
     const db = getDatabase();
     const result = await db.get<UserWithStripeInfo>(
-      'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status FROM users WHERE id = ?',
+      'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at FROM users WHERE id = ?',
       [userId]
     );
     return result ?? null;

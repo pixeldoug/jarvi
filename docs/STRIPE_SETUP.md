@@ -5,8 +5,8 @@ Este guia explica como configurar o Stripe para gerenciar assinaturas no Jarvi.
 ## Visão Geral
 
 O Jarvi usa Stripe para:
-- Gerenciar trial de 14 dias
-- Processar pagamentos recorrentes
+- Processar pagamentos recorrentes (mensal)
+- Espelhar o fim do trial interno (quando o usuário adiciona cartão)
 - Enviar notificações de fim de trial (3 dias antes)
 - Gerenciar status da assinatura
 
@@ -144,14 +144,13 @@ stripe trigger customer.subscription.deleted
 
 ```
 1. Usuário registra (Google OAuth ou email/senha)
-2. Redirecionado para /subscribe
-3. Insere cartão de crédito via Stripe Elements
-4. Backend cria Stripe Customer + Subscription com trial de 14 dias
-5. Usuário pode usar o app durante o trial
-6. Dia 11: Stripe envia webhook `trial_will_end`, backend notifica usuário
-7. Dia 14: Stripe cobra o cartão
-8. Se sucesso: status = `active`
-9. Se falha: status = `past_due`, usuário notificado
+2. Trial interno começa na criação da conta (14 dias)
+3. Usuário usa o app sem cartão durante o trial
+4. No final do trial, o app solicita cartão em /subscribe
+5. Backend cria Stripe Customer + Subscription e espelha o fim do trial interno (sem conceder trial extra)
+6. Stripe cobra o cartão no fim do trial (ou imediatamente se o trial já tiver terminado)
+7. Se sucesso: status = `active`
+8. Se falha: status = `past_due`, usuário notificado
 ```
 
 ## Status da Assinatura

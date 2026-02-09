@@ -9,6 +9,8 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendGoogleAccountNoticeE
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { generateOtpFromToken } from '../utils/otp';
 
+const INTERNAL_TRIAL_DAYS = 14;
+
 // Helper to generate secure token
 const generateSecureToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
@@ -19,6 +21,12 @@ const getTokenExpiration = (hours: number): string => {
   const date = new Date();
   date.setHours(date.getHours() + hours);
   return date.toISOString();
+};
+
+const getInternalTrialEndsAtIso = (): string => {
+  const trialEnd = new Date();
+  trialEnd.setDate(trialEnd.getDate() + INTERNAL_TRIAL_DAYS);
+  return trialEnd.toISOString();
 };
 
 // Support multiple Google Client IDs (web and mobile)
@@ -77,6 +85,7 @@ export const googleAuth = async (
     }
 
     const now = new Date().toISOString();
+    const trialEndsAt = getInternalTrialEndsAtIso();
     let user;
 
     if (isPostgreSQL()) {
@@ -91,8 +100,8 @@ export const googleAuth = async (
           // Create new user (Google users are automatically verified)
           const userId = uuidv4();
           await client.query(
-            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
             [
               userId,
               email,
@@ -102,6 +111,8 @@ export const googleAuth = async (
               'google',
               false,
               true, // Google users are verified
+              'trialing',
+              trialEndsAt,
               now,
               now,
             ]
@@ -149,8 +160,8 @@ export const googleAuth = async (
         // Create new user (Google users are automatically verified)
         const userId = uuidv4();
         await db.run(
-          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             userId,
             email,
@@ -160,6 +171,8 @@ export const googleAuth = async (
             'google',
             false,
             true, // Google users are verified
+            'trialing',
+            trialEndsAt,
             now,
             now,
           ]
@@ -244,6 +257,7 @@ export const register = async (
     }
 
     const now = new Date().toISOString();
+    const trialEndsAt = getInternalTrialEndsAtIso();
     const hashedPassword = await bcrypt.hash(password, 10);
     const userId = uuidv4();
     const verificationToken = generateSecureToken();
@@ -264,9 +278,9 @@ export const register = async (
 
         // Create new user with email_verified = false
         await client.query(
-          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, now, now]
+          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, now, now]
         );
 
         const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -287,9 +301,9 @@ export const register = async (
 
       // Create new user with email_verified = false
       await db.run(
-        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, now, now]
+        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, now, now]
       );
 
       newUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
