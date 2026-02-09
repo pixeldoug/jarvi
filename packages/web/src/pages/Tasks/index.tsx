@@ -4,7 +4,7 @@
  * Main tasks page with categorized sections and drag-and-drop support
  */
 
-import { useState, useMemo, useCallback, memo } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import { TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { MainLayout } from '../../components/layout';
@@ -91,6 +91,19 @@ export function Tasks() {
     reorderTasks,
   } = useTasks();
 
+  // Keep selectedTask completion in sync with global tasks state
+  useEffect(() => {
+    if (!selectedTask) return;
+    const taskInState = tasks.find(t => t.id === selectedTask.id);
+    if (!taskInState) return;
+    if (taskInState.completed !== selectedTask.completed) {
+      setSelectedTask(prev => {
+        if (!prev || prev.id !== selectedTask.id) return prev;
+        return { ...prev, completed: taskInState.completed };
+      });
+    }
+  }, [tasks, selectedTask]);
+
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -101,6 +114,10 @@ export function Tasks() {
 
   // Simple handlers - no useCallback for now to keep it simple
   const handleToggleCompletion = async (taskId: string) => {
+    // Update sidebar instantly as well (selectedTask is not automatically refreshed)
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(prev => (prev ? { ...prev, completed: !prev.completed } : prev));
+    }
     await toggleTaskCompletion(taskId);
   };
 

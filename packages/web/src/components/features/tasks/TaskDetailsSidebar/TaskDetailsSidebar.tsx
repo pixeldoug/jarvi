@@ -35,12 +35,17 @@ export function TaskDetailsSidebar({
   onDelete,
 }: TaskDetailsSidebarProps) {
   const { categories, createCategory } = useCategories();
+  const [title, setTitle] = useState('');
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
   const [description, setDescription] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const skipTitleBlurSaveRef = useRef(false);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const priorityChipRef = useRef<HTMLDivElement>(null);
   const categoryChipRef = useRef<HTMLDivElement>(null);
@@ -48,11 +53,25 @@ export function TaskDetailsSidebar({
   // Update local state when task changes
   useEffect(() => {
     if (task) {
+      setTitle(task.title || '');
       setDescription(task.description || '');
       setSelectedDate(parseDateString(task.due_date));
       setSelectedTime(task.time || '');
+      if (!isEditingTitle) {
+        setTitleDraft(task.title || '');
+      }
     }
-  }, [task]);
+  }, [task, isEditingTitle]);
+
+  // Focus title input when editing
+  useEffect(() => {
+    if (!isEditingTitle) return;
+    // Let the input mount before focusing
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+  }, [isEditingTitle]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -60,13 +79,63 @@ export function TaskDetailsSidebar({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (isEditingTitle) {
+          e.preventDefault();
+          skipTitleBlurSaveRef.current = true;
+          setIsEditingTitle(false);
+          setTitleDraft(title || task?.title || '');
+          return;
+        }
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isEditingTitle, title, task]);
+
+  const handleTitleClick = () => {
+    setIsEditingTitle(true);
+    setTitleDraft(title || task?.title || '');
+  };
+
+  const handleTitleCancel = () => {
+    setIsEditingTitle(false);
+    setTitleDraft(title || task?.title || '');
+  };
+
+  const handleTitleSave = async () => {
+    if (!task) return;
+
+    const trimmedTitle = titleDraft.trim();
+    if (!trimmedTitle) {
+      handleTitleCancel();
+      return;
+    }
+
+    const prevTitle = title;
+    // Optimistic update so other updates don't overwrite the new title
+    setTitle(trimmedTitle);
+    setIsEditingTitle(false);
+    setTitleDraft(trimmedTitle);
+
+    try {
+      await onUpdateTask(task.id, {
+        title: trimmedTitle,
+        description: task.description,
+        priority: task.priority,
+        category: task.category,
+        completed: task.completed,
+        dueDate: task.due_date,
+        time: task.time,
+      });
+    } catch (error) {
+      console.error('Failed to update task title:', error);
+      setTitle(prevTitle);
+      setTitleDraft(prevTitle);
+      setIsEditingTitle(true);
+    }
+  };
 
   // Handle description save
   const handleDescriptionBlur = async () => {
@@ -74,7 +143,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: description.trim(),
         priority: task.priority,
         category: task.category,
@@ -103,7 +172,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: task.priority,
         category: task.category,
@@ -148,7 +217,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: task.priority,
         category: task.category,
@@ -175,7 +244,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: task.priority,
         category: task.category,
@@ -210,7 +279,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: priority,
         category: task.category,
@@ -229,7 +298,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: null,
         category: task.category,
@@ -248,7 +317,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: task.priority,
         category: cat.name,
@@ -269,7 +338,7 @@ export function TaskDetailsSidebar({
       // Also update the task with this new category
       if (task) {
         await onUpdateTask(task.id, {
-          title: task.title,
+          title: title || task.title,
           description: task.description,
           priority: task.priority,
           category: newCategory.name,
@@ -289,7 +358,7 @@ export function TaskDetailsSidebar({
     
     try {
       await onUpdateTask(task.id, {
-        title: task.title,
+        title: title || task.title,
         description: task.description,
         priority: task.priority,
         category: null,
@@ -365,9 +434,50 @@ export function TaskDetailsSidebar({
           ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
           size="large"
         />
-        <h2 className={styles.title}>
-          {task.title}
-        </h2>
+        {isEditingTitle ? (
+          <input
+            ref={titleInputRef}
+            className={styles.titleInput}
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={() => {
+              if (skipTitleBlurSaveRef.current) {
+                skipTitleBlurSaveRef.current = false;
+                return;
+              }
+              void handleTitleSave();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleTitleSave();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                skipTitleBlurSaveRef.current = true;
+                handleTitleCancel();
+              }
+            }}
+            aria-label="Título da tarefa"
+          />
+        ) : (
+          <div
+            className={styles.titleButton}
+            onClick={handleTitleClick}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleTitleClick();
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Editar título da tarefa"
+          >
+            <h2 className={styles.title}>{title || task.title}</h2>
+          </div>
+        )}
       </div>
 
       {/* Chips: Date, Category, Priority */}

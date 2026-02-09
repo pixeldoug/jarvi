@@ -40,6 +40,42 @@
   flex: 1;
 }
 
+.titleButton {
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: text;
+  flex: 1;
+  min-width: 0;
+}
+
+.titleButton:focus-visible {
+  outline: 2px solid var(--semantic-border-focus, rgba(99, 102, 241, 0.6));
+  outline-offset: 4px;
+  border-radius: var(--radius-radius-sm);
+}
+
+.titleInput {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: var(--sizes-05) 0 0;
+  margin: 0;
+  min-width: 0;
+
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.titleInput::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
 /* Chips Container */
 .chipsContainer {
   display: flex;
