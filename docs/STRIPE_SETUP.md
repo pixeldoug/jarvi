@@ -9,6 +9,7 @@ O Jarvi usa Stripe para:
 - Espelhar o fim do trial interno (quando o usuário adiciona cartão)
 - Enviar notificações de fim de trial (3 dias antes)
 - Gerenciar status da assinatura
+- (Opcional) Usar Payment Links/Checkout para upgrade fora do app
 
 ## Configuração no Stripe Dashboard
 
@@ -36,6 +37,7 @@ O Jarvi usa Stripe para:
 3. Configure:
    - **URL**: `https://seu-backend.com/webhooks/stripe`
    - **Events**:
+     - `checkout.session.completed` (necessário para Payment Links/Checkout)
      - `customer.subscription.trial_will_end`
      - `customer.subscription.updated`
      - `customer.subscription.deleted`
@@ -58,6 +60,8 @@ STRIPE_PRICE_ID=price_seu_price_id_aqui
 
 ```env
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_sua_chave_aqui
+# Usado no novo dialog /subscribe (Payment Link abre em nova aba)
+VITE_STRIPE_PAYMENT_LINK_URL=https://buy.stripe.com/...
 ```
 
 ### Railway (Produção)
@@ -151,6 +155,16 @@ stripe trigger customer.subscription.deleted
 6. Stripe cobra o cartão no fim do trial (ou imediatamente se o trial já tiver terminado)
 7. Se sucesso: status = `active`
 8. Se falha: status = `past_due`, usuário notificado
+
+### Fluxo alternativo: Payment Link / Checkout
+
+Quando o app abre um Payment Link do Stripe (por exemplo, no dialog de “Gerenciar Plano”):
+
+1. Usuário clica em “Fazer Upgrade” e é redirecionado para o Stripe (nova aba)
+2. Stripe cria um `checkout.session` (e, para assinaturas, um `customer` e `subscription`)
+3. O backend recebe o webhook `checkout.session.completed`
+4. O backend procura o usuário pelo email do checkout e grava `stripe_customer_id` e `stripe_subscription_id`
+5. A partir daí, os outros webhooks (`invoice.*` e `customer.subscription.*`) mantêm `subscription_status` sincronizado
 ```
 
 ## Status da Assinatura

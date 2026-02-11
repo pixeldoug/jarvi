@@ -86,6 +86,37 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     fetchSubscriptionStatus();
   }, [fetchSubscriptionStatus]);
 
+  // Refresh subscription when the user returns to the tab/window (e.g., after Stripe checkout).
+  useEffect(() => {
+    let lastRefreshAt = 0;
+
+    const maybeRefresh = () => {
+      const now = Date.now();
+      // Avoid spamming requests on rapid focus/visibility changes.
+      if (now - lastRefreshAt < 5000) return;
+      lastRefreshAt = now;
+      void fetchSubscriptionStatus();
+    };
+
+    const handleFocus = () => {
+      maybeRefresh();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        maybeRefresh();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchSubscriptionStatus]);
+
   const refreshSubscription = useCallback(async () => {
     setIsLoading(true);
     await fetchSubscriptionStatus();

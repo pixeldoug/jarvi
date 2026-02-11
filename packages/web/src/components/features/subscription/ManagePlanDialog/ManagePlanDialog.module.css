@@ -1,0 +1,237 @@
+/**
+ * ManagePlanDialog styles (Figma node: 40000599:3214)
+ * Uses Jarvi design tokens (CSS variables).
+ */
+
+.dialog {
+  /* Keep Dialog component layout; local overrides if needed. */
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+  width: 100%;
+
+  /* Leave space for the Dialog close button (absolute) */
+  padding-right: 60px;
+}
+
+.title {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.sectionLabel {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.planInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.planName {
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+.planDescription {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  max-width: 480px;
+}
+
+.upgradeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+.upgradeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.price {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--semantic-content-info);
+}
+
+.priceValue {
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+}
+
+.pricePeriod {
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+}
+
+.priceEmoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.priceNote {
+  margin: 0;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.upgradeActions {
+  flex-shrink: 0;
+}
+
+.featureCard {
+  width: 100%;
+  border: 1px solid var(--semantic-content-info);
+  border-radius: var(--radius-radius-md);
+  padding: var(--sizes-10) var(--sizes-6);
+
+  background: radial-gradient(
+    110% 140% at 55% 0%,
+    var(--color-brand-primary-100) 0%,
+    rgba(254, 247, 250, 1) 55%,
+    var(--color-brand-primary-50) 100%
+  );
+}
+
+.featureHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  margin-bottom: var(--sizes-10);
+  color: var(--semantic-content-primary);
+}
+
+.featureHeaderText {
+  margin: 0;
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px var(--sizes-6);
+}
+
+.featureItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sizes-4);
+}
+
+.featureIcon {
+  width: 40px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.featureText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding-top: var(--sizes-0-5);
+}
+
+.featureTitle {
+  margin: 0;
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.featureDescription {
+  margin: 0;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+@media (max-width: 768px) {
+  .header {
+    padding-right: 50px;
+  }
+
+  .title {
+    font-size: var(--typography-heading-md-font-size);
+    line-height: var(--typography-heading-md-line-height);
+  }
+
+  .upgradeRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .upgradeActions {
+    width: 100%;
+  }
+
+  .upgradeActions > button {
+    width: 100%;
+  }
+
+  .featureGrid {
+    grid-template-columns: 1fr;
+    gap: var(--sizes-6);
+  }
+}
+

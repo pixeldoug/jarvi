@@ -4,6 +4,7 @@ import {
   verifyWebhookSignature,
   updateUserSubscription,
   getUserByStripeCustomerId,
+  getUserByEmail,
 } from '../services/stripeService';
 
 const router = Router();
@@ -38,6 +39,13 @@ router.post('/stripe', async (req: Request, res: Response) => {
 
   try {
     switch (event.type) {
+      case 'checkout.session.completed': {
+        // Payment Link / Checkout completed - map Stripe customer/subscription to user
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handleCheckoutSessionCompleted(session);
+        break;
+      }
+
       case 'customer.subscription.trial_will_end': {
         // Trial will end in 3 days - send notification to user
         const subscription = event.data.object as Stripe.Subscription;
@@ -86,6 +94,64 @@ router.post('/stripe', async (req: Request, res: Response) => {
     });
   }
 });
+
+/**
+ * Handle checkout.session.completed event
+ * This is used for Stripe Payment Links / Checkout to link the Stripe customer/subscription
+ * back to our user record.
+ */
+async function handleCheckoutSessionCompleted(
+  session: Stripe.Checkout.Session
+): Promise<void> {
+  const customerId =
+    typeof session.customer === 'string' ? session.customer : session.customer?.id;
+  const subscriptionId =
+    typeof session.subscription === 'string'
+      ? session.subscription
+      : (session.subscription as any)?.id;
+
+  const email = session.customer_details?.email || session.customer_email || undefined;
+
+  if (!email) {
+    console.error('checkout.session.completed missing customer email', {
+      id: session.id,
+      customer: session.customer,
+      subscription: session.subscription,
+    });
+    return;
+  }
+
+  if (!customerId) {
+    console.error('checkout.session.completed missing customer id', {
+      id: session.id,
+      email,
+      subscription: session.subscription,
+    });
+    return;
+  }
+
+  if (!subscriptionId) {
+    console.error('checkout.session.completed missing subscription id', {
+      id: session.id,
+      email,
+      customer: session.customer,
+    });
+    return;
+  }
+
+  const user = await getUserByEmail(email);
+  if (!user) {
+    console.error('User not found for checkout session email', { email, sessionId: session.id });
+    return;
+  }
+
+  console.log(`🔗 Linking Stripe customer/subscription for ${user.email}`);
+
+  await updateUserSubscription(user.id, {
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscriptionId,
+  });
+}
 
 /**
  * Handle trial_will_end event - 3 days before trial expires

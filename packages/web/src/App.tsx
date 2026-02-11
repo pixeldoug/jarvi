@@ -1,5 +1,12 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
+import type { Location as RouterLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
@@ -39,9 +46,46 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // App Routes Component
 const AppRoutes: React.FC = () => {
+  const subscribeRouteElement = (
+    <ProtectedRoute>
+      <Suspense fallback={<Loading centered size="lg" />}>
+        <SubscribePage />
+      </Suspense>
+    </ProtectedRoute>
+  );
+
+  const settingsRouteElement = (
+    <ProtectedRoute>
+      <Suspense fallback={<Loading centered size="lg" />}>
+        <SettingsPage />
+      </Suspense>
+    </ProtectedRoute>
+  );
+
   return (
     <Router>
-      <Routes>
+      <ModalSwitch
+        subscribeRouteElement={subscribeRouteElement}
+        settingsRouteElement={settingsRouteElement}
+      />
+    </Router>
+  );
+};
+
+function ModalSwitch({
+  subscribeRouteElement,
+  settingsRouteElement,
+}: {
+  subscribeRouteElement: React.ReactElement;
+  settingsRouteElement: React.ReactElement;
+}) {
+  const location = useLocation();
+  const state = location.state as { backgroundLocation?: RouterLocation } | null;
+  const backgroundLocation = state?.backgroundLocation;
+
+  return (
+    <>
+      <Routes location={backgroundLocation || location}>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route
@@ -76,28 +120,10 @@ const AppRoutes: React.FC = () => {
             </Suspense>
           }
         />
-        
+
         {/* Protected routes */}
-        <Route
-          path="/subscribe"
-          element={
-            <ProtectedRoute>
-              <Suspense fallback={<Loading centered size="lg" />}>
-                <SubscribePage />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <ProtectedRoute>
-              <Suspense fallback={<Loading centered size="lg" />}>
-                <SettingsPage />
-              </Suspense>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/subscribe" element={subscribeRouteElement} />
+        <Route path="/settings" element={settingsRouteElement} />
         <Route
           path="/"
           element={
@@ -155,9 +181,16 @@ const AppRoutes: React.FC = () => {
           }
         />
       </Routes>
-    </Router>
+
+      {/* Modal routes */}
+      {backgroundLocation && (
+        <Routes>
+          <Route path="/subscribe" element={subscribeRouteElement} />
+        </Routes>
+      )}
+    </>
   );
-};
+}
 
 function App() {
   return (

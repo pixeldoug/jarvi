@@ -352,6 +352,34 @@ export async function getUserByStripeCustomerId(customerId: string): Promise<Use
 }
 
 /**
+ * Get user by email (used to map Stripe Checkout/Payment Link back to our user).
+ */
+export async function getUserByEmail(email: string): Promise<UserBasicInfo | null> {
+  const normalized = email.trim().toLowerCase();
+
+  if (isPostgreSQL()) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'SELECT id, email, subscription_status FROM users WHERE LOWER(email) = $1',
+        [normalized]
+      );
+      return result.rows[0] || null;
+    } finally {
+      client.release();
+    }
+  } else {
+    const db = getDatabase();
+    const result = await db.get<UserBasicInfo>(
+      'SELECT id, email, subscription_status FROM users WHERE LOWER(email) = ?',
+      [normalized]
+    );
+    return result ?? null;
+  }
+}
+
+/**
  * Verify Stripe webhook signature
  */
 export function verifyWebhookSignature(

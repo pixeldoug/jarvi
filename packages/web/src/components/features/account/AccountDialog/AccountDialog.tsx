@@ -9,7 +9,7 @@
  */
 
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
 import {
@@ -38,6 +38,7 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   const { user, updateUser } = useAuth();
   const { subscription } = useSubscription();
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [name, setName] = useState(user?.name || '');
@@ -114,7 +115,7 @@ export function AccountDialog({ isOpen, onClose }: AccountDialogProps) {
   // Handlers
   const handleManagePlan = () => {
     onClose();
-    navigate('/subscribe');
+    navigate('/subscribe', { state: { backgroundLocation: location } });
   };
 
   const handleUpdateImage = () => {

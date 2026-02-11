@@ -103,6 +103,7 @@ Para produção:
 1. Vá em **Developers** → **Webhooks** → **Add endpoint**
 2. **URL**: `https://seu-backend.com/webhooks/stripe`
 3. **Events**:
+   - `checkout.session.completed` (necessário para Payment Links/Checkout)
    - `customer.subscription.trial_will_end`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`

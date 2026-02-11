@@ -8,7 +8,7 @@
  * Node: 40000082-12814
  */
 
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Sparkle } from '@phosphor-icons/react';
 import styles from './UpgradeButton.module.css';
 
@@ -45,6 +45,7 @@ export function UpgradeButton({
   className = '',
 }: UpgradeButtonProps) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleClick = () => {
     if (disabled || loading) return;
@@ -52,7 +53,11 @@ export function UpgradeButton({
     if (onClick) {
       onClick();
     } else {
-      navigate(to);
+      if (to.startsWith('/subscribe')) {
+        navigate(to, { state: { backgroundLocation: location } });
+      } else {
+        navigate(to);
+      }
     }
   };
 
