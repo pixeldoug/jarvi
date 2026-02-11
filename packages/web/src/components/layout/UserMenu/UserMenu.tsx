@@ -28,13 +28,13 @@ export interface UserMenuProps {
 export function UserMenu({ className = '', compact = false }: UserMenuProps) {
   const { toggleTheme, isDark } = useTheme();
   const { user, logout } = useAuth();
-  const { hasActiveSubscription, isLoading: isSubscriptionLoading } = useSubscription();
+  const { subscription, isLoading: isSubscriptionLoading } = useSubscription();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Show upgrade button only if user doesn't have an active subscription
-  const showUpgradeButton = !isSubscriptionLoading && !hasActiveSubscription;
+  // Show upgrade button for free/trial users; hide only for paid active subscriptions.
+  const showUpgradeButton = !isSubscriptionLoading && subscription?.status !== 'active';
 
   const handleLogout = () => {
     setIsDropdownOpen(false);
