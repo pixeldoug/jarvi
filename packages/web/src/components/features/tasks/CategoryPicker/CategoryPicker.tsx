@@ -47,7 +47,6 @@ export function CategoryPicker({
   isOpen,
   onClose,
   categories = [],
-  selectedCategory,
   onSelectCategory,
   onCreateCategory,
   anchorRef,
