@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
 import { NoteProvider } from './contexts/NoteContext';
 import { CategoryProvider } from './contexts/CategoryContext';
+import { ListProvider } from './contexts/ListContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ToastProvider } from './components/ui';
@@ -199,13 +200,15 @@ function App() {
         <AuthProvider>
           <SubscriptionProvider>
             <CategoryProvider>
-              <TaskProvider>
-                <NoteProvider>
-                  <ToastProvider>
-                    <AppRoutes />
-                  </ToastProvider>
-                </NoteProvider>
-              </TaskProvider>
+              <ListProvider>
+                <TaskProvider>
+                  <NoteProvider>
+                    <ToastProvider>
+                      <AppRoutes />
+                    </ToastProvider>
+                  </NoteProvider>
+                </TaskProvider>
+              </ListProvider>
             </CategoryProvider>
           </SubscriptionProvider>
         </AuthProvider>

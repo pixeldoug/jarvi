@@ -115,7 +115,7 @@
 }
 
 .closeButton:hover {
-  color: var(--semantic-content-negative);
+  color: var(--component-badge-content-hover);
 }
 
 .closeButton:disabled {

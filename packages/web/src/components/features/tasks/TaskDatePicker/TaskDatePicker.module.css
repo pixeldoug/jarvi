@@ -58,59 +58,6 @@
   padding: var(--sizes-2);
 }
 
-/* Individual shortcut item */
-.shortcutItem {
-  display: flex;
-  align-items: center;
-  gap: var(--sizes-2);
-  height: 48px;
-  padding: var(--sizes-3) var(--sizes-3) var(--sizes-3) var(--sizes-4);
-  
-  background: var(--component-list-item-bg-default);
-  border: none;
-  border-radius: var(--radius-radius-sm);
-  
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-label-md-font-size);
-  font-weight: var(--typography-label-md-font-weight);
-  line-height: var(--typography-label-md-line-height);
-  color: var(--semantic-content-primary);
-  
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.shortcutItem:hover {
-  background: var(--component-list-item-bg-hover);
-  color: var(--component-list-item-content-hover);
-}
-
-.shortcutItem.active {
-  background: var(--component-list-item-bg-active);
-  color: var(--component-list-item-content-active);
-}
-
-.shortcutIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  color: inherit;
-}
-
-.shortcutIcon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.shortcutLabel {
-  flex: 1;
-}
-
 /* Calendar section */
 .calendarSection {
   padding: 0;
@@ -212,39 +159,6 @@
 
 .timePickerList::-webkit-scrollbar-thumb:hover {
   background: var(--semantic-content-secondary);
-}
-
-.timePickerItem {
-  display: flex;
-  align-items: center;
-  height: 48px;
-  padding: var(--sizes-3) var(--sizes-4);
-  
-  background: var(--component-list-item-bg-default);
-  border: none;
-  border-radius: var(--radius-radius-sm);
-  
-  font-family: var(--typography-label-md-font-family);
-  font-size: 15px;
-  font-weight: var(--typography-label-md-font-weight);
-  line-height: var(--typography-label-md-line-height);
-  color: var(--semantic-content-primary);
-  
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-  flex-shrink: 0;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.timePickerItem:hover {
-  background: var(--component-list-item-bg-hover);
-  color: var(--component-list-item-content-hover);
-}
-
-.timePickerItem.active {
-  background: var(--component-list-item-bg-active);
-  color: var(--component-list-item-content-active);
 }
 
 .timePickerFooter {

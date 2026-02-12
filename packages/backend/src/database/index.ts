@@ -154,6 +154,16 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       UNIQUE(user_id, name)
+    );`,
+    `CREATE TABLE IF NOT EXISTS lists (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      category_names TEXT NOT NULL,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      UNIQUE(user_id, name)
     );`
   ];
   

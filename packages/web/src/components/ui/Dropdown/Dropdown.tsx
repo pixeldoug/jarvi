@@ -23,6 +23,8 @@ export interface DropdownProps {
   children: ReactNode;
   /** Optional title in the header */
   title?: string;
+  /** Optional button section rendered below content */
+  buttonSection?: ReactNode;
   /** Dropdown width (number for px, string for any CSS value) */
   width?: number | string;
   /** Horizontal alignment relative to anchor */
@@ -33,6 +35,8 @@ export interface DropdownProps {
   className?: string;
   /** Gap between anchor and dropdown */
   gap?: number;
+  /** Force dropdown token theme */
+  forceTheme?: 'light' | 'dark';
 }
 
 interface Position {
@@ -46,11 +50,13 @@ export function Dropdown({
   anchorRef,
   children,
   title,
+  buttonSection,
   width = 256,
   align = 'left',
   position = 'auto',
   className = '',
   gap = 8,
+  forceTheme,
 }: DropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [calculatedPosition, setCalculatedPosition] = useState<Position | null>(null);
@@ -180,12 +186,18 @@ export function Dropdown({
   return createPortal(
     <>
       {/* Backdrop */}
-      <div className={styles.backdrop} onClick={onClose} />
+      <div
+        className={styles.backdrop}
+        data-dialog-outside-click-ignore="true"
+        onClick={onClose}
+      />
       
       {/* Dropdown */}
       <div
         ref={dropdownRef}
         className={dropdownClasses}
+        data-dialog-outside-click-ignore="true"
+        data-theme={forceTheme}
         style={{
           position: 'fixed',
           top: `${calculatedPosition.top}px`,
@@ -207,6 +219,13 @@ export function Dropdown({
         <div className={styles.content}>
           {children}
         </div>
+
+        {/* Optional Button Section */}
+        {buttonSection && (
+          <div className={styles.buttonSection}>
+            {buttonSection}
+          </div>
+        )}
       </div>
     </>,
     document.body

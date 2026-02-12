@@ -10,7 +10,7 @@
   justify-content: space-between;
   height: var(--size-target-standard, 48px);
   padding: 0 var(--sizes-4);
-  margin-left: 24px;
+  margin-left: var(--sizes-4);
   border-radius: var(--radius-radius-sm);
   transition: background-color 0.15s ease;
   cursor: pointer; 
@@ -166,7 +166,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
+  width: 28px;
+  height: 28px;
   padding: 2px 0;
   
   /* Visual */
@@ -202,7 +203,7 @@
   margin: 0 var(--sizes-3);
   background: var(--semantic-content-info);
   border-radius: 9999px;
-  animation: pulse 1.5s infinite;
+  animation: pulse 1.25s infinite;
 }
 
 @keyframes pulse {

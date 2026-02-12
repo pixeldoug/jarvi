@@ -32,7 +32,8 @@
 }
 
 /* Dark mode */
-:global(.dark) .overlay {
+:global(.dark) .overlay,
+.overlay[data-theme='dark'] {
   background: rgba(9, 9, 11, 0.9);
 }
 
@@ -160,7 +161,8 @@
   background: var(--color-gray-100);
 }
 
-:global(.dark) .closeButton:hover {
+:global(.dark) .closeButton:hover,
+.overlay[data-theme='dark'] .closeButton:hover {
   background: var(--color-gray-800);
 }
 

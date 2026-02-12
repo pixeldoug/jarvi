@@ -1,8 +1,3 @@
-/**
- * MainLayout Styles
- * Following JarviDS Web design system from Figma
- */
-
 .layout {
   position: relative;
   display: flex;
@@ -30,9 +25,9 @@
   position: relative;
   z-index: 1;
   display: flex;
-  gap: var(--sizes-4);
+  gap: var(--sizes-3);
   flex: 1;
-  padding: var(--sizes-6) var(--sizes-6) var(--sizes-16);
+  padding: var(--sizes-4) var(--sizes-4) var(--sizes-16);
   min-height: 0;
 }
 
@@ -102,9 +97,21 @@
 .mainHeader {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   max-width: 1280px;
   width: 100%;
+}
+
+.mainHeaderContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  max-width: 720px;
+}
+
+.mainTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
 }
 
 .mainTitle {
@@ -114,6 +121,27 @@
   line-height: var(--typography-display-lg-line-height);
   color: var(--semantic-content-primary);
   margin: 0;
+}
+
+.mainTitleHeading {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+}
+
+.mainHeaderActions {
+  display: flex;
+  align-items: center;
+}
+
+.mainDescription {
+  margin: 0;
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-secondary);
 }
 
 /* Body slot */
@@ -155,13 +183,13 @@
   align-items: flex-start;
 }
 
-/* Dark mode: gradients automatically update via CSS variables */
 
 /* Responsive adjustments for smaller screens */
 @media (max-width: 1600px) {
   .main {
-    padding-left: var(--sizes-12);
+    padding-left: var(--sizes-10);
   }
+
 
   .rightSidebar {
     width: 520px;

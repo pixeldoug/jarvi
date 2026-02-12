@@ -1,0 +1,164 @@
+/**
+ * Select Styles
+ * Using design tokens from CSS variables (similar to Input)
+ */
+
+/* ============================================================================
+   WRAPPER
+   ============================================================================ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ============================================================================
+   LABEL
+   ============================================================================ */
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  width: 100%;
+}
+
+.required {
+  color: var(--semantic-content-error);
+  margin-left: var(--sizes-1);
+}
+
+/* ============================================================================
+   SELECT
+   ============================================================================ */
+
+.select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  width: 100%;
+  padding: 0 var(--sizes-4);
+  border-radius: var(--radius-radius-sm);
+  border: 1px solid var(--semantic-border-primary);
+  background-color: var(--semantic-control-bg);
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.select:focus-visible {
+  outline: none;
+  border-color: var(--semantic-control-border-active);
+}
+
+.select:focus-visible::after,
+.open::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--semantic-control-focusring);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* ============================================================================
+   SIZES
+   ============================================================================ */
+
+.select.sm {
+  height: 40px;
+  padding: 0 var(--sizes-3);
+}
+
+.select.md {
+  height: 48px;
+}
+
+.select.lg {
+  height: 56px;
+  padding: 0 var(--sizes-5);
+}
+
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+}
+
+.placeholder {
+  color: var(--semantic-control-content-placeholder);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--semantic-content-secondary);
+  transition: transform 0.15s ease;
+}
+
+.iconOpen {
+  transform: rotate(180deg);
+}
+
+/* ============================================================================
+   STATES
+   ============================================================================ */
+
+.select.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semantic-surface-secondary);
+}
+
+.select.error {
+  border-color: var(--semantic-content-negative);
+}
+
+.select.error:focus-visible::after,
+.select.error.open::after {
+  border-color: var(--semantic-content-negative);
+}
+
+/* ============================================================================
+   OPTIONS
+   ============================================================================ */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-0-5);
+}
+
+/* ============================================================================
+   HELPER TEXT
+   ============================================================================ */
+
+.helper {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.helperError {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-negative);
+}

@@ -27,6 +27,10 @@ export interface MainLayoutProps {
   activePage?: 'tasks' | 'notes' | 'goals' | 'finances';
   /** Header actions (optional buttons/icons) */
   headerActions?: ReactNode;
+  /** Header title visual variant */
+  titleVariant?: 'display' | 'heading';
+  /** Optional description below the title */
+  titleDescription?: string;
   /** Callback when a task is created from ControlBar */
   onCreateTask?: (task: TaskCreationData) => void;
   /** Callback to open task details sidebar */
@@ -41,12 +45,18 @@ export function MainLayout({
   title,
   activePage = 'tasks',
   headerActions,
+  titleVariant = 'display',
+  titleDescription,
   onCreateTask,
   onOpenTaskDetails,
   rightSidebar,
 }: MainLayoutProps) {
   const { isDark } = useTheme();
   const backgroundImage = isDark ? bgDark : bgLight;
+  const mainTitleClasses = [
+    styles.mainTitle,
+    titleVariant === 'heading' && styles.mainTitleHeading,
+  ].filter(Boolean).join(' ');
 
   return (
     <div className={styles.layout}>
@@ -75,10 +85,17 @@ export function MainLayout({
           </div>
 
           <header className={styles.mainHeader}>
-            <h1 className={styles.mainTitle}>{title}</h1>
-            {headerActions && (
-              <div>{headerActions}</div>
-            )}
+            <div className={styles.mainHeaderContent}>
+              <div className={styles.mainTitleRow}>
+                <h1 className={mainTitleClasses}>{title}</h1>
+                {headerActions && (
+                  <div className={styles.mainHeaderActions}>{headerActions}</div>
+                )}
+              </div>
+              {titleDescription && (
+                <p className={styles.mainDescription}>{titleDescription}</p>
+              )}
+            </div>
           </header>
           
           <div className={styles.mainBody}>

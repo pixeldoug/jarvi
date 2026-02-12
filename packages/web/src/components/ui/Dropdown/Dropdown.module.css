@@ -84,6 +84,19 @@
 }
 
 /* ============================================================================
+   BUTTON SECTION
+   ============================================================================ */
+
+.buttonSection {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--sizes-2);
+  border-top: 1px solid var(--semantic-border-primary);
+  flex-shrink: 0;
+}
+
+/* ============================================================================
    DROPDOWN ITEM STYLES (for ListItem usage)
    ============================================================================ */
 

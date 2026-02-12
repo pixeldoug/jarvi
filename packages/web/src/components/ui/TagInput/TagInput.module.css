@@ -129,6 +129,14 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+.dropdownButton svg {
+  transition: transform 0.15s ease;
+}
+
+.dropdownButtonOpen svg {
+  transform: rotate(180deg);
+}
+
 .dropdownButton:hover:not(:disabled) {
   background-color: var(--component-button-ghost-bg-hover);
   color: var(--component-button-ghost-content-hover);
@@ -146,6 +154,16 @@
 .dropdownButton:focus-visible {
   outline: 2px solid var(--semantic-control-focusring);
   outline-offset: 2px;
+}
+
+/* ============================================================================
+   DROPDOWN OPTIONS
+   ============================================================================ */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-0-5);
 }
 
 

@@ -26,14 +26,20 @@ export type CategoryType = string;
 export interface TasksSidebarProps {
   /** Currently selected list */
   selectedList?: ListType | null;
+  /** Currently selected custom list id */
+  selectedCustomListId?: string | null;
   /** Currently selected category */
   selectedCategory?: CategoryType | null;
   /** Handler when a list is selected */
   onListSelect?: (listType: ListType) => void;
+  /** Handler when a custom list is selected */
+  onCustomListSelect?: (listId: string) => void;
   /** Handler when a category is selected */
   onCategorySelect?: (category: CategoryType) => void;
   /** Handler for adding a new list/category */
   onAddClick?: () => void;
+  /** Ref to the add button (for anchoring popovers) */
+  addButtonRef?: React.RefObject<HTMLButtonElement>;
   /** Task counts per list */
   taskCounts?: {
     all?: number;
@@ -50,6 +56,12 @@ export interface TasksSidebarProps {
     id: string;
     name: string;
     count: number;
+  }>;
+
+  /** Custom lists (saved filters) */
+  customLists?: Array<{
+    id: string;
+    name: string;
   }>;
 }
 
@@ -70,19 +82,27 @@ const lists: Array<{
 
 export function TasksSidebar({
   selectedList = 'all',
+  selectedCustomListId = null,
   selectedCategory,
   onListSelect,
+  onCustomListSelect,
   onCategorySelect,
   onAddClick,
+  addButtonRef,
   taskCounts = {},
   categories = [],
+  customLists = [],
 }: TasksSidebarProps) {
   const handleListClick = (listType: ListType) => {
     onListSelect?.(listType);
   };
 
-  const handleCategoryClick = (categoryId: string) => {
-    onCategorySelect?.(categoryId);
+  const handleCustomListClick = (listId: string) => {
+    onCustomListSelect?.(listId);
+  };
+
+  const handleCategoryClick = (categoryName: string) => {
+    onCategorySelect?.(categoryName);
   };
 
   return (
@@ -92,6 +112,7 @@ export function TasksSidebar({
         <h2 className={styles.title}>Minhas listas</h2>
         {onAddClick && (
           <button
+            ref={addButtonRef}
             className={styles.addButton}
             onClick={onAddClick}
             type="button"
@@ -111,15 +132,33 @@ export function TasksSidebar({
               key={list.id}
               label={list.label}
               icon={list.icon}
-              active={selectedList === list.id && !selectedCategory}
+              active={selectedList === list.id && !selectedCategory && !selectedCustomListId}
               counter={taskCounts[list.id]}
+              counterVariant="chip"
               onClick={() => handleListClick(list.id)}
             />
           ))}
         </div>
 
         {/* Divider */}
-        {categories.length > 0 && <div className={styles.divider} />}
+        {(customLists.length > 0 || categories.length > 0) && <div className={styles.divider} />}
+
+        {/* Custom Lists */}
+        {customLists.length > 0 && (
+          <div className={styles.listSection}>
+            {customLists.map((list) => (
+              <ListItem
+                key={list.id}
+                label={list.name}
+                icon={Hash}
+                active={selectedCustomListId === list.id}
+                onClick={() => handleCustomListClick(list.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {customLists.length > 0 && categories.length > 0 && <div className={styles.divider} />}
 
         {/* Categories */}
         {categories.length > 0 && (
@@ -129,9 +168,9 @@ export function TasksSidebar({
                 key={category.id}
                 label={category.name}
                 icon={Hash}
-                active={selectedCategory === category.id}
+                active={selectedCategory === category.name}
                 counter={category.count}
-                onClick={() => handleCategoryClick(category.id)}
+                onClick={() => handleCategoryClick(category.name)}
               />
             ))}
           </div>

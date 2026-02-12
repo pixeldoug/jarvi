@@ -74,7 +74,7 @@ export {
   Select,
   type SelectProps,
   type SelectOption,
-} from './Select';
+} from './Select/index';
 
 // ============================================================================
 // LAYOUT COMPONENTS

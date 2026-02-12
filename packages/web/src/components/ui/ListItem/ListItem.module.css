@@ -10,7 +10,7 @@
   height: 48px;
   padding: var(--sizes-3) var(--sizes-3) var(--sizes-3) var(--sizes-4);
   
-  background: transparent;
+  background: var(--component-list-item-bg-default);
   border: none;
   border-radius: var(--radius-radius-sm);
   
@@ -21,16 +21,28 @@
 }
 
 .listItem:hover {
-  background: var(--color-gray-100);
+  background: var(--component-list-item-bg-hover);
+}
+
+/* Hover content color for non-active items */
+.listItem:hover:not(.active) .icon,
+.listItem:hover:not(.active) .label,
+.listItem:hover:not(.active) .counter:not(.counterChip) {
+  color: var(--component-list-item-content-hover);
 }
 
 /* Active state */
 .active {
-  background: var(--color-brand-primary-50);
+  background: var(--component-list-item-bg-active);
 }
 
 .active:hover {
-  background: var(--color-brand-primary-100);
+  background: var(--component-list-item-bg-active);
+}
+
+.disabled {
+  background: var(--component-list-item-bg-disabled, var(--component-list-item-bg-default));
+  cursor: not-allowed;
 }
 
 /* Icon container */
@@ -45,7 +57,11 @@
 }
 
 .active .icon {
-  color: var(--color-brand-primary-800);
+  color: var(--component-list-item-content-active);
+}
+
+.disabled .icon {
+  color: var(--component-list-item-content-disabled, var(--semantic-content-disabled));
 }
 
 /* Emoji icon */
@@ -71,7 +87,11 @@
 }
 
 .active .label {
-  color: var(--color-brand-primary-800);
+  color: var(--component-list-item-content-active);
+}
+
+.disabled .label {
+  color: var(--component-list-item-content-disabled, var(--semantic-content-disabled));
 }
 
 /* Counter badge */
@@ -85,30 +105,39 @@
   color: var(--semantic-content-secondary);
 }
 
-.active .counter {
-  color: var(--color-brand-primary-600);
+.counterChip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 24px;
+  padding: 0 var(--sizes-2);
+  border-radius: var(--radius-radius-round);
+  background: var(--component-list-item-counter-bg-default, var(--semantic-surface-secondary));
+  color: var(--component-list-item-counter-content-default, var(--semantic-content-primary));
 }
 
-/* Dark mode */
-:global(.dark) .listItem:hover {
-  background: var(--color-gray-800);
+.listItem:hover:not(.active):not(.disabled) .counterChip {
+  background: var(--component-list-item-counter-bg-hover, rgba(9, 9, 11, 0.05));
+  color: var(--component-list-item-counter-content-hover, var(--component-list-item-content-hover));
 }
 
-:global(.dark) .active {
-  background: var(--color-brand-primary-900);
+.active .counter:not(.counterChip) {
+  color: var(--component-list-item-content-active);
 }
 
-:global(.dark) .active:hover {
-  background: var(--color-brand-primary-800);
+.active .counterChip {
+  background: var(--component-list-item-counter-bg-active, var(--component-list-item-content-active));
+  color: var(--component-list-item-counter-content-active, var(--semantic-content-subtle));
 }
 
-:global(.dark) .active .icon,
-:global(.dark) .active .label {
-  color: var(--color-brand-primary-200);
+.disabled .counter:not(.counterChip) {
+  color: var(--component-list-item-content-disabled, var(--semantic-content-disabled));
 }
 
-:global(.dark) .active .counter {
-  color: var(--color-brand-primary-300);
+.disabled .counterChip {
+  background: var(--component-list-item-counter-bg-disabled, var(--component-list-item-bg-disabled));
+  color: var(--component-list-item-counter-content-disabled, var(--component-list-item-content-disabled, var(--semantic-content-disabled)));
 }
 
 

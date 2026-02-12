@@ -110,49 +110,6 @@
   flex-direction: column;
 }
 
-.categoryItem {
-  display: flex;
-  align-items: center;
-  gap: var(--sizes-2);
-  height: 48px;
-  padding: var(--sizes-3) var(--sizes-4);
-  background: var(--component-list-item-bg-default);
-  border: none;
-  border-radius: var(--radius-radius-sm);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.categoryItem:hover {
-  background: var(--component-list-item-bg-hover);
-}
-
-.categoryItem:active {
-  background: var(--component-list-item-bg-active);
-}
-
-.categoryItem.selected {
-  background: var(--component-list-item-bg-active);
-}
-
-.categoryItem svg {
-  color: var(--semantic-content-primary);
-  flex-shrink: 0;
-}
-
-.categoryName {
-  flex: 1;
-  font-family: var(--typography-label-md-font-family);
-  font-size: var(--typography-label-md-font-size);
-  font-weight: var(--typography-label-md-font-weight);
-  line-height: var(--typography-label-md-line-height);
-  color: var(--semantic-content-primary);
-  text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* ============================================================================
    INPUT (Create State)
    ============================================================================ */

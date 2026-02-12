@@ -16,6 +16,7 @@ import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Ghost, Plus, Hash } from '@phosphor-icons/react';
 import { Button } from '../../../ui/Button';
+import { ListItem } from '../../../ui/ListItem';
 import { type Category } from '../../../../contexts/CategoryContext';
 import styles from './CategoryPicker.module.css';
 
@@ -303,15 +304,12 @@ export function CategoryPicker({
               </div>
               <div className={styles.categoryList}>
                 {categories.map((category) => (
-                  <button
+                  <ListItem
                     key={category.id}
-                    type="button"
-                    className={`${styles.categoryItem} ${selectedCategory === category.name ? styles.selected : ''}`}
+                    label={category.name}
+                    icon={Hash}
                     onClick={() => handleCategoryClick(category)}
-                  >
-                    <Hash size={16} weight="regular" />
-                    <span className={styles.categoryName}>{category.name}</span>
-                  </button>
+                  />
                 ))}
               </div>
             </div>

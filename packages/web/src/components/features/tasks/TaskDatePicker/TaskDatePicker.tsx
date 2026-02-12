@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import { Flag, SunHorizon, Couch, Prohibit, Clock, XCircle } from '@phosphor-icons/react';
 import { Calendar } from '../../../ui/Calendar';
 import { Button } from '../../../ui/Button';
+import { ListItem } from '../../../ui/ListItem';
 import { TextInput } from '../../../ui/TextInput';
 import styles from './TaskDatePicker.module.css';
 
@@ -107,7 +108,6 @@ export function TaskDatePicker({
   className = '',
 }: TaskDatePickerProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
-  const selectedTimeItemRef = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [manualTime, setManualTime] = useState(selectedTime || '');
@@ -317,12 +317,22 @@ export function TaskDatePicker({
     setManualTime(selectedTime || '');
   }, [selectedTime]);
 
-  // Scroll to selected time when time picker opens
+  // Scroll selected time into view when time picker opens.
+  // If no time is selected yet, default the initial viewport to 09:00.
   useEffect(() => {
-    if (showTimePicker && selectedTimeItemRef.current) {
-      selectedTimeItemRef.current.scrollIntoView({ block: 'center', behavior: 'auto' });
-    }
-  }, [showTimePicker]);
+    if (!showTimePicker) return;
+
+    const initialTime = selectedTime || '09:00';
+
+    const selectedTimeItem = popoverRef.current?.querySelector(
+      `[data-time-value="${initialTime}"]`
+    ) as HTMLButtonElement | null;
+
+    selectedTimeItem?.scrollIntoView({
+      block: selectedTime ? 'center' : 'start',
+      behavior: 'auto',
+    });
+  }, [showTimePicker, selectedTime]);
 
   // Close time picker when main popover closes
   useEffect(() => {
@@ -374,22 +384,20 @@ export function TaskDatePicker({
         {/* Shortcuts */}
         <div className={styles.shortcuts}>
           {SHORTCUTS.map((shortcut) => {
-            const Icon = shortcut.icon;
             // Ativo se for o shortcut identificado
             const isActive = shortcut.id === activeShortcut;
             
             return (
-              <button
+              <ListItem
                 key={shortcut.id}
-                type="button"
-                className={`${styles.shortcutItem} ${isActive ? styles.active : ''}`}
+                label={shortcut.label}
+                icon={shortcut.icon}
                 onClick={() => handleShortcutClick(shortcut)}
-              >
-                <span className={styles.shortcutIcon}>
-                  <Icon weight={isActive ? 'fill' : 'regular'} />
-                </span>
-                <span className={styles.shortcutLabel}>{shortcut.label}</span>
-              </button>
+                buttonProps={{
+                  role: 'option',
+                  'aria-selected': isActive,
+                }}
+              />
             );
           })}
         </div>
@@ -422,15 +430,16 @@ export function TaskDatePicker({
                 {timeSlots.map((time) => {
                   const isActive = time === selectedTime;
                   return (
-                    <button
+                    <ListItem
                       key={time}
-                      ref={isActive ? selectedTimeItemRef : null}
-                      type="button"
-                      className={`${styles.timePickerItem} ${isActive ? styles.active : ''}`}
+                      label={time}
                       onClick={() => handleTimeSlotClick(time)}
-                    >
-                      {time}
-                    </button>
+                      buttonProps={{
+                        role: 'option',
+                        'aria-selected': isActive,
+                        'data-time-value': time,
+                      }}
+                    />
                   );
                 })}
               </div>

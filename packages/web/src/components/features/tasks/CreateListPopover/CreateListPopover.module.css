@@ -1,0 +1,156 @@
+/**
+ * CreateListPopover styles (Figma node: 40000607:5926)
+ * Dialog layout for creating a custom list.
+ */
+
+.dialog {
+  max-width: 672px;
+  padding: var(--sizes-10) 0 0;
+  gap: 0;
+  border: 1px solid var(--semantic-border-primary);
+  overflow: hidden;
+}
+
+.dialogContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  padding: 0 var(--sizes-10) var(--sizes-6);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.subtitle {
+  margin: 0;
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.formBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: var(--sizes-6);
+  overflow-y: auto;
+  padding: 0 var(--sizes-10) var(--sizes-6);
+}
+
+.formBody::-webkit-scrollbar {
+  width: 6px;
+}
+
+.formBody::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-radius-round);
+}
+
+.formBody::-webkit-scrollbar-thumb {
+  background: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-radius-round);
+}
+
+.formBody::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+.field {
+  width: 100%;
+}
+
+.footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  padding: var(--sizes-4) var(--sizes-6);
+  border-top: 1px solid var(--semantic-border-primary);
+  background: var(--semantic-surface-primary);
+}
+
+.footerWithDelete {
+  justify-content: space-between;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
+.deleteConfirm {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  min-width: 0;
+}
+
+.deleteConfirmText {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .dialog {
+    max-width: calc(100vw - var(--sizes-6));
+  }
+
+  .header {
+    padding: 0 var(--sizes-6) var(--sizes-6);
+  }
+
+  .formBody {
+    padding: 0 var(--sizes-6) var(--sizes-6);
+  }
+
+  .footerWithDelete {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .footerActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .deleteConfirm {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .deleteConfirmText {
+    width: 100%;
+    white-space: normal;
+  }
+}
+

@@ -8,6 +8,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Fire } from '@phosphor-icons/react';
+import { ListItem } from '../../../ui/ListItem';
 import styles from './PriorityPicker.module.css';
 
 export type Priority = 'low' | 'medium' | 'high';
@@ -191,21 +192,28 @@ export function PriorityPicker({
 
         {/* Options */}
         <div className={styles.options}>
-          {PRIORITY_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className={`${styles.option} ${selectedPriority === option.id ? styles.selected : ''}`}
-              onClick={() => handlePriorityClick(option.id)}
-            >
-              <Fire 
-                size={16} 
-                weight="fill" 
-                style={{ color: option.color }}
+          {PRIORITY_OPTIONS.map((option) => {
+            const isSelected = selectedPriority === option.id;
+
+            return (
+              <ListItem
+                key={option.id}
+                label={option.label}
+                iconNode={(
+                  <Fire
+                    size={16}
+                    weight="fill"
+                    style={{ color: option.color }}
+                  />
+                )}
+                onClick={() => handlePriorityClick(option.id)}
+                buttonProps={{
+                  role: 'option',
+                  'aria-selected': isSelected,
+                }}
               />
-              <span className={styles.optionLabel}>{option.label}</span>
-            </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </>,

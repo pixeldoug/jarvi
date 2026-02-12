@@ -197,7 +197,17 @@ export const componentTokens = {
     "bg-hover": "#F7F8F9",
     "bg-active": "#F3F1FC",
     "content-hover": "{Semantic.content.primary}",
-    "content-active": "#3812B7"
+    "content-active": "{Semantic.content.info}",
+    "counter": {
+      "bg-default": "{Semantic.surface.secondary}",
+      "content-default": "{Semantic.content.primary}",
+      "bg-hover": "rgba(9, 9, 11, 0.05)",
+      "content-hover": "{Semantic.content.primary}",
+      "bg-active": "#6137F3",
+      "content-active": "{Semantic.content.subtle}",
+      "bg-disabled": "rgba(255, 255, 255, 0)",
+      "content-disabled": "{Semantic.content.disabled}"
+    }
   },
   "logo": {
     "bg-default": "#18181B",
@@ -325,9 +335,19 @@ export const componentTokens = {
     "content-disabled": "{Semantic.content.disabled}",
     "bg-default": "rgba(255, 255, 255, 0)",
     "bg-hover": "rgba(255, 255, 255, 0.05)",
-    "bg-active": "#4F26E4",
+    "bg-active": "#3812B7",
     "content-hover": "{Semantic.content.primary}",
-    "content-active": "#EEE9FE"
+    "content-active": "#EEE9FE",
+    "counter": {
+      "bg-default": "{Semantic.surface.secondary}",
+      "content-default": "{Semantic.content.primary}",
+      "bg-hover": "rgba(255, 255, 255, 0.05)",
+      "content-hover": "{Semantic.content.primary}",
+      "bg-active": "#4F26E4",
+      "content-active": "#EEE9FE",
+      "bg-disabled": "rgba(255, 255, 255, 0)",
+      "content-disabled": "{Semantic.content.disabled}"
+    }
   },
   "logo": {
     "bg-default": "{Semantic.surface.accent}",

@@ -488,7 +488,7 @@ export function TaskDetailsSidebar({
             icon={<Calendar weight="regular" />}
             size="medium"
             interactive
-            active={showDatePicker}
+            active={showDatePicker || !!selectedDate || !!selectedTime}
             onClick={handleDateChipClick}
             onClear={selectedDate ? handleDateClear : undefined}
           />
@@ -510,7 +510,7 @@ export function TaskDetailsSidebar({
             icon={<Hash weight="regular" />}
             size="medium"
             interactive
-            active={showCategoryPicker}
+            active={showCategoryPicker || !!task.category}
             onClick={() => setShowCategoryPicker(prev => !prev)}
             onClear={task.category ? handleCategoryClear : undefined}
           />
@@ -533,7 +533,7 @@ export function TaskDetailsSidebar({
             icon={<Fire weight="regular" />}
             size="medium"
             interactive
-            active={showPriorityPicker}
+            active={showPriorityPicker || !!task.priority}
             onClick={() => setShowPriorityPicker(prev => !prev)}
             onClear={task.priority ? handlePriorityClear : undefined}
           />

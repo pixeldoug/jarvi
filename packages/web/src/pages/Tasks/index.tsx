@@ -4,13 +4,17 @@
  * Main tasks page with categorized sections and drag-and-drop support
  */
 
-import { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
+import { Gear } from '@phosphor-icons/react';
 import { useTasks, Task } from '../../contexts/TaskContext';
+import { useCategories } from '../../contexts/CategoryContext';
+import { useLists } from '../../contexts/ListContext';
 import { TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { MainLayout } from '../../components/layout';
 import { TasksSidebar, ListType } from '../../components/features/tasks';
-import { TaskCreationData, Collapsible } from '../../components/ui';
+import { Button, TaskCreationData, Collapsible } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
+import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DndContext,
@@ -64,6 +68,11 @@ function getNextWeekBounds(today: Date): { start: string; end: string } {
 
 export function Tasks() {
   const [selectedList, setSelectedList] = useState<ListType>('all');
+  const [selectedCustomListId, setSelectedCustomListId] = useState<string | null>(null);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [isCreateListOpen, setIsCreateListOpen] = useState(false);
+  const [isEditListOpen, setIsEditListOpen] = useState(false);
+  const addListButtonRef = useRef<HTMLButtonElement>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [movingTask, setMovingTask] = useState<{ taskId: string; fromSection: string; toSection: string } | null>(null);
@@ -90,6 +99,9 @@ export function Tasks() {
     undoDeleteTask,
     reorderTasks,
   } = useTasks();
+
+  const { categories: allCategories } = useCategories();
+  const { lists: customLists } = useLists();
 
   // Keep selectedTask completion in sync with global tasks state
   useEffect(() => {
@@ -298,10 +310,26 @@ export function Tasks() {
     return listNames[listType] || 'Tarefas';
   };
 
+  // Apply custom list/category filters (keeps the same main view structure)
+  const visibleTasks = useMemo(() => {
+    if (selectedCustomListId) {
+      const selectedListObj = customLists.find((l) => l.id === selectedCustomListId);
+      if (!selectedListObj) return tasks;
+      const allowed = new Set(selectedListObj.category_names || []);
+      return tasks.filter((t) => !!t.category && allowed.has(t.category));
+    }
+
+    if (selectedCategoryName) {
+      return tasks.filter((t) => t.category === selectedCategoryName);
+    }
+
+    return tasks;
+  }, [tasks, selectedCustomListId, selectedCategoryName, customLists]);
+
   // Filter tasks based on selected list
   const filteredTasks = useMemo(() => {
     if (selectedList === 'all') {
-      return tasks;
+      return visibleTasks;
     }
 
     const today = new Date();
@@ -314,7 +342,7 @@ export function Tasks() {
 
     const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
 
-    return tasks.filter(task => {
+    return visibleTasks.filter(task => {
       // For list views, we typically show incomplete tasks only
       // (completed tasks can be shown separately if needed)
       
@@ -341,7 +369,7 @@ export function Tasks() {
           return true;
       }
     });
-  }, [tasks, selectedList]);
+  }, [visibleTasks, selectedList]);
 
   // Categorization based on due dates (following Figma structure)
   const categorizedTasks = useMemo(() => {
@@ -366,7 +394,7 @@ export function Tasks() {
       completadas: [] as Task[],
     };
 
-    tasks.forEach(task => {
+    visibleTasks.forEach(task => {
       // Skip task if it's being moved (will be added to target section)
       if (movingTask && movingTask.taskId === task.id) {
         return;
@@ -418,7 +446,7 @@ export function Tasks() {
 
     // If a task is being moved, add it to the target section temporarily
     if (movingTask) {
-      const movingTaskObj = tasks.find(t => t.id === movingTask.taskId);
+      const movingTaskObj = visibleTasks.find(t => t.id === movingTask.taskId);
       if (movingTaskObj) {
         // Map section IDs to category keys
         const sectionMap: Record<string, keyof typeof categories> = {
@@ -440,11 +468,175 @@ export function Tasks() {
     }
 
     return categories;
-  }, [tasks, movingTask]);
+  }, [visibleTasks, movingTask]);
+
+  const sidebarCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    tasks.forEach((t) => {
+      const name = (t.category || '').trim();
+      if (!name) return;
+      counts.set(name, (counts.get(name) || 0) + 1);
+    });
+
+    const known = allCategories
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        count: counts.get(c.name) || 0,
+      }))
+      .filter((c) => c.count > 0);
+
+    const knownLower = new Set(allCategories.map((c) => c.name.toLowerCase()));
+    const unknown = Array.from(counts.entries())
+      .filter(([name, count]) => count > 0 && !knownLower.has(name.toLowerCase()))
+      .map(([name, count]) => ({ id: `name:${name}`, name, count }));
+
+    return [...known, ...unknown].sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks, allCategories]);
+
+  const sidebarTaskCounts = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
+
+    let important = 0;
+    let overdue = 0;
+    let todayCount = 0;
+    let tomorrowCount = 0;
+    let week = 0;
+    let later = 0;
+    let noDate = 0;
+
+    tasks.forEach((task) => {
+      if (task.completed) return;
+
+      if (task.important) important += 1;
+
+      if (!task.due_date) {
+        noDate += 1;
+        return;
+      }
+
+      const dateStr = task.due_date.split('T')[0];
+
+      if (dateStr < todayStr) {
+        overdue += 1;
+      } else if (dateStr === todayStr) {
+        todayCount += 1;
+      } else if (dateStr === tomorrowStr) {
+        tomorrowCount += 1;
+      } else if (dateStr >= nextWeekStartStr && dateStr < nextWeekEndStr) {
+        week += 1;
+      } else if (dateStr > tomorrowStr) {
+        later += 1;
+      }
+    });
+
+    return {
+      all: tasks.length,
+      important,
+      overdue,
+      today: todayCount,
+      tomorrow: tomorrowCount,
+      week,
+      later,
+      noDate,
+    };
+  }, [tasks]);
 
   const handleListSelect = (listType: ListType) => {
     setSelectedList(listType);
+    setSelectedCustomListId(null);
+    setSelectedCategoryName(null);
   };
+
+  const handleCustomListSelect = (listId: string) => {
+    setSelectedList('all');
+    setSelectedCategoryName(null);
+    setSelectedCustomListId((prev) => (prev === listId ? null : listId));
+  };
+
+  const handleCategorySelect = (categoryName: string) => {
+    setSelectedList('all');
+    setSelectedCustomListId(null);
+    setSelectedCategoryName((prev) => (prev === categoryName ? null : categoryName));
+  };
+
+  const pageTitle =
+    selectedCustomListId
+      ? customLists.find((l) => l.id === selectedCustomListId)?.name || 'Tarefas'
+      : selectedCategoryName
+        ? selectedCategoryName
+        : getListName(selectedList);
+  const selectedCustomList = selectedCustomListId
+    ? customLists.find((l) => l.id === selectedCustomListId) || null
+    : null;
+  const isCustomListView = Boolean(selectedCustomList);
+  const pageDescription = selectedCustomList?.description?.trim() || undefined;
+  const headerActions = isCustomListView ? (
+    <Button
+      type="button"
+      variant="secondary"
+      size="small"
+      icon={Gear}
+      iconPosition="left"
+      onClick={() => setIsEditListOpen(true)}
+    >
+      Editar
+    </Button>
+  ) : undefined;
+
+  useEffect(() => {
+    if (!selectedCustomListId) {
+      setIsEditListOpen(false);
+    }
+  }, [selectedCustomListId]);
+
+  const sidebarNode = (
+    <>
+      <TasksSidebar
+        selectedList={selectedList}
+        selectedCustomListId={selectedCustomListId}
+        selectedCategory={selectedCategoryName}
+        onListSelect={handleListSelect}
+        onCustomListSelect={handleCustomListSelect}
+        onCategorySelect={handleCategorySelect}
+        onAddClick={() => setIsCreateListOpen(true)}
+        addButtonRef={addListButtonRef}
+        taskCounts={sidebarTaskCounts}
+        categories={sidebarCategories}
+        customLists={customLists.map((l) => ({ id: l.id, name: l.name }))}
+      />
+      <CreateListPopover
+        isOpen={isCreateListOpen}
+        onClose={() => setIsCreateListOpen(false)}
+      />
+      <CreateListPopover
+        isOpen={isEditListOpen}
+        onClose={() => setIsEditListOpen(false)}
+        mode="edit"
+        listToEdit={selectedCustomList
+          ? {
+              id: selectedCustomList.id,
+              name: selectedCustomList.name,
+              description: selectedCustomList.description,
+              categoryNames: selectedCustomList.category_names || [],
+            }
+          : null}
+        onDeleted={() => {
+          setIsEditListOpen(false);
+          setSelectedCustomListId(null);
+          setSelectedList('all');
+        }}
+      />
+    </>
+  );
 
   // ============================================================================
   // DND HANDLERS
@@ -748,13 +940,11 @@ export function Tasks() {
   if (isLoading) {
     return (
       <MainLayout
-        sidebar={
-          <TasksSidebar
-            selectedList={selectedList}
-            onListSelect={handleListSelect}
-          />
-        }
-        title={getListName(selectedList)}
+        sidebar={sidebarNode}
+        title={pageTitle}
+        titleVariant={isCustomListView ? 'heading' : 'display'}
+        titleDescription={pageDescription}
+        headerActions={headerActions}
         activePage="tasks"
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={selectedTask ? (
@@ -775,13 +965,11 @@ export function Tasks() {
   if (error) {
     return (
       <MainLayout
-        sidebar={
-          <TasksSidebar
-            selectedList={selectedList}
-            onListSelect={handleListSelect}
-          />
-        }
-        title={getListName(selectedList)}
+        sidebar={sidebarNode}
+        title={pageTitle}
+        titleVariant={isCustomListView ? 'heading' : 'display'}
+        titleDescription={pageDescription}
+        headerActions={headerActions}
         activePage="tasks"
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={selectedTask ? (
@@ -800,16 +988,17 @@ export function Tasks() {
   }
 
   // If a specific list is selected (not "all"), show simple list without Collapsible
-  if (selectedList !== 'all') {
+  if (selectedList !== 'all' || selectedCustomListId) {
+    const simpleViewTasks = selectedCustomListId ? visibleTasks : filteredTasks;
+    const simpleViewSection = selectedCustomListId ? 'custom-list' : selectedList;
+
     return (
       <MainLayout
-        sidebar={
-          <TasksSidebar
-            selectedList={selectedList}
-            onListSelect={handleListSelect}
-          />
-        }
-        title={getListName(selectedList)}
+        sidebar={sidebarNode}
+        title={pageTitle}
+        titleVariant={isCustomListView ? 'heading' : 'display'}
+        titleDescription={pageDescription}
+        headerActions={headerActions}
         activePage="tasks"
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={selectedTask ? (
@@ -824,12 +1013,12 @@ export function Tasks() {
       >
         <div className={styles.content}>
           <div className={styles.sectionContent}>
-            {filteredTasks.length > 0 ? (
-              filteredTasks.map((task) => (
+            {simpleViewTasks.length > 0 ? (
+              simpleViewTasks.map((task) => (
                 <TaskItem
                   key={task.id}
                   task={task}
-                  section={selectedList}
+                  section={simpleViewSection}
                   onToggleCompletion={handleToggleCompletion}
                   onEdit={handleEdit}
                   onDelete={handleDeleteTask}
@@ -855,13 +1044,11 @@ export function Tasks() {
   // Default view: "all" selected - show categorized tasks with Collapsible
   return (
     <MainLayout
-      sidebar={
-        <TasksSidebar
-          selectedList={selectedList}
-          onListSelect={handleListSelect}
-        />
-      }
-      title={getListName(selectedList)}
+      sidebar={sidebarNode}
+      title={pageTitle}
+      titleVariant={isCustomListView ? 'heading' : 'display'}
+      titleDescription={pageDescription}
+      headerActions={headerActions}
       activePage="tasks"
       onCreateTask={handleControlBarCreateTask}
       onOpenTaskDetails={handleTaskClick}

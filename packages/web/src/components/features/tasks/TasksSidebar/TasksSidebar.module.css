@@ -33,7 +33,7 @@
   width: 40px;
   height: 40px;
   
-  background: red;
+  background: var(--component-button-secondary-bg-default);
   border: 1px solid var(--semantic-border-primary);
   border-radius: var(--radius-button-icon-radius);
   
@@ -43,11 +43,7 @@
 }
 
 .addButton:hover {
-  background: var(--color-gray-100);
-}
-
-:global(.dark) .addButton:hover {
-  background: var(--color-gray-800);
+  background: var(--component-button-secondary-bg-hover);
 }
 
 /* Body */

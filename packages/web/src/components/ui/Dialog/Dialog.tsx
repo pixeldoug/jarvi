@@ -28,6 +28,10 @@ export interface DialogProps {
   className?: string;
   /** Whether to show the close button */
   showCloseButton?: boolean;
+  /** Force a specific theme inside the dialog subtree */
+  forceTheme?: 'light' | 'dark';
+  /** Additional CSS classes for the dialog content wrapper */
+  contentClassName?: string;
 }
 
 export function Dialog({
@@ -38,6 +42,8 @@ export function Dialog({
   width = 'lg',
   className = '',
   showCloseButton = true,
+  forceTheme,
+  contentClassName = '',
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +66,13 @@ export function Dialog({
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      if (
+        e.target instanceof Element &&
+        e.target.closest('[data-dialog-outside-click-ignore="true"]')
+      ) {
+        return;
+      }
+
       if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -96,9 +109,10 @@ export function Dialog({
     styles[width],
     className,
   ].filter(Boolean).join(' ');
+  const contentClasses = [styles.content, contentClassName].filter(Boolean).join(' ');
 
   return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true">
+    <div className={styles.overlay} role="dialog" aria-modal="true" data-theme={forceTheme}>
       <div ref={dialogRef} className={dialogClasses}>
         {/* Close Button */}
         {showCloseButton && (
@@ -118,7 +132,7 @@ export function Dialog({
         )}
 
         {/* Content */}
-        <div className={styles.content}>
+        <div className={contentClasses}>
           {children}
         </div>
       </div>
