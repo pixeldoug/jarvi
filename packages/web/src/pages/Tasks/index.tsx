@@ -7,7 +7,6 @@
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { Gear } from '@phosphor-icons/react';
 import { useTasks, Task } from '../../contexts/TaskContext';
-import { useCategories } from '../../contexts/CategoryContext';
 import { useLists } from '../../contexts/ListContext';
 import { TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { MainLayout } from '../../components/layout';
@@ -15,6 +14,7 @@ import { TasksSidebar, ListType } from '../../components/features/tasks';
 import { Button, TaskCreationData, Collapsible } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
+import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DndContext,
@@ -100,8 +100,8 @@ export function Tasks() {
     reorderTasks,
   } = useTasks();
 
-  const { categories: allCategories } = useCategories();
   const { lists: customLists } = useLists();
+  const mergedTaskCategories = useMergedTaskCategories();
 
   // Keep selectedTask completion in sync with global tasks state
   useEffect(() => {
@@ -473,29 +473,25 @@ export function Tasks() {
     return categories;
   }, [visibleTasks, movingTask]);
 
-  const sidebarCategories = useMemo(() => {
-    const counts = new Map<string, number>();
-    tasks.forEach((t) => {
-      const name = (t.category || '').trim();
-      if (!name) return;
-      counts.set(name, (counts.get(name) || 0) + 1);
-    });
+  const sidebarCategories = useMemo(
+    () =>
+      mergedTaskCategories
+        .map((category) => ({
+          id: category.id,
+          name: category.name,
+          count: category.count,
+        })),
+    [mergedTaskCategories]
+  );
 
-    const known = allCategories
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        count: counts.get(c.name) || 0,
-      }))
-      .filter((c) => c.count > 0);
-
-    const knownLower = new Set(allCategories.map((c) => c.name.toLowerCase()));
-    const unknown = Array.from(counts.entries())
-      .filter(([name, count]) => count > 0 && !knownLower.has(name.toLowerCase()))
-      .map(([name, count]) => ({ id: `name:${name}`, name, count }));
-
-    return [...known, ...unknown].sort((a, b) => a.name.localeCompare(b.name));
-  }, [tasks, allCategories]);
+  const popoverCategories = useMemo(
+    () =>
+      mergedTaskCategories.map((category) => ({
+        id: category.id,
+        name: category.name,
+      })),
+    [mergedTaskCategories]
+  );
 
   const sidebarTaskCounts = useMemo(() => {
     const today = new Date();
@@ -621,11 +617,13 @@ export function Tasks() {
       <CreateListPopover
         isOpen={isCreateListOpen}
         onClose={() => setIsCreateListOpen(false)}
+        categories={popoverCategories}
       />
       <CreateListPopover
         isOpen={isEditListOpen}
         onClose={() => setIsEditListOpen(false)}
         mode="edit"
+        categories={popoverCategories}
         listToEdit={selectedCustomList
           ? {
               id: selectedCustomList.id,

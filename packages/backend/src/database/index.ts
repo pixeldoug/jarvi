@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
-import { Pool, Client } from 'pg';
+import { Pool, PoolClient } from 'pg';
+import { v4 as uuidv4 } from 'uuid';
 
 let db: Database;
 let pgPool: Pool;
@@ -183,6 +184,299 @@ const createTables = async (): Promise<void> => {
   }
 };
 
+const normalizeCategoryName = (value: string): string => value.trim().toLowerCase();
+
+const parseCategoryNames = (raw: unknown): string[] => {
+  if (Array.isArray(raw) && raw.every((item) => typeof item === 'string')) {
+    return raw;
+  }
+
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')) {
+        return parsed;
+      }
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const sanitizeCategoryNames = (categoryNames: string[]): string[] => {
+  const seen = new Set<string>();
+  const sanitized: string[] = [];
+
+  for (const categoryName of categoryNames) {
+    const trimmed = categoryName.trim();
+    if (!trimmed) continue;
+
+    const normalized = normalizeCategoryName(trimmed);
+    if (seen.has(normalized)) continue;
+
+    seen.add(normalized);
+    sanitized.push(trimmed);
+  }
+
+  return sanitized;
+};
+
+const runCategoryBackfillMigrationPostgres = async (client: PoolClient): Promise<void> => {
+  const now = new Date().toISOString();
+  let createdCategories = 0;
+  let updatedTasks = 0;
+  let updatedLists = 0;
+
+  const userResult = await client.query(
+    `SELECT DISTINCT user_id
+     FROM (
+       SELECT user_id FROM tasks WHERE category IS NOT NULL AND TRIM(category) <> ''
+       UNION
+       SELECT user_id FROM lists
+     ) AS category_users`
+  );
+
+  for (const user of userResult.rows) {
+    const userId = user.user_id as string;
+    const categoriesResult = await client.query(
+      'SELECT id, name FROM categories WHERE user_id = $1 ORDER BY created_at ASC',
+      [userId]
+    );
+
+    const categoryByNormalized = new Map<string, { id: string; name: string }>();
+    for (const category of categoriesResult.rows) {
+      const normalized = normalizeCategoryName(category.name);
+      if (!categoryByNormalized.has(normalized)) {
+        categoryByNormalized.set(normalized, { id: category.id, name: category.name });
+      }
+    }
+
+    const taskCategoryRows = await client.query(
+      `SELECT DISTINCT TRIM(category) AS category_name
+       FROM tasks
+       WHERE user_id = $1
+         AND category IS NOT NULL
+         AND TRIM(category) <> ''`,
+      [userId]
+    );
+
+    for (const row of taskCategoryRows.rows) {
+      const rawCategoryName = String(row.category_name || '').trim();
+      if (!rawCategoryName) continue;
+
+      const normalized = normalizeCategoryName(rawCategoryName);
+      let canonicalCategory = categoryByNormalized.get(normalized);
+
+      if (!canonicalCategory) {
+        const categoryId = uuidv4();
+        await client.query(
+          `INSERT INTO categories (id, user_id, name, color, icon, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [categoryId, userId, rawCategoryName, null, null, now, now]
+        );
+        canonicalCategory = { id: categoryId, name: rawCategoryName };
+        categoryByNormalized.set(normalized, canonicalCategory);
+        createdCategories += 1;
+      }
+
+      const taskUpdateResult = await client.query(
+        `UPDATE tasks
+         SET category = $1, updated_at = $2
+         WHERE user_id = $3
+           AND category IS NOT NULL
+           AND LOWER(TRIM(category)) = $4
+           AND category <> $1`,
+        [canonicalCategory.name, now, userId, normalized]
+      );
+      updatedTasks += taskUpdateResult.rowCount || 0;
+    }
+
+    const listsResult = await client.query(
+      'SELECT id, category_names FROM lists WHERE user_id = $1',
+      [userId]
+    );
+
+    for (const list of listsResult.rows) {
+      const parsedCategoryNames = parseCategoryNames(list.category_names);
+      const normalizedCategoryNames: string[] = [];
+
+      for (const categoryName of parsedCategoryNames) {
+        const trimmed = categoryName.trim();
+        if (!trimmed) continue;
+
+        const normalized = normalizeCategoryName(trimmed);
+        let canonicalCategory = categoryByNormalized.get(normalized);
+
+        if (!canonicalCategory) {
+          const categoryId = uuidv4();
+          await client.query(
+            `INSERT INTO categories (id, user_id, name, color, icon, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [categoryId, userId, trimmed, null, null, now, now]
+          );
+          canonicalCategory = { id: categoryId, name: trimmed };
+          categoryByNormalized.set(normalized, canonicalCategory);
+          createdCategories += 1;
+        }
+
+        normalizedCategoryNames.push(canonicalCategory.name);
+      }
+
+      const nextCategoryNames = sanitizeCategoryNames(normalizedCategoryNames);
+      const currentCategoryNames = parseCategoryNames(list.category_names);
+      const nextJson = JSON.stringify(nextCategoryNames);
+      const currentJson = JSON.stringify(currentCategoryNames);
+      const shouldUpdate =
+        nextJson !== currentJson ||
+        (typeof list.category_names === 'string' && list.category_names !== currentJson);
+
+      if (!shouldUpdate) continue;
+
+      const listUpdateResult = await client.query(
+        `UPDATE lists
+         SET category_names = $1, updated_at = $2
+         WHERE id = $3 AND user_id = $4`,
+        [nextJson, now, list.id, userId]
+      );
+      updatedLists += listUpdateResult.rowCount || 0;
+    }
+  }
+
+  console.log(
+    `[Migration] Category backfill (PostgreSQL): ${createdCategories} categories created, ` +
+      `${updatedTasks} tasks normalized, ${updatedLists} lists sanitized`
+  );
+};
+
+const runCategoryBackfillMigrationSqlite = async (): Promise<void> => {
+  const now = new Date().toISOString();
+  let createdCategories = 0;
+  let updatedTasks = 0;
+  let updatedLists = 0;
+
+  const users = await db.all(
+    `SELECT DISTINCT user_id
+     FROM (
+       SELECT user_id FROM tasks WHERE category IS NOT NULL AND TRIM(category) <> ''
+       UNION
+       SELECT user_id FROM lists
+     )`
+  );
+
+  for (const user of users) {
+    const userId = user.user_id as string;
+    const categories = await db.all(
+      'SELECT id, name FROM categories WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    );
+
+    const categoryByNormalized = new Map<string, { id: string; name: string }>();
+    for (const category of categories) {
+      const normalized = normalizeCategoryName(category.name);
+      if (!categoryByNormalized.has(normalized)) {
+        categoryByNormalized.set(normalized, { id: category.id, name: category.name });
+      }
+    }
+
+    const taskCategoryRows = await db.all(
+      `SELECT DISTINCT TRIM(category) AS category_name
+       FROM tasks
+       WHERE user_id = ?
+         AND category IS NOT NULL
+         AND TRIM(category) <> ''`,
+      [userId]
+    );
+
+    for (const row of taskCategoryRows) {
+      const rawCategoryName = String(row.category_name || '').trim();
+      if (!rawCategoryName) continue;
+
+      const normalized = normalizeCategoryName(rawCategoryName);
+      let canonicalCategory = categoryByNormalized.get(normalized);
+
+      if (!canonicalCategory) {
+        const categoryId = uuidv4();
+        await db.run(
+          `INSERT INTO categories (id, user_id, name, color, icon, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [categoryId, userId, rawCategoryName, null, null, now, now]
+        );
+        canonicalCategory = { id: categoryId, name: rawCategoryName };
+        categoryByNormalized.set(normalized, canonicalCategory);
+        createdCategories += 1;
+      }
+
+      const taskUpdateResult = await db.run(
+        `UPDATE tasks
+         SET category = ?, updated_at = ?
+         WHERE user_id = ?
+           AND category IS NOT NULL
+           AND LOWER(TRIM(category)) = ?
+           AND category <> ?`,
+        [canonicalCategory.name, now, userId, normalized, canonicalCategory.name]
+      );
+      updatedTasks += taskUpdateResult?.changes || 0;
+    }
+
+    const lists = await db.all(
+      'SELECT id, category_names FROM lists WHERE user_id = ?',
+      [userId]
+    );
+
+    for (const list of lists) {
+      const parsedCategoryNames = parseCategoryNames(list.category_names);
+      const normalizedCategoryNames: string[] = [];
+
+      for (const categoryName of parsedCategoryNames) {
+        const trimmed = categoryName.trim();
+        if (!trimmed) continue;
+
+        const normalized = normalizeCategoryName(trimmed);
+        let canonicalCategory = categoryByNormalized.get(normalized);
+
+        if (!canonicalCategory) {
+          const categoryId = uuidv4();
+          await db.run(
+            `INSERT INTO categories (id, user_id, name, color, icon, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [categoryId, userId, trimmed, null, null, now, now]
+          );
+          canonicalCategory = { id: categoryId, name: trimmed };
+          categoryByNormalized.set(normalized, canonicalCategory);
+          createdCategories += 1;
+        }
+
+        normalizedCategoryNames.push(canonicalCategory.name);
+      }
+
+      const nextCategoryNames = sanitizeCategoryNames(normalizedCategoryNames);
+      const currentCategoryNames = parseCategoryNames(list.category_names);
+      const nextJson = JSON.stringify(nextCategoryNames);
+      const currentJson = JSON.stringify(currentCategoryNames);
+      const shouldUpdate =
+        nextJson !== currentJson ||
+        (typeof list.category_names === 'string' && list.category_names !== currentJson);
+
+      if (!shouldUpdate) continue;
+
+      const listUpdateResult = await db.run(
+        `UPDATE lists
+         SET category_names = ?, updated_at = ?
+         WHERE id = ? AND user_id = ?`,
+        [nextJson, now, list.id, userId]
+      );
+      updatedLists += listUpdateResult?.changes || 0;
+    }
+  }
+
+  console.log(
+    `[Migration] Category backfill (SQLite): ${createdCategories} categories created, ` +
+      `${updatedTasks} tasks normalized, ${updatedLists} lists sanitized`
+  );
+};
+
 const runMigrations = async (): Promise<void> => {
   const databaseUrl = process.env.DATABASE_URL || 'sqlite:./jarvi.db';
   const isPostgres = databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://');
@@ -226,6 +520,9 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists or migration already ran, ignore
       }
+
+      // Migration: backfill and normalize task/list categories with categories catalog
+      await runCategoryBackfillMigrationPostgres(client);
     } finally {
       client.release();
     }
@@ -257,6 +554,9 @@ const runMigrations = async (): Promise<void> => {
     } catch (e) {
       // Column already exists or migration already ran, ignore
     }
+
+    // Migration: backfill and normalize task/list categories with categories catalog
+    await runCategoryBackfillMigrationSqlite();
   }
 };
 

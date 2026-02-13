@@ -28,6 +28,10 @@ export interface CreateListPopoverProps {
   mode?: ListPopoverMode;
   listToEdit?: EditableListData | null;
   onDeleted?: (listId: string) => void;
+  categories?: Array<{
+    id: string;
+    name: string;
+  }>;
 }
 
 export function CreateListPopover({
@@ -37,8 +41,9 @@ export function CreateListPopover({
   mode = 'create',
   listToEdit = null,
   onDeleted,
+  categories: providedCategories = [],
 }: CreateListPopoverProps) {
-  const { categories, createCategory } = useCategories();
+  const { categories: contextCategories, createCategory } = useCategories();
   const { createList, updateList, deleteList } = useLists();
 
   const [name, setName] = useState('');
@@ -53,18 +58,29 @@ export function CreateListPopover({
   const closeCategoryDropdownRef = useRef<(() => void) | null>(null);
   const isEditMode = mode === 'edit' && Boolean(listToEdit);
 
+  const availableCategories = useMemo(
+    () =>
+      providedCategories.length > 0
+        ? providedCategories
+        : contextCategories.map((category) => ({ id: category.id, name: category.name })),
+    [providedCategories, contextCategories]
+  );
+
   const categoryOptions = useMemo(
     () =>
-      categories.map((c) => ({
-        id: c.id,
-        label: c.name,
+      availableCategories.map((category) => ({
+        id: category.id,
+        label: category.name,
       })),
-    [categories]
+    [availableCategories]
   );
 
   const resolveCategoryTags = (categoryNames: string[]): Tag[] => {
     return categoryNames.map((categoryName) => {
-      const matchedCategory = categories.find((category) => category.name === categoryName);
+      const normalizedCategoryName = categoryName.trim().toLowerCase();
+      const matchedCategory = availableCategories.find(
+        (category) => category.name.trim().toLowerCase() === normalizedCategoryName
+      );
       return {
         id: matchedCategory?.id ?? `name:${categoryName}`,
         label: categoryName,

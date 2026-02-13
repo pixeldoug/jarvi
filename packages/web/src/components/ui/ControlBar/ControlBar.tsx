@@ -19,6 +19,7 @@ import { Chip } from '../Chip';
 import { Tooltip } from '../Tooltip';
 import { TaskDatePicker, PriorityPicker, CategoryPicker } from '../../features/tasks';
 import { useCategories, type Category } from '../../../contexts/CategoryContext';
+import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
 import { toast } from '../Sonner';
 import styles from './ControlBar.module.css';
 
@@ -55,7 +56,8 @@ export function ControlBar({
   primaryActionText = 'Nova Tarefa',
 }: ControlBarProps) {
   const navigate = useNavigate();
-  const { categories, createCategory } = useCategories();
+  const { createCategory } = useCategories();
+  const mergedTaskCategories = useMergedTaskCategories();
   const [mode, setMode] = useState<'navigation' | 'task'>('navigation');
   
   // Task creation state
@@ -509,7 +511,7 @@ export function ControlBar({
       <CategoryPicker
         isOpen={showCategoryPicker}
         onClose={() => setShowCategoryPicker(false)}
-        categories={categories}
+        categories={mergedTaskCategories}
         selectedCategory={category || undefined}
         onSelectCategory={handleCategorySelect}
         onCreateCategory={handleCreateCategory}

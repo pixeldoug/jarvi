@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Hash, Fire, Trash } from '@phosphor-icons/react';
 import { Task } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
+import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
 import { TaskCheckbox } from '../TaskCheckbox';
 import { TaskDatePicker } from '../TaskDatePicker';
 import { PriorityPicker, type Priority } from '../PriorityPicker';
@@ -34,7 +35,8 @@ export function TaskDetailsSidebar({
   onToggleCompletion,
   onDelete,
 }: TaskDetailsSidebarProps) {
-  const { categories, createCategory } = useCategories();
+  const { createCategory } = useCategories();
+  const mergedTaskCategories = useMergedTaskCategories();
   const [title, setTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -520,7 +522,7 @@ export function TaskDetailsSidebar({
         <CategoryPicker
           isOpen={showCategoryPicker}
           onClose={() => setShowCategoryPicker(false)}
-          categories={categories}
+          categories={mergedTaskCategories}
           selectedCategory={task.category || undefined}
           onSelectCategory={handleCategorySelect}
           onCreateCategory={handleCreateCategory}
