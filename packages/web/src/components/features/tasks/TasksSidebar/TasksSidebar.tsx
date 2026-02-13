@@ -172,6 +172,7 @@ export function TasksSidebar({
                 icon={Hash}
                 active={selectedCategory === category.name}
                 counter={category.count}
+                counterVariant="chip"
                 onClick={() => handleCategoryClick(category.name)}
               />
             ))}

@@ -83,6 +83,99 @@
   width: 100%;
 }
 
+.categoryDropdownContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.categoryDropdownContentEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+  padding: var(--sizes-4) var(--sizes-0);
+}
+
+.categoryDropdownHeaderSimple {
+  display: flex;
+  align-items: center;
+  padding: var(--sizes-1) var(--sizes-3);
+}
+
+.categoryDropdownHeaderWithIcon {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  padding: var(--sizes-1) var(--sizes-3);
+}
+
+.categoryDropdownHeaderWithIcon svg {
+  color: var(--semantic-content-primary);
+  flex-shrink: 0;
+}
+
+.categoryDropdownTitle {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.categoryDropdownDescription {
+  margin: 0;
+  padding: 0 var(--sizes-4);
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.categoryDropdownList {
+  display: flex;
+  flex-direction: column;
+}
+
+.categoryDropdownInputContainer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.categoryDropdownInput {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--sizes-4);
+  background: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-control-border-active);
+  border-radius: var(--radius-radius-sm);
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+  outline: none;
+}
+
+.categoryDropdownInput::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
+.categoryDropdownFooterCreate {
+  display: flex;
+  gap: var(--sizes-2);
+}
+
+.categoryDropdownCancelButton {
+  flex: 1;
+}
+
+.categoryDropdownCreateButton {
+  flex: 1;
+}
+
 .footer {
   flex-shrink: 0;
   display: flex;

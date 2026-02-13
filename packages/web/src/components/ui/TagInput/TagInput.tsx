@@ -54,10 +54,20 @@ export interface TagInputProps {
   dropdownTheme?: 'light' | 'dark';
   /** Optional section rendered below dropdown options */
   dropdownButtonSection?: ReactNode;
+  /** Optional custom dropdown content renderer */
+  renderDropdownContent?: (context: {
+    options: Tag[];
+    selectedTags: Tag[];
+    isOptionSelected: (optionId: string) => boolean;
+    toggleOption: (option: Tag) => void;
+    closeDropdown: () => void;
+  }) => ReactNode;
   /** Optional icon displayed on each dropdown option */
   optionIcon?: PhosphorIcon;
   /** Close dropdown after selecting one option */
   closeOnSelect?: boolean;
+  /** Callback when dropdown open state changes */
+  onDropdownOpenChange?: (isOpen: boolean) => void;
 }
 
 // ============================================================================
@@ -78,14 +88,16 @@ export function TagInput({
   options,
   dropdownTheme,
   dropdownButtonSection,
+  renderDropdownContent,
   optionIcon: OptionIcon,
   closeOnSelect = false,
+  onDropdownOpenChange,
 }: TagInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [internalTags, setInternalTags] = useState<Tag[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasBuiltInDropdown = Boolean(options);
+  const hasBuiltInDropdown = Boolean(options || renderDropdownContent);
   const availableOptions = options ?? [];
   const selectedTags = tags ?? internalTags;
   const selectedTagIds = useMemo(
@@ -99,6 +111,11 @@ export function TagInput({
       setInternalTags(nextTags);
     }
     onTagsChange?.(nextTags);
+  };
+
+  const setDropdownOpen = (nextIsOpen: boolean) => {
+    setIsOpen(nextIsOpen);
+    onDropdownOpenChange?.(nextIsOpen);
   };
 
   const handleFocus = () => {
@@ -130,7 +147,7 @@ export function TagInput({
       onDropdownClick?.();
 
       if (hasBuiltInDropdown) {
-        setIsOpen((prev) => !prev);
+        setDropdownOpen(!isOpen);
       }
 
       setIsFocused(true);
@@ -144,12 +161,12 @@ export function TagInput({
     onDropdownClick?.();
 
     if (hasBuiltInDropdown) {
-      setIsOpen((prev) => !prev);
+      setDropdownOpen(!isOpen);
     }
   };
 
   const handleDropdownClose = () => {
-    setIsOpen(false);
+    setDropdownOpen(false);
     setIsFocused(false);
   };
 
@@ -165,8 +182,7 @@ export function TagInput({
     }
 
     if (closeOnSelect) {
-      setIsOpen(false);
-      setIsFocused(false);
+      handleDropdownClose();
     }
   };
 
@@ -248,27 +264,37 @@ export function TagInput({
           forceTheme={dropdownTheme}
           buttonSection={dropdownButtonSection}
         >
-          <div className={styles.options} role="listbox" aria-label={label}>
-            {availableOptions.map((option) => {
-              const isSelected = selectedTagIds.has(option.id);
-              const iconNode = OptionIcon
-                ? <OptionIcon size={16} weight="regular" />
-                : option.prefixIcon ?? <Hash size={16} weight="regular" />;
+          {renderDropdownContent ? (
+            renderDropdownContent({
+              options: availableOptions,
+              selectedTags,
+              isOptionSelected: (optionId: string) => selectedTagIds.has(optionId),
+              toggleOption: handleSelectOption,
+              closeDropdown: handleDropdownClose,
+            })
+          ) : (
+            <div className={styles.options} role="listbox" aria-label={label}>
+              {availableOptions.map((option) => {
+                const isSelected = selectedTagIds.has(option.id);
+                const iconNode = OptionIcon
+                  ? <OptionIcon size={16} weight="regular" />
+                  : option.prefixIcon ?? <Hash size={16} weight="regular" />;
 
-              return (
-                <ListItem
-                  key={option.id}
-                  label={option.label}
-                  iconNode={iconNode}
-                  onClick={() => handleSelectOption(option)}
-                  buttonProps={{
-                    role: 'option',
-                    'aria-selected': isSelected,
-                  }}
-                />
-              );
-            })}
-          </div>
+                return (
+                  <ListItem
+                    key={option.id}
+                    label={option.label}
+                    iconNode={iconNode}
+                    onClick={() => handleSelectOption(option)}
+                    buttonProps={{
+                      role: 'option',
+                      'aria-selected': isSelected,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </Dropdown>
       )}
     </div>
