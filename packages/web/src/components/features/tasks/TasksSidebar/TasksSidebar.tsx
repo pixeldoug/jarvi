@@ -20,7 +20,7 @@ import {
 import { ListItem } from '../../../ui/ListItem';
 import styles from './TasksSidebar.module.css';
 
-export type ListType = 'all' | 'important' | 'today' | 'tomorrow' | 'week' | 'later' | 'noDate' | 'overdue';
+export type ListType = 'all' | 'important' | 'today' | 'tomorrow' | 'week' | 'later' | 'noDate' | 'overdue' | 'completed';
 export type CategoryType = string;
 
 export interface TasksSidebarProps {
@@ -50,6 +50,7 @@ export interface TasksSidebarProps {
     later?: number;
     noDate?: number;
     overdue?: number;
+    completed?: number;
   };
   /** Categories with their task counts */
   categories?: Array<{
@@ -78,6 +79,7 @@ const lists: Array<{
   { id: 'week', label: 'Semana que vem', icon: Couch },
   { id: 'later', label: 'Mais pra frente', icon: MoonStars },
   { id: 'noDate', label: 'Sem data', icon: Prohibit },
+  { id: 'completed', label: 'Concluídas', icon: Checks },
 ];
 
 export function TasksSidebar({
@@ -133,7 +135,7 @@ export function TasksSidebar({
               label={list.label}
               icon={list.icon}
               active={selectedList === list.id && !selectedCategory && !selectedCustomListId}
-              counter={taskCounts[list.id]}
+              counter={list.id === 'completed' ? undefined : taskCounts[list.id]}
               counterVariant="chip"
               onClick={() => handleListClick(list.id)}
             />

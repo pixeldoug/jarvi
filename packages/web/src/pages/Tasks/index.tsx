@@ -306,6 +306,7 @@ export function Tasks() {
       later: 'Mais pra frente',
       noDate: 'Sem data',
       overdue: 'Vencidas',
+      completed: 'Concluídas',
     };
     return listNames[listType] || 'Tarefas';
   };
@@ -365,6 +366,8 @@ export function Tasks() {
           return weekTaskDateStr >= nextWeekStartStr && weekTaskDateStr < nextWeekEndStr;
         case 'noDate':
           return !task.due_date && !task.completed;
+        case 'completed':
+          return task.completed;
         default:
           return true;
       }
@@ -512,9 +515,11 @@ export function Tasks() {
     let week = 0;
     let later = 0;
     let noDate = 0;
+    let all = 0;
 
     tasks.forEach((task) => {
       if (task.completed) return;
+      all += 1;
 
       if (task.important) important += 1;
 
@@ -539,7 +544,7 @@ export function Tasks() {
     });
 
     return {
-      all: tasks.length,
+      all,
       important,
       overdue,
       today: todayCount,
