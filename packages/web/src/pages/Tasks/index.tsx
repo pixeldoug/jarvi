@@ -77,6 +77,7 @@ export function Tasks() {
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [movingTask, setMovingTask] = useState<{ taskId: string; fromSection: string; toSection: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     vencidas: true,
     hoje: true,
@@ -599,6 +600,11 @@ export function Tasks() {
     }
   }, [selectedCustomListId]);
 
+  // Keep custom list completed section collapsed on first load and when switching lists.
+  useEffect(() => {
+    setIsCustomListCompletedOpen(false);
+  }, [selectedCustomListId]);
+
   const sidebarNode = (
     <>
       <TasksSidebar
@@ -994,6 +1000,12 @@ export function Tasks() {
   if (selectedList !== 'all' || selectedCustomListId) {
     const simpleViewTasks = selectedCustomListId ? visibleTasks : filteredTasks;
     const simpleViewSection = selectedCustomListId ? 'custom-list' : selectedList;
+    const incompleteSimpleViewTasks = selectedCustomListId
+      ? simpleViewTasks.filter((task) => !task.completed)
+      : simpleViewTasks;
+    const completedSimpleViewTasks = selectedCustomListId
+      ? simpleViewTasks.filter((task) => task.completed)
+      : [];
 
     return (
       <MainLayout
@@ -1016,8 +1028,8 @@ export function Tasks() {
       >
         <div className={styles.content}>
           <div className={styles.sectionContent}>
-            {simpleViewTasks.length > 0 ? (
-              simpleViewTasks.map((task) => (
+            {incompleteSimpleViewTasks.length > 0 ? (
+              incompleteSimpleViewTasks.map((task) => (
                 <TaskItem
                   key={task.id}
                   task={task}
@@ -1039,6 +1051,34 @@ export function Tasks() {
               </div>
             )}
           </div>
+
+          {selectedCustomListId && completedSimpleViewTasks.length > 0 && (
+            <Collapsible
+              label="Tarefas concluídas"
+              defaultOpen={false}
+              isOpen={isCustomListCompletedOpen}
+              onOpenChange={setIsCustomListCompletedOpen}
+            >
+              <div className={styles.sectionContent}>
+                {completedSimpleViewTasks.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    section={simpleViewSection}
+                    onToggleCompletion={handleToggleCompletion}
+                    onEdit={handleEdit}
+                    onDelete={handleDeleteTask}
+                    onUpdateTask={handleUpdateTask}
+                    onOpenDatePicker={handleOpenDatePicker}
+                    onClick={handleTaskClick}
+                    showInsertionLine={false}
+                    isActive={selectedTask?.id === task.id}
+                    hideCategoryChip={!!selectedTask}
+                  />
+                ))}
+              </div>
+            </Collapsible>
+          )}
         </div>
       </MainLayout>
     );
