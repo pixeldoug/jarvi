@@ -66,6 +66,22 @@ function getNextWeekBounds(today: Date): { start: string; end: string } {
   };
 }
 
+/**
+ * Calcula o intervalo de "esta semana" para tarefas futuras:
+ * do dia depois de amanhã até antes da próxima segunda-feira.
+ */
+function getCurrentWeekUpcomingBounds(today: Date): { start: string; end: string } {
+  const dayAfterTomorrow = new Date(today);
+  dayAfterTomorrow.setDate(today.getDate() + 2);
+
+  const { start: nextWeekStartStr } = getNextWeekBounds(today);
+
+  return {
+    start: dayAfterTomorrow.toISOString().split('T')[0],
+    end: nextWeekStartStr,
+  };
+}
+
 export function Tasks() {
   const [selectedList, setSelectedList] = useState<ListType>('all');
   const [selectedCustomListId, setSelectedCustomListId] = useState<string | null>(null);
@@ -82,6 +98,7 @@ export function Tasks() {
     vencidas: true,
     hoje: true,
     amanha: true,
+    'esta-semana': true,
     'semana-que-vem': true,
     'sem-data': true,
     'eventos-futuros': true,
@@ -386,11 +403,13 @@ export function Tasks() {
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
     const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
+    const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
 
     const categories = {
       vencidas: [] as Task[],
       hoje: [] as Task[],
       amanha: [] as Task[],
+      estaSemana: [] as Task[],
       semanaQueVem: [] as Task[],
       semData: [] as Task[],
       eventosFuturos: [] as Task[],
@@ -434,6 +453,8 @@ export function Tasks() {
         categories.hoje.push(task);
       } else if (taskDateStr === tomorrowStr) {
         categories.amanha.push(task);
+      } else if (taskDateStr >= currentWeekStartStr && taskDateStr < currentWeekEndStr) {
+        categories.estaSemana.push(task);
       } else if (taskDateStr >= nextWeekStartStr && taskDateStr < nextWeekEndStr) {
         categories.semanaQueVem.push(task);
       } else {
@@ -457,6 +478,7 @@ export function Tasks() {
           'vencidas': 'vencidas',
           'hoje': 'hoje',
           'amanha': 'amanha',
+          'esta-semana': 'estaSemana',
           'semana-que-vem': 'semanaQueVem',
           'sem-data': 'semData',
           'eventos-futuros': 'eventosFuturos',
@@ -745,6 +767,7 @@ export function Tasks() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
+    const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
     
     let newDueDate: string | undefined;
     switch (overSection) {
@@ -764,6 +787,10 @@ export function Tasks() {
         break;
       case 'amanha':
         newDueDate = tomorrowStr;
+        break;
+      case 'esta-semana':
+        // Use the first available day after tomorrow still inside current week
+        newDueDate = currentWeekStartStr < currentWeekEndStr ? currentWeekStartStr : tomorrowStr;
         break;
       case 'semana-que-vem':
         // Set to start of next week
@@ -1167,6 +1194,28 @@ export function Tasks() {
             defaultOpen={true}
             isOpen={openSections.amanha}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, amanha: isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
+          />
+
+          {/* Esta semana */}
+          <DroppableSection
+            title="Ainda esta semana"
+            tasks={categorizedTasks.estaSemana}
+            emptyMessage="Nenhuma tarefa para esta semana"
+            sectionId="esta-semana"
+            defaultOpen={true}
+            isOpen={openSections['esta-semana']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'esta-semana': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
             onEdit={handleEdit}
             onDelete={handleDeleteTask}
