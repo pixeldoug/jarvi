@@ -725,3 +725,307 @@
   outline: 2px solid var(--semantic-control-focusring);
   outline-offset: 2px;
 }
+
+/* ============================================================================
+   EDITOR OUTER CONTAINER
+   ============================================================================ */
+
+.editorContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: var(--sizes-2, 8px);
+}
+
+/* ============================================================================
+   ATTACHMENT CARDS
+   ============================================================================ */
+
+.attachmentsList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sizes-2, 8px);
+}
+
+.attachmentCard {
+  flex: 1 1 calc(25% - 6px);
+  min-width: 100px;
+  max-width: 160px;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-radius-sm, 12px);
+  border: 1px solid var(--semantic-border-primary);
+  background: var(--semantic-surface-primary, #fff);
+  overflow: hidden;
+  cursor: default;
+  transition: border-color 0.15s ease;
+}
+
+.attachmentCardHover {
+  border-color: var(--semantic-control-border-active, #6137f3);
+}
+
+.attachmentPreview {
+  position: relative;
+  height: 64px;
+  background: var(--semantic-surface-secondary, #f7f8f9);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.previewImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.previewVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.previewIcon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: var(--semantic-content-secondary, #a0abb4);
+}
+
+.previewExtBadge {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  color: var(--semantic-content-secondary, #a0abb4);
+}
+
+.attachmentDeleteBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-button-icon-radius, 16px);
+  background: var(--component-button-ghost-bg-hover, #e8eaed);
+  border: none;
+  cursor: pointer;
+  color: var(--semantic-content-primary, #34373c);
+  transition: background 0.15s ease;
+}
+
+.attachmentDeleteBtn:hover {
+  background: var(--component-button-ghost-bg-hover, #d8dde0);
+}
+
+.attachmentDeleteBtn:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 2px;
+}
+
+.attachmentContent {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px;
+}
+
+.attachmentTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.attachmentName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--typography-label-sm-font-family);
+  font-size: 11px;
+  font-weight: var(--typography-label-sm-font-weight, 500);
+  color: var(--semantic-content-primary, #34373c);
+  line-height: var(--typography-label-sm-line-height, 16px);
+}
+
+.attachmentExt {
+  flex-shrink: 0;
+  font-family: var(--typography-label-sm-font-family);
+  font-size: 11px;
+  font-weight: var(--typography-label-sm-font-weight, 500);
+  color: var(--semantic-content-primary, #34373c);
+  line-height: var(--typography-label-sm-line-height, 16px);
+}
+
+.attachmentDate {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: 11px;
+  font-weight: var(--typography-label-sm-font-weight, 500);
+  color: var(--semantic-content-secondary, #a0abb4);
+  line-height: var(--typography-label-sm-line-height, 16px);
+  white-space: nowrap;
+}
+
+.attachmentCard {
+  cursor: pointer;
+}
+
+/* ============================================================================
+   ATTACHMENT VIEWER (FULLSCREEN LIGHTBOX)
+   ============================================================================ */
+
+.viewerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(9, 9, 11, 0.8);
+  display: flex;
+  align-items: stretch;
+}
+
+.viewerInner {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding: 40px;
+  background: linear-gradient(142.74deg, #18181b 24.93%, rgba(24, 24, 27, 0.92) 100%);
+  overflow: hidden;
+}
+
+.viewerActions {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 1;
+}
+
+.viewerActionBtn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-button-icon-radius, 16px);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #f7f8f9;
+  transition: background 0.15s ease;
+}
+
+.viewerActionBtn:hover {
+  background: rgba(247, 248, 249, 0.08);
+}
+
+.viewerActionBtn:focus-visible {
+  outline: 2px solid rgba(247, 248, 249, 0.5);
+  outline-offset: 2px;
+}
+
+.viewerActionBtnClose {
+  background: rgba(9, 9, 11, 0.1);
+  border: 1px solid #34373c;
+}
+
+.viewerActionBtnClose:hover {
+  background: rgba(247, 248, 249, 0.12);
+}
+
+.viewerHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.viewerTitle {
+  font-family: var(--typography-heading-lg-font-family, 'Poppins', sans-serif);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #f7f8f9;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.viewerDate {
+  font-family: var(--typography-body-lg-font-family, 'Poppins', sans-serif);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: #b5bcc4;
+  margin: 0;
+}
+
+.viewerPreviewArea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.viewerImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.viewerVideo {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  outline: none;
+}
+
+.viewerIframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.viewerGenericPreview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #a0abb4;
+}
+
+.viewerGenericLabel {
+  font-family: var(--typography-heading-md-font-family, 'Poppins', sans-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: #f7f8f9;
+  word-break: break-all;
+  text-align: center;
+}
+
+.viewerGenericHint {
+  font-family: var(--typography-body-lg-font-family, 'Poppins', sans-serif);
+  font-size: 14px;
+  color: #b5bcc4;
+  margin: 0;
+}

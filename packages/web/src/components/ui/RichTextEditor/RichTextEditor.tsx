@@ -8,8 +8,22 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
-import { DotsThree, UploadSimple } from '@phosphor-icons/react';
-import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, MouseEvent } from 'react';
+import {
+  DotsThree,
+  DownloadSimple,
+  File,
+  FileAudio,
+  FileCode,
+  FilePdf,
+  FileText,
+  FileVideo,
+  FileZip,
+  Trash,
+  UploadSimple,
+  X,
+} from '@phosphor-icons/react';
+import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, MouseEvent, KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './RichTextEditor.module.css';
 import { Button } from '../Button/Button';
 import { EditorToolbar } from './EditorToolbar';
@@ -29,6 +43,16 @@ interface FeedbackState {
   message: string;
 }
 
+interface AttachmentFile {
+  id: string;
+  name: string;
+  ext: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: Date;
+  previewUrl: string;
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -37,6 +61,244 @@ function formatFileSize(bytes: number): string {
 
 function isImageFile(file: File): boolean {
   return file.type.startsWith('image/');
+}
+
+function formatAttachmentDate(date: Date): string {
+  const day = date.getDate();
+  const month = date.toLocaleDateString('pt-BR', { month: 'short' })
+    .replace('.', '')
+    .replace(/^./, s => s.toUpperCase());
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const mins = String(date.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year}, ${hours}:${mins}`;
+}
+
+function AttachmentFileIcon({ mimeType }: { mimeType: string }) {
+  const size = 24;
+  const weight = 'regular' as const;
+  if (mimeType === 'application/pdf') return <FilePdf size={size} weight={weight} />;
+  if (mimeType.startsWith('audio/')) return <FileAudio size={size} weight={weight} />;
+  if (mimeType.startsWith('video/')) return <FileVideo size={size} weight={weight} />;
+  if (mimeType === 'text/plain' || mimeType === 'text/markdown') return <FileText size={size} weight={weight} />;
+  if (
+    mimeType === 'text/html' ||
+    mimeType === 'text/css' ||
+    mimeType === 'text/javascript' ||
+    mimeType === 'application/json' ||
+    mimeType === 'application/xml' ||
+    mimeType.includes('typescript')
+  ) return <FileCode size={size} weight={weight} />;
+  if (
+    mimeType === 'application/zip' ||
+    mimeType === 'application/x-zip-compressed' ||
+    mimeType === 'application/gzip' ||
+    mimeType === 'application/x-tar' ||
+    mimeType === 'application/x-7z-compressed' ||
+    mimeType === 'application/x-rar-compressed'
+  ) return <FileZip size={size} weight={weight} />;
+  return <File size={size} weight={weight} />;
+}
+
+function AttachmentPreviewContent({ attachment }: { attachment: AttachmentFile }) {
+  if (attachment.mimeType.startsWith('image/')) {
+    return (
+      <img
+        src={attachment.previewUrl}
+        alt={`${attachment.name}${attachment.ext}`}
+        className={styles.previewImage}
+      />
+    );
+  }
+  if (attachment.mimeType.startsWith('video/')) {
+    return (
+      <video
+        src={attachment.previewUrl}
+        className={styles.previewVideo}
+        muted
+        preload="metadata"
+      />
+    );
+  }
+  return (
+    <div className={styles.previewIcon}>
+      <AttachmentFileIcon mimeType={attachment.mimeType} />
+      {attachment.ext && <span className={styles.previewExtBadge}>{attachment.ext.replace('.', '').toUpperCase()}</span>}
+    </div>
+  );
+}
+
+function AttachmentCard({
+  attachment,
+  onRemove,
+  onOpen,
+}: {
+  attachment: AttachmentFile;
+  onRemove: (id: string) => void;
+  onOpen: (attachment: AttachmentFile) => void;
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Prevent opening viewer when clicking the delete button
+    if ((e.target as HTMLElement).closest('button')) return;
+    onOpen(attachment);
+  };
+
+  const handleCardKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpen(attachment);
+    }
+  };
+
+  return (
+    <div
+      className={`${styles.attachmentCard} ${isHovered ? styles.attachmentCardHover : ''}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Visualizar ${attachment.name}${attachment.ext}`}
+    >
+      <div className={styles.attachmentPreview}>
+        <AttachmentPreviewContent attachment={attachment} />
+        {isHovered && (
+          <button
+            type="button"
+            className={styles.attachmentDeleteBtn}
+            onClick={() => onRemove(attachment.id)}
+            aria-label={`Remover anexo ${attachment.name}${attachment.ext}`}
+          >
+            <Trash size={16} weight="regular" />
+          </button>
+        )}
+      </div>
+      <div className={styles.attachmentContent}>
+        <div className={styles.attachmentTitle}>
+          <span className={styles.attachmentName}>{attachment.name}</span>
+          <span className={styles.attachmentExt}>{attachment.ext}</span>
+        </div>
+        <span className={styles.attachmentDate}>{formatAttachmentDate(attachment.uploadedAt)}</span>
+      </div>
+    </div>
+  );
+}
+
+function AttachmentViewerPreview({ attachment }: { attachment: AttachmentFile }) {
+  if (attachment.mimeType.startsWith('image/')) {
+    return (
+      <img
+        src={attachment.previewUrl}
+        alt={`${attachment.name}${attachment.ext}`}
+        className={styles.viewerImage}
+      />
+    );
+  }
+  if (attachment.mimeType.startsWith('video/')) {
+    return (
+      <video
+        src={attachment.previewUrl}
+        className={styles.viewerVideo}
+        controls
+        autoPlay={false}
+      />
+    );
+  }
+  if (attachment.mimeType === 'application/pdf') {
+    return (
+      <iframe
+        src={attachment.previewUrl}
+        className={styles.viewerIframe}
+        title={`${attachment.name}${attachment.ext}`}
+      />
+    );
+  }
+  return (
+    <div className={styles.viewerGenericPreview}>
+      <AttachmentFileIcon mimeType={attachment.mimeType} />
+      <span className={styles.viewerGenericLabel}>{attachment.name}{attachment.ext}</span>
+      <p className={styles.viewerGenericHint}>Prévia não disponível para este tipo de arquivo</p>
+    </div>
+  );
+}
+
+function AttachmentViewer({
+  attachment,
+  onClose,
+  onRemove,
+}: {
+  attachment: AttachmentFile;
+  onClose: () => void;
+  onRemove: (id: string) => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = attachment.previewUrl;
+    a.download = `${attachment.name}${attachment.ext}`;
+    a.click();
+  };
+
+  const handleDelete = () => {
+    onRemove(attachment.id);
+    onClose();
+  };
+
+  return createPortal(
+    <div className={styles.viewerOverlay} role="dialog" aria-modal="true" aria-label={`Visualizar ${attachment.name}${attachment.ext}`}>
+      <div className={styles.viewerInner}>
+        {/* Actions top-right */}
+        <div className={styles.viewerActions}>
+          <button
+            type="button"
+            className={styles.viewerActionBtn}
+            onClick={handleDelete}
+            aria-label="Excluir anexo"
+          >
+            <Trash size={16} weight="regular" />
+          </button>
+          <button
+            type="button"
+            className={styles.viewerActionBtn}
+            onClick={handleDownload}
+            aria-label="Baixar arquivo"
+          >
+            <DownloadSimple size={16} weight="regular" />
+          </button>
+          <button
+            type="button"
+            className={`${styles.viewerActionBtn} ${styles.viewerActionBtnClose}`}
+            onClick={onClose}
+            aria-label="Fechar visualizador"
+          >
+            <X size={16} weight="bold" />
+          </button>
+        </div>
+
+        {/* Header top-left */}
+        <div className={styles.viewerHeader}>
+          <h2 className={styles.viewerTitle}>{attachment.name}{attachment.ext}</h2>
+          <p className={styles.viewerDate}>{formatAttachmentDate(attachment.uploadedAt)}</p>
+        </div>
+
+        {/* Preview centered */}
+        <div className={styles.viewerPreviewArea}>
+          <AttachmentViewerPreview attachment={attachment} />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
 }
 
 export interface RichTextEditorProps {
@@ -136,7 +398,17 @@ export function RichTextEditor({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const [viewedAttachment, setViewedAttachment] = useState<AttachmentFile | null>(null);
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
   const dragCounterRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach(a => URL.revokeObjectURL(a.previewUrl));
+    };
+  }, []);
 
   const publishFeedback = useCallback((message: string, tone: FeedbackTone = 'info') => {
     setFeedback({ tone, message });
@@ -310,6 +582,25 @@ export function RichTextEditor({
     input.click();
   }, [editor, insertFile, readOnly]);
 
+  const addFilesAsAttachments = useCallback((files: File[]) => {
+    if (!files.length) return;
+    const newAttachments: AttachmentFile[] = files.map(file => {
+      const dotIdx = file.name.lastIndexOf('.');
+      const name = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+      const ext = dotIdx > 0 ? file.name.slice(dotIdx) : '';
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name,
+        ext,
+        mimeType: file.type,
+        size: file.size,
+        uploadedAt: new Date(),
+        previewUrl: URL.createObjectURL(file),
+      };
+    });
+    setAttachments(prev => [...prev, ...newAttachments]);
+  }, []);
+
   const handleFileUpload = useCallback(() => {
     if (readOnly) return;
 
@@ -317,11 +608,18 @@ export function RichTextEditor({
     input.type = 'file';
     input.multiple = true;
     input.onchange = () => {
-      const files = Array.from(input.files ?? []);
-      files.forEach(insertFile);
+      addFilesAsAttachments(Array.from(input.files ?? []));
     };
     input.click();
-  }, [insertFile, readOnly]);
+  }, [addFilesAsAttachments, readOnly]);
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments(prev => {
+      const target = prev.find(a => a.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter(a => a.id !== id);
+    });
+  }, []);
 
   const handlePaste = useCallback((e: ClipboardEvent<HTMLDivElement>) => {
     if (readOnly) return;
@@ -330,8 +628,8 @@ export function RichTextEditor({
     if (!files.length) return;
 
     e.preventDefault();
-    files.forEach(insertFile);
-  }, [insertFile, readOnly]);
+    addFilesAsAttachments(files);
+  }, [addFilesAsAttachments, readOnly]);
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -368,9 +666,8 @@ export function RichTextEditor({
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    if (!files.length) return;
-    files.forEach(insertFile);
-  }, [insertFile, readOnly]);
+    addFilesAsAttachments(files);
+  }, [addFilesAsAttachments, readOnly]);
 
   const handleResizeStart = useCallback((event: MouseEvent<HTMLButtonElement>) => {
     if (readOnly) return;
@@ -432,79 +729,102 @@ export function RichTextEditor({
   ].filter(Boolean).join(' ');
 
   return (
-    <div
-      ref={wrapperRef}
-      className={wrapperClassName}
-      role="group"
-      aria-label="Editor de descricao"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      {!readOnly && (
-        <EditorToolbar
-          editor={editor}
-          onImageUpload={handleImageUpload}
-          onFileUpload={handleFileUpload}
-        />
-      )}
-      <div className={styles.editorArea} onPaste={handlePaste} data-has-actions={!readOnly && (onSave || onCancel)}>
-        <EditorContent editor={editor} />
+    <div className={styles.editorContainer}>
+      <div
+        ref={wrapperRef}
+        className={wrapperClassName}
+        role="group"
+        aria-label="Editor de descricao"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         {!readOnly && (
-          <button
-            type="button"
-            className={styles.resizeHandle}
-            onMouseDown={handleResizeStart}
-            aria-label="Redimensionar area de texto"
-            title="Arraste para redimensionar"
+          <EditorToolbar
+            editor={editor}
+            onImageUpload={handleImageUpload}
+            onFileUpload={handleFileUpload}
+          />
+        )}
+        <div className={styles.editorArea} onPaste={handlePaste} data-has-actions={!readOnly && (onSave || onCancel)}>
+          <EditorContent editor={editor} />
+          {!readOnly && (
+            <button
+              type="button"
+              className={styles.resizeHandle}
+              onMouseDown={handleResizeStart}
+              aria-label="Redimensionar area de texto"
+              title="Arraste para redimensionar"
+            >
+              <DotsThree size={12} weight="bold" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        {!readOnly && (onSave || onCancel) && (
+          <div className={styles.editorActions}>
+            <Button
+              variant="secondary"
+              size="small"
+              onClick={handleCancelClick}
+              disabled={!onCancel}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              size="small"
+              onClick={handleSaveClick}
+              disabled={!onSave}
+            >
+              Salvar
+            </Button>
+          </div>
+        )}
+        {feedback && (
+          <p
+            className={`${styles.feedback} ${
+              feedback.tone === 'error'
+                ? styles.feedbackError
+                : feedback.tone === 'success'
+                  ? styles.feedbackSuccess
+                  : styles.feedbackInfo
+            }`}
+            role={feedback.tone === 'error' ? 'alert' : 'status'}
+            aria-live={feedback.tone === 'error' ? 'assertive' : 'polite'}
           >
-            <DotsThree size={12} weight="bold" aria-hidden="true" />
-          </button>
+            {feedback.message}
+          </p>
+        )}
+        {isDragging && (
+          <div className={styles.dropOverlay}>
+            <div className={styles.dropOverlayContent}>
+              <UploadSimple size={40} weight="regular" />
+              <span>Solte para anexar</span>
+            </div>
+          </div>
         )}
       </div>
-      {!readOnly && (onSave || onCancel) && (
-        <div className={styles.editorActions}>
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={handleCancelClick}
-            disabled={!onCancel}
-          >
-            Cancelar
-          </Button>
-          <Button
-            variant="primary"
-            size="small"
-            onClick={handleSaveClick}
-            disabled={!onSave}
-          >
-            Salvar
-          </Button>
+
+      {attachments.length > 0 && (
+        <div className={styles.attachmentsList} role="list" aria-label="Arquivos anexados">
+          {attachments.map(att => (
+            <AttachmentCard
+              key={att.id}
+              attachment={att}
+              onRemove={handleRemoveAttachment}
+              onOpen={setViewedAttachment}
+            />
+          ))}
         </div>
       )}
-      {feedback && (
-        <p
-          className={`${styles.feedback} ${
-            feedback.tone === 'error'
-              ? styles.feedbackError
-              : feedback.tone === 'success'
-                ? styles.feedbackSuccess
-                : styles.feedbackInfo
-          }`}
-          role={feedback.tone === 'error' ? 'alert' : 'status'}
-          aria-live={feedback.tone === 'error' ? 'assertive' : 'polite'}
-        >
-          {feedback.message}
-        </p>
-      )}
-      {isDragging && (
-        <div className={styles.dropOverlay}>
-          <div className={styles.dropOverlayContent}>
-            <UploadSimple size={40} weight="regular" />
-            <span>Solte para anexar</span>
-          </div>
-        </div>
+
+      {viewedAttachment && (
+        <AttachmentViewer
+          attachment={viewedAttachment}
+          onClose={() => setViewedAttachment(null)}
+          onRemove={handleRemoveAttachment}
+        />
       )}
     </div>
   );
