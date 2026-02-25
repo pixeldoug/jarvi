@@ -165,6 +165,17 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       UNIQUE(user_id, name)
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS task_subtasks (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      completed ${booleanType} DEFAULT FALSE,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     );`
   ];
   
@@ -523,6 +534,22 @@ const runMigrations = async (): Promise<void> => {
 
       // Migration: backfill and normalize task/list categories with categories catalog
       await runCategoryBackfillMigrationPostgres(client);
+
+      // Migration: Create task_subtasks table for existing databases
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS task_subtasks (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          completed BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -557,6 +584,22 @@ const runMigrations = async (): Promise<void> => {
 
     // Migration: backfill and normalize task/list categories with categories catalog
     await runCategoryBackfillMigrationSqlite();
+
+    // Migration: Create task_subtasks table for existing SQLite databases
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS task_subtasks (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        completed BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
   }
 };
 

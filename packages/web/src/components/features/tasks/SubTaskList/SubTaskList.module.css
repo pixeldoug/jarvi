@@ -1,0 +1,195 @@
+/* ============================================================================
+   SUB-TASK LIST
+   ============================================================================ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding: 0 var(--sizes-2);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+}
+
+.sectionTitle {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: 600;
+  color: var(--semantic-content-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.progress {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-tertiary);
+}
+
+/* ============================================================================
+   PROGRESS BAR
+   ============================================================================ */
+
+.progressBarWrapper {
+  height: 3px;
+  background: var(--semantic-surface-tertiary, #e8eaed);
+  border-radius: var(--radius-radius-round);
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--color-brand-primary-500);
+  border-radius: var(--radius-radius-round);
+  transition: width 0.25s ease;
+}
+
+/* ============================================================================
+   SUBTASK ITEM
+   ============================================================================ */
+
+.itemsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  border-radius: var(--radius-radius-sm);
+  padding: var(--sizes-1) var(--sizes-2);
+  transition: background 0.1s ease;
+}
+
+.item:hover {
+  background: var(--semantic-surface-secondary);
+}
+
+.item:hover .deleteBtn {
+  opacity: 1;
+}
+
+.checkbox {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(--color-brand-primary-500);
+  cursor: pointer;
+  margin: 0;
+}
+
+.itemTitle {
+  flex: 1;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  min-width: 0;
+  cursor: text;
+}
+
+.itemTitle::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
+.itemTitleCompleted {
+  composes: itemTitle;
+  text-decoration: line-through;
+  color: var(--semantic-content-tertiary);
+}
+
+.deleteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-radius-sm);
+  cursor: pointer;
+  color: var(--semantic-content-tertiary);
+  opacity: 0;
+  transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.deleteBtn:hover {
+  background: var(--color-system-red-100);
+  color: var(--color-system-red-600);
+}
+
+/* ============================================================================
+   ADD INPUT
+   ============================================================================ */
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  padding: var(--sizes-1) var(--sizes-2);
+  border-radius: var(--radius-radius-sm);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.addRow:hover {
+  background: var(--semantic-surface-secondary);
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--semantic-content-tertiary);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  color: var(--semantic-content-tertiary);
+  transition: border-color 0.1s ease, color 0.1s ease;
+}
+
+.addRow:hover .addBtn {
+  border-color: var(--color-brand-primary-500);
+  color: var(--color-brand-primary-500);
+}
+
+.addInput {
+  flex: 1;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+}
+
+.addInput::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
+.addLabel {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  color: var(--semantic-content-tertiary);
+}

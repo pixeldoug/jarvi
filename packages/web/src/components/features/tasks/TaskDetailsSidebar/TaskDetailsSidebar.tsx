@@ -5,7 +5,7 @@
  * Following JarviDS design system from Figma
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Calendar, Hash, Fire, Trash } from '@phosphor-icons/react';
 import { Task } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -16,6 +16,7 @@ import { PriorityPicker, type Priority } from '../PriorityPicker';
 import { CategoryPicker } from '../CategoryPicker';
 import { Button, Chip } from '../../../ui';
 import { parseDateString } from '../../../../lib/utils';
+import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
 import styles from './TaskDetailsSidebar.module.css';
 
 export interface TaskDetailsSidebarProps {
@@ -41,6 +42,8 @@ export function TaskDetailsSidebar({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [description, setDescription] = useState('');
+  const [savedDescription, setSavedDescription] = useState('');
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -56,14 +59,21 @@ export function TaskDetailsSidebar({
   useEffect(() => {
     if (task) {
       setTitle(task.title || '');
-      setDescription(task.description || '');
+      const nextDescription = task.description || '';
+      setDescription(nextDescription);
+      setSavedDescription(nextDescription);
       setSelectedDate(parseDateString(task.due_date));
       setSelectedTime(task.time || '');
       if (!isEditingTitle) {
         setTitleDraft(task.title || '');
       }
+      setIsEditingDescription(false);
     }
   }, [task, isEditingTitle]);
+
+  const handleDescriptionChange = useCallback((json: string) => {
+    setDescription(json);
+  }, []);
 
   // Focus title input when editing
   useEffect(() => {
@@ -139,24 +149,30 @@ export function TaskDetailsSidebar({
     }
   };
 
-  // Handle description save
-  const handleDescriptionBlur = async () => {
+  const handleDescriptionSave = async () => {
     if (!task) return;
-    
+
+    setIsEditingDescription(false);
     try {
       await onUpdateTask(task.id, {
         title: title || task.title,
-        description: description.trim(),
+        description,
         priority: task.priority,
         category: task.category,
         completed: task.completed,
         dueDate: task.due_date,
         time: task.time,
       });
+      setSavedDescription(description);
     } catch (error) {
       console.error('Failed to update task description:', error);
     }
   };
+
+  const handleDescriptionCancel = useCallback(() => {
+    setDescription(savedDescription);
+    setIsEditingDescription(false);
+  }, [savedDescription]);
 
   // Handle completion toggle
   const handleToggleCompletionClick = async () => {
@@ -551,16 +567,45 @@ export function TaskDetailsSidebar({
         />
       </div>
 
-      {/* Description Textarea */}
+      {/* Description - Rich Text Editor */}
       <div className={styles.textareaContainer}>
-        <textarea
-          className={styles.textarea}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={handleDescriptionBlur}
-          placeholder="Adicione uma descrição..."
-        />
+        {isEditingDescription ? (
+          <RichTextEditor
+            content={description}
+            onChange={handleDescriptionChange}
+            onSave={handleDescriptionSave}
+            onCancel={handleDescriptionCancel}
+            placeholder="Adicione uma descrição. Digite / para comandos rápidos."
+          />
+        ) : (
+          <div
+            className={styles.descriptionReadOnly}
+            onClick={() => setIsEditingDescription(true)}
+            role="button"
+            tabIndex={0}
+            aria-label="Editar descrição"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setIsEditingDescription(true);
+              }
+            }}
+          >
+            {isDescriptionEmpty(description) ? (
+              <p className={styles.descriptionPlaceholder}>
+                Adicione uma descrição. Dica: digite <kbd className={styles.kbdHint}>/</kbd> para comandos rápidos.
+              </p>
+            ) : (
+              <RichTextEditor
+                content={description}
+                onChange={handleDescriptionChange}
+                readOnly
+              />
+            )}
+          </div>
+        )}
       </div>
+
 
       {/* Footer: Creation Timestamp */}
       <div className={styles.footer}>
@@ -582,6 +627,20 @@ export function TaskDetailsSidebar({
       )}
     </div>
   );
+}
+
+function isDescriptionEmpty(desc: string): boolean {
+  if (!desc) return true;
+  try {
+    const doc = JSON.parse(desc);
+    if (doc?.type !== 'doc') return false;
+    const content: any[] = doc.content ?? [];
+    if (content.length === 0) return true;
+    if (content.length === 1 && content[0].type === 'paragraph' && !content[0].content) return true;
+    return false;
+  } catch {
+    return !desc.trim();
+  }
 }
 
 // Helper function to format creation date

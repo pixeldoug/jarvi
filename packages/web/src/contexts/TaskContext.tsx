@@ -44,6 +44,16 @@ export interface UpdateTaskData {
   recurrence_config?: string;
 }
 
+export interface SubTask {
+  id: string;
+  task_id: string;
+  user_id: string;
+  title: string;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface TaskContextType {
   tasks: Task[];
   isLoading: boolean;
@@ -55,6 +65,13 @@ interface TaskContextType {
   undoDeleteTask: (taskId: string) => Promise<boolean>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
   reorderTasks: (reorderedTasks: Task[]) => void;
+  // Sub-tasks
+  subtasksByTaskId: Record<string, SubTask[]>;
+  fetchSubTasks: (taskId: string) => Promise<void>;
+  createSubTask: (taskId: string, title: string) => Promise<SubTask>;
+  updateSubTask: (taskId: string, subtaskId: string, title: string) => Promise<void>;
+  toggleSubTask: (taskId: string, subtaskId: string) => Promise<void>;
+  deleteSubTask: (taskId: string, subtaskId: string) => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -75,6 +92,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subtasksByTaskId, setSubtasksByTaskId] = useState<Record<string, SubTask[]>>({});
   const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number; originalIndex: number }[]>(() => {
     // Initialize from localStorage
     try {
@@ -648,6 +666,105 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     setTasks(reorderedTasks);
   };
 
+  // ── Sub-task functions ──────────────────────────────────────────────────────
+
+  const fetchSubTasks = async (taskId: string) => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch subtasks');
+      const data: SubTask[] = await response.json();
+      setSubtasksByTaskId(prev => ({ ...prev, [taskId]: data }));
+    } catch (error) {
+      console.error('Error fetching subtasks:', error);
+    }
+  };
+
+  const createSubTask = async (taskId: string, title: string): Promise<SubTask> => {
+    if (!token) throw new Error('No authentication token');
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!response.ok) throw new Error('Failed to create subtask');
+    const newSubTask: SubTask = await response.json();
+    setSubtasksByTaskId(prev => ({
+      ...prev,
+      [taskId]: [...(prev[taskId] ?? []), newSubTask],
+    }));
+    return newSubTask;
+  };
+
+  const updateSubTask = async (taskId: string, subtaskId: string, title: string) => {
+    if (!token) return;
+    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks/${subtaskId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
+    });
+    if (!response.ok) throw new Error('Failed to update subtask');
+    const updated: SubTask = await response.json();
+    setSubtasksByTaskId(prev => ({
+      ...prev,
+      [taskId]: (prev[taskId] ?? []).map(s => s.id === subtaskId ? updated : s),
+    }));
+  };
+
+  const toggleSubTask = async (taskId: string, subtaskId: string) => {
+    if (!token) return;
+    // Optimistic toggle
+    setSubtasksByTaskId(prev => ({
+      ...prev,
+      [taskId]: (prev[taskId] ?? []).map(s =>
+        s.id === subtaskId ? { ...s, completed: !s.completed } : s
+      ),
+    }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks/${subtaskId}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to toggle subtask');
+      const updated: SubTask = await response.json();
+      setSubtasksByTaskId(prev => ({
+        ...prev,
+        [taskId]: (prev[taskId] ?? []).map(s => s.id === subtaskId ? updated : s),
+      }));
+    } catch (error) {
+      // Revert optimistic update
+      setSubtasksByTaskId(prev => ({
+        ...prev,
+        [taskId]: (prev[taskId] ?? []).map(s =>
+          s.id === subtaskId ? { ...s, completed: !s.completed } : s
+        ),
+      }));
+      console.error('Error toggling subtask:', error);
+    }
+  };
+
+  const deleteSubTask = async (taskId: string, subtaskId: string) => {
+    if (!token) return;
+    // Optimistic remove
+    setSubtasksByTaskId(prev => ({
+      ...prev,
+      [taskId]: (prev[taskId] ?? []).filter(s => s.id !== subtaskId),
+    }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks/${subtaskId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to delete subtask');
+    } catch (error) {
+      // Revert: re-fetch to restore state
+      fetchSubTasks(taskId);
+      console.error('Error deleting subtask:', error);
+    }
+  };
+
   // Fetch tasks when token changes
   useEffect(() => {
     if (token) {
@@ -668,6 +785,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     undoDeleteTask,
     toggleTaskCompletion,
     reorderTasks,
+    subtasksByTaskId,
+    fetchSubTasks,
+    createSubTask,
+    updateSubTask,
+    toggleSubTask,
+    deleteSubTask,
   };
 
   return (
