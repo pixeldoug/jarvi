@@ -11,7 +11,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../../contexts/TaskContext';
 import { Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
-import { formatTaskDate } from '../../../../lib/utils';
+import { formatTaskDate, formatTaskDateWeekday } from '../../../../lib/utils';
 import { 
   PencilSimple, 
   Trash, 
@@ -33,6 +33,7 @@ export interface TaskItemProps {
   showInsertionLine?: boolean;
   isActive?: boolean;
   hideCategoryChip?: boolean;
+  showDayOfWeek?: boolean;
 }
 
 const TaskItemComponent: React.FC<TaskItemProps> = ({
@@ -47,6 +48,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   showInsertionLine = false,
   isActive = false,
   hideCategoryChip = false,
+  showDayOfWeek = false,
 }) => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -112,8 +114,10 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   };
 
   // Format date chip label
-  const dateLabel = task.due_date 
-    ? formatTaskDate(task.due_date, task.time) || 'Definir'
+  const dateLabel = task.due_date
+    ? (showDayOfWeek
+        ? formatTaskDateWeekday(task.due_date, task.time) || formatTaskDate(task.due_date, task.time) || 'Definir'
+        : formatTaskDate(task.due_date, task.time) || 'Definir')
     : 'Definir';
 
   // Handle click on task item (but not on interactive elements)

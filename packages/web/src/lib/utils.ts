@@ -42,6 +42,26 @@ export function formatTaskDate(dueDate?: string, time?: string): string | null {
   }
 }
 
+const WEEKDAY_NAMES_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+/**
+ * Format task date as weekday name (for "esta semana" section)
+ * @param dueDate - ISO date string
+ * @param time - Optional time string (e.g., "10:00")
+ * @returns Formatted string like "Sexta" or "09:00, Sexta", or null if invalid
+ */
+export function formatTaskDateWeekday(dueDate?: string, time?: string): string | null {
+  const date = parseDateString(dueDate);
+  if (!date) return null;
+
+  try {
+    const weekday = WEEKDAY_NAMES_PT[date.getDay()];
+    return time ? `${time}, ${weekday}` : weekday;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Detect if the user is on macOS or iOS
  * @returns true if running on macOS or iOS, false otherwise

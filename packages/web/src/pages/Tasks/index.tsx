@@ -850,6 +850,7 @@ export function Tasks() {
     movingTask: { taskId: string; fromSection: string; toSection: string } | null;
     selectedTaskId?: string | null;
     hideCategoryChip?: boolean;
+    showDayOfWeek?: boolean;
     // onQuickCreate?: (title: string, sectionId: string) => Promise<void>; // NOT USED IN MVP INITIAL
   }> = memo(({ 
     title, 
@@ -869,6 +870,7 @@ export function Tasks() {
     movingTask,
     selectedTaskId,
     hideCategoryChip = false,
+    showDayOfWeek = false,
     // onQuickCreate, // NOT USED IN MVP INITIAL
   }) => {
     const { setNodeRef, isOver } = useDroppable({
@@ -938,6 +940,7 @@ export function Tasks() {
                       showInsertionLine={insertionIndicator?.sectionId === sectionId && insertionIndicator?.index === index}
                       isActive={selectedTaskId === task.id}
                       hideCategoryChip={hideCategoryChip}
+                      showDayOfWeek={showDayOfWeek}
                     />
                   </motion.div>
                 );
@@ -1226,6 +1229,7 @@ export function Tasks() {
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
+            showDayOfWeek={true}
             // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
           />
 
