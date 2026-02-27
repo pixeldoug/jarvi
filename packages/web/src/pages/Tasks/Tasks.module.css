@@ -10,6 +10,50 @@
   gap: var(--sizes-8);
 }
 
+.pendingSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.pendingSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pendingSectionTitle {
+  margin: 0;
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.pendingSectionCount {
+  margin-left: var(--sizes-2);
+  color: var(--semantic-content-secondary);
+}
+
+.pendingTaskList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.pendingSectionMessage {
+  margin: 0;
+  color: var(--semantic-content-secondary);
+  font-size: var(--typography-body-sm-font-size);
+}
+
+.pendingSectionError {
+  margin: 0;
+  color: var(--color-system-red-500);
+  font-size: var(--typography-body-sm-font-size);
+}
+
 /* Section */
 .section {
   margin-bottom: var(--sizes-1);

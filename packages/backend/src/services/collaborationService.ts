@@ -2,6 +2,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+import { setIO } from '../utils/ioManager';
 
 interface AuthenticatedSocket {
   userId: string;
@@ -29,6 +30,7 @@ export class CollaborationService {
       }
     });
 
+    setIO(this.io);
     this.setupMiddleware();
     this.setupEventHandlers();
   }
@@ -42,6 +44,10 @@ export class CollaborationService {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+        const userIdFromToken = decoded.id || decoded.userId;
+        if (!userIdFromToken) {
+          return next(new Error('Authentication error: User id missing in token'));
+        }
         
         // Buscar dados do usuário no banco
         let user;
@@ -51,7 +57,7 @@ export class CollaborationService {
           try {
             const result = await client.query(
               'SELECT id, name, email FROM users WHERE id = $1',
-              [decoded.userId]
+              [userIdFromToken]
             );
             user = result.rows[0];
           } finally {
@@ -61,7 +67,7 @@ export class CollaborationService {
           const db = getDatabase();
           user = await db.get(
             'SELECT id, name, email FROM users WHERE id = ?',
-            [decoded.userId]
+            [userIdFromToken]
           );
         }
 
@@ -86,6 +92,7 @@ export class CollaborationService {
     this.io.on('connection', (socket) => {
       const user = (socket as any).user as AuthenticatedSocket;
       console.log(`User ${user.userName} connected with socket ${socket.id}`);
+      socket.join(`user:${user.userId}`);
 
       // Adicionar socket à lista de sockets do usuário
       if (!this.userSockets.has(user.userId)) {

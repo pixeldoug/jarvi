@@ -8,13 +8,14 @@ import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { Gear } from '@phosphor-icons/react';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import { useLists } from '../../contexts/ListContext';
-import { TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
+import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { MainLayout } from '../../components/layout';
 import { TasksSidebar, ListType } from '../../components/features/tasks';
 import { Button, TaskCreationData, Collapsible } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
+import { usePendingTasks } from '../../hooks/usePendingTasks';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DndContext,
@@ -107,6 +108,7 @@ export function Tasks() {
   });
 
   const { 
+    fetchTasks,
     tasks, 
     isLoading, 
     error, 
@@ -120,6 +122,14 @@ export function Tasks() {
 
   const { lists: customLists } = useLists();
   const mergedTaskCategories = useMergedTaskCategories();
+  const {
+    pendingTasks,
+    isLoading: isPendingTasksLoading,
+    error: pendingTasksError,
+    confirm: confirmPendingTask,
+    reject: rejectPendingTask,
+    update: updatePendingTask,
+  } = usePendingTasks();
 
   useEffect(() => {
     // Keep selectedTask completion in sync with global tasks state
@@ -235,6 +245,45 @@ export function Tasks() {
     // Placeholder - can add date picker later
     console.log('Open date picker for:', task);
   };
+
+  const handleConfirmPendingTask = useCallback(async (pendingTaskId: string) => {
+    try {
+      await confirmPendingTask(pendingTaskId);
+      await fetchTasks();
+    } catch (error) {
+      console.error('Failed to confirm pending task:', error);
+      toast.error('Não foi possível confirmar a tarefa pendente.');
+    }
+  }, [confirmPendingTask, fetchTasks]);
+
+  const handleRejectPendingTask = useCallback(async (pendingTaskId: string) => {
+    try {
+      await rejectPendingTask(pendingTaskId);
+    } catch (error) {
+      console.error('Failed to reject pending task:', error);
+      toast.error('Não foi possível rejeitar a tarefa pendente.');
+    }
+  }, [rejectPendingTask]);
+
+  const handleUpdatePendingTask = useCallback(async (
+    pendingTaskId: string,
+    updates: {
+      title?: string;
+      description?: string | null;
+      priority?: 'low' | 'medium' | 'high' | null;
+      dueDate?: string | null;
+      time?: string | null;
+      category?: string | null;
+    }
+  ) => {
+    try {
+      await updatePendingTask(pendingTaskId, updates);
+      toast.success('Sugestão de tarefa atualizada.');
+    } catch (error) {
+      console.error('Failed to update pending task:', error);
+      toast.error('Não foi possível atualizar a sugestão de tarefa.');
+    }
+  }, [updatePendingTask]);
 
   // Handler for ControlBar task creation
   const handleControlBarCreateTask = async (taskData: TaskCreationData): Promise<Task | undefined> => {
@@ -1144,6 +1193,41 @@ export function Tasks() {
         onDragEnd={handleDragEnd}
       >
         <div className={styles.content}>
+          {(isPendingTasksLoading || pendingTasksError || pendingTasks.length > 0) && (
+            <section className={styles.pendingSection}>
+              <div className={styles.pendingSectionHeader}>
+                <h2 className={styles.pendingSectionTitle}>
+                  Pendentes do WhatsApp
+                  {pendingTasks.length > 0 && (
+                    <span className={styles.pendingSectionCount}>({pendingTasks.length})</span>
+                  )}
+                </h2>
+              </div>
+
+              {isPendingTasksLoading && (
+                <p className={styles.pendingSectionMessage}>Carregando sugestões...</p>
+              )}
+
+              {pendingTasksError && (
+                <p className={styles.pendingSectionError}>{pendingTasksError}</p>
+              )}
+
+              {pendingTasks.length > 0 && (
+                <div className={styles.pendingTaskList}>
+                  {pendingTasks.map((pendingTask) => (
+                    <PendingTaskCard
+                      key={pendingTask.id}
+                      task={pendingTask}
+                      onConfirm={handleConfirmPendingTask}
+                      onReject={handleRejectPendingTask}
+                      onUpdate={handleUpdatePendingTask}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Vencidas */}
           <DroppableSection
             title="Vencidas"
