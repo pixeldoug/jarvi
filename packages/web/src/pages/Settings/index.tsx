@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input, PasswordInput } from '../../components/ui';
 import { GoogleLogin } from '../../components/features/auth';
+import { WhatsAppLink } from './WhatsAppLink/WhatsAppLink';
 import styles from './Settings.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -284,6 +285,8 @@ export const Settings: React.FC = () => {
           </form>
         </section>
       )}
+
+      <WhatsAppLink />
 
       {/* Google Connected Account Section - Only for Google users */}
       {isGoogleUser && (

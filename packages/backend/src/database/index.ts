@@ -66,6 +66,10 @@ const createTables = async (): Promise<void> => {
       stripe_subscription_id TEXT,
       subscription_status TEXT DEFAULT 'none',
       trial_ends_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      whatsapp_phone TEXT UNIQUE,
+      whatsapp_verified ${booleanType} DEFAULT FALSE,
+      whatsapp_link_code TEXT,
+      whatsapp_link_code_expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -75,6 +79,8 @@ const createTables = async (): Promise<void> => {
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
+      original_whatsapp_content TEXT,
+      media_attachments TEXT,
       completed ${booleanType} DEFAULT FALSE,
       priority TEXT,
       category TEXT,
@@ -176,6 +182,29 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS pending_tasks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      source TEXT DEFAULT 'whatsapp',
+      raw_content TEXT,
+      transcription TEXT,
+      original_whatsapp_content TEXT,
+      media_attachments TEXT,
+      suggested_title TEXT NOT NULL,
+      suggested_description TEXT,
+      suggested_priority TEXT,
+      suggested_due_date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      suggested_time TEXT,
+      suggested_category TEXT,
+      status TEXT DEFAULT 'awaiting_confirmation',
+      whatsapp_message_sid TEXT,
+      whatsapp_phone TEXT,
+      expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );`
   ];
   
@@ -500,6 +529,69 @@ const runMigrations = async (): Promise<void> => {
     'ALTER TABLE users ADD COLUMN password_reset_token TEXT',
     'ALTER TABLE users ADD COLUMN password_reset_expires TIMESTAMP',
   ];
+
+  const whatsappUserMigrations = [
+    'ALTER TABLE users ADD COLUMN whatsapp_phone TEXT',
+    'ALTER TABLE users ADD COLUMN whatsapp_verified BOOLEAN DEFAULT FALSE',
+    'ALTER TABLE users ADD COLUMN whatsapp_link_code TEXT',
+    'ALTER TABLE users ADD COLUMN whatsapp_link_code_expires_at TIMESTAMP',
+  ];
+
+  const whatsappTaskMigrations = [
+    'ALTER TABLE tasks ADD COLUMN original_whatsapp_content TEXT',
+    'ALTER TABLE tasks ADD COLUMN media_attachments TEXT',
+  ];
+
+  const whatsappPendingTaskMigrations = [
+    'ALTER TABLE pending_tasks ADD COLUMN original_whatsapp_content TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN media_attachments TEXT',
+  ];
+
+  const createPendingTasksTablePostgres = `CREATE TABLE IF NOT EXISTS pending_tasks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source TEXT DEFAULT 'whatsapp',
+    raw_content TEXT,
+    transcription TEXT,
+    original_whatsapp_content TEXT,
+    media_attachments TEXT,
+    suggested_title TEXT NOT NULL,
+    suggested_description TEXT,
+    suggested_priority TEXT,
+    suggested_due_date TIMESTAMP,
+    suggested_time TEXT,
+    suggested_category TEXT,
+    status TEXT DEFAULT 'awaiting_confirmation',
+    whatsapp_message_sid TEXT,
+    whatsapp_phone TEXT,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`;
+
+  const createPendingTasksTableSqlite = `CREATE TABLE IF NOT EXISTS pending_tasks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source TEXT DEFAULT 'whatsapp',
+    raw_content TEXT,
+    transcription TEXT,
+    original_whatsapp_content TEXT,
+    media_attachments TEXT,
+    suggested_title TEXT NOT NULL,
+    suggested_description TEXT,
+    suggested_priority TEXT,
+    suggested_due_date DATETIME,
+    suggested_time TEXT,
+    suggested_category TEXT,
+    status TEXT DEFAULT 'awaiting_confirmation',
+    whatsapp_message_sid TEXT,
+    whatsapp_phone TEXT,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`;
   
   if (isPostgres) {
     const client = await pgPool.connect();
@@ -532,6 +624,23 @@ const runMigrations = async (): Promise<void> => {
         // Column already exists or migration already ran, ignore
       }
 
+      // Migration: Add WhatsApp linking columns
+      for (const migration of whatsappUserMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      try {
+        await client.query(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_whatsapp_phone_unique ON users (whatsapp_phone)'
+        );
+      } catch (e) {
+        // Index already exists, ignore
+      }
+
       // Migration: backfill and normalize task/list categories with categories catalog
       await runCategoryBackfillMigrationPostgres(client);
 
@@ -549,6 +658,31 @@ const runMigrations = async (): Promise<void> => {
         )`);
       } catch (e) {
         // Table already exists, ignore
+      }
+
+      // Migration: Create pending_tasks table for existing databases
+      try {
+        await client.query(createPendingTasksTablePostgres);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      // Migration: Add WhatsApp-specific task columns
+      for (const migration of whatsappTaskMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      // Migration: Add WhatsApp-specific pending task columns
+      for (const migration of whatsappPendingTaskMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
       }
     } finally {
       client.release();
@@ -582,6 +716,23 @@ const runMigrations = async (): Promise<void> => {
       // Column already exists or migration already ran, ignore
     }
 
+    // Migration: Add WhatsApp linking columns for SQLite
+    for (const migration of whatsappUserMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    try {
+      await db.exec(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_whatsapp_phone_unique ON users (whatsapp_phone)'
+      );
+    } catch (e) {
+      // Index already exists, ignore
+    }
+
     // Migration: backfill and normalize task/list categories with categories catalog
     await runCategoryBackfillMigrationSqlite();
 
@@ -599,6 +750,31 @@ const runMigrations = async (): Promise<void> => {
       )`);
     } catch (e) {
       // Table already exists, ignore
+    }
+
+    // Migration: Create pending_tasks table for existing SQLite databases
+    try {
+      await db.exec(createPendingTasksTableSqlite);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Add WhatsApp-specific task columns for SQLite
+    for (const migration of whatsappTaskMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    // Migration: Add WhatsApp-specific pending task columns for SQLite
+    for (const migration of whatsappPendingTaskMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
     }
   }
 };
