@@ -4,11 +4,20 @@ import bcrypt from 'bcryptjs';
 import { authenticateToken } from '../middleware/auth';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sendEmailChangeConfirmation } from '../services/emailService';
+import { sendTextMessage } from '../services/whatsappService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
 
 // Helper to generate secure token
 const generateSecureToken = (): string => {
   return crypto.randomBytes(32).toString('hex');
+};
+
+const generateWhatsappLinkCode = (): string =>
+  Math.floor(100000 + Math.random() * 900000).toString();
+
+const normalizeWhatsappPhone = (input: string): string => {
+  const digits = input.replace(/\D/g, '');
+  return digits ? `+${digits}` : '';
 };
 
 // Helper to get token expiration
@@ -427,6 +436,211 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
   } catch (error) {
     console.error('Error updating password:', error);
     res.status(500).json({ error: 'Erro ao atualizar senha' });
+  }
+});
+
+/**
+ * POST /api/users/whatsapp-link/request
+ * Generates verification code and sends it via WhatsApp.
+ */
+router.post('/whatsapp-link/request', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const phone = typeof req.body?.phone === 'string' ? req.body.phone : '';
+    const normalizedPhone = normalizeWhatsappPhone(phone);
+
+    if (!normalizedPhone || normalizedPhone.length < 12) {
+      res.status(400).json({ error: 'Número de WhatsApp inválido. Use formato com DDI e DDD.' });
+      return;
+    }
+
+    const linkCode = generateWhatsappLinkCode();
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    try {
+      if (isPostgreSQL()) {
+        const pool = getPool();
+        await pool.query(
+          `UPDATE users
+           SET whatsapp_phone = $1, whatsapp_verified = $2, whatsapp_link_code = $3,
+               whatsapp_link_code_expires_at = $4, updated_at = $5
+           WHERE id = $6`,
+          [normalizedPhone, false, linkCode, expiresAt, now, userId]
+        );
+      } else {
+        const db = getDatabase();
+        await db.run(
+          `UPDATE users
+           SET whatsapp_phone = ?, whatsapp_verified = ?, whatsapp_link_code = ?,
+               whatsapp_link_code_expires_at = ?, updated_at = ?
+           WHERE id = ?`,
+          [normalizedPhone, 0, linkCode, expiresAt, now, userId]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage = String(error?.message || '');
+      const isUniqueViolation =
+        error?.code === '23505' || errorMessage.includes('UNIQUE constraint failed');
+
+      if (isUniqueViolation) {
+        res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
+        return;
+      }
+
+      throw error;
+    }
+
+    await sendTextMessage(
+      normalizedPhone,
+      `Seu código Jarvi é: ${linkCode}. Ele expira em 10 minutos.`
+    );
+
+    res.json({
+      success: true,
+      message: 'Código enviado via WhatsApp.',
+      expiresAt,
+      phone: normalizedPhone,
+    });
+  } catch (error) {
+    console.error('Error requesting WhatsApp link:', error);
+    res.status(500).json({ error: 'Erro ao solicitar vinculação do WhatsApp' });
+  }
+});
+
+/**
+ * POST /api/users/whatsapp-link/verify
+ * Verifies code and marks whatsapp as linked.
+ */
+router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const providedCode = String(req.body?.code || '').replace(/\D/g, '').slice(0, 6);
+    if (providedCode.length !== 6) {
+      res.status(400).json({ error: 'Código inválido' });
+      return;
+    }
+
+    let user: any;
+    const now = new Date().toISOString();
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT id, whatsapp_phone, whatsapp_link_code, whatsapp_link_code_expires_at
+         FROM users
+         WHERE id = $1`,
+        [userId]
+      );
+      user = result.rows[0];
+    } else {
+      const db = getDatabase();
+      user = await db.get(
+        `SELECT id, whatsapp_phone, whatsapp_link_code, whatsapp_link_code_expires_at
+         FROM users
+         WHERE id = ?`,
+        [userId]
+      );
+    }
+
+    if (!user) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    if (!user.whatsapp_phone || !user.whatsapp_link_code || !user.whatsapp_link_code_expires_at) {
+      res.status(400).json({ error: 'Nenhuma solicitação de vinculação pendente' });
+      return;
+    }
+
+    const expiresAt = new Date(user.whatsapp_link_code_expires_at);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt < new Date()) {
+      res.status(400).json({ error: 'Código expirado. Solicite um novo código.' });
+      return;
+    }
+
+    if (providedCode !== String(user.whatsapp_link_code)) {
+      res.status(400).json({ error: 'Código inválido' });
+      return;
+    }
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE users
+         SET whatsapp_verified = $1, whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = $2
+         WHERE id = $3`,
+        [true, now, userId]
+      );
+    } else {
+      const db = getDatabase();
+      await db.run(
+        `UPDATE users
+         SET whatsapp_verified = ?, whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = ?
+         WHERE id = ?`,
+        [1, now, userId]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'WhatsApp vinculado com sucesso.',
+      phone: user.whatsapp_phone,
+    });
+  } catch (error) {
+    console.error('Error verifying WhatsApp link:', error);
+    res.status(500).json({ error: 'Erro ao verificar código de vinculação' });
+  }
+});
+
+/**
+ * DELETE /api/users/whatsapp-link
+ * Unlinks WhatsApp number from account.
+ */
+router.delete('/whatsapp-link', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE users
+         SET whatsapp_phone = NULL, whatsapp_verified = FALSE, whatsapp_link_code = NULL,
+             whatsapp_link_code_expires_at = NULL, updated_at = $1
+         WHERE id = $2`,
+        [now, userId]
+      );
+    } else {
+      const db = getDatabase();
+      await db.run(
+        `UPDATE users
+         SET whatsapp_phone = NULL, whatsapp_verified = 0, whatsapp_link_code = NULL,
+             whatsapp_link_code_expires_at = NULL, updated_at = ?
+         WHERE id = ?`,
+        [now, userId]
+      );
+    }
+
+    res.json({ success: true, message: 'Vinculação do WhatsApp removida.' });
+  } catch (error) {
+    console.error('Error unlinking WhatsApp:', error);
+    res.status(500).json({ error: 'Erro ao remover vinculação do WhatsApp' });
   }
 });
 

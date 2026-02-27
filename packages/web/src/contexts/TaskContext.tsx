@@ -7,6 +7,8 @@ export interface Task {
   user_id: string;
   title: string;
   description?: string;
+  original_whatsapp_content?: string | null;
+  media_attachments?: string | null;
   completed: boolean;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   category?: string;

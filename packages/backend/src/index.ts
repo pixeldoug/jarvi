@@ -15,7 +15,10 @@ import listRoutes from './routes/listRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 import webhookRoutes from './routes/webhookRoutes';
 import userRoutes from './routes/userRoutes';
+import whatsappRoutes from './routes/whatsappRoutes';
+import pendingTaskRoutes from './routes/pendingTaskRoutes';
 import { CollaborationService } from './services/collaborationService';
+import { initializeWhatsappWorker } from './queues/whatsappQueue';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -73,6 +76,7 @@ app.use(morgan('combined'));
 
 // Stripe webhooks need raw body - must be before express.json()
 app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+app.use('/api/webhooks/whatsapp', express.urlencoded({ extended: false }), whatsappRoutes);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
@@ -136,6 +140,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/lists', listRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/pending-tasks', pendingTaskRoutes);
 app.use('/api', noteShareRoutes);
 
 // Initialize database and start server
@@ -145,10 +150,12 @@ initializeDatabase()
     
     // Initialize collaboration service
     const collaborationService = new CollaborationService(server);
+    initializeWhatsappWorker();
     
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🤝 Collaboration service initialized`);
+      console.log('📱 WhatsApp worker initialized');
     });
   })
   .catch((error) => {
