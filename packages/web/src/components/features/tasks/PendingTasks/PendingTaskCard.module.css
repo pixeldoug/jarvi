@@ -1,0 +1,92 @@
+.card {
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-md);
+  padding: var(--sizes-4);
+  background: var(--semantic-surface-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--typography-title-md-font-size);
+  line-height: var(--typography-title-md-line-height);
+  color: var(--semantic-content-primary);
+  font-weight: var(--typography-title-md-font-weight);
+}
+
+.badge {
+  padding: 2px var(--sizes-2);
+  border-radius: var(--radius-radius-pill);
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-secondary);
+  font-size: var(--typography-caption-sm-font-size);
+  white-space: nowrap;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sizes-2);
+  color: var(--semantic-content-secondary);
+  font-size: var(--typography-body-sm-font-size);
+}
+
+.description {
+  margin: 0;
+  color: var(--semantic-content-secondary);
+  font-size: var(--typography-body-md-font-size);
+  line-height: var(--typography-body-md-line-height);
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sizes-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  color: var(--semantic-content-secondary);
+  font-size: var(--typography-caption-sm-font-size);
+}
+
+.field select,
+.field input {
+  width: 100%;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  padding: var(--sizes-2);
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .meta,
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
