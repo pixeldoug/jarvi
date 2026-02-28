@@ -54,9 +54,13 @@ Deve retornar: `{"status":"OK","timestamp":"..."}`
 Para produção:
 
 1. **Gere nova JWT_SECRET**
-2. **Configure CORS_ORIGIN** para seu domínio
-3. **Use PostgreSQL** ao invés de SQLite
-4. **Configure HTTPS**
+2. **Defina APP_ENV** como `staging` ou `production`
+3. **Configure CORS_ALLOWED_ORIGINS** com as URLs do ambiente
+4. **Configure ALLOWED_EXTENSION_IDS** com os IDs da extensão
+5. **Use PostgreSQL** ao invés de SQLite
+6. **Configure HTTPS**
+
+💡 **Recomendação para staging:** use `NODE_ENV=production` e `APP_ENV=staging`.
 
 ## 🔒 Segurança
 
@@ -72,10 +76,13 @@ Para produção:
 |----------|-----------|---------|
 | `PORT` | Porta do servidor | `3001` |
 | `NODE_ENV` | Ambiente | `development` |
+| `APP_ENV` | Ambiente lógico (`development/staging/production`) | `staging` |
 | `JWT_SECRET` | Chave JWT | `[64 chars hex]` |
 | `JWT_EXPIRES_IN` | Expiração do JWT | `7d` |
 | `GOOGLE_CLIENT_ID` | Google OAuth ID | `123...googleusercontent.com` |
-| `CORS_ORIGIN` | Origem permitida | `http://localhost:3000` |
+| `CORS_ALLOWED_ORIGINS` | Lista CSV de origens web permitidas | `https://staging.jarvi.life,https://jarvi.life` |
+| `CORS_ORIGIN` | Origem legada (compatibilidade) | `http://localhost:3000` |
+| `ALLOWED_EXTENSION_IDS` | IDs permitidos da extensão Chrome (CSV) | `abcdefghijklmnopabcdefghijklmnop` |
 | `STRIPE_SECRET_KEY` | Chave secreta Stripe | `sk_test_...` |
 | `STRIPE_WEBHOOK_SECRET` | Secret do webhook | `whsec_...` |
 | `STRIPE_PRICE_ID` | ID do preço/produto | `price_...` |
