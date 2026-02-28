@@ -1,0 +1,97 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+  padding: var(--sizes-4);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-md);
+  background: var(--semantic-surface-primary);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sizes-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  color: var(--semantic-content-primary);
+}
+
+.badge {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-radius-pill);
+  background: var(--color-brand-primary-100);
+  color: var(--color-brand-primary-700);
+  font-size: var(--typography-label-xs-font-size);
+  font-weight: 600;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sizes-2) var(--sizes-3);
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-secondary);
+}
+
+.description {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  color: var(--semantic-content-primary);
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sizes-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-secondary);
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-sm);
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+}
+
+.checkboxField {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-primary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sizes-2);
+}

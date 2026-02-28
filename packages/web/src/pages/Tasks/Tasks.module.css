@@ -10,6 +10,55 @@
   gap: var(--sizes-8);
 }
 
+.pendingSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+  padding: var(--sizes-4);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-radius-lg);
+  background: var(--semantic-surface-primary);
+}
+
+.pendingSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pendingSectionTitle {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.pendingSectionCount {
+  color: var(--semantic-content-secondary);
+  font-size: var(--typography-label-sm-font-size);
+}
+
+.pendingSectionMessage {
+  margin: 0;
+  color: var(--semantic-content-secondary);
+}
+
+.pendingSectionError {
+  margin: 0;
+  color: var(--color-system-red-500);
+}
+
+.pendingTaskList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
 /* Section */
 .section {
   margin-bottom: var(--sizes-1);

@@ -176,7 +176,33 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-    );`
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS pending_tasks (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      source TEXT DEFAULT 'gmail',
+      raw_content TEXT,
+      transcription TEXT,
+      suggested_title TEXT NOT NULL,
+      suggested_description TEXT,
+      suggested_priority TEXT,
+      suggested_due_date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      suggested_time TEXT,
+      suggested_category TEXT,
+      suggested_important ${booleanType} DEFAULT FALSE,
+      status TEXT DEFAULT 'awaiting_confirmation',
+      gmail_message_id TEXT,
+      gmail_thread_id TEXT,
+      expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`,
+
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_tasks_gmail_message_unique
+     ON pending_tasks (user_id, gmail_message_id)
+     WHERE source = 'gmail' AND gmail_message_id IS NOT NULL;`
   ];
   
   if (isPostgres) {
@@ -500,6 +526,69 @@ const runMigrations = async (): Promise<void> => {
     'ALTER TABLE users ADD COLUMN password_reset_token TEXT',
     'ALTER TABLE users ADD COLUMN password_reset_expires TIMESTAMP',
   ];
+
+  const createPendingTasksTablePostgres = `CREATE TABLE IF NOT EXISTS pending_tasks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source TEXT DEFAULT 'gmail',
+    raw_content TEXT,
+    transcription TEXT,
+    suggested_title TEXT NOT NULL,
+    suggested_description TEXT,
+    suggested_priority TEXT,
+    suggested_due_date TIMESTAMP,
+    suggested_time TEXT,
+    suggested_category TEXT,
+    suggested_important BOOLEAN DEFAULT FALSE,
+    status TEXT DEFAULT 'awaiting_confirmation',
+    gmail_message_id TEXT,
+    gmail_thread_id TEXT,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`;
+
+  const createPendingTasksTableSqlite = `CREATE TABLE IF NOT EXISTS pending_tasks (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source TEXT DEFAULT 'gmail',
+    raw_content TEXT,
+    transcription TEXT,
+    suggested_title TEXT NOT NULL,
+    suggested_description TEXT,
+    suggested_priority TEXT,
+    suggested_due_date DATETIME,
+    suggested_time TEXT,
+    suggested_category TEXT,
+    suggested_important BOOLEAN DEFAULT FALSE,
+    status TEXT DEFAULT 'awaiting_confirmation',
+    gmail_message_id TEXT,
+    gmail_thread_id TEXT,
+    expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`;
+
+  const pendingTaskMigrations = [
+    'ALTER TABLE pending_tasks ADD COLUMN source TEXT DEFAULT \'gmail\'',
+    'ALTER TABLE pending_tasks ADD COLUMN raw_content TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN transcription TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_title TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_description TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_priority TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_due_date TIMESTAMP',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_time TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_category TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN suggested_important BOOLEAN DEFAULT FALSE',
+    'ALTER TABLE pending_tasks ADD COLUMN status TEXT DEFAULT \'awaiting_confirmation\'',
+    'ALTER TABLE pending_tasks ADD COLUMN gmail_message_id TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN gmail_thread_id TEXT',
+    'ALTER TABLE pending_tasks ADD COLUMN expires_at TIMESTAMP',
+    'ALTER TABLE pending_tasks ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+    'ALTER TABLE pending_tasks ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+  ];
   
   if (isPostgres) {
     const client = await pgPool.connect();
@@ -550,6 +639,32 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Table already exists, ignore
       }
+
+      // Migration: Create pending_tasks table for existing databases
+      try {
+        await client.query(createPendingTasksTablePostgres);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      // Migration: Ensure pending_tasks columns exist for older schemas
+      for (const migration of pendingTaskMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      try {
+        await client.query(
+          `CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_tasks_gmail_message_unique
+           ON pending_tasks (user_id, gmail_message_id)
+           WHERE source = 'gmail' AND gmail_message_id IS NOT NULL`
+        );
+      } catch (e) {
+        // Index already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -599,6 +714,32 @@ const runMigrations = async (): Promise<void> => {
       )`);
     } catch (e) {
       // Table already exists, ignore
+    }
+
+    // Migration: Create pending_tasks table for existing SQLite databases
+    try {
+      await db.exec(createPendingTasksTableSqlite);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Ensure pending_tasks columns exist for older schemas
+    for (const migration of pendingTaskMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    try {
+      await db.exec(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_tasks_gmail_message_unique
+         ON pending_tasks (user_id, gmail_message_id)
+         WHERE source = 'gmail' AND gmail_message_id IS NOT NULL`
+      );
+    } catch (e) {
+      // Index already exists, ignore
     }
   }
 };

@@ -1,0 +1,160 @@
+/* Content script button */
+.jarvi-add-wrapper {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.jarvi-add-button {
+  border: 1px solid #1a73e8;
+  background: #1a73e8;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.jarvi-add-button:hover {
+  background: #1765cc;
+}
+
+.jarvi-add-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+#jarvi-floating-toast.jarvi-toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 2147483647;
+  max-width: 340px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+#jarvi-floating-toast.jarvi-toast--loading {
+  background: #1f1f1f;
+}
+
+#jarvi-floating-toast.jarvi-toast--success {
+  background: #137333;
+}
+
+#jarvi-floating-toast.jarvi-toast--error {
+  background: #b3261e;
+}
+
+/* Popup styles */
+body.jarvi-popup {
+  margin: 0;
+  padding: 12px;
+  width: 360px;
+  background: #f6f7f9;
+  color: #111827;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.jarvi-popup-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.jarvi-popup-card h1 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.jarvi-popup-subtitle {
+  margin: 0 0 12px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.jarvi-label {
+  display: block;
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.jarvi-input,
+.jarvi-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: #ffffff;
+}
+
+.jarvi-textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.jarvi-popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.jarvi-btn {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #111827;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.jarvi-btn:hover {
+  background: #f3f4f6;
+}
+
+.jarvi-btn--primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #ffffff;
+}
+
+.jarvi-btn--primary:hover {
+  background: #1765cc;
+}
+
+.jarvi-btn--danger {
+  border-color: #f1b0b7;
+  color: #9f1239;
+}
+
+.jarvi-status {
+  margin: 12px 0 0;
+  min-height: 18px;
+  font-size: 12px;
+}
+
+.jarvi-status--info {
+  color: #374151;
+}
+
+.jarvi-status--success {
+  color: #166534;
+}
+
+.jarvi-status--error {
+  color: #b91c1c;
+}

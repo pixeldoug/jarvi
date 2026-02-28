@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Jarvi Gmail Assistant",
+  "description": "Create Jarvi pending tasks from Gmail emails.",
+  "version": "1.0.0",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://mail.google.com/*",
+    "http://localhost:3001/*",
+    "https://jarvi.life/*",
+    "https://www.jarvi.life/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Jarvi Gmail Assistant",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["contentScript.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

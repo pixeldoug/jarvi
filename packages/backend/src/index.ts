@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
@@ -15,10 +14,20 @@ import listRoutes from './routes/listRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 import webhookRoutes from './routes/webhookRoutes';
 import userRoutes from './routes/userRoutes';
+import pendingTaskRoutes from './routes/pendingTaskRoutes';
+import gmailRoutes from './routes/gmailRoutes';
 import { CollaborationService } from './services/collaborationService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const allowedExtensionIds = (process.env.ALLOWED_EXTENSION_IDS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+if (process.env.NODE_ENV === 'production' && allowedExtensionIds.length === 0) {
+  console.warn('⚠️ ALLOWED_EXTENSION_IDS is empty in production; Chrome extension requests will be blocked.');
+}
 
 // Rate limiting
 const limiter = rateLimit({
@@ -52,8 +61,19 @@ app.use((req, res, next) => {
   const allowedOrigins = process.env.NODE_ENV === 'production' 
     ? ['https://jarvi.life', 'https://www.jarvi.life']
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
+  const isChromeExtensionOrigin = typeof origin === 'string' && origin.startsWith('chrome-extension://');
+  let isAllowedChromeExtension = false;
+
+  if (isChromeExtensionOrigin && origin) {
+    if (process.env.NODE_ENV !== 'production') {
+      isAllowedChromeExtension = true;
+    } else {
+      const extensionId = origin.replace('chrome-extension://', '').replace(/\/+$/, '');
+      isAllowedChromeExtension = allowedExtensionIds.includes(extensionId);
+    }
+  }
   
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && (allowedOrigins.includes(origin) || isAllowedChromeExtension)) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   
@@ -136,6 +156,8 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/lists', listRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/pending-tasks', pendingTaskRoutes);
+app.use('/api/gmail', gmailRoutes);
 app.use('/api', noteShareRoutes);
 
 // Initialize database and start server
