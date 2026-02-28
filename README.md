@@ -303,6 +303,7 @@ This project is licensed under the MIT License.
 
 - **[Architecture](./docs/ARCHITECTURE.md)** - Technical architecture and system design
 - **[Production Plan](./docs/PRODUCTION_PLAN.md)** - Deployment guide for all platforms
+- **[Staging Setup](./docs/STAGING_SETUP.md)** - Isolated staging environment setup
 - **[Stripe Setup](./docs/STRIPE_SETUP.md)** - Subscription and payment integration
 
 ## 🆘 Support

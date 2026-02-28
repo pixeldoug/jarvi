@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
@@ -19,6 +18,33 @@ import { CollaborationService } from './services/collaborationService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const parseCsvEnv = (value: string | undefined): string[] =>
+  (value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+const dedupeValues = (values: string[]): string[] => [...new Set(values)];
+const appEnvironment = (process.env.APP_ENV || process.env.NODE_ENV || 'development').toLowerCase();
+const defaultWebOriginsByEnvironment: Record<string, string[]> = {
+  production: ['https://jarvi.life', 'https://www.jarvi.life'],
+  staging: ['https://staging.jarvi.life', 'https://www.staging.jarvi.life'],
+  development: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'],
+};
+const configuredWebOrigins = dedupeValues([
+  ...parseCsvEnv(process.env.CORS_ALLOWED_ORIGINS),
+  ...parseCsvEnv(process.env.CORS_ORIGIN),
+]);
+const allowedWebOrigins =
+  configuredWebOrigins.length > 0
+    ? configuredWebOrigins
+    : defaultWebOriginsByEnvironment[appEnvironment] || defaultWebOriginsByEnvironment.development;
+const allowedExtensionIds = dedupeValues(parseCsvEnv(process.env.ALLOWED_EXTENSION_IDS));
+
+if (appEnvironment !== 'development' && allowedExtensionIds.length === 0) {
+  console.warn(
+    `⚠️ ALLOWED_EXTENSION_IDS is empty for APP_ENV=${appEnvironment}; Chrome extension requests will be blocked.`
+  );
+}
 
 // Rate limiting
 const limiter = rateLimit({
@@ -49,11 +75,20 @@ app.use(helmet({
 // CORS - configuração para desenvolvimento e produção
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const allowedOrigins = process.env.NODE_ENV === 'production' 
-    ? ['https://jarvi.life', 'https://www.jarvi.life']
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
+  const isAllowedWebOrigin = typeof origin === 'string' && allowedWebOrigins.includes(origin);
+  const isChromeExtensionOrigin = typeof origin === 'string' && origin.startsWith('chrome-extension://');
+  let isAllowedChromeExtension = false;
+
+  if (isChromeExtensionOrigin && origin) {
+    if (appEnvironment === 'development') {
+      isAllowedChromeExtension = true;
+    } else {
+      const extensionId = origin.replace('chrome-extension://', '').replace(/\/+$/, '');
+      isAllowedChromeExtension = allowedExtensionIds.includes(extensionId);
+    }
+  }
   
-  if (origin && allowedOrigins.includes(origin)) {
+  if (origin && (isAllowedWebOrigin || isAllowedChromeExtension)) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   
@@ -68,7 +103,10 @@ app.use((req, res, next) => {
   }
 });
 
-console.log('🔧 CORS: Permitindo origens:', process.env.NODE_ENV === 'production' ? 'produção' : 'desenvolvimento');
+console.log(
+  `🔧 Runtime environment: node=${process.env.NODE_ENV || 'undefined'}, app=${appEnvironment}`
+);
+console.log('🔧 CORS web origins:', allowedWebOrigins.join(', '));
 app.use(morgan('combined'));
 
 // Stripe webhooks need raw body - must be before express.json()
