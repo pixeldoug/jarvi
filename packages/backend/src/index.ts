@@ -49,8 +49,11 @@ app.use(helmet({
 // CORS - configuração para desenvolvimento e produção
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  const productionOrigins = process.env.FRONTEND_ORIGINS
+    ? process.env.FRONTEND_ORIGINS.split(',').map((item) => item.trim()).filter(Boolean)
+    : ['https://app.jarvi.life'];
   const allowedOrigins = process.env.NODE_ENV === 'production' 
-    ? ['https://jarvi.life', 'https://www.jarvi.life']
+    ? productionOrigins
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
   
   if (origin && allowedOrigins.includes(origin)) {
