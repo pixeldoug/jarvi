@@ -54,7 +54,7 @@ Deve retornar: `{"status":"OK","timestamp":"..."}`
 Para produção:
 
 1. **Gere nova JWT_SECRET**
-2. **Configure CORS_ORIGIN** para seu domínio
+2. **Configure FRONTEND_ORIGINS** para seu domínio
 3. **Use PostgreSQL** ao invés de SQLite
 4. **Configure HTTPS**
 
@@ -75,7 +75,9 @@ Para produção:
 | `JWT_SECRET` | Chave JWT | `[64 chars hex]` |
 | `JWT_EXPIRES_IN` | Expiração do JWT | `7d` |
 | `GOOGLE_CLIENT_ID` | Google OAuth ID | `123...googleusercontent.com` |
-| `CORS_ORIGIN` | Origem permitida | `http://localhost:3000` |
+| `FRONTEND_ORIGINS` | Origens permitidas para CORS (separadas por vírgula) | `https://app.jarvi.life` |
+| `FRONTEND_URL` | Origem do frontend para Socket.IO | `https://app.jarvi.life` |
+| `APP_URL` | URL base usada em links de e-mail | `https://app.jarvi.life` |
 | `STRIPE_SECRET_KEY` | Chave secreta Stripe | `sk_test_...` |
 | `STRIPE_WEBHOOK_SECRET` | Secret do webhook | `whsec_...` |
 | `STRIPE_PRICE_ID` | ID do preço/produto | `price_...` |
