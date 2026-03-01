@@ -55,10 +55,12 @@ Para produção:
 
 1. **Gere nova JWT_SECRET**
 2. **Defina APP_ENV** como `staging` ou `production`
-3. **Configure CORS_ALLOWED_ORIGINS** com as URLs do ambiente
-4. **Configure ALLOWED_EXTENSION_IDS** com os IDs da extensão
-5. **Use PostgreSQL** ao invés de SQLite
-6. **Configure HTTPS**
+3. **Configure FRONTEND_ORIGINS** com as URLs do ambiente
+4. **Configure FRONTEND_URL** com a origem web usada no Socket.IO
+5. **Configure APP_URL** para links de e-mail (reset/login/verificação)
+6. **Configure ALLOWED_EXTENSION_IDS** com os IDs da extensão
+7. **Use PostgreSQL** ao invés de SQLite
+8. **Configure HTTPS**
 
 💡 **Recomendação para staging:** use `NODE_ENV=production` e `APP_ENV=staging`.
 
@@ -80,8 +82,9 @@ Para produção:
 | `JWT_SECRET` | Chave JWT | `[64 chars hex]` |
 | `JWT_EXPIRES_IN` | Expiração do JWT | `7d` |
 | `GOOGLE_CLIENT_ID` | Google OAuth ID | `123...googleusercontent.com` |
-| `CORS_ALLOWED_ORIGINS` | Lista CSV de origens web permitidas | `https://staging.jarvi.life,https://jarvi.life` |
-| `CORS_ORIGIN` | Origem legada (compatibilidade) | `http://localhost:3000` |
+| `FRONTEND_ORIGINS` | Lista CSV de origens web permitidas para CORS | `https://staging.jarvi.life,https://app.jarvi.life` |
+| `FRONTEND_URL` | Origem do frontend para Socket.IO | `https://app.jarvi.life` |
+| `APP_URL` | URL base usada em links de e-mail | `https://app.jarvi.life` |
 | `ALLOWED_EXTENSION_IDS` | IDs permitidos da extensão Chrome (CSV) | `abcdefghijklmnopabcdefghijklmnop` |
 | `STRIPE_SECRET_KEY` | Chave secreta Stripe | `sk_test_...` |
 | `STRIPE_WEBHOOK_SECRET` | Secret do webhook | `whsec_...` |

@@ -26,11 +26,12 @@ const parseCsvEnv = (value: string | undefined): string[] =>
 const dedupeValues = (values: string[]): string[] => [...new Set(values)];
 const appEnvironment = (process.env.APP_ENV || process.env.NODE_ENV || 'development').toLowerCase();
 const defaultWebOriginsByEnvironment: Record<string, string[]> = {
-  production: ['https://jarvi.life', 'https://www.jarvi.life'],
+  production: ['https://app.jarvi.life'],
   staging: ['https://staging.jarvi.life', 'https://www.staging.jarvi.life'],
   development: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'],
 };
 const configuredWebOrigins = dedupeValues([
+  ...parseCsvEnv(process.env.FRONTEND_ORIGINS),
   ...parseCsvEnv(process.env.CORS_ALLOWED_ORIGINS),
   ...parseCsvEnv(process.env.CORS_ORIGIN),
 ]);

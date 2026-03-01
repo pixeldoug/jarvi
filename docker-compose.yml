@@ -13,7 +13,9 @@ services:
       - PORT=3001
       - DATABASE_URL=./jarvi.db
       - JWT_SECRET=your-secret-key-change-in-production
-      - CORS_ORIGIN=http://localhost:3000
+      - FRONTEND_ORIGINS=http://localhost:3000
+      - FRONTEND_URL=http://localhost:3000
+      - APP_URL=http://localhost:3000
     volumes:
       - ./packages/backend:/app
       - /app/node_modules
