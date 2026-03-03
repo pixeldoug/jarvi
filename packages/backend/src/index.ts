@@ -15,6 +15,7 @@ import listRoutes from './routes/listRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 import webhookRoutes from './routes/webhookRoutes';
 import userRoutes from './routes/userRoutes';
+import earlyAccessRoutes from './routes/earlyAccessRoutes';
 import { CollaborationService } from './services/collaborationService';
 
 const app = express();
@@ -139,6 +140,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/lists', listRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/early-access', earlyAccessRoutes);
 app.use('/api', noteShareRoutes);
 
 // Initialize database and start server
