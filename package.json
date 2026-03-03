@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev:web": "cd packages/web && npm run dev",
+    "dev:marketing": "cd packages/marketing && npm run dev",
     "dev:mobile": "cd packages/mobile && npm start",
     "mobile:ios": "cd packages/mobile && npm run ios",
     "mobile:android": "cd packages/mobile && npm run android",
@@ -21,6 +22,8 @@
     "build:shared": "cd packages/shared && npm run build",
     "build:backend": "cd packages/backend && npm run build",
     "build:web": "cd packages/web && npm run build",
+    "build:marketing": "cd packages/marketing && npm run build",
+    "start:marketing": "cd packages/marketing && npm run start",
     "test": "npm run test --workspaces",
     "test:unit": "npm run test:unit --workspaces",
     "test:e2e": "npm run test:e2e --workspaces",
