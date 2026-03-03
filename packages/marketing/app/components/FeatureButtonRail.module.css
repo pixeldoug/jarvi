@@ -1,0 +1,161 @@
+.featureRail {
+  min-width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.featureRailArrow {
+  position: absolute;
+  top: -70px;
+  left: -12px;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.featureChip {
+  width: 72px;
+  height: 72px;
+  border: 0;
+  border-radius: 24px;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transform-origin: top center;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease,
+    transform 120ms ease;
+}
+
+.featureChipInner {
+  width: 72px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #f7f8f9;
+  transition: background-color 140ms ease;
+}
+
+.featureIcon24 {
+  width: 24px;
+  height: 24px;
+  color: #343434;
+}
+
+.featureIcon28 {
+  width: 28px;
+  height: 28px;
+  color: #343434;
+}
+
+.activeWhatsapp {
+  width: 28px;
+  height: 28px;
+}
+
+.featureChipHover .featureChipInner {
+  background: #e8eaed;
+}
+
+.featureChip:not(.featureChipActive):hover .featureChipInner {
+  background: #e8eaed;
+}
+
+.featureChip:focus-visible {
+  outline: 2px solid rgba(97, 55, 243, 0.45);
+  outline-offset: 2px;
+}
+
+.featureChipActive {
+  width: 88px;
+  height: 88px;
+  padding: 8px;
+  border-radius: 18px;
+}
+
+.featureChipActive .featureChipInner {
+  background: var(--active-solid);
+}
+
+.featureChipActive.featureChip {
+  background: var(--active-tint);
+}
+
+.featureChip:active {
+  transform: scale(0.98);
+}
+
+.featureWhatsapp {
+  --active-solid: #dae6d6;
+  --active-tint: rgba(218, 230, 214, 0.4);
+}
+
+.featureEmail {
+  --active-solid: #cde8ee;
+  --active-tint: rgba(205, 232, 238, 0.4);
+}
+
+.featureCalendar {
+  --active-solid: #ded4fd;
+  --active-tint: rgba(222, 212, 253, 0.4);
+}
+
+.featureWand {
+  --active-solid: #edcdee;
+  --active-tint: rgba(237, 205, 238, 0.4);
+}
+
+.featureCards {
+  --active-solid: #eecdcd;
+  --active-tint: rgba(238, 205, 205, 0.4);
+}
+
+.featureChecks {
+  --active-solid: #eee4cd;
+  --active-tint: rgba(238, 229, 205, 0.4);
+}
+
+@media (max-width: 1100px) {
+  .featureRail {
+    flex-direction: row;
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+    padding: 0 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .featureRailArrow {
+    display: block;
+    top: -30px;
+    left: -4px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .featureRail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .featureChip {
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+  }
+}
