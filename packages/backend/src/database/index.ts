@@ -69,6 +69,16 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
+
+    `CREATE TABLE IF NOT EXISTS early_access_leads (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      whatsapp TEXT NOT NULL,
+      wants_broadcast_updates ${booleanType} DEFAULT FALSE,
+      source TEXT DEFAULT 'marketing-landing',
+      created_at ${timestampType},
+      updated_at ${timestampType}
+    );`,
     
     `CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
