@@ -8,9 +8,16 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Jarvi | Assistente inteligente para tarefas',
+  title: 'Jarvi - Um app para todas as tarefas',
   description:
     'A Jarvi é um assistente inteligente que te ajuda a organizar tarefas com foco e consistência no dia a dia.',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+    ],
+  },
 };
 
 export default function RootLayout({

@@ -1,0 +1,992 @@
+/* ======================================================
+   Page
+   ====================================================== */
+
+.page {
+  position: relative;
+  min-height: 100vh;
+  background: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* ======================================================
+   Reveal animations
+   ====================================================== */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: revealIn 560ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.revealHidden {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.revealDelay1 { animation-delay: 40ms; }
+.revealDelay2 { animation-delay: 90ms; }
+.revealDelay3 { animation-delay: 140ms; }
+.revealDelay4 { animation-delay: 190ms; }
+.revealDelay5 { animation-delay: 240ms; }
+.revealDelay6 { animation-delay: 290ms; }
+.revealDelay7 { animation-delay: 340ms; }
+
+@keyframes revealIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ======================================================
+   Navbar
+   ====================================================== */
+
+.navWrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 24px 24px 16px;
+  z-index: 10;
+}
+
+.navBar {
+  width: 548px;
+  border-radius: 20px;
+  padding: 6px 6px 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(1, 3, 9, 0.84) 49.5%,
+    rgba(3, 7, 18, 0.88) 100%
+  );
+  box-shadow: 0 1px 2px rgba(9, 9, 11, 0.05);
+}
+
+.brandRow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.brandRow img {
+  display: block;
+  flex-shrink: 0;
+}
+
+.brandRow span {
+  color: #fff;
+  font-family: Poppins, sans-serif;
+  font-size: 20px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* .navGhostButton: only hides on mobile — visual styles live in Button.module.css */
+.navGhostButton {
+  display: inline-flex;
+}
+
+/* ======================================================
+   Hero section
+   ====================================================== */
+
+.heroSection {
+  position: relative;
+  overflow: hidden;
+  background: #160f2b;
+}
+
+.heroBgPicture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.heroBgImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
+}
+
+.heroBgBlur {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 959px;
+  background: linear-gradient(
+    180.03deg,
+    rgba(22, 15, 43, 0.05) 0%,
+    rgba(22, 15, 43, 0.25) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Progressive blur: starts transparent at the top and reaches full blur at ~55% */
+.heroBgBlur::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(7.5px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 55%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 55%);
+}
+
+.heroContent {
+  position: relative;
+  z-index: 2;
+  min-height: 896px;
+  padding: 168px 24px 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+.betaTag {
+  height: 40px;
+  border-radius: 24px;
+  padding: 8px 16px 8px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(238, 233, 254, 0.1);
+  backdrop-filter: blur(14.8px);
+}
+
+.betaTag img {
+  width: 17px;
+  height: 16px;
+  display: block;
+}
+
+.betaTag span {
+  color: #eee9fe;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 1.04px;
+  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.heroTitleGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  text-align: center;
+  filter: drop-shadow(0 1px 4px rgba(22, 15, 43, 0.4));
+}
+
+.heroTitle {
+  margin: 0;
+  width: min(100%, 836px);
+  font-size: 60px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -2.5px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: linear-gradient(90deg, #f3f1fc 3.77%, #eee9fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.heroDescription {
+  margin: 0;
+  width: min(100%, 636px);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 400;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.heroBgDetailWrapper {
+  position: relative;
+  z-index: 2;
+  line-height: 0;
+  transform: scaleY(-1) rotate(180deg);
+}
+
+.heroBgDetail {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+}
+
+/* ======================================================
+   Features section
+   ====================================================== */
+
+.featuresSection {
+  position: relative;
+  background: #fff;
+  overflow: visible;
+  /* Pull up 2px to guarantee zero gap with the hero curve at any zoom/DPR */
+  margin-top: -2px;
+}
+
+.featuresBlob {
+  position: absolute;
+  left: -321px;
+  top: 73px;
+  width: 879px;
+  height: 1000px;
+  transform: rotate(-2.85deg);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.featuresBlob img {
+  width: 832px;
+  height: 960px;
+  object-fit: cover;
+}
+
+/* Wrapper handles absolute positioning so .reveal transform doesn't
+   conflict with the translateX(-50%) centering. */
+.screenFrameReveal {
+  position: absolute;
+  /* ~80% of 557px total frame height (932px outer) above fold */
+  top: -450px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Match featuresContent inner width (980px − 2×24px padding = 932px) */
+  width: min(calc(100% - 48px), 932px);
+  z-index: 3;
+}
+
+.screenFrame {
+  padding: 18px;
+  border-radius: 32px;
+  background: linear-gradient(
+    180deg,
+    rgba(243, 241, 252, 0.4) 0%,
+    rgba(232, 234, 237, 0.4) 100%
+  );
+  border: 2px solid rgba(217, 217, 217, 0.2);
+  backdrop-filter: blur(3px);
+  box-shadow: 0 96px 168px -80px rgba(22, 15, 43, 0.1);
+}
+
+.screenFrameImage {
+  display: block;
+  width: 100%;
+  /* Derived from the 920×536 Figma source; height auto-adjusts at every viewport width */
+  aspect-ratio: 920 / 536;
+  object-fit: cover;
+  border-radius: 18px;
+}
+
+.featuresContent {
+  position: relative;
+  z-index: 2;
+  max-width: 1280px;
+  width: 980px;
+  margin: 0 auto;
+  padding: 168px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 38px;
+}
+
+.featuresSectionHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  text-align: center;
+  width: 100%;
+}
+
+.featuresTag {
+  height: 40px;
+  border-radius: 24px;
+  padding: 8px 20px;
+  display: inline-flex;
+  align-items: center;
+  background: #eee9fe;
+}
+
+.featuresTag span {
+  color: #6137f3;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 1.04px;
+  font-weight: 600;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.featuresSectionTitle {
+  margin: 0;
+  color: #030712;
+  font-size: 48px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.featuresSectionDescription {
+  margin: 0;
+  color: #030712;
+  font-size: 20px;
+  line-height: 1.45;
+  font-weight: 400;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  width: min(100%, 582px);
+}
+
+/* ======================================================
+   Feature preview (showcase + button row)
+   ====================================================== */
+
+.featurePreviewWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.showcaseCard {
+  position: relative;
+  background: #e8eaed;
+  border-radius: 32px;
+  overflow: hidden;
+  /* Height derived from the 1092×615 (16:9) source asset — adapts to any width */
+  aspect-ratio: 1092 / 615;
+  box-shadow: 0 48px 50px -54px rgba(22, 15, 43, 0.1);
+}
+
+.showcaseImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.pauseButton {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  border: 0;
+  border-bottom: 2px solid rgba(9, 9, 11, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.52);
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.pauseButton:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.pauseButton:focus-visible {
+  outline: 2px solid rgba(97, 55, 243, 0.45);
+  outline-offset: 2px;
+}
+
+.pauseGlyph {
+  position: relative;
+  width: 12px;
+  height: 12px;
+}
+
+.pauseGlyph::before,
+.pauseGlyph::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 12px;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.pauseGlyph::before { left: 1px; }
+.pauseGlyph::after { right: 1px; }
+
+.playGlyph {
+  width: 0;
+  height: 0;
+  margin-left: 2px;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid #fff;
+}
+
+/* ======================================================
+   Feature button row
+   ====================================================== */
+
+.featureButtonRow {
+  display: flex;
+  align-items: center;
+  /* flex-start so overflow scrolls from the left — center applied on desktop below */
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 16px;
+}
+
+.featureButtonRow::-webkit-scrollbar {
+  display: none;
+}
+
+.featureChip {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border: 0;
+  border-radius: 24px;
+  padding: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 140ms ease;
+}
+
+.featureChip:focus-visible {
+  outline: 2px solid rgba(97, 55, 243, 0.45);
+  outline-offset: 2px;
+}
+
+.featureChip:active {
+  transform: scale(0.98);
+}
+
+.featureChipInner {
+  width: 72px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #f7f8f9;
+  color: #343434;
+  transition: background-color 140ms ease;
+}
+
+.featureChip:not(.featureChipActive):hover .featureChipInner {
+  background: #e8eaed;
+}
+
+.featureChipActive {
+  width: 88px;
+  height: 88px;
+  padding: 8px;
+  border-radius: 18px;
+  background: var(--active-tint);
+}
+
+.featureChipActive .featureChipInner {
+  background: var(--active-solid);
+}
+
+/* Feature colour themes */
+.featureWhatsapp  { --active-solid: #dae6d6; --active-tint: rgba(218, 230, 214, 0.4); }
+.featureEmail     { --active-solid: #cde8ee; --active-tint: rgba(205, 232, 238, 0.4); }
+.featureCalendar  { --active-solid: #ded4fd; --active-tint: rgba(222, 212, 253, 0.4); }
+.featureWand      { --active-solid: #edcdee; --active-tint: rgba(237, 205, 238, 0.4); }
+.featureCards     { --active-solid: #eecdcd; --active-tint: rgba(238, 205, 205, 0.4); }
+.featureChecks    { --active-solid: #eee4cd; --active-tint: rgba(238, 229, 205, 0.4); }
+
+/* ======================================================
+   Feature copy
+   ====================================================== */
+
+.featureCopy {
+  width: min(100%, 582px);
+  text-align: center;
+  color: #030712;
+  min-height: calc((36px * 1.05 * 2) + 8px + (20px * 1.45 * 2));
+}
+
+.featureCopyTitleAnimated {
+  margin: 0;
+  font-size: 36px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  text-wrap: balance;
+  animation: featureTextEnter 420ms ease-out both;
+}
+
+.featureCopyDescriptionAnimated {
+  margin: 8px 0 0;
+  font-size: 20px;
+  line-height: 1.45;
+  font-weight: 400;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  text-wrap: balance;
+  animation: featureTextEnter 520ms ease-out both;
+}
+
+@keyframes featureTextEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ======================================================
+   CTA section
+   ====================================================== */
+
+.ctaSection {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #160f2b;
+  /* Pull up 2px to guarantee zero gap with the features curve at any zoom/DPR */
+  margin-top: -2px;
+}
+
+.ctaBgImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.ctaBgBlur {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(10px);
+  background: linear-gradient(
+    180deg,
+    rgba(22, 15, 43, 0.24) 0%,
+    rgba(22, 15, 43, 0.82) 100%
+  );
+  pointer-events: none;
+}
+
+.ctaBgDetailTop {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 66px; /* 64 + 2px so the curve starts 2px above the section edge */
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ctaBgDetailImg {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  transform: rotate(180deg);
+}
+
+.ctaContent {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 1120px);
+  padding: 186px 24px 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  text-align: center;
+}
+
+.ctaContent h2 {
+  margin: 0;
+  width: min(100%, 494px);
+  font-size: clamp(28px, 3.75vw, 48px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: linear-gradient(90deg, #f3f1fc 3.77%, #eee9fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.ctaContent p {
+  margin: 0;
+  width: min(100%, 386px);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 400;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+
+
+/* ======================================================
+   Footer
+   ====================================================== */
+
+.footer {
+  position: relative;
+  z-index: 2;
+  width: min(100%, 1280px);
+  padding: 40px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+}
+
+.footerBrand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footerLogoBox {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: #18181b;
+  border-bottom: 1.667px solid rgba(9, 9, 11, 0.3);
+  box-shadow: 0 0.833px 0 rgba(24, 24, 27, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.footerBrand span {
+  color: #fff;
+  font-family: Poppins, sans-serif;
+  font-size: 20px;
+  line-height: 1.05;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+
+.footerLinks {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  color: #eee9fe;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.footerLinks p {
+  margin: 0;
+}
+
+.footerLegal {
+  font-weight: 400;
+}
+
+.footerLegal a {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 400;
+}
+
+.footerTerms,
+.footerPrivacy {
+  font-weight: 700;
+  color: #eee9fe;
+  text-decoration: none;
+}
+
+.footerTerms:hover,
+.footerPrivacy:hover {
+  text-decoration: underline;
+}
+
+/* ======================================================
+   Reduced motion
+   ====================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .featureCopyTitleAnimated,
+  .featureCopyDescriptionAnimated {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  .revealHidden {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ======================================================
+   Responsive – tablet (681px – 1100px)
+   ====================================================== */
+
+@media (min-width: 681px) {
+  .featureButtonRow {
+    justify-content: center;
+    padding: 0 8px;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 1100px) {
+  .navBar {
+    width: 100%;
+    max-width: 548px;
+  }
+
+  .screenFrameReveal {
+    /* Match showcase card width: featuresContent at 100% minus its 24px inline padding */
+    width: calc(100% - 48px);
+    max-width: 932px; /* same cap as desktop inner width */
+    top: -350px;
+  }
+
+  .featuresContent {
+    width: 100%;
+    /* 557px frame (at 932px max) − 350px above fold = 207px below top */
+    padding-top: 215px;
+  }
+
+  .featuresBlob {
+    display: none;
+  }
+
+  .featuresSectionTitle {
+    font-size: 38px;
+  }
+
+  .footer {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24px;
+    gap: 16px;
+  }
+
+  .footerLinks {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+}
+
+/* ======================================================
+   Responsive – mobile (≤ 680px)
+   ====================================================== */
+
+@media (max-width: 680px) {
+  .navWrapper {
+    padding: 10px;
+  }
+
+  .navBar {
+    width: 100%;
+  }
+
+  .navGhostButton {
+    display: none;
+  }
+
+  .heroContent {
+    min-height: 551px;
+    /* Reduce bottom padding so the frame sits closer to the text on narrow phones */
+    padding: 120px 16px 72px;
+    gap: 32px;
+  }
+
+  .heroTitle {
+    font-size: 32px;
+    line-height: 1.1;
+    letter-spacing: -1px;
+  }
+
+  .heroDescription {
+    font-size: 18px;
+  }
+
+  .heroBgDetail {
+    height: 18.75px;
+  }
+
+  .screenFrameReveal {
+    top: -106px;
+    width: calc(100% - 20px);
+    max-width: 375px;
+  }
+
+  .screenFrame {
+    padding: 10px;
+    border-radius: 16px;
+    border-width: 1px;
+  }
+
+  .screenFrameImage {
+    border-radius: 7px;
+  }
+
+  .featuresBlob {
+    display: none;
+  }
+
+  .featuresContent {
+    width: 100%;
+    padding: 148px 10px 64px;
+  }
+
+  .featuresSectionHeader {
+    gap: 16px;
+  }
+
+  .featuresSectionTitle {
+    font-size: 28px;
+    line-height: 1.1;
+  }
+
+  .featuresSectionDescription {
+    font-size: 18px;
+  }
+
+  .showcaseCard {
+    border-radius: 16px;
+  }
+
+  .featureCopy {
+    width: 100%;
+    padding: 0 24px;
+    min-height: calc((24px * 1.38 * 2) + 8px + (18px * 1.45 * 3));
+  }
+
+  .featureCopyTitleAnimated {
+    font-size: 24px;
+    line-height: 1.38;
+    letter-spacing: -0.5px;
+  }
+
+  .featureCopyDescriptionAnimated {
+    font-size: 18px;
+    margin-top: 8px;
+  }
+
+  .ctaBgDetailTop {
+    height: 18.75px;
+  }
+
+  .ctaBgDetailImg {
+    height: 18.75px;
+  }
+
+  .ctaContent {
+    padding: 64px 24px 40px;
+  }
+
+  .ctaContent h2 {
+    font-size: 28px;
+    letter-spacing: -1px;
+  }
+
+  .ctaContent p {
+    font-size: 18px;
+  }
+
+
+  .footer {
+    width: 100%;
+    padding: 40px 44px;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+  }
+
+  .footerBrand {
+    justify-content: center;
+  }
+
+  .footerLinks {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+}
+
+/* ======================================================
+   Responsive – larger phones (480px – 680px)
+   Overrides the 375px cap so the frame matches the
+   showcase card width exactly at these viewport sizes.
+   ====================================================== */
+
+@media (min-width: 480px) and (max-width: 680px) {
+  .screenFrameReveal {
+    max-width: none;
+    /* Less aggressive than before (-220px) — gives the text room to breathe */
+    top: -160px;
+  }
+
+  .featuresContent {
+    /*
+     * calc() scales padding with viewport so the frame never overlaps content:
+     * at 480px → ~195px, at 528px → ~207px, at 680px → ~245px
+     */
+    padding-top: calc(75px + 25vw);
+  }
+}
