@@ -8,9 +8,14 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Jarvi - Um app para todas as tarefas',
+  title: 'Jarvi – App de tarefas com memória inteligente',
   description:
-    'A Jarvi é um assistente inteligente que te ajuda a organizar tarefas com foco e consistência no dia a dia.',
+    'Jarvi é um app de produtividade com IA e memória inteligente que aprende com você para organizar tarefas complexas e tarefas do dia a dia.',
+  openGraph: {
+    title: 'Jarvi – App de tarefas com memória inteligente',
+    description:
+      'Organize tarefas complexas e tarefas do dia a dia com o Jarvi, um app de produtividade com IA e memória inteligente.',
+  },
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
