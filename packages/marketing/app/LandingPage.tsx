@@ -145,11 +145,11 @@ export default function LandingPage() {
           </div>
           <div className={`${styles.heroTitleGroup} ${styles.reveal} ${styles.revealDelay3}`}>
             <h1 className={styles.heroTitle}>
-              Que tal uma mãozinha com as suas tarefas do dia a dia?
+              Que tal uma mãozinha para organizar suas tarefas?
             </h1>
             <p className={styles.heroDescription}>
-              Jarvi é um app inteligente que te ajuda a organizar tarefas complexas e também aquelas
-              pequenas que são importantes
+              Jarvi é um app de tarefas com IA e memória inteligente que te ajuda a organizar
+              desde pequenas tarefas até as mais complexas.
             </p>
           </div>
         </div>
