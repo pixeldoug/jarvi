@@ -111,6 +111,12 @@
   display: inline-flex;
 }
 
+@media (max-width: 768px) {
+  .navGhostButton {
+    display: none;
+  }
+}
+
 /* ======================================================
    Hero section
    ====================================================== */
