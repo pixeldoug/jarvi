@@ -177,11 +177,11 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
                 type="text"
                 value={titleValue}
                 onChange={(e) => setTitleValue(e.target.value)}
-                onBlur={() => handleTitleSave()}
+                onBlur={() => void handleTitleSave()}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleTitleSave();
+                    void handleTitleSave();
                   } else if (e.key === 'Escape') {
                     e.preventDefault();
                     handleTitleCancel();

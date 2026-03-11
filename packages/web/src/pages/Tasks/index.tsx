@@ -121,8 +121,8 @@ export function Tasks() {
   const { lists: customLists } = useLists();
   const mergedTaskCategories = useMergedTaskCategories();
 
-  // Keep selectedTask completion in sync with global tasks state
   useEffect(() => {
+    // Keep selectedTask completion in sync with global tasks state
     if (!selectedTask) return;
     const taskInState = tasks.find(t => t.id === selectedTask.id);
     if (!taskInState) return;
@@ -832,7 +832,7 @@ export function Tasks() {
   // DROPPABLE SECTION COMPONENT
   // ============================================================================
 
-  const DroppableSection: React.FC<{ 
+  const DroppableSection = useMemo<React.FC<{ 
     title: string;
     tasks: Task[];
     emptyMessage: string;
@@ -852,7 +852,7 @@ export function Tasks() {
     hideCategoryChip?: boolean;
     showDayOfWeek?: boolean;
     // onQuickCreate?: (title: string, sectionId: string) => Promise<void>; // NOT USED IN MVP INITIAL
-  }> = memo(({ 
+  }>>(() => memo(({ 
     title, 
     tasks: sectionTasks, 
     emptyMessage, 
@@ -974,7 +974,7 @@ export function Tasks() {
         {content}
       </Collapsible>
     );
-  });
+  }), []);
 
   if (isLoading) {
     return (
