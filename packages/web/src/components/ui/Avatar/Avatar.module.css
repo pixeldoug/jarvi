@@ -29,9 +29,11 @@
 }
 
 .medium .fallback {
-  font-family: var(--typography-body-sm-font-family);
-  font-size: var(--typography-body-sm-font-size);
-  font-weight: 600;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
 }
 
 /* Large - 72px */

@@ -106,9 +106,9 @@
   flex-shrink: 0;
 }
 
-/* .navGhostButton: only hides on mobile — visual styles live in Button.module.css */
+/* .navGhostButton: wrapper span to hide the Funcionalidades button on mobile */
 .navGhostButton {
-  display: inline-flex;
+  display: contents;
 }
 
 @media (max-width: 768px) {
@@ -847,10 +847,6 @@
 
   .navBar {
     width: 100%;
-  }
-
-  .navGhostButton {
-    display: none;
   }
 
   .heroContent {

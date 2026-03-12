@@ -3,7 +3,7 @@
     "display-lg": {
       "font-size": {
         "$type": "number",
-        "$value": 64,
+        "$value": 60,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1810",
           "com.figma.hiddenFromPublishing": true,
@@ -11,8 +11,8 @@
             "FONT_SIZE"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:ca35a9dcb20d49dae54f612e92c01e7470bc20f6/-1:-1",
-            "targetVariableName": "Sizes/16",
+            "targetVariableId": "VariableID:34d889cf2cdaa5f3aa7a7ce0d34975edfcb9b705/-1:-1",
+            "targetVariableName": "Sizes/15",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -21,7 +21,7 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 80,
+        "$value": 64,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1815",
           "com.figma.hiddenFromPublishing": true,
@@ -29,8 +29,8 @@
             "LINE_HEIGHT"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:967ecc7d00992ac569c8c6962df9e61b17d9435f/-1:-1",
-            "targetVariableName": "Sizes/20",
+            "targetVariableId": "VariableID:ca35a9dcb20d49dae54f612e92c01e7470bc20f6/-1:-1",
+            "targetVariableName": "Sizes/16",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -73,6 +73,17 @@
           },
           "com.figma.isOverride": true
         }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": -2.5,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000787:2035",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.isOverride": true
+        }
       }
     },
     "heading-lg": {
@@ -96,7 +107,7 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 32,
+        "$value": 36,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1820",
           "com.figma.hiddenFromPublishing": true,
@@ -104,8 +115,8 @@
             "LINE_HEIGHT"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:2e2634f987d087c276c7324a64e7478efdfca17b/-1:-1",
-            "targetVariableName": "Sizes/8",
+            "targetVariableId": "VariableID:d50418907146218ad414703703d2dd1315cd0b07/-1:-1",
+            "targetVariableName": "Sizes/9",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -148,6 +159,17 @@
           },
           "com.figma.isOverride": true
         }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": -0.75,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000788:2041",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.isOverride": true
+        }
       }
     },
     "heading-md": {
@@ -171,7 +193,7 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 24,
+        "$value": 28,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1824",
           "com.figma.hiddenFromPublishing": true,
@@ -179,8 +201,8 @@
             "LINE_HEIGHT"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:3f81be3968d63856c4bef6f390492654b79e9f10/-1:-1",
-            "targetVariableName": "Sizes/6",
+            "targetVariableId": "VariableID:9131d2fee486393820d52ae56efe60ebad027caa/-1:-1",
+            "targetVariableName": "Sizes/7",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -221,6 +243,17 @@
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
+          "com.figma.isOverride": true
+        }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": -0.5,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000789:2042",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
           "com.figma.isOverride": true
         }
       }
@@ -298,6 +331,17 @@
           },
           "com.figma.isOverride": true
         }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": -0.25,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000791:30245",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.isOverride": true
+        }
       }
     },
     "body-lg": {
@@ -321,19 +365,13 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 20,
+        "$value": 27,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1832",
           "com.figma.hiddenFromPublishing": true,
           "com.figma.scopes": [
             "LINE_HEIGHT"
           ],
-          "com.figma.aliasData": {
-            "targetVariableId": "VariableID:aeaa9ad2385a44b64d905663b2e91fa085f7ac82/-1:-1",
-            "targetVariableName": "Sizes/5",
-            "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
-            "targetVariableSetName": "Primitives"
-          },
           "com.figma.isOverride": true
         }
       },
@@ -373,6 +411,17 @@
           },
           "com.figma.isOverride": true
         }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": 0.25,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000790:10322",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.isOverride": true
+        }
       }
     },
     "body-md": {
@@ -396,19 +445,13 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 20,
+        "$value": 21,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1836",
           "com.figma.hiddenFromPublishing": true,
           "com.figma.scopes": [
             "LINE_HEIGHT"
           ],
-          "com.figma.aliasData": {
-            "targetVariableId": "VariableID:aeaa9ad2385a44b64d905663b2e91fa085f7ac82/-1:-1",
-            "targetVariableName": "Sizes/5",
-            "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
-            "targetVariableSetName": "Primitives"
-          },
           "com.figma.isOverride": true
         }
       },
@@ -448,6 +491,17 @@
           },
           "com.figma.isOverride": true
         }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": 0.20000000298023224,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000790:10323",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.isOverride": true
+        }
       }
     },
     "body-sm": {
@@ -471,7 +525,7 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 13,
+        "$value": 18,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1840",
           "com.figma.hiddenFromPublishing": true,
@@ -479,8 +533,8 @@
             "LINE_HEIGHT"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:aeaa77ae90caa47a29c8d0ce6d562bb960526c8b/-1:-1",
-            "targetVariableName": "Sizes/3-25",
+            "targetVariableId": "VariableID:fde8ef2bffb35c411d5dfd40948c36448b52e5c6/-1:-1",
+            "targetVariableName": "Sizes/4-5",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -521,6 +575,17 @@
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
+          "com.figma.isOverride": true
+        }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": 0.15000000596046448,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000790:10324",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
           "com.figma.isOverride": true
         }
       }
@@ -592,6 +657,17 @@
           },
           "com.figma.isOverride": true
         }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": -0.25,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000790:10946",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.isOverride": true
+        }
       }
     },
     "label-sm": {
@@ -633,7 +709,7 @@
       },
       "font-weight": {
         "$type": "number",
-        "$value": 500,
+        "$value": 400,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1849",
           "com.figma.hiddenFromPublishing": true,
@@ -641,8 +717,8 @@
             "FONT_STYLE"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:e566fcf298848ddde14e3768a1efd7cdc6926e0a/-1:-1",
-            "targetVariableName": "Typography/fontWeight/medium",
+            "targetVariableId": "VariableID:c8cc8a6b01a97279214ac559f20772e2dc3255a0/-1:-1",
+            "targetVariableName": "Typography/fontWeight/normal",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -665,6 +741,17 @@
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
+          "com.figma.isOverride": true
+        }
+      },
+      "letter-spacing": {
+        "$type": "number",
+        "$value": -0.10000000149011612,
+        "$extensions": {
+          "com.figma.variableId": "VariableID:40000790:10949",
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
           "com.figma.isOverride": true
         }
       }

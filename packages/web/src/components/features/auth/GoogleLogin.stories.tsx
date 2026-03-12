@@ -124,7 +124,7 @@ export const States: Story = {
             <li>Height: 48px</li>
             <li>Border Radius: 16px</li>
             <li>Gap: 8px</li>
-            <li>Font: Poppins Regular 15px</li>
+            <li>Font: Plus Jakarta Sans Medium 15px</li>
             <li>Logo: 20x20px</li>
           </ul>
         </div>

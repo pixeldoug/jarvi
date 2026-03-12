@@ -956,7 +956,7 @@
 }
 
 .viewerTitle {
-  font-family: var(--typography-heading-lg-font-family, 'Poppins', sans-serif);
+  font-family: var(--typography-heading-lg-font-family, 'Plus Jakarta Sans', sans-serif);
   font-size: 32px;
   font-weight: 600;
   line-height: 1.25;
@@ -967,7 +967,7 @@
 }
 
 .viewerDate {
-  font-family: var(--typography-body-lg-font-family, 'Poppins', sans-serif);
+  font-family: var(--typography-body-lg-font-family, 'Plus Jakarta Sans', sans-serif);
   font-size: 16px;
   font-weight: 400;
   line-height: 1.25;
@@ -1015,7 +1015,7 @@
 }
 
 .viewerGenericLabel {
-  font-family: var(--typography-heading-md-font-family, 'Poppins', sans-serif);
+  font-family: var(--typography-heading-md-font-family, 'Plus Jakarta Sans', sans-serif);
   font-size: 24px;
   font-weight: 600;
   color: #f7f8f9;
@@ -1024,7 +1024,7 @@
 }
 
 .viewerGenericHint {
-  font-family: var(--typography-body-lg-font-family, 'Poppins', sans-serif);
+  font-family: var(--typography-body-lg-font-family, 'Plus Jakarta Sans', sans-serif);
   font-size: 14px;
   color: #b5bcc4;
   margin: 0;

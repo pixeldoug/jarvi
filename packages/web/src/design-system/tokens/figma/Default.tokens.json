@@ -2308,6 +2308,17 @@
         "com.figma.isOverride": true
       }
     },
+    "15": {
+      "$type": "number",
+      "$value": 60,
+      "$extensions": {
+        "com.figma.variableId": "VariableID:40000787:2033",
+        "com.figma.scopes": [
+          "GAP"
+        ],
+        "com.figma.isOverride": true
+      }
+    },
     "16": {
       "$type": "number",
       "$value": 64,
@@ -2567,6 +2578,17 @@
         "com.figma.isOverride": true
       }
     },
+    "4-5": {
+      "$type": "number",
+      "$value": 18,
+      "$extensions": {
+        "com.figma.variableId": "VariableID:40000790:10325",
+        "com.figma.scopes": [
+          "GAP"
+        ],
+        "com.figma.isOverride": true
+      }
+    },
     "max-width": {
       "0": {
         "$type": "number",
@@ -2804,6 +2826,6 @@
     }
   },
   "$extensions": {
-    "com.figma.modeName": "Default"
+    "com.figma.modeName": "Product"
   }
 }

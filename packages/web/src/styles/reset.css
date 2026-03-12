@@ -12,14 +12,18 @@
 }
 
 html {
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
 }
 
 body {
   min-height: 100vh;
   line-height: 1.5;
   font-family: var(--font-font-family-font-ui), system-ui, -apple-system, sans-serif;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
 }
 
 img,

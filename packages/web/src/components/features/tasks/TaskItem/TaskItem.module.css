@@ -48,9 +48,10 @@
 /* Title text */
 .title {
   font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-lg-font-size);
-  font-weight: var(--typography-body-lg-font-weight);
-  line-height: var(--typography-body-lg-line-height);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
   color: var(--semantic-content-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -94,8 +95,10 @@
   border-radius: 0;
   background: transparent;
   font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-lg-font-size);
-  font-weight: var(--typography-body-lg-font-weight);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
   color: var(--semantic-content-primary);
   outline: none;
 }

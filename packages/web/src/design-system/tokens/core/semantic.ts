@@ -7,9 +7,9 @@
 export const semanticTokens = {
   light: {
   "content": {
-    "primary": "#34373C",
-    "secondary": "#A0ABB4",
-    "tertiary": "#B5BCC4",
+    "primary": "#18181B",
+    "secondary": "#757F88",
+    "tertiary": "#A0ABB4",
     "accent": "#F3F1FC",
     "subtle": "#EEE9FE",
     "disabled": "#B5BCC4",

@@ -116,9 +116,11 @@ export default function LandingPage() {
             <span>Jarvi</span>
           </div>
           <div className={styles.navActions}>
-            <Button href="#funcionalidades" variant="ghost" size="default" className={styles.navGhostButton}>
-              Funcionalidades
-            </Button>
+            <span className={styles.navGhostButton}>
+              <Button href="#funcionalidades" variant="ghost" size="default">
+                Funcionalidades
+              </Button>
+            </span>
             <Button href="#acesso-antecipado" variant="primary" size="default">
               Solicitar Acesso
             </Button>
