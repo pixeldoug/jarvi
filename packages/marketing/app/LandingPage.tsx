@@ -1,23 +1,31 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDots, CardsThree, Checks, EnvelopeSimple, MagicWand } from '@phosphor-icons/react';
+import {
+  CalendarDots,
+  CardsThree,
+  Checks,
+  EnvelopeSimple,
+  MagicWand,
+  Sparkle,
+  WhatsappLogo,
+} from '@phosphor-icons/react';
 import styles from './LandingPage.module.css';
 import { Button } from './components/Button';
+import { CurveDivider } from './components/CurveDivider';
 
 type FeatureKey = 'whatsapp' | 'email' | 'calendar' | 'wand' | 'cards' | 'checks';
 
 const featureOrder: FeatureKey[] = ['whatsapp', 'email', 'calendar', 'wand', 'cards', 'checks'];
 
 const assets = {
-  screenExample: 'https://www.figma.com/api/mcp/asset/4611e27a-5bad-4669-bcc9-ee967d0f93a1',
-  showcaseImage: 'https://www.figma.com/api/mcp/asset/35ca0ab5-78dd-4c82-9755-b8f5b1e7b85a',
-  ctaBg: 'https://www.figma.com/api/mcp/asset/f417955f-dd0f-4dcc-9a9e-6bec9a3e0371',
-  logo: 'https://www.figma.com/api/mcp/asset/78ce3353-b208-4414-8914-10e499580044',
-  betaIcon: 'https://www.figma.com/api/mcp/asset/86b96f33-193b-45cc-8ac8-0ba458594665',
-  bgDetail: 'https://www.figma.com/api/mcp/asset/b9f2f6e7-4c50-49b8-8bc4-bf25ab86af68',
-  bgBlob: 'https://www.figma.com/api/mcp/asset/490a7272-bfdd-400e-80bf-e6553ebdf881',
-  whatsappIcon: 'https://www.figma.com/api/mcp/asset/052b1663-1dab-4ebe-a6c2-192510b7f42b',
+  screenExample: '/assets/images/screen-example.png',
+  showcaseImage: '/assets/images/showcase-image.png',
+  ctaBg: '/assets/images/cta-bg.png',
+  heroBgAvif: '/assets/images/hero.avif',
+  heroBgWebp: '/assets/images/hero.webp',
+  logo: '/assets/icons/logo-icon.svg',
+  bgBlob: '/assets/images/hero-blob.svg',
 };
 
 const featureCopyByFeature: Record<FeatureKey, { title: string; description: string }> = {
@@ -93,12 +101,8 @@ export default function LandingPage() {
 
   const renderFeatureIcon = (feature: FeatureKey, isActive: boolean) => {
     const size = isActive ? 28 : 24;
-    if (feature === 'whatsapp') {
-      return (
-        <img src={assets.whatsappIcon} alt="" aria-hidden="true" width={size} height={size} />
-      );
-    }
     const iconProps = { size, weight: 'regular' as const, 'aria-hidden': true as const };
+    if (feature === 'whatsapp') return <WhatsappLogo {...iconProps} />;
     if (feature === 'email') return <EnvelopeSimple {...iconProps} />;
     if (feature === 'calendar') return <CalendarDots {...iconProps} />;
     if (feature === 'wand') return <MagicWand {...iconProps} />;
@@ -121,7 +125,7 @@ export default function LandingPage() {
                 Funcionalidades
               </Button>
             </span>
-            <Button href="#acesso-antecipado" variant="primary" size="default">
+            <Button href="/acesso-antecipado" variant="primary" size="default">
               Solicitar Acesso
             </Button>
           </div>
@@ -131,9 +135,10 @@ export default function LandingPage() {
       {/* Hero */}
       <section className={styles.heroSection}>
         <picture className={styles.heroBgPicture}>
-          <source srcSet="/hero.avif" type="image/avif" />
+          <source srcSet={assets.heroBgAvif} type="image/avif" />
+          <source srcSet={assets.heroBgWebp} type="image/webp" />
           <img
-            src="/hero.png"
+            src={assets.heroBgWebp}
             alt=""
             aria-hidden="true"
             className={styles.heroBgImage}
@@ -142,7 +147,7 @@ export default function LandingPage() {
         <div className={styles.heroBgBlur} />
         <div className={styles.heroContent}>
           <div className={`${styles.betaTag} ${styles.reveal} ${styles.revealDelay2}`}>
-            <img src={assets.betaIcon} alt="" aria-hidden="true" />
+            <Sparkle size={16} weight="fill" aria-hidden="true" />
             <span>VERSÃO BETA</span>
           </div>
           <div className={`${styles.heroTitleGroup} ${styles.reveal} ${styles.revealDelay3}`}>
@@ -156,14 +161,16 @@ export default function LandingPage() {
           </div>
         </div>
         <div className={styles.heroBgDetailWrapper} aria-hidden="true">
-          <img src={assets.bgDetail} alt="" className={styles.heroBgDetail} />
+          <CurveDivider className={styles.heroBgDetail} />
         </div>
       </section>
 
       {/* Features */}
       <section className={styles.featuresSection} id="funcionalidades">
         <div className={styles.featuresBlob} aria-hidden="true">
-          <img src={assets.bgBlob} alt="" />
+          <div className={styles.featuresBlobFrame}>
+            <img src={assets.bgBlob} alt="" className={styles.featuresBlobImage} />
+          </div>
         </div>
 
         <div className={styles.screenFrameReveal}>
@@ -247,7 +254,7 @@ export default function LandingPage() {
         <img src={assets.ctaBg} alt="" aria-hidden="true" className={styles.ctaBgImage} />
         <div className={styles.ctaBgBlur} />
         <div className={styles.ctaBgDetailTop} aria-hidden="true">
-          <img src={assets.bgDetail} alt="" className={styles.ctaBgDetailImg} />
+          <CurveDivider className={styles.ctaBgDetailImg} />
         </div>
 
         <div
@@ -255,7 +262,7 @@ export default function LandingPage() {
         >
           <h2>Garanta seu acesso antecipado</h2>
           <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
-          <Button href="#acesso-antecipado" variant="primary" size="lg">
+          <Button href="/acesso-antecipado" variant="primary" size="lg">
             Solicitar Acesso Antecipado
           </Button>
         </div>

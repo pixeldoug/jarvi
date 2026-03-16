@@ -1,6 +1,6 @@
 import styles from './Button.module.css';
 
-type ButtonVariant = 'ghost' | 'primary';
+type ButtonVariant = 'ghost' | 'primary' | 'secondary';
 type ButtonSize = 'default' | 'lg';
 
 type BaseProps = {

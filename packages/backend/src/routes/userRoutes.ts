@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken } from '../middleware/auth';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sendEmailChangeConfirmation } from '../services/emailService';
@@ -23,6 +24,7 @@ const router = Router();
 // Constants for validation
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_MEMORY_TEXT_LENGTH = 4000;
 
 // Helper to validate base64 image
 const validateBase64Image = (base64String: string): { valid: boolean; error?: string } => {
@@ -427,6 +429,166 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
   } catch (error) {
     console.error('Error updating password:', error);
     res.status(500).json({ error: 'Erro ao atualizar senha' });
+  }
+});
+
+/**
+ * GET /api/users/memory-profile
+ * Get authenticated user's AI memory profile
+ */
+router.get('/memory-profile', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT memory_text, source, source_ref, consent_ai_memory, updated_at
+         FROM user_memory_profiles
+         WHERE user_id = $1`,
+        [userId]
+      );
+      const profile = result.rows[0];
+
+      res.json({
+        memoryText: profile?.memory_text || '',
+        source: profile?.source || 'manual',
+        sourceRef: profile?.source_ref || null,
+        consentAiMemory: profile ? profile.consent_ai_memory === true : false,
+        updatedAt: profile?.updated_at || null,
+      });
+      return;
+    }
+
+    const db = getDatabase();
+    const profile = (await db.get(
+      `SELECT memory_text, source, source_ref, consent_ai_memory, updated_at
+       FROM user_memory_profiles
+       WHERE user_id = ?`,
+      [userId]
+    )) as
+      | {
+          memory_text?: string | null;
+          source?: string | null;
+          source_ref?: string | null;
+          consent_ai_memory?: boolean | number | null;
+          updated_at?: string | null;
+        }
+      | undefined;
+
+    res.json({
+      memoryText: profile?.memory_text || '',
+      source: profile?.source || 'manual',
+      sourceRef: profile?.source_ref || null,
+      consentAiMemory: profile ? Boolean(profile.consent_ai_memory) : false,
+      updatedAt: profile?.updated_at || null,
+    });
+  } catch (error) {
+    console.error('Error fetching memory profile:', error);
+    res.status(500).json({ error: 'Erro ao carregar memória compartilhada' });
+  }
+});
+
+/**
+ * PUT /api/users/memory-profile
+ * Update authenticated user's AI memory profile
+ */
+router.put('/memory-profile', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const memoryTextRaw = req.body?.memoryText;
+    if (typeof memoryTextRaw !== 'string') {
+      res.status(400).json({ error: 'memoryText deve ser um texto' });
+      return;
+    }
+
+    const memoryText = memoryTextRaw.trim();
+    if (memoryText.length > MAX_MEMORY_TEXT_LENGTH) {
+      res
+        .status(400)
+        .json({ error: `A memória deve ter no máximo ${MAX_MEMORY_TEXT_LENGTH} caracteres` });
+      return;
+    }
+
+    const consentAiMemoryRaw = req.body?.consentAiMemory;
+    const consentAiMemory = typeof consentAiMemoryRaw === 'boolean' ? consentAiMemoryRaw : true;
+    const now = new Date().toISOString();
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const existingResult = await client.query(
+          'SELECT id FROM user_memory_profiles WHERE user_id = $1',
+          [userId]
+        );
+
+        if (existingResult.rows.length > 0) {
+          await client.query(
+            `UPDATE user_memory_profiles
+             SET memory_text = $1,
+                 source = $2,
+                 source_ref = NULL,
+                 consent_ai_memory = $3,
+                 updated_at = $4
+             WHERE user_id = $5`,
+            [memoryText, 'manual', consentAiMemory, now, userId]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO user_memory_profiles (
+              id, user_id, memory_text, source, source_ref, consent_ai_memory, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, NULL, $5, $6, $7)`,
+            [uuidv4(), userId, memoryText, 'manual', consentAiMemory, now, now]
+          );
+        }
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      const existingProfile = await db.get('SELECT id FROM user_memory_profiles WHERE user_id = ?', [userId]);
+
+      if (existingProfile) {
+        await db.run(
+          `UPDATE user_memory_profiles
+           SET memory_text = ?, source = ?, source_ref = NULL, consent_ai_memory = ?, updated_at = ?
+           WHERE user_id = ?`,
+          [memoryText, 'manual', consentAiMemory, now, userId]
+        );
+      } else {
+        await db.run(
+          `INSERT INTO user_memory_profiles (
+            id, user_id, memory_text, source, source_ref, consent_ai_memory, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?)`,
+          [uuidv4(), userId, memoryText, 'manual', consentAiMemory, now, now]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Memória atualizada com sucesso',
+      profile: {
+        memoryText,
+        source: 'manual',
+        sourceRef: null,
+        consentAiMemory,
+        updatedAt: now,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating memory profile:', error);
+    res.status(500).json({ error: 'Erro ao atualizar memória compartilhada' });
   }
 });
 

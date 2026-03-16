@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Button, Input, PasswordInput } from '../../components/ui';
+import { Button, Input, PasswordInput, TextArea } from '../../components/ui';
 import { GoogleLogin } from '../../components/features/auth';
 import styles from './Settings.module.css';
 
@@ -28,7 +28,54 @@ export const Settings: React.FC = () => {
   // Google disconnect state
   const [disconnectError, setDisconnectError] = useState('');
 
+  // Shared memory state
+  const [memoryText, setMemoryText] = useState('');
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memorySaving, setMemorySaving] = useState(false);
+  const [memoryMessage, setMemoryMessage] = useState('');
+  const [memoryError, setMemoryError] = useState('');
+
   const isGoogleUser = user?.authProvider === 'google';
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchMemoryProfile = async () => {
+      if (!token) return;
+      setMemoryLoading(true);
+      setMemoryError('');
+
+      try {
+        const response = await fetch(`${API_URL}/api/users/memory-profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao carregar memória');
+        }
+
+        if (!isCancelled) {
+          setMemoryText(typeof data.memoryText === 'string' ? data.memoryText : '');
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setMemoryError(err instanceof Error ? err.message : 'Erro ao carregar memória');
+        }
+      } finally {
+        if (!isCancelled) {
+          setMemoryLoading(false);
+        }
+      }
+    };
+
+    void fetchMemoryProfile();
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,6 +196,38 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const handleMemorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMemoryError('');
+    setMemoryMessage('');
+    setMemorySaving(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/users/memory-profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          memoryText,
+          consentAiMemory: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao salvar memória');
+      }
+
+      setMemoryMessage(data.message || 'Memória atualizada com sucesso');
+    } catch (err) {
+      setMemoryError(err instanceof Error ? err.message : 'Erro ao salvar memória');
+    } finally {
+      setMemorySaving(false);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -159,6 +238,44 @@ export const Settings: React.FC = () => {
             : 'Gerencie suas credenciais de acesso'}
         </p>
       </div>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Memória compartilhada com IA</h2>
+        <p className={styles.sectionDescription}>
+          Esse contexto ajuda a Jarvi a personalizar sugestões, priorização e próximos passos.
+        </p>
+
+        {memoryLoading && <div className={styles.infoBox}>Carregando memória...</div>}
+        {memoryMessage && <div className={styles.success}>{memoryMessage}</div>}
+        {memoryError && <div className={styles.error}>{memoryError}</div>}
+
+        <form className={styles.form} onSubmit={handleMemorySubmit}>
+          <TextArea
+            id="memoryText"
+            name="memoryText"
+            label="O que a Jarvi deve lembrar sobre você?"
+            value={memoryText}
+            onChange={(event) => setMemoryText(event.target.value)}
+            placeholder="Ex: Tenho mais energia pela manhã, prefiro tarefas com contexto curto e foco em entregas da semana."
+            rows={6}
+            maxLength={4000}
+            disabled={memoryLoading || memorySaving}
+            helperText={`${memoryText.length}/4000`}
+          />
+
+          <div className={styles.formActions}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="medium"
+              disabled={memoryLoading || memorySaving}
+              loading={memorySaving}
+            >
+              Salvar memória
+            </Button>
+          </div>
+        </form>
+      </section>
 
       {/* Email Section - Read-only for Google users */}
       {!isGoogleUser ? (

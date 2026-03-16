@@ -190,10 +190,12 @@
   backdrop-filter: blur(14.8px);
 }
 
-.betaTag img {
+.betaTag img,
+.betaTag svg {
   width: 17px;
   height: 16px;
   display: block;
+  color: #eee9fe;
 }
 
 .betaTag span {
@@ -244,7 +246,7 @@
   position: relative;
   z-index: 2;
   line-height: 0;
-  transform: scaleY(-1) rotate(180deg);
+  transform: scaleY(-10) rotate(180deg);
 }
 
 .heroBgDetail {
@@ -268,19 +270,33 @@
 
 .featuresBlob {
   position: absolute;
-  left: -321px;
-  top: 73px;
-  width: 879px;
-  height: 1000px;
-  transform: rotate(-2.85deg);
+  left: -321.39px;
+  top: 72.6px;
+  width: 878.92px;
+  height: 999.77px;
   pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.featuresBlobFrame {
+  position: relative;
+  width: 832.2px;
+  height: 959.55px;
+  transform: rotate(-2.85deg);
   overflow: hidden;
 }
 
-.featuresBlob img {
-  width: 832px;
-  height: 960px;
+.featuresBlobImage {
+  position: absolute;
+  left: -7.93%;
+  top: -42.55%;
+  width: 245.32%;
+  height: 169.58%;
   object-fit: cover;
+  opacity: 0.07;
 }
 
 /* Wrapper handles absolute positioning so .reveal transform doesn't

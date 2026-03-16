@@ -1,0 +1,38 @@
+.stepper {
+  --stepper-inactive-color: #b5bcc4;
+  --stepper-active-color: #6137f3;
+  --stepper-height: 6px;
+  --stepper-inactive-width: 6px;
+  --stepper-active-width: 30px;
+  --stepper-gap: 4px;
+
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--stepper-gap);
+}
+
+.step,
+.stepActive {
+  height: var(--stepper-height);
+  border-radius: 999px;
+  transition: width 180ms ease, background-color 180ms ease;
+}
+
+.step {
+  width: var(--stepper-inactive-width);
+  background: var(--stepper-inactive-color);
+}
+
+.stepActive {
+  width: var(--stepper-active-width);
+  background: var(--stepper-active-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step,
+  .stepActive {
+    transition: none;
+  }
+}

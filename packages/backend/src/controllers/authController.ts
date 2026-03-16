@@ -29,6 +29,99 @@ const getInternalTrialEndsAtIso = (): string => {
   return trialEnd.toISOString();
 };
 
+const normalizeEmail = (value: string): string => value.trim().toLowerCase();
+
+const syncOnboardingLeadWithUser = async (email: string, userId: string): Promise<void> => {
+  const normalizedEmail = normalizeEmail(email);
+  const now = new Date().toISOString();
+
+  if (isPostgreSQL()) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      const leadResult = await client.query(
+        'SELECT id, memory_seed_text FROM onboarding_leads WHERE email = $1',
+        [normalizedEmail]
+      );
+      const lead = leadResult.rows[0] as { id: string; memory_seed_text?: string | null } | undefined;
+      if (!lead) return;
+
+      const memoryText = (lead.memory_seed_text || '').trim();
+      if (memoryText) {
+        const existingMemoryResult = await client.query(
+          'SELECT id FROM user_memory_profiles WHERE user_id = $1',
+          [userId]
+        );
+
+        if (existingMemoryResult.rows.length > 0) {
+          await client.query(
+            `UPDATE user_memory_profiles
+             SET memory_text = $1,
+                 source = $2,
+                 source_ref = $3,
+                 consent_ai_memory = $4,
+                 updated_at = $5
+             WHERE user_id = $6`,
+            [memoryText, 'marketing-onboarding', lead.id, true, now, userId]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO user_memory_profiles (
+              id, user_id, memory_text, source, source_ref, consent_ai_memory, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [uuidv4(), userId, memoryText, 'marketing-onboarding', lead.id, true, now, now]
+          );
+        }
+      }
+
+      await client.query(
+        `UPDATE onboarding_leads
+         SET converted_user_id = $1, converted_at = $2, updated_at = $3
+         WHERE id = $4`,
+        [userId, now, now, lead.id]
+      );
+    } finally {
+      client.release();
+    }
+
+    return;
+  }
+
+  const db = getDatabase();
+  const lead = (await db.get(
+    'SELECT id, memory_seed_text FROM onboarding_leads WHERE email = ?',
+    [normalizedEmail]
+  )) as { id: string; memory_seed_text?: string | null } | undefined;
+  if (!lead) return;
+
+  const memoryText = (lead.memory_seed_text || '').trim();
+  if (memoryText) {
+    const existingMemory = await db.get('SELECT id FROM user_memory_profiles WHERE user_id = ?', [userId]);
+    if (existingMemory) {
+      await db.run(
+        `UPDATE user_memory_profiles
+         SET memory_text = ?, source = ?, source_ref = ?, consent_ai_memory = ?, updated_at = ?
+         WHERE user_id = ?`,
+        [memoryText, 'marketing-onboarding', lead.id, true, now, userId]
+      );
+    } else {
+      await db.run(
+        `INSERT INTO user_memory_profiles (
+          id, user_id, memory_text, source, source_ref, consent_ai_memory, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), userId, memoryText, 'marketing-onboarding', lead.id, true, now, now]
+      );
+    }
+  }
+
+  await db.run(
+    `UPDATE onboarding_leads
+     SET converted_user_id = ?, converted_at = ?, updated_at = ?
+     WHERE id = ?`,
+    [userId, now, now, lead.id]
+  );
+};
+
 // Support multiple Google Client IDs (web and mobile)
 const webClientId = process.env.GOOGLE_CLIENT_ID; // Web project
 const mobileClientId = process.env.GOOGLE_MOBILE_CLIENT_ID; // iOS project
@@ -205,6 +298,12 @@ export const googleAuth = async (
       }
     }
 
+    try {
+      await syncOnboardingLeadWithUser(email, user.id);
+    } catch (syncError) {
+      console.error('Failed to sync onboarding lead during Google auth:', syncError);
+    }
+
     // Generate JWT token
     const token = generateToken({
       id: user.id,
@@ -307,6 +406,12 @@ export const register = async (
       );
 
       newUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    }
+
+    try {
+      await syncOnboardingLeadWithUser(email, newUser.id);
+    } catch (syncError) {
+      console.error('Failed to sync onboarding lead during register:', syncError);
     }
 
     // Send verification email

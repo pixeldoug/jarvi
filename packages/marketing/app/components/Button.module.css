@@ -55,3 +55,13 @@
 .primary:hover {
   background: #6137f3;
 }
+
+.secondary {
+  color: #18181b;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #d8dde0;
+}
+
+.secondary:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
