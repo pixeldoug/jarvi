@@ -24,6 +24,9 @@ import { initializeWhatsappWorker } from './queues/whatsappQueue';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Keep original protocol/host when running behind reverse proxies (Railway, etc.).
+app.set('trust proxy', 1);
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

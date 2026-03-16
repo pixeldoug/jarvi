@@ -454,13 +454,47 @@ export const handleRejection = async (from: string): Promise<void> => {
   await sendTextMessage(from, '❌ Ok! Não vou criar essa tarefa.');
 };
 
-const getValidationUrl = (req: Request): string => {
-  const configuredWebhookUrl = process.env.TWILIO_WEBHOOK_URL;
+const getValidationUrls = (req: Request): string[] => {
+  const urls = new Set<string>();
+  const configuredWebhookUrl = process.env.TWILIO_WEBHOOK_URL?.trim();
+  const host = req.get('host');
+  const path = req.originalUrl;
+
   if (configuredWebhookUrl) {
-    return configuredWebhookUrl;
+    urls.add(configuredWebhookUrl);
   }
 
-  return `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  if (host) {
+    // Keep protocol from proxy headers and include explicit variants as fallback.
+    urls.add(`${req.protocol}://${host}${path}`);
+    urls.add(`https://${host}${path}`);
+    urls.add(`http://${host}${path}`);
+  }
+
+  return Array.from(urls);
+};
+
+const hasValidTwilioSignature = (
+  req: Request,
+  signature: string,
+  authToken: string
+): boolean => {
+  const candidateUrls = getValidationUrls(req);
+
+  for (const url of candidateUrls) {
+    if (twilio.validateRequest(authToken, signature, url, req.body)) {
+      return true;
+    }
+  }
+
+  console.warn('Twilio signature validation failed', {
+    host: req.get('host') || null,
+    originalUrl: req.originalUrl,
+    attemptedUrls: candidateUrls,
+    hasConfiguredWebhookUrl: Boolean(process.env.TWILIO_WEBHOOK_URL),
+  });
+
+  return false;
 };
 
 export const receiveMessage = async (req: Request, res: Response): Promise<void> => {
@@ -477,14 +511,7 @@ export const receiveMessage = async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  const isValidSignature = twilio.validateRequest(
-    authToken,
-    signature,
-    getValidationUrl(req),
-    req.body
-  );
-
-  if (!isValidSignature) {
+  if (!hasValidTwilioSignature(req, signature, authToken)) {
     res.sendStatus(401);
     return;
   }
