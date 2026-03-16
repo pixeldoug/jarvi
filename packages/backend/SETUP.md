@@ -78,9 +78,13 @@ Para produção:
 | `FRONTEND_ORIGINS` | Origens permitidas para CORS (separadas por vírgula) | `https://app.jarvi.life` |
 | `FRONTEND_URL` | Origem do frontend para Socket.IO | `https://app.jarvi.life` |
 | `APP_URL` | URL base usada em links de e-mail | `https://app.jarvi.life` |
+| `APP_LOGIN_URL` | URL de login usada no e-mail de aprovação do acesso antecipado | `https://app.jarvi.life/login` |
 | `STRIPE_SECRET_KEY` | Chave secreta Stripe | `sk_test_...` |
 | `STRIPE_WEBHOOK_SECRET` | Secret do webhook | `whsec_...` |
 | `STRIPE_PRICE_ID` | ID do preço/produto | `price_...` |
+| `SLACK_BOT_TOKEN` | Token do bot Slack para enviar/atualizar mensagens | `xoxb-...` |
+| `SLACK_SIGNING_SECRET` | Secret para validar assinatura das ações interativas do Slack | `abc123...` |
+| `SLACK_APPROVAL_CHANNEL_ID` | Canal onde os pedidos de aprovação serão enviados | `C0123456789` |
 
 ## 💳 Stripe - Configuração de Pagamentos
 
@@ -153,6 +157,43 @@ npm run stripe:trigger:payment-failed  # Pagamento falhou
 Use qualquer data futura e CVC de 3 dígitos.
 
 📚 Mais detalhes: [docs/STRIPE_SETUP.md](../../docs/STRIPE_SETUP.md)
+
+## 💬 Slack - Aprovação de Acesso Antecipado
+
+### 1. Criar o Slack App
+
+1. Acesse [api.slack.com/apps](https://api.slack.com/apps) e crie um app.
+2. Em **OAuth & Permissions**, adicione o scope:
+   - `chat:write`
+3. Instale o app no seu workspace e copie o **Bot User OAuth Token** (`xoxb-...`).
+
+### 2. Ativar Interactivity
+
+1. Em **Interactivity & Shortcuts**, ative **Interactivity**.
+2. Configure a **Request URL** para:
+   - `https://SEU_BACKEND/webhooks/slack/interactions`
+3. Copie o **Signing Secret** e salve em `SLACK_SIGNING_SECRET`.
+
+### 3. Configurar Canal de Aprovação
+
+1. Adicione o bot no canal de revisão (`/invite @seu-bot`).
+2. Copie o Channel ID (ex.: `C0123456789`) e salve em `SLACK_APPROVAL_CHANNEL_ID`.
+
+### 4. Fluxo esperado
+
+1. Usuário envia onboarding de acesso antecipado.
+2. Backend registra o lead e envia mensagem no Slack com botões **Aprovar**/**Reprovar**.
+3. Ao aprovar, o backend envia e-mail com link de acesso:
+   - `https://app.jarvi.life/login`
+
+### 5. Teste rápido local
+
+- Rode backend local:
+  - `npm run dev`
+- Exponha a porta 3001 com ngrok/cloudflared e use a URL pública na Request URL do Slack.
+- Faça um submit no onboarding e valide:
+  - mensagem no canal;
+  - clique em **Aprovar** atualiza status e dispara e-mail.
 
 
 

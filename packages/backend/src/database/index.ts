@@ -79,6 +79,56 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
+
+    `CREATE TABLE IF NOT EXISTS onboarding_leads (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      areas_json TEXT NOT NULL DEFAULT '[]',
+      areas_other TEXT,
+      task_origins_json TEXT NOT NULL DEFAULT '[]',
+      task_origins_other TEXT,
+      tracking_methods_json TEXT NOT NULL DEFAULT '[]',
+      tracking_methods_other TEXT,
+      pain_points_json TEXT NOT NULL DEFAULT '[]',
+      pain_points_other TEXT,
+      desired_capabilities_json TEXT NOT NULL DEFAULT '[]',
+      desired_capabilities_other TEXT,
+      ideal_outcome_text TEXT,
+      interview_availability TEXT,
+      contact_value TEXT,
+      contact_type TEXT,
+      wants_broadcast_updates ${booleanType} DEFAULT FALSE,
+      memory_seed_text TEXT,
+      raw_payload_json TEXT,
+      source TEXT DEFAULT 'marketing-onboarding',
+      flow_version TEXT DEFAULT 'figma-onboarding-v1',
+      approval_status TEXT DEFAULT 'pending',
+      approval_requested_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      approved_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      approved_by TEXT,
+      rejected_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      rejected_by TEXT,
+      approval_email_sent_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      slack_channel_id TEXT,
+      slack_message_ts TEXT,
+      converted_user_id TEXT,
+      converted_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      created_at ${timestampType},
+      updated_at ${timestampType}
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS user_memory_profiles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT UNIQUE NOT NULL,
+      memory_text TEXT NOT NULL DEFAULT '',
+      source TEXT DEFAULT 'manual',
+      source_ref TEXT,
+      consent_ai_memory ${booleanType} DEFAULT TRUE,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`,
     
     `CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
@@ -560,6 +610,86 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Table already exists, ignore
       }
+
+      // Migration: Create onboarding_leads table for existing databases
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS onboarding_leads (
+          id TEXT PRIMARY KEY,
+          email TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          areas_json TEXT NOT NULL DEFAULT '[]',
+          areas_other TEXT,
+          task_origins_json TEXT NOT NULL DEFAULT '[]',
+          task_origins_other TEXT,
+          tracking_methods_json TEXT NOT NULL DEFAULT '[]',
+          tracking_methods_other TEXT,
+          pain_points_json TEXT NOT NULL DEFAULT '[]',
+          pain_points_other TEXT,
+          desired_capabilities_json TEXT NOT NULL DEFAULT '[]',
+          desired_capabilities_other TEXT,
+          ideal_outcome_text TEXT,
+          interview_availability TEXT,
+          contact_value TEXT,
+          contact_type TEXT,
+          wants_broadcast_updates BOOLEAN DEFAULT FALSE,
+          memory_seed_text TEXT,
+          raw_payload_json TEXT,
+          source TEXT DEFAULT 'marketing-onboarding',
+          flow_version TEXT DEFAULT 'figma-onboarding-v1',
+          approval_status TEXT DEFAULT 'pending',
+          approval_requested_at TIMESTAMP,
+          approved_at TIMESTAMP,
+          approved_by TEXT,
+          rejected_at TIMESTAMP,
+          rejected_by TEXT,
+          approval_email_sent_at TIMESTAMP,
+          slack_channel_id TEXT,
+          slack_message_ts TEXT,
+          converted_user_id TEXT,
+          converted_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      const onboardingApprovalMigrations = [
+        "ALTER TABLE onboarding_leads ADD COLUMN approval_status TEXT DEFAULT 'pending'",
+        'ALTER TABLE onboarding_leads ADD COLUMN approval_requested_at TIMESTAMP',
+        'ALTER TABLE onboarding_leads ADD COLUMN approved_at TIMESTAMP',
+        'ALTER TABLE onboarding_leads ADD COLUMN approved_by TEXT',
+        'ALTER TABLE onboarding_leads ADD COLUMN rejected_at TIMESTAMP',
+        'ALTER TABLE onboarding_leads ADD COLUMN rejected_by TEXT',
+        'ALTER TABLE onboarding_leads ADD COLUMN approval_email_sent_at TIMESTAMP',
+        'ALTER TABLE onboarding_leads ADD COLUMN slack_channel_id TEXT',
+        'ALTER TABLE onboarding_leads ADD COLUMN slack_message_ts TEXT',
+      ];
+
+      for (const migration of onboardingApprovalMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      // Migration: Create user_memory_profiles table for existing databases
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS user_memory_profiles (
+          id TEXT PRIMARY KEY,
+          user_id TEXT UNIQUE NOT NULL,
+          memory_text TEXT NOT NULL DEFAULT '',
+          source TEXT DEFAULT 'manual',
+          source_ref TEXT,
+          consent_ai_memory BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -606,6 +736,86 @@ const runMigrations = async (): Promise<void> => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Create onboarding_leads table for existing SQLite databases
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS onboarding_leads (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        areas_json TEXT NOT NULL DEFAULT '[]',
+        areas_other TEXT,
+        task_origins_json TEXT NOT NULL DEFAULT '[]',
+        task_origins_other TEXT,
+        tracking_methods_json TEXT NOT NULL DEFAULT '[]',
+        tracking_methods_other TEXT,
+        pain_points_json TEXT NOT NULL DEFAULT '[]',
+        pain_points_other TEXT,
+        desired_capabilities_json TEXT NOT NULL DEFAULT '[]',
+        desired_capabilities_other TEXT,
+        ideal_outcome_text TEXT,
+        interview_availability TEXT,
+        contact_value TEXT,
+        contact_type TEXT,
+        wants_broadcast_updates BOOLEAN DEFAULT FALSE,
+        memory_seed_text TEXT,
+        raw_payload_json TEXT,
+        source TEXT DEFAULT 'marketing-onboarding',
+        flow_version TEXT DEFAULT 'figma-onboarding-v1',
+        approval_status TEXT DEFAULT 'pending',
+        approval_requested_at DATETIME,
+        approved_at DATETIME,
+        approved_by TEXT,
+        rejected_at DATETIME,
+        rejected_by TEXT,
+        approval_email_sent_at DATETIME,
+        slack_channel_id TEXT,
+        slack_message_ts TEXT,
+        converted_user_id TEXT,
+        converted_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    const onboardingApprovalMigrations = [
+      "ALTER TABLE onboarding_leads ADD COLUMN approval_status TEXT DEFAULT 'pending'",
+      'ALTER TABLE onboarding_leads ADD COLUMN approval_requested_at DATETIME',
+      'ALTER TABLE onboarding_leads ADD COLUMN approved_at DATETIME',
+      'ALTER TABLE onboarding_leads ADD COLUMN approved_by TEXT',
+      'ALTER TABLE onboarding_leads ADD COLUMN rejected_at DATETIME',
+      'ALTER TABLE onboarding_leads ADD COLUMN rejected_by TEXT',
+      'ALTER TABLE onboarding_leads ADD COLUMN approval_email_sent_at DATETIME',
+      'ALTER TABLE onboarding_leads ADD COLUMN slack_channel_id TEXT',
+      'ALTER TABLE onboarding_leads ADD COLUMN slack_message_ts TEXT',
+    ];
+
+    for (const migration of onboardingApprovalMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    // Migration: Create user_memory_profiles table for existing SQLite databases
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS user_memory_profiles (
+        id TEXT PRIMARY KEY,
+        user_id TEXT UNIQUE NOT NULL,
+        memory_text TEXT NOT NULL DEFAULT '',
+        source TEXT DEFAULT 'manual',
+        source_ref TEXT,
+        consent_ai_memory BOOLEAN DEFAULT TRUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )`);
     } catch (e) {
       // Table already exists, ignore

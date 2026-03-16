@@ -6,8 +6,15 @@ import {
   getUserByStripeCustomerId,
   getUserByEmail,
 } from '../services/stripeService';
+import { handleSlackApprovalInteraction } from '../controllers/earlyAccessController';
 
 const router = Router();
+
+/**
+ * POST /webhooks/slack/interactions
+ * Handle Slack interactive message actions (approve/reject early access)
+ */
+router.post('/slack/interactions', handleSlackApprovalInteraction);
 
 /**
  * POST /webhooks/stripe

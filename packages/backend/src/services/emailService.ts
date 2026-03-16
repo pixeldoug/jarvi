@@ -9,6 +9,7 @@ const APP_URL =
   (process.env.NODE_ENV === 'production'
     ? 'https://app.jarvi.life'
     : 'http://localhost:5173');
+const APP_LOGIN_URL = process.env.APP_LOGIN_URL || 'https://app.jarvi.life/login';
 const EMAIL_LOGO_CID = 'jarvi-logo-inline';
 const EMAIL_LOGO_PNG_BASE64 =
   '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';
@@ -240,6 +241,31 @@ const getGoogleAccountNoticeEmailHtml = (name: string, loginUrl: string): string
   });
 };
 
+const getEarlyAccessApprovedEmailHtml = (name: string, loginUrl: string): string => {
+  const safeName = escapeHtml(name || ''); // name comes from user input
+  const displayUrl = escapeHtml(loginUrl);
+
+  const contentHtml = `
+    ${renderTitle(`Boas noticias, ${safeName}!`)}
+    ${renderParagraph('Seu acesso antecipado ao Jarvi foi aprovado. Voce ja pode entrar na plataforma e criar sua conta.')}
+    <div style="margin:22px 0 18px; text-align:center;">
+      ${renderPrimaryButton('Criar conta / Entrar', loginUrl)}
+    </div>
+    ${renderSmall('Se o botao nao funcionar, copie e cole este link no seu navegador:')}
+    <p style="margin:10px 0 0; font-family:${FONT_STACK}; font-size:13px; line-height:20px; color:${COLORS.brandB}; word-break:break-all;">
+      ${displayUrl}
+    </p>
+    ${renderDivider()}
+    ${renderSmall('Se voce nao solicitou acesso antecipado, ignore este email.')}
+  `;
+
+  return renderEmailShell({
+    title: 'Acesso antecipado aprovado - Jarvi',
+    preheader: 'Seu acesso antecipado ao Jarvi foi aprovado',
+    contentHtml,
+  });
+};
+
 export const sendVerificationEmail = async (
   email: string,
   name: string,
@@ -324,5 +350,24 @@ export const sendGoogleAccountNoticeEmail = async (
   } catch (error) {
     console.error('Failed to send Google account notice email:', error);
     throw new Error('Failed to send Google account notice email');
+  }
+};
+
+export const sendEarlyAccessApprovalEmail = async (
+  email: string,
+  name: string
+): Promise<void> => {
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: 'Seu acesso antecipado foi aprovado - Jarvi',
+      html: getEarlyAccessApprovedEmailHtml(name, APP_LOGIN_URL),
+      attachments: [getInlineLogoAttachment()],
+    });
+    console.log(`✉️ Early access approval email sent to ${email}`);
+  } catch (error) {
+    console.error('Failed to send early access approval email:', error);
+    throw new Error('Failed to send early access approval email');
   }
 };

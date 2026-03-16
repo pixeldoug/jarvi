@@ -75,8 +75,20 @@ app.use((req, res, next) => {
 console.log('🔧 CORS: Permitindo origens:', process.env.NODE_ENV === 'production' ? 'produção' : 'desenvolvimento');
 app.use(morgan('combined'));
 
-// Stripe webhooks need raw body - must be before express.json()
-app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+// Webhooks need raw body (Stripe JSON + Slack form payload) - must be before express.json()
+app.use(
+  '/webhooks',
+  express.raw({
+    type: (req) => {
+      const contentType = req.headers['content-type'] || '';
+      return (
+        contentType.includes('application/json') ||
+        contentType.includes('application/x-www-form-urlencoded')
+      );
+    },
+  }),
+  webhookRoutes
+);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
