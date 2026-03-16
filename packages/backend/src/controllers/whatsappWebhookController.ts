@@ -4,7 +4,10 @@ import twilio from 'twilio';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { ExtractedTask, updateTaskFromFollowUp } from '../services/openaiService';
 import { formatTaskConfirmation, sendTextMessage } from '../services/whatsappService';
-import { enqueueIncomingWhatsappMessage } from '../queues/whatsappQueue';
+import {
+  enqueueIncomingWhatsappMessage,
+  processIncomingWhatsappMessageDirect,
+} from '../queues/whatsappQueue';
 import { getIO, hasIO } from '../utils/ioManager';
 
 type PendingTaskStatus = 'awaiting_confirmation' | 'confirmed' | 'rejected' | 'expired';
@@ -588,12 +591,22 @@ export const receiveMessage = async (req: Request, res: Response): Promise<void>
         return;
       }
 
-      await enqueueIncomingWhatsappMessage({
+      const incomingMessagePayload = {
         from,
         content: body,
         mediaItems,
         messageSid: typeof req.body.MessageSid === 'string' ? req.body.MessageSid : null,
-      });
+      };
+
+      try {
+        await enqueueIncomingWhatsappMessage(incomingMessagePayload);
+      } catch (queueError) {
+        console.error('Failed to enqueue WhatsApp message. Falling back to direct processing:', {
+          from,
+          error: queueError instanceof Error ? queueError.message : String(queueError),
+        });
+        await processIncomingWhatsappMessageDirect(incomingMessagePayload);
+      }
     } catch (error) {
       console.error('Failed to process WhatsApp webhook payload:', error);
     }

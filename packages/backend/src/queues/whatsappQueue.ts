@@ -42,6 +42,13 @@ interface AggregatedInboxState {
   messageSid: string | null;
 }
 
+interface AggregatedInboxPayload {
+  content: string | null;
+  latestContent: string | null;
+  mediaItems: Array<{ url: string; contentType: string; index: number }>;
+  messageSid: string | null;
+}
+
 interface UserLookupResult {
   id: string;
 }
@@ -451,6 +458,190 @@ const emitPendingTaskCreated = (userId: string, payload: Record<string, unknown>
   getIO().to(`user:${userId}`).emit('pending-task:created', payload);
 };
 
+const processAggregatedInboxPayload = async (
+  from: string,
+  aggregatedInbox: AggregatedInboxPayload
+): Promise<void> => {
+  const { content, latestContent, mediaItems, messageSid } = aggregatedInbox;
+
+  try {
+    const user = await findUserByWhatsappPhone(from);
+
+    if (!user) {
+      await sendTextMessage(
+        from,
+        '❌ Seu número não está vinculado a uma conta Jarvi. Vá em Configurações para vincular.'
+      );
+      return;
+    }
+
+    let extracted: ExtractedTask;
+    let transcription: string | null = null;
+    const originalWhatsappContent: string | null = content?.trim() || null;
+    let rawContent: string | null = originalWhatsappContent;
+    const hasMedia = mediaItems.length > 0;
+    const hasAudio = mediaItems.some((item) => item.contentType.startsWith('audio/'));
+    const hasImage = mediaItems.some((item) => item.contentType.startsWith('image/'));
+    const hasText = !!originalWhatsappContent;
+    const mediaAttachments: MediaAttachment[] = [];
+    const extractedPdfTexts: string[] = [];
+
+    for (const mediaItem of mediaItems) {
+      try {
+        const mediaBuffer = await downloadMedia(mediaItem.url);
+        mediaAttachments.push(
+          buildMediaAttachment(mediaItem.contentType, mediaItem.index, mediaBuffer)
+        );
+
+        if (isPdfMimeType(mediaItem.contentType)) {
+          const parsedPdfText = await extractTextFromPdfBuffer(mediaBuffer);
+          if (parsedPdfText) {
+            extractedPdfTexts.push(`Documento PDF ${mediaItem.index + 1}:\n${parsedPdfText}`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to download media attachment:', error);
+      }
+    }
+
+    const documentContext =
+      extractedPdfTexts.length > 0
+        ? `Trechos extraídos dos PDFs anexados:\n${extractedPdfTexts.join('\n\n')}`
+        : null;
+
+    const firstAudioMedia = mediaItems.find((item) => item.contentType.startsWith('audio/'));
+    const firstImageMedia = mediaItems.find((item) => item.contentType.startsWith('image/'));
+
+    if (hasAudio) {
+      if (!firstAudioMedia) {
+        await sendTextMessage(from, 'Não consegui baixar o áudio. Tente enviar novamente.');
+        return;
+      }
+
+      const audioResult = await processAudio(
+        from,
+        firstAudioMedia.url,
+        firstAudioMedia.contentType || 'audio/ogg',
+        originalWhatsappContent,
+        documentContext
+      );
+      extracted = audioResult.extracted;
+      transcription = audioResult.transcription;
+      rawContent = transcription;
+    } else if (hasImage && !hasText) {
+      if (!firstImageMedia) {
+        await sendTextMessage(from, 'Não consegui baixar a imagem. Tente enviar novamente.');
+        return;
+      }
+
+      const imageResult = await processImage(
+        from,
+        firstImageMedia.url,
+        firstImageMedia.contentType || 'image/jpeg'
+      );
+      extracted = imageResult.extracted;
+      transcription = imageResult.transcription;
+    } else if (hasImage && hasText) {
+      if (!firstImageMedia) {
+        await sendTextMessage(from, 'Não consegui baixar a imagem. Tente enviar novamente.');
+        return;
+      }
+
+      const imageResult = await processImage(
+        from,
+        firstImageMedia.url,
+        firstImageMedia.contentType || 'image/jpeg'
+      );
+      extracted = imageResult.extracted;
+      transcription = imageResult.transcription;
+
+      if (!extracted.is_task || !extracted.title) {
+        extracted = await processText(
+          `${originalWhatsappContent}\n\n[Anexos recebidos: ${
+            mediaAttachments.length || mediaItems.length
+          }]${documentContext ? `\n\n${documentContext}` : ''}`
+        );
+      }
+    } else if (hasMedia && !hasText) {
+      const fallbackText = appendContext(
+        originalWhatsappContent
+          ? `Mensagem do usuário: ${originalWhatsappContent}`
+          : `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`,
+        documentContext
+      ) || `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`;
+      extracted = await processText(fallbackText);
+      rawContent = fallbackText;
+    } else {
+      if (!rawContent) {
+        await sendTextMessage(from, 'Envie uma mensagem com a tarefa que você quer criar.');
+        return;
+      }
+      const textForExtraction = hasMedia
+        ? `${rawContent}\n\n[Anexos recebidos: ${mediaItems.length}]${
+            documentContext ? `\n\n${documentContext}` : ''
+          }`
+        : rawContent;
+      extracted = await processText(textForExtraction);
+    }
+
+    const dueDateSourceText = originalWhatsappContent || latestContent || '';
+    const explicitDueDate = extractExplicitDueDateFromText(dueDateSourceText);
+    if (explicitDueDate) {
+      extracted = {
+        ...extracted,
+        due_date: explicitDueDate,
+      };
+    }
+
+    if (!extracted.is_task || !extracted.title) {
+      if (hasMedia && !hasText && !transcription) {
+        await sendTextMessage(
+          from,
+          '📎 Recebi seus anexos. Agora me diga em texto o que você quer que eu transforme em tarefa.'
+        );
+      } else {
+        await sendTextMessage(
+          from,
+          '🤔 Não entendi como tarefa. Tente descrever claramente o que precisa fazer e quando.'
+        );
+      }
+      return;
+    }
+
+    const sourceTypeHint = hasAudio ? 'audio' : hasImage ? 'image' : hasMedia ? 'media' : 'text';
+    const rawContentWithDocuments = appendContext(rawContent, documentContext);
+
+    const pendingTask = await createPendingTask({
+      userId: user.id,
+      from,
+      rawContent: rawContentWithDocuments,
+      transcription,
+      extracted,
+      originalWhatsappContent:
+        originalWhatsappContent || transcription || `Mensagem sem texto (${sourceTypeHint})`,
+      mediaAttachmentsJson: mediaAttachments.length > 0 ? JSON.stringify(mediaAttachments) : null,
+      messageSid,
+    });
+
+    await sendTextMessage(from, formatTaskConfirmation(extracted));
+    emitPendingTaskCreated(user.id, pendingTask);
+  } catch (error) {
+    console.error('Failed to process WhatsApp message payload:', {
+      from,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    try {
+      await sendTextMessage(
+        from,
+        '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.'
+      );
+    } catch (sendError) {
+      console.error('Failed to send WhatsApp processing error notification:', sendError);
+    }
+  }
+};
+
 const processMessageJob = async (jobData: WhatsappMessageJob): Promise<void> => {
   const { from } = jobData;
   const aggregatedInbox = await consumeAggregatedInbox(from);
@@ -458,168 +649,23 @@ const processMessageJob = async (jobData: WhatsappMessageJob): Promise<void> => 
     return;
   }
 
-  const { content, latestContent, mediaItems, messageSid } = aggregatedInbox;
-  const user = await findUserByWhatsappPhone(from);
+  await processAggregatedInboxPayload(from, aggregatedInbox);
+};
 
-  if (!user) {
-    await sendTextMessage(
-      from,
-      '❌ Seu número não está vinculado a uma conta Jarvi. Vá em Configurações para vincular.'
-    );
-    return;
-  }
+export const processIncomingWhatsappMessageDirect = async (
+  input: WhatsappIncomingMessage
+): Promise<void> => {
+  const from = input.from.trim();
+  if (!from) return;
 
-  let extracted: ExtractedTask;
-  let transcription: string | null = null;
-  const originalWhatsappContent: string | null = content?.trim() || null;
-  let rawContent: string | null = originalWhatsappContent;
-  const hasMedia = mediaItems.length > 0;
-  const hasAudio = mediaItems.some((item) => item.contentType.startsWith('audio/'));
-  const hasImage = mediaItems.some((item) => item.contentType.startsWith('image/'));
-  const hasText = !!originalWhatsappContent;
-  const mediaAttachments: MediaAttachment[] = [];
-  const extractedPdfTexts: string[] = [];
-
-  for (const mediaItem of mediaItems) {
-    try {
-      const mediaBuffer = await downloadMedia(mediaItem.url);
-      mediaAttachments.push(
-        buildMediaAttachment(mediaItem.contentType, mediaItem.index, mediaBuffer)
-      );
-
-      if (isPdfMimeType(mediaItem.contentType)) {
-        const parsedPdfText = await extractTextFromPdfBuffer(mediaBuffer);
-        if (parsedPdfText) {
-          extractedPdfTexts.push(`Documento PDF ${mediaItem.index + 1}:\n${parsedPdfText}`);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to download media attachment:', error);
-    }
-  }
-
-  const documentContext =
-    extractedPdfTexts.length > 0
-      ? `Trechos extraídos dos PDFs anexados:\n${extractedPdfTexts.join('\n\n')}`
-      : null;
-
-  const firstAudioMedia = mediaItems.find((item) => item.contentType.startsWith('audio/'));
-  const firstImageMedia = mediaItems.find((item) => item.contentType.startsWith('image/'));
-
-  if (hasAudio) {
-    if (!firstAudioMedia) {
-      await sendTextMessage(from, 'Não consegui baixar o áudio. Tente enviar novamente.');
-      return;
-    }
-
-    const audioResult = await processAudio(
-      from,
-      firstAudioMedia.url,
-      firstAudioMedia.contentType || 'audio/ogg',
-      originalWhatsappContent,
-      documentContext
-    );
-    extracted = audioResult.extracted;
-    transcription = audioResult.transcription;
-    rawContent = transcription;
-  } else if (hasImage && !hasText) {
-    if (!firstImageMedia) {
-      await sendTextMessage(from, 'Não consegui baixar a imagem. Tente enviar novamente.');
-      return;
-    }
-
-    const imageResult = await processImage(
-      from,
-      firstImageMedia.url,
-      firstImageMedia.contentType || 'image/jpeg'
-    );
-    extracted = imageResult.extracted;
-    transcription = imageResult.transcription;
-  } else if (hasImage && hasText) {
-    if (!firstImageMedia) {
-      await sendTextMessage(from, 'Não consegui baixar a imagem. Tente enviar novamente.');
-      return;
-    }
-
-    const imageResult = await processImage(
-      from,
-      firstImageMedia.url,
-      firstImageMedia.contentType || 'image/jpeg'
-    );
-    extracted = imageResult.extracted;
-    transcription = imageResult.transcription;
-
-    if (!extracted.is_task || !extracted.title) {
-      extracted = await processText(
-        `${originalWhatsappContent}\n\n[Anexos recebidos: ${
-          mediaAttachments.length || mediaItems.length
-        }]${documentContext ? `\n\n${documentContext}` : ''}`
-      );
-    }
-  } else if (hasMedia && !hasText) {
-    const fallbackText = appendContext(
-      originalWhatsappContent
-        ? `Mensagem do usuário: ${originalWhatsappContent}`
-        : `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`,
-      documentContext
-    ) || `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`;
-    extracted = await processText(fallbackText);
-    rawContent = fallbackText;
-  } else {
-    if (!rawContent) {
-      await sendTextMessage(from, 'Envie uma mensagem com a tarefa que você quer criar.');
-      return;
-    }
-    const textForExtraction = hasMedia
-      ? `${rawContent}\n\n[Anexos recebidos: ${mediaItems.length}]${
-          documentContext ? `\n\n${documentContext}` : ''
-        }`
-      : rawContent;
-    extracted = await processText(textForExtraction);
-  }
-
-  const dueDateSourceText = originalWhatsappContent || latestContent || '';
-  const explicitDueDate = extractExplicitDueDateFromText(dueDateSourceText);
-  const dueDateBeforeOverride = extracted.due_date;
-  if (explicitDueDate) {
-    extracted = {
-      ...extracted,
-      due_date: explicitDueDate,
-    };
-  }
-
-  if (!extracted.is_task || !extracted.title) {
-    if (hasMedia && !hasText && !transcription) {
-      await sendTextMessage(
-        from,
-        '📎 Recebi seus anexos. Agora me diga em texto o que você quer que eu transforme em tarefa.'
-      );
-    } else {
-      await sendTextMessage(
-        from,
-        '🤔 Não entendi como tarefa. Tente descrever claramente o que precisa fazer e quando.'
-      );
-    }
-    return;
-  }
-
-  const sourceTypeHint = hasAudio ? 'audio' : hasImage ? 'image' : hasMedia ? 'media' : 'text';
-  const rawContentWithDocuments = appendContext(rawContent, documentContext);
-
-  const pendingTask = await createPendingTask({
-    userId: user.id,
-    from,
-    rawContent: rawContentWithDocuments,
-    transcription,
-    extracted,
-    originalWhatsappContent:
-      originalWhatsappContent || transcription || `Mensagem sem texto (${sourceTypeHint})`,
-    mediaAttachmentsJson: mediaAttachments.length > 0 ? JSON.stringify(mediaAttachments) : null,
-    messageSid,
+  const content = input.content?.trim() || null;
+  const mediaItems = uniqueMediaItems(input.mediaItems || []);
+  await processAggregatedInboxPayload(from, {
+    content,
+    latestContent: content,
+    mediaItems,
+    messageSid: input.messageSid || null,
   });
-
-  await sendTextMessage(from, formatTaskConfirmation(extracted));
-  emitPendingTaskCreated(user.id, pendingTask);
 };
 
 export const initializeWhatsappWorker = (): Worker<WhatsappMessageJob> => {
