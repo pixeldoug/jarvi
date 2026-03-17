@@ -73,10 +73,80 @@ interface MediaAttachment {
   dataUrl: string;
 }
 
-const queueConnection = {
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: Number(process.env.REDIS_PORT || 6379),
+interface QueueConnectionConfig {
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
+  family: number;
+  tls?: Record<string, never>;
+}
+
+const getFirstEnvValue = (keys: string[]): string | null => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
 };
+
+const parsePort = (rawPort: string | null, fallback: number): number => {
+  if (!rawPort) return fallback;
+  const parsedPort = Number.parseInt(rawPort, 10);
+  return Number.isNaN(parsedPort) ? fallback : parsedPort;
+};
+
+const buildQueueConnection = (): QueueConnectionConfig => {
+  const envHost = getFirstEnvValue(['REDIS_HOST', 'REDISHOST']) || '127.0.0.1';
+  const envPort = parsePort(getFirstEnvValue(['REDIS_PORT', 'REDISPORT']), 6379);
+  const envUsername = getFirstEnvValue(['REDIS_USER', 'REDISUSER']);
+  const envPassword = getFirstEnvValue(['REDIS_PASSWORD', 'REDISPASSWORD']);
+  const redisUrl = getFirstEnvValue(['REDIS_URL', 'REDIS_PUBLIC_URL']);
+
+  if (redisUrl) {
+    try {
+      const parsedUrl = new URL(redisUrl);
+      const connection: QueueConnectionConfig = {
+        host: parsedUrl.hostname || envHost,
+        port: parsePort(parsedUrl.port || null, envPort),
+        family: 0,
+      };
+
+      const urlUsername = parsedUrl.username ? decodeURIComponent(parsedUrl.username) : null;
+      const urlPassword = parsedUrl.password ? decodeURIComponent(parsedUrl.password) : null;
+      const username = urlUsername || envUsername;
+      const password = urlPassword || envPassword;
+
+      if (username) connection.username = username;
+      if (password) connection.password = password;
+      if (parsedUrl.protocol === 'rediss:') {
+        connection.tls = {};
+      }
+
+      return connection;
+    } catch (error) {
+      console.warn('Invalid REDIS_URL. Falling back to REDIS_HOST/REDIS_PORT.', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const connection: QueueConnectionConfig = {
+    host: envHost,
+    port: envPort,
+    family: 0,
+  };
+
+  if (envUsername) connection.username = envUsername;
+  if (envPassword) connection.password = envPassword;
+
+  return connection;
+};
+
+const queueConnection = buildQueueConnection();
 
 export const whatsappQueue = new Queue<WhatsappMessageJob>('whatsapp-messages', {
   connection: queueConnection,
