@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Button, Input } from '../../../components/ui';
 import styles from './WhatsAppLink.module.css';
@@ -19,11 +19,59 @@ export const WhatsAppLink: React.FC = () => {
 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const clearFeedback = () => {
     setMessage('');
     setError('');
   };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadWhatsappLinkStatus = async () => {
+      if (!token) return;
+      setStatusLoading(true);
+
+      try {
+        const response = await fetch(`${API_URL}/api/users/whatsapp-link`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao carregar status do WhatsApp');
+        }
+
+        if (!isCancelled) {
+          const fetchedPhone = typeof data.phone === 'string' ? data.phone : '';
+          setLinkedPhone(fetchedPhone || null);
+          setPhone(fetchedPhone);
+          setIsLinked(Boolean(data.linked));
+          setIsAwaitingCode(Boolean(data.awaitingCode));
+        }
+      } catch (statusError) {
+        if (!isCancelled) {
+          setError(
+            statusError instanceof Error
+              ? statusError.message
+              : 'Erro ao carregar status do WhatsApp'
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          setStatusLoading(false);
+        }
+      }
+    };
+
+    void loadWhatsappLinkStatus();
+    return () => {
+      isCancelled = true;
+    };
+  }, [token]);
 
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +176,8 @@ export const WhatsAppLink: React.FC = () => {
       <div className={styles.infoBox}>
         No sandbox do Twilio, envie primeiro a mensagem de <strong>join</strong> para ativar o número.
       </div>
+
+      {statusLoading && <div className={styles.infoBox}>Carregando status do WhatsApp...</div>}
 
       {linkedPhone && (
         <div className={styles.currentInfo}>

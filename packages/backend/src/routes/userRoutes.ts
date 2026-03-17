@@ -442,6 +442,77 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
 });
 
 /**
+ * GET /api/users/whatsapp-link
+ * Returns WhatsApp link status for authenticated user.
+ */
+router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    let user:
+      | {
+          whatsapp_phone?: string | null;
+          whatsapp_verified?: boolean | number | null;
+          whatsapp_link_code?: string | null;
+          whatsapp_link_code_expires_at?: string | null;
+        }
+      | undefined;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT whatsapp_phone, whatsapp_verified, whatsapp_link_code, whatsapp_link_code_expires_at
+         FROM users
+         WHERE id = $1`,
+        [userId]
+      );
+      user = result.rows[0];
+    } else {
+      const db = getDatabase();
+      user = await db.get(
+        `SELECT whatsapp_phone, whatsapp_verified, whatsapp_link_code, whatsapp_link_code_expires_at
+         FROM users
+         WHERE id = ?`,
+        [userId]
+      );
+    }
+
+    if (!user) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    const phone =
+      typeof user.whatsapp_phone === 'string' && user.whatsapp_phone.trim()
+        ? user.whatsapp_phone.trim()
+        : null;
+    const linked = Boolean(user.whatsapp_verified);
+    const hasPendingCode = Boolean(user.whatsapp_link_code);
+    const expiresAtRaw = user.whatsapp_link_code_expires_at || null;
+    const expiresAtDate = expiresAtRaw ? new Date(expiresAtRaw) : null;
+    const hasValidExpiry =
+      !!expiresAtDate &&
+      !Number.isNaN(expiresAtDate.getTime()) &&
+      expiresAtDate.getTime() > Date.now();
+    const awaitingCode = Boolean(phone && !linked && hasPendingCode && hasValidExpiry);
+
+    res.json({
+      phone,
+      linked,
+      awaitingCode,
+      linkCodeExpiresAt: awaitingCode && expiresAtDate ? expiresAtDate.toISOString() : null,
+    });
+  } catch (error) {
+    console.error('Error fetching WhatsApp link status:', error);
+    res.status(500).json({ error: 'Erro ao carregar status de vinculação do WhatsApp' });
+  }
+});
+
+/**
  * POST /api/users/whatsapp-link/request
  * Generates verification code and sends it via WhatsApp.
  */
