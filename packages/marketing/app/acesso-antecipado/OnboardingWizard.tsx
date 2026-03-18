@@ -114,15 +114,13 @@ const PAIN_POINT_OPTIONS: Option[] = [
 ];
 
 const DESIRED_CAPABILITY_OPTIONS: Option[] = [
+  { value: 'organize-fast', label: 'Organizar tudo que eu preciso fazer em segundos' },
+  { value: 'give-clarity', label: 'Me ajudar a dar mais clareza ao que preciso fazer' },
   { value: 'auto-organize-week', label: 'Organizar minha semana automaticamente' },
   { value: 'decide-what-first', label: 'Me ajudar a priorizar o que fazer primeiro' },
   { value: 'ideas-to-plan', label: 'Transformar ideias e projetos em planos claros' },
   { value: 'suggest-next-steps', label: 'Sugerir próximos passos' },
-  { value: 'reorganize-on-delay', label: 'Reorganizar meus planos quando algo sair do esperado' },
   { value: 'extract-from-email-notes', label: 'Extrair tarefas de ferramentas externas' },
-  { value: 'auto-manage-calendar', label: 'Gerenciar meu calendário automaticamente' },
-  { value: 'execute-tasks-when-possible', label: 'Executar tarefas por mim quando possível' },
-  { value: 'chat-to-organize-ideas', label: 'Me ajudar a organizar pensamentos em conversas' },
   { value: 'other', label: 'Outra coisa' },
 ];
 
@@ -828,6 +826,9 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>Quais desses problemas você se identifica?</h1>
+            {hasError('painPoints') && errorMessage && (
+              <p className={styles.questionError}>{errorMessage}</p>
+            )}
           </div>
           <SelectionChecklist
             options={PAIN_POINT_OPTIONS}
@@ -856,7 +857,7 @@ export function OnboardingWizard() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>O que você quer que a Jarvi faça?</h1>
+            <h1>Quais dessas opções você gostaria que a Jarvi fizesse?</h1>
             {hasError('desiredCapabilities') && errorMessage && (
               <p className={styles.questionError}>{errorMessage}</p>
             )}
