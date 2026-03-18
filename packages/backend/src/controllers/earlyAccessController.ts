@@ -90,7 +90,6 @@ const getWizardValidationError = (payload: NormalizedWizardPayload): string | nu
   if (payload.painPoints.length === 0) return 'Selecione ao menos um desafio atual';
   if (payload.desiredCapabilities.length === 0) return 'Selecione ao menos uma expectativa';
   if (payload.taskOrigins.length > 3) return 'Você pode escolher no máximo 3 origens de tarefas';
-  if (!payload.idealOutcomeText) return 'Conte o resultado ideal esperado';
   if (!payload.memorySeedText) return 'Texto de memória inicial é obrigatório';
 
   if (payload.areas.includes('other') && !payload.areasOther) {

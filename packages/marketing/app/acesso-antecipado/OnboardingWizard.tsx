@@ -310,12 +310,6 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
   }
 
   if (step === 7) {
-    if (!data.idealOutcomeText.trim()) {
-      return {
-        field: 'idealOutcomeText',
-        message: 'Conte em uma ou duas frases o que seria ideal para você.',
-      };
-    }
     return null;
   }
 
