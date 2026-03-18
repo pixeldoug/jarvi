@@ -71,7 +71,6 @@
 }
 
 .stepContent {
-  height: 100%;
   min-height: 0;
   flex: 1 1 auto;
   display: flex;
@@ -99,7 +98,7 @@
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 32px;
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1.2;
   letter-spacing: -0.75px;
   color: #030712;
 }
@@ -110,6 +109,14 @@
   font-size: 16px;
   line-height: 27px;
   color: #030712;
+}
+
+.questionError {
+  margin: 0;
+  font-family: Poppins, sans-serif;
+  font-size: 13px;
+  line-height: 18px;
+  color: #b91c1c;
 }
 
 .fieldBlock {
@@ -127,6 +134,10 @@
   color: #18181b;
 }
 
+.labelError {
+  color: #b91c1c;
+}
+
 .input {
   width: 100%;
   height: 48px;
@@ -140,6 +151,10 @@
   color: #18181b;
 }
 
+.inputError {
+  border-color: #ef4444;
+}
+
 .input::placeholder {
   color: #a0abb4;
 }
@@ -148,6 +163,11 @@
 .textarea:focus-visible {
   outline: 2px solid rgba(97, 55, 243, 0.4);
   outline-offset: 1px;
+}
+
+.inputError:focus-visible,
+.textareaError:focus-visible {
+  outline: 2px solid rgba(239, 68, 68, 0.35);
 }
 
 .textarea {
@@ -164,6 +184,10 @@
   resize: vertical;
 }
 
+.textareaError {
+  border-color: #ef4444;
+}
+
 .textarea::placeholder {
   color: #a0abb4;
 }
@@ -172,6 +196,58 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  padding-bottom: 28px;
+}
+
+.optionsScrollFrame {
+  position: relative;
+  width: 100%;
+}
+
+.optionsScrollArea {
+  width: 100%;
+  max-height: min(330px, 42vh);
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #c7d0d7 transparent;
+}
+
+.optionsScrollAreaCompact {
+  max-height: min(260px, 34vh);
+}
+
+.optionsScrollArea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.optionsScrollArea::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.optionsScrollArea::-webkit-scrollbar-thumb {
+  background: #c7d0d7;
+  border-radius: 9999px;
+}
+
+.optionsScrollArea::-webkit-scrollbar-thumb:hover {
+  background: #9aa6b0;
+}
+
+.optionsScrollFade {
+  position: absolute;
+  left: 0;
+  right: 8px;
+  bottom: 0;
+  height: 64px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(247, 247, 247, 0) 0%,
+    rgba(247, 247, 247, 0.7) 62%,
+    rgba(247, 247, 247, 0.98) 80%
+  );
 }
 
 .chip,
@@ -213,6 +289,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-bottom: 28px;
 }
 
 .checklistItem {
@@ -226,10 +303,14 @@
   cursor: pointer;
 }
 
+.otherOptionAnchor {
+  scroll-margin-bottom: 84px;
+}
+
 .checklistLabel {
   font-family: Poppins, sans-serif;
   font-size: 16px;
-  line-height: 27px;
+  line-height: 22px;
   color: #18181b;
 }
 
@@ -259,7 +340,7 @@
   border: 0;
   background: transparent;
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   text-align: left;
   padding: 0;
@@ -269,16 +350,7 @@
 .checkboxRowText {
   font-family: Poppins, sans-serif;
   font-size: 16px;
-  line-height: 27px;
-  color: #18181b;
-}
-
-.microcopy {
-  margin: -20px 0 0 32px;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 13px;
-  line-height: 18px;
-  font-style: italic;
+  line-height: 22px;
   color: #18181b;
 }
 
@@ -297,7 +369,8 @@
 }
 
 .errorMessage {
-  margin: 0;
+  margin: 0 auto;
+  width: min(100%, 560px);
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid #fecaca;
@@ -306,10 +379,12 @@
   font-family: Poppins, sans-serif;
   font-size: 13px;
   line-height: 18px;
+  text-align: center;
 }
 
 .actionButton {
   width: 100%;
+  height: 54px;
 }
 
 .actionButtonDisabled {
@@ -331,9 +406,9 @@
 }
 
 .successLogo {
-  width: 80px;
-  height: 80px;
-  border-radius: 26px;
+  width: 64px;
+  height: 64px;
+  border-radius: 24px;
   background: #18181b;
   border-bottom: 3px solid rgba(9, 9, 11, 0.3);
   box-shadow: 0 1px 0 rgba(24, 24, 27, 0.15);
@@ -343,15 +418,15 @@
 }
 
 .successLogo img {
-  width: 46px;
-  height: 54px;
+  width: 37px;
+  height: 43px;
 }
 
 .successContent h1 {
   margin: 0;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 48px;
-  line-height: 1.05;
+  font-size: 32px;
+  line-height: 1.2;
   letter-spacing: -0.75px;
   color: #030712;
 }
@@ -406,6 +481,18 @@
 
   .successContent h1 {
     font-size: 42px;
+  }
+
+  .optionsScrollArea {
+    max-height: min(320px, 44vh);
+  }
+
+  .optionsScrollAreaCompact {
+    max-height: min(230px, 34vh);
+  }
+
+  .optionsScrollFade {
+    height: 56px;
   }
 }
 

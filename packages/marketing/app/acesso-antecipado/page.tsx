@@ -1,6 +1,6 @@
-import { OnboardingWizard } from './OnboardingWizard';
+import { redirect } from 'next/navigation';
 
 export default function EarlyAccessOnboardingPage() {
-  return <OnboardingWizard />;
+  redirect('/beta');
 }
 

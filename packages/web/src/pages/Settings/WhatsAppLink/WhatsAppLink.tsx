@@ -5,6 +5,26 @@ import styles from './WhatsAppLink.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+const sanitizeServerText = (value: string): string =>
+  value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+const parseApiPayload = async (response: Response): Promise<any> => {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  const rawText = await response.text();
+  if (!rawText) return {};
+
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return { error: sanitizeServerText(rawText) };
+  }
+};
+
 export const WhatsAppLink: React.FC = () => {
   const { token } = useAuth();
   const [phone, setPhone] = useState('');
@@ -40,9 +60,13 @@ export const WhatsAppLink: React.FC = () => {
           },
         });
 
-        const data = await response.json();
+        const data = await parseApiPayload(response);
         if (!response.ok) {
-          throw new Error(data.error || 'Erro ao carregar status do WhatsApp');
+          const fallbackMessage =
+            response.status === 404
+              ? 'Status do WhatsApp indisponível no backend (404).'
+              : 'Erro ao carregar status do WhatsApp';
+          throw new Error(data.error || fallbackMessage);
         }
 
         if (!isCancelled) {
@@ -88,7 +112,7 @@ export const WhatsAppLink: React.FC = () => {
         body: JSON.stringify({ phone }),
       });
 
-      const data = await response.json();
+      const data = await parseApiPayload(response);
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao enviar código de verificação');
       }
@@ -119,7 +143,7 @@ export const WhatsAppLink: React.FC = () => {
         body: JSON.stringify({ code: verificationCode }),
       });
 
-      const data = await response.json();
+      const data = await parseApiPayload(response);
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao validar código');
       }
@@ -149,7 +173,7 @@ export const WhatsAppLink: React.FC = () => {
         },
       });
 
-      const data = await response.json();
+      const data = await parseApiPayload(response);
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao desvincular WhatsApp');
       }

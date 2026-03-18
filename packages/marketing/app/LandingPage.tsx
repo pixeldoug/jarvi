@@ -8,7 +8,6 @@ import {
   EnvelopeSimple,
   MagicWand,
   Sparkle,
-  WhatsappLogo,
 } from '@phosphor-icons/react';
 import styles from './LandingPage.module.css';
 import { Button } from './components/Button';
@@ -25,6 +24,7 @@ const assets = {
   heroBgAvif: '/assets/images/hero.avif',
   heroBgWebp: '/assets/images/hero.webp',
   logo: '/assets/icons/logo-icon.svg',
+  whatsappIcon: '/assets/icons/whatsapp-icon.svg',
   bgBlob: '/assets/images/hero-blob.svg',
 };
 
@@ -102,7 +102,9 @@ export default function LandingPage() {
   const renderFeatureIcon = (feature: FeatureKey, isActive: boolean) => {
     const size = isActive ? 28 : 24;
     const iconProps = { size, weight: 'regular' as const, 'aria-hidden': true as const };
-    if (feature === 'whatsapp') return <WhatsappLogo {...iconProps} />;
+    if (feature === 'whatsapp') {
+      return <img src={assets.whatsappIcon} alt="" aria-hidden="true" width={size} height={size} />;
+    }
     if (feature === 'email') return <EnvelopeSimple {...iconProps} />;
     if (feature === 'calendar') return <CalendarDots {...iconProps} />;
     if (feature === 'wand') return <MagicWand {...iconProps} />;
@@ -125,7 +127,7 @@ export default function LandingPage() {
                 Funcionalidades
               </Button>
             </span>
-            <Button href="/acesso-antecipado" variant="primary" size="default">
+            <Button href="/beta" variant="primary" size="default">
               Solicitar Acesso
             </Button>
           </div>
@@ -168,9 +170,7 @@ export default function LandingPage() {
       {/* Features */}
       <section className={styles.featuresSection} id="funcionalidades">
         <div className={styles.featuresBlob} aria-hidden="true">
-          <div className={styles.featuresBlobFrame}>
-            <img src={assets.bgBlob} alt="" className={styles.featuresBlobImage} />
-          </div>
+          <img src={assets.bgBlob} alt="" className={styles.featuresBlobImage} />
         </div>
 
         <div className={styles.screenFrameReveal}>
@@ -190,8 +190,7 @@ export default function LandingPage() {
             </div>
             <h2 className={styles.featuresSectionTitle}>Um app que aprende com você</h2>
             <p className={styles.featuresSectionDescription}>
-              Envie textos, áudios ou documentos e a Jarvi entende o contexto e cria a tarefa para
-              você.
+            A Jarvi cria memória a partir das suas tarefas  e quanto mais voce usa o app, mais ela aprende a ajudar você.
             </p>
           </div>
 
@@ -248,7 +247,7 @@ export default function LandingPage() {
       {/* CTA */}
       <section
         ref={ctaSectionRef}
-        className={`${styles.ctaSection} ${isCtaInView ? `${styles.reveal} ${styles.revealDelay1}` : styles.revealHidden}`}
+        className={styles.ctaSection}
         id="acesso-antecipado"
       >
         <img src={assets.ctaBg} alt="" aria-hidden="true" className={styles.ctaBgImage} />
@@ -262,7 +261,7 @@ export default function LandingPage() {
         >
           <h2>Garanta seu acesso antecipado</h2>
           <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
-          <Button href="/acesso-antecipado" variant="primary" size="lg">
+          <Button href="/beta" variant="primary" size="lg">
             Solicitar Acesso Antecipado
           </Button>
         </div>
