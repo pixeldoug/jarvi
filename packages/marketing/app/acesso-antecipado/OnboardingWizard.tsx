@@ -1048,8 +1048,15 @@ export function OnboardingWizard() {
               </Button>
               {isFinalStep && (
                 <p className={styles.termsCopy}>
-                  Ao concluir, você concorda com nossos <a href="#">Termos de Uso</a> &{' '}
-                  <a href="#">Política de Privacidade</a>.
+                  Ao concluir, você concorda com nossos{' '}
+                  <a href="/termos-de-uso" target="_blank" rel="noreferrer">
+                    Termos de Uso
+                  </a>{' '}
+                  &{' '}
+                  <a href="/politica-de-privacidade" target="_blank" rel="noreferrer">
+                    Política de Privacidade
+                  </a>
+                  .
                 </p>
               )}
               <Stepper

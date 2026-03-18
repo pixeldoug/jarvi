@@ -282,10 +282,10 @@ export default function LandingPage() {
                 Strides Digital
               </a>
             </p>
-            <a href="#" className={styles.footerTerms}>
-              Termos de Serviço
+            <a href="/termos-de-uso" className={styles.footerTerms}>
+              Termos de Uso
             </a>
-            <a href="#" className={styles.footerPrivacy}>
+            <a href="/politica-de-privacidade" className={styles.footerPrivacy}>
               Política de Privacidade
             </a>
           </div>
