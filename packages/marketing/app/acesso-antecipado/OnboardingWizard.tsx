@@ -106,33 +106,23 @@ const TRACKING_METHOD_OPTIONS: Option[] = [
 
 const PAIN_POINT_OPTIONS: Option[] = [
   { value: 'forget-fast-capture', label: 'Esqueço tarefas se não anoto na hora' },
-  { value: 'no-single-source', label: 'Não tenho um lugar único para registrar tarefas' },
-  { value: 'multiple-channels', label: 'Minhas tarefas ficam espalhadas' },
-  { value: 'hard-project-breakdown', label: 'Tenho dificuldade em organizar projetos' },
-  { value: 'dont-know-context', label: 'Não sei como descrever minhas tarefas' },
-  { value: 'context-too-slow', label: 'Adicionar contexto leva tempo demais' },
-  { value: 'dont-know-start', label: 'Quando tenho muitas tarefas, não sei por onde começar' },
-  { value: 'hard-prioritization', label: 'Tenho dificuldade em priorizar o que é mais importante' },
-  { value: 'overwhelmed-many-tasks', label: 'Me sinto sobrecarregado(a) com tantas tarefas' },
+  { value: 'hard-prioritization', label: 'Tenho dificuldade em decidir o que é mais importante' },
+  { value: 'overwhelmed-many-tasks', label: 'Me sinto sobrecarregado(a) com tudo que tenho pra fazer' },
   { value: 'procrastinate-important', label: 'Procrastino tarefas importantes' },
-  {
-    value: 'tools-dont-work',
-    label: 'Já uso ferramentas, mas elas não funcionam bem para mim',
-  },
+  { value: 'dont-know-start', label: 'Não sei por onde começar' },
   { value: 'other', label: 'Outros' },
 ];
 
 const DESIRED_CAPABILITY_OPTIONS: Option[] = [
   { value: 'auto-organize-week', label: 'Organizar minha semana automaticamente' },
-  { value: 'decide-what-first', label: 'Me ajudar a decidir o que fazer primeiro' },
-  { value: 'project-breakdown', label: 'Quebrar um projeto em etapas simples' },
-  { value: 'ideas-to-plan', label: 'Transformar ideias soltas em um plano claro' },
+  { value: 'decide-what-first', label: 'Me ajudar a priorizar o que fazer primeiro' },
+  { value: 'ideas-to-plan', label: 'Transformar ideias e projetos em planos claros' },
   { value: 'suggest-next-steps', label: 'Sugerir próximos passos' },
-  { value: 'reorganize-on-delay', label: 'Reorganizar tudo quando algo atrasar' },
-  { value: 'extract-from-email-notes', label: 'Extrair tarefas dos meus emails e anotações' },
-  { value: 'auto-manage-calendar', label: 'Cuidar do meu calendário automaticamente' },
-  { value: 'execute-tasks-when-possible', label: 'Executar tarefas pra mim quando possível' },
-  { value: 'chat-to-organize-ideas', label: 'Conversar comigo pra organizar minhas ideias' },
+  { value: 'reorganize-on-delay', label: 'Reorganizar meus planos quando algo sair do esperado' },
+  { value: 'extract-from-email-notes', label: 'Extrair tarefas de ferramentas externas' },
+  { value: 'auto-manage-calendar', label: 'Gerenciar meu calendário automaticamente' },
+  { value: 'execute-tasks-when-possible', label: 'Executar tarefas por mim quando possível' },
+  { value: 'chat-to-organize-ideas', label: 'Me ajudar a organizar pensamentos em conversas' },
   { value: 'other', label: 'Outra coisa' },
 ];
 
@@ -408,7 +398,6 @@ function SelectionChips({
                 aria-pressed={isSelected}
               >
                 <span>{option.label}</span>
-                {isSelected && <span className={styles.chipClose}>×</span>}
               </button>
             );
           })}
@@ -838,10 +827,7 @@ export function OnboardingWizard() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>O que mais dificulta você a organizar suas tarefas hoje?</h1>
-            {hasError('painPoints') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            <h1>Quais desses problemas você se identifica?</h1>
           </div>
           <SelectionChecklist
             options={PAIN_POINT_OPTIONS}
@@ -902,7 +888,7 @@ export function OnboardingWizard() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>Se a Jarvi funcionasse perfeitamente para você, o que ela resolveria?</h1>
+            <h1>Como seria a Jarvi ideal para você no dia a dia?</h1>
           </div>
           <div className={styles.fieldBlock}>
             {hasError('idealOutcomeText') && errorMessage && (
@@ -942,7 +928,6 @@ export function OnboardingWizard() {
                   aria-pressed={isSelected}
                 >
                   <span>{option.label}</span>
-                  {isSelected && <span className={styles.chipClose}>×</span>}
                 </button>
               );
             })}

@@ -202,11 +202,16 @@
 .optionsScrollFrame {
   position: relative;
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .optionsScrollArea {
   width: 100%;
-  max-height: min(330px, 42vh);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 8px;
   scrollbar-width: thin;
@@ -214,7 +219,7 @@
 }
 
 .optionsScrollAreaCompact {
-  max-height: min(260px, 34vh);
+  flex: 1 1 auto;
 }
 
 .optionsScrollArea::-webkit-scrollbar {
