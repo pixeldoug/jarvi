@@ -252,11 +252,11 @@
 
 .chip,
 .chipActive {
-  min-height: 36px;
+  min-height: 44px;
   border-radius: 16px;
   border: 1px solid #d8dde0;
   background: transparent;
-  padding: 6px 12px;
+  padding: 8px 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
