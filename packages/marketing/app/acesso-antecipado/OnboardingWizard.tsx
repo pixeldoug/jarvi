@@ -1005,7 +1005,7 @@ export function OnboardingWizard() {
   return (
     <main className={styles.page}>
       <img
-        src="/assets/images/onboarding-bg.png"
+        src="/assets/images/hero.avif"
         alt=""
         aria-hidden="true"
         className={styles.bgImage}
