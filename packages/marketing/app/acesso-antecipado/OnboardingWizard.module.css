@@ -266,7 +266,8 @@
   line-height: 22px;
   color: #18181b;
   cursor: pointer;
-  transition: background-color 140ms ease, border-color 140ms ease;
+  touch-action: manipulation;
+  transition: background-color 80ms ease, border-color 80ms ease;
 }
 
 .chip:disabled {
@@ -301,6 +302,7 @@
   text-align: left;
   padding: 4px 0;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .otherOptionAnchor {
@@ -345,6 +347,7 @@
   text-align: left;
   padding: 0;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .checkboxRowText {
