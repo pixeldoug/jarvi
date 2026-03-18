@@ -81,7 +81,9 @@ export default function LandingPage() {
     const targetButton = buttonRefs.current[activeFeature];
     if (!rail || !targetButton) return;
     if (rail.scrollWidth <= rail.clientWidth) return;
-    targetButton.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    const targetScrollLeft =
+      targetButton.offsetLeft - rail.clientWidth / 2 + targetButton.clientWidth / 2;
+    rail.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
   }, [activeFeature]);
 
   useEffect(() => {
