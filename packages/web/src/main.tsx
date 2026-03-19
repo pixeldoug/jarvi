@@ -5,18 +5,22 @@ import App from './App';
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
 
-// Inicializa PostHog apenas em produção
-if (import.meta.env.PROD && import.meta.env.VITE_PUBLIC_POSTHOG_KEY) {
-  posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
-    api_host: 'https://us.i.posthog.com',
+const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+const posthogHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
+
+if (posthogKey) {
+  posthog.init(posthogKey, {
+    api_host: posthogHost,
+    ui_host: 'https://us.posthog.com',
     capture_pageview: true,
     capture_pageleave: true,
+    persistence: 'localStorage+cookie',
   });
+  posthog.register({ platform: 'app' });
 }
 
-// Renderiza com PostHogProvider em produção
 const AppWrapper = () => {
-  if (import.meta.env.PROD && import.meta.env.VITE_PUBLIC_POSTHOG_KEY) {
+  if (posthogKey) {
     return (
       <PostHogProvider client={posthog}>
         <App />

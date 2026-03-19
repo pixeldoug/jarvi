@@ -77,13 +77,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
-        
-        // Identificar usuário no PostHog (apenas em produção)
-        if (posthog && import.meta.env.PROD) {
+
+        if (posthog) {
           posthog.identify(userData.email, {
             email: userData.email,
             name: userData.name,
             user_id: userData.id,
+            subscription_status: userData.subscription_status ?? 'none',
           });
         }
       } else {
@@ -128,13 +128,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
 
-      // Identificar usuário no PostHog (apenas em produção)
-      if (posthog && import.meta.env.PROD) {
+      if (posthog) {
         posthog.identify(data.user.email, {
           email: data.user.email,
           name: data.user.name,
           user_id: data.user.id,
+          subscription_status: data.user.subscription_status ?? 'none',
         });
+        posthog.capture('user_logged_in', { method: 'email' });
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -165,13 +166,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
 
-      // Identificar usuário no PostHog (apenas em produção)
-      if (posthog && import.meta.env.PROD) {
+      if (posthog) {
         posthog.identify(data.user.email, {
           email: data.user.email,
           name: data.user.name,
           user_id: data.user.id,
+          subscription_status: data.user.subscription_status ?? 'none',
         });
+        posthog.capture('user_logged_in', { method: 'google' });
       }
     } catch (error) {
       console.error('Google login error:', error);
@@ -212,12 +214,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(data.user);
         localStorage.setItem('jarvi_token', data.token);
 
-        if (posthog && import.meta.env.PROD) {
+        if (posthog) {
           posthog.identify(data.user.email, {
             email: data.user.email,
             name: data.user.name,
             user_id: data.user.id,
+            subscription_status: data.user.subscription_status ?? 'none',
           });
+          posthog.capture('user_registered', { method: 'email' });
         }
       }
 
@@ -234,10 +238,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    if (posthog) {
+      posthog.capture('user_logged_out');
+      posthog.reset();
+    }
     setUser(null);
     setToken(null);
     localStorage.removeItem('jarvi_token');
-    // Force redirect to login page
     window.location.href = '/login';
   };
 

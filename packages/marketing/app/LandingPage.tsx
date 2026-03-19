@@ -9,6 +9,7 @@ import {
   MagicWand,
   Sparkle,
 } from '@phosphor-icons/react';
+import { usePostHog } from 'posthog-js/react';
 import styles from './LandingPage.module.css';
 import { Button } from './components/Button';
 import { CurveDivider } from './components/CurveDivider';
@@ -62,6 +63,7 @@ const featureCopyByFeature: Record<FeatureKey, { title: string; description: str
 };
 
 export default function LandingPage() {
+  const posthog = usePostHog();
   const [activeFeature, setActiveFeature] = useState<FeatureKey>('whatsapp');
   const [isCtaInView, setIsCtaInView] = useState(false);
   const ctaSectionRef = useRef<HTMLElement | null>(null);
@@ -129,7 +131,12 @@ export default function LandingPage() {
                 Funcionalidades
               </Button>
             </span>
-            <Button href="/beta" variant="primary" size="default">
+            <Button
+              href="/beta"
+              variant="primary"
+              size="default"
+              onClick={() => posthog?.capture('cta_clicked', { location: 'navbar' })}
+            >
               Solicitar Acesso
             </Button>
           </div>
@@ -263,7 +270,12 @@ export default function LandingPage() {
         >
           <h2>Garanta seu acesso antecipado</h2>
           <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
-          <Button href="/beta" variant="primary" size="lg">
+          <Button
+            href="/beta"
+            variant="primary"
+            size="lg"
+            onClick={() => posthog?.capture('cta_clicked', { location: 'cta_section' })}
+          >
             Solicitar Acesso Antecipado
           </Button>
         </div>

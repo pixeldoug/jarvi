@@ -268,8 +268,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       const newTask = await response.json();
 
-      // Rastrear evento no PostHog (apenas em produção)
-      if (posthog && import.meta.env.PROD) {
+      if (posthog) {
         posthog.capture('task_created', {
           task_id: newTask.id,
           priority: newTask.priority,
@@ -591,8 +590,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       const updatedTask = await response.json();
 
-      // Rastrear evento no PostHog quando tarefa é concluída (apenas em produção)
-      if (updatedTask.completed && posthog && import.meta.env.PROD) {
+      if (updatedTask.completed && posthog) {
         posthog.capture('task_completed', {
           task_id: updatedTask.id,
           priority: updatedTask.priority,

@@ -5,10 +5,24 @@ import type {
   FormEvent as ReactFormEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
+import { posthog as posthogClient } from '../lib/posthog';
 import { Check } from '@phosphor-icons/react';
 import { Button } from '../components/Button';
 import { Stepper } from '../components/Stepper';
 import styles from './OnboardingWizard.module.css';
+
+const STEP_NAMES: Record<number, string> = {
+  0: 'name',
+  1: 'email',
+  2: 'areas',
+  3: 'task_origins',
+  4: 'tracking_methods',
+  5: 'pain_points',
+  6: 'desired_capabilities',
+  7: 'ideal_outcome',
+  8: 'interview_availability',
+  9: 'broadcast_updates',
+};
 
 type InterviewAvailability = 'yes' | 'no' | 'later' | null;
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
@@ -462,12 +476,25 @@ function SelectionChecklist({
 }
 
 export function OnboardingWizard() {
+  const posthog = posthogClient;
   const formRef = useRef<HTMLFormElement | null>(null);
   const [step, setStep] = useState<StepIndex>(0);
   const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_DATA);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<ValidationErrorField | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    posthog?.capture('onboarding_started', { step: 0, step_name: STEP_NAMES[0] });
+  }, []);
+
+  useEffect(() => {
+    if (step === 0 || step === 10) return;
+    posthog?.capture('onboarding_step_viewed', {
+      step,
+      step_name: STEP_NAMES[step] ?? `step_${step}`,
+    });
+  }, [step]);
 
   const generatedMemory = useMemo(
     () => buildMemorySeed(formData),
@@ -591,14 +618,27 @@ export function OnboardingWizard() {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
+        posthog?.capture('onboarding_submit_failed', {
+          reason: data.error ?? 'api_error',
+          status_code: response.status,
+        });
         setErrorMessage(data.error || 'Não foi possível enviar sua solicitação agora.');
         setErrorField('form');
         return;
       }
 
+      posthog?.capture('onboarding_completed', {
+        areas: formData.areas,
+        pain_points: formData.painPoints,
+        desired_capabilities: formData.desiredCapabilities,
+        interview_availability: formData.interviewAvailability,
+        wants_broadcast_updates: formData.wantsBroadcastUpdates,
+        total_steps_completed: shouldShowBroadcastStep ? 10 : 9,
+      });
       setStep(10);
     } catch (error) {
       console.error('Onboarding submit error:', error);
+      posthog?.capture('onboarding_submit_failed', { reason: 'network_error' });
       setErrorMessage('Não foi possível enviar sua solicitação agora.');
       setErrorField('form');
     } finally {
@@ -618,6 +658,17 @@ export function OnboardingWizard() {
 
     setErrorMessage(null);
     setErrorField(null);
+
+    posthog?.capture('onboarding_step_completed', {
+      step,
+      step_name: STEP_NAMES[step] ?? `step_${step}`,
+    });
+
+    if (step === 1) {
+      const email = normalizeEmail(formData.email);
+      posthog?.identify(email, { name: formData.name.trim(), email });
+    }
+
     if (isFinalStep) {
       await submitOnboarding();
       return;
