@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash } from '@phosphor-icons/react';
+import { X, Calendar, Hash, Fire, Trash, Sparkle } from '@phosphor-icons/react';
 import { Task } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
@@ -26,6 +26,7 @@ export interface TaskDetailsSidebarProps {
   onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
   onToggleCompletion: (taskId: string) => Promise<void>;
   onDelete?: (taskId: string) => void | Promise<void>;
+  onOpenChat?: () => void;
 }
 
 export function TaskDetailsSidebar({
@@ -35,6 +36,7 @@ export function TaskDetailsSidebar({
   onUpdateTask,
   onToggleCompletion,
   onDelete,
+  onOpenChat,
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -434,15 +436,25 @@ export function TaskDetailsSidebar({
       role="complementary"
       aria-label="Detalhes da tarefa"
     >
-      {/* Close Button */}
-      <Button
-        variant="secondary"
-        icon={X}
-        iconPosition="icon-only"
-        onClick={onClose}
-        aria-label="Fechar sidebar"
-        className={styles.closeButton}
-      />
+      {/* Header Actions */}
+      <div className={styles.closeButton}>
+        {onOpenChat && (
+          <Button
+            variant="secondary"
+            icon={Sparkle}
+            iconPosition="icon-only"
+            onClick={onOpenChat}
+            aria-label="Abrir assistente AI"
+          />
+        )}
+        <Button
+          variant="secondary"
+          icon={X}
+          iconPosition="icon-only"
+          onClick={onClose}
+          aria-label="Fechar sidebar"
+        />
+      </div>
 
       {/* Header: Checkbox + Title */}
       <div className={styles.header}>

@@ -10,6 +10,16 @@
   gap: var(--sizes-8);
 }
 
+/*
+ * Section anchor wrapper
+ * Each collapsible section in the "all" view is wrapped with this div so
+ * IntersectionObserver can target it and scrollIntoView lands correctly.
+ * scroll-margin-top compensates for the sticky header height.
+ */
+.sectionAnchor {
+  scroll-margin-top: 16px;
+}
+
 .pendingSection {
   display: flex;
   flex-direction: column;
@@ -272,6 +282,65 @@
 .formActionsRight {
   display: flex;
   gap: var(--sizes-3);
+}
+
+/* Task + Chat mode: task details in center column */
+.taskChatCenter {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.taskBreadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+  padding: 0 var(--sizes-9);
+  margin-bottom: var(--sizes-2);
+}
+
+.taskBreadcrumbIcon {
+  color: var(--color-brand-primary-500);
+  flex-shrink: 0;
+}
+
+.taskBreadcrumbHome {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  color: var(--semantic-content-secondary);
+  transition: color 0.15s ease;
+}
+
+.taskBreadcrumbHome:hover {
+  color: var(--semantic-content-primary);
+}
+
+.taskBreadcrumbSeparator {
+  color: var(--semantic-content-tertiary);
+  flex-shrink: 0;
+}
+
+.taskBreadcrumbCurrent {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.taskChatSidebarWrapper {
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }
 
 /* Drag overlay */

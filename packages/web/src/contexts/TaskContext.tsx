@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { usePostHog } from 'posthog-js/react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../lib/apiClient';
 
 export interface Task {
   id: string;
@@ -67,7 +69,6 @@ interface TaskContextType {
   undoDeleteTask: (taskId: string) => Promise<boolean>;
   toggleTaskCompletion: (taskId: string) => Promise<void>;
   reorderTasks: (reorderedTasks: Task[]) => void;
-  // Sub-tasks
   subtasksByTaskId: Record<string, SubTask[]>;
   fetchSubTasks: (taskId: string) => Promise<void>;
   createSubTask: (taskId: string, title: string) => Promise<SubTask>;
@@ -90,62 +91,71 @@ interface TaskProviderProps {
   children: ReactNode;
 }
 
+const sortTasks = (tasks: Task[]): Task[] => {
+  return [...tasks].sort((a, b) => {
+    if (a.due_date && b.due_date) {
+      const dateOnlyA = a.due_date;
+      const dateOnlyB = b.due_date;
+
+      if (dateOnlyA !== dateOnlyB) {
+        return dateOnlyA.localeCompare(dateOnlyB);
+      }
+
+      if (a.time && !b.time) return -1;
+      if (!a.time && b.time) return 1;
+
+      if (a.time && b.time) {
+        return a.time.localeCompare(b.time);
+      }
+
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    }
+
+    if (a.due_date && !b.due_date) return -1;
+    if (!a.due_date && b.due_date) return 1;
+
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  });
+};
+
 export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [subtasksByTaskId, setSubtasksByTaskId] = useState<Record<string, SubTask[]>>({});
   const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number; originalIndex: number }[]>(() => {
-    // Initialize from localStorage
     try {
       const stored = localStorage.getItem('jarvi_deleted_tasks');
       if (stored) {
         const parsed = JSON.parse(stored);
-        
-        // Check if the array is corrupted (contains empty objects or is too large)
         if (parsed.length > 100 || parsed.some((item: any) => !item.task || !item.task.id)) {
-          console.warn('Corrupted deletedTasks detected, clearing localStorage');
           localStorage.removeItem('jarvi_deleted_tasks');
           return [];
         }
-        
-        // Filter out tasks older than 30 seconds
         const now = Date.now();
-        const valid = parsed.filter((deleted: { task: Task; deletedAt: number; originalIndex?: number }) => 
+        return parsed.filter((deleted: { task: Task; deletedAt: number; originalIndex?: number }) =>
           deleted && deleted.task && deleted.task.id && (now - deleted.deletedAt < 30000)
         );
-        return valid;
       }
-    } catch (error) {
-      console.error('Error loading deletedTasks from localStorage:', error);
-      // Clear corrupted data
+    } catch {
       localStorage.removeItem('jarvi_deleted_tasks');
     }
     return [];
   });
   const { token } = useAuth();
   const posthog = usePostHog();
+  const queryClient = useQueryClient();
 
-  // Save to localStorage whenever deletedTasks changes (but only if it's not empty)
+  // Persist deletedTasks to localStorage
   useEffect(() => {
-    if (deletedTasks.length === 0) return; // Don't save empty arrays
-    
+    if (deletedTasks.length === 0) return;
     try {
-      // Validate data before saving
-      const validTasks = deletedTasks.filter(deleted => 
+      const validTasks = deletedTasks.filter(deleted =>
         deleted && deleted.task && deleted.task.id && typeof deleted.deletedAt === 'number'
       );
-      
       if (validTasks.length !== deletedTasks.length) {
-        console.warn('Filtered out invalid deleted tasks before saving');
         setDeletedTasks(validTasks);
         return;
       }
-      
       localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(deletedTasks));
-    } catch (error) {
-      console.error('Error saving deletedTasks to localStorage:', error);
-    }
+    } catch { /* ignore */ }
   }, [deletedTasks]);
 
   // Clean up old deleted tasks every 10 seconds
@@ -153,121 +163,45 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     const cleanupInterval = setInterval(() => {
       setDeletedTasks(prev => {
         const now = Date.now();
-        const valid = prev.filter(deleted => now - deleted.deletedAt < 30000);
-        return valid;
+        return prev.filter(deleted => now - deleted.deletedAt < 30000);
       });
-    }, 10000); // Check every 10 seconds
-
+    }, 10000);
     return () => clearInterval(cleanupInterval);
   }, []);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // ── React Query: tasks fetch ──────────────────────────────────────────────
+  const {
+    data: tasksData,
+    isLoading: isQueryLoading,
+    error: queryError,
+  } = useQuery<Task[]>({
+    queryKey: ['tasks'],
+    queryFn: () => apiClient.get<Task[]>('/api/tasks'),
+    enabled: !!token,
+    select: sortTasks,
+  });
 
-  // Função para ordenar tarefas de forma inteligente
-  const sortTasks = (tasks: Task[]): Task[] => {
-    return [...tasks].sort((a, b) => {
-      // Se ambas têm data, ordenar por data e horário
-      if (a.due_date && b.due_date) {
-        // Comparar apenas a data primeiro
-        const dateOnlyA = a.due_date;
-        const dateOnlyB = b.due_date;
-        
-        if (dateOnlyA !== dateOnlyB) {
-          return dateOnlyA.localeCompare(dateOnlyB);
-        }
-        
-        // Mesma data: tarefas com horário vêm primeiro
-        if (a.time && !b.time) return -1;
-        if (!a.time && b.time) return 1;
-        
-        // Ambas têm horário: ordenar por horário
-        if (a.time && b.time) {
-          return a.time.localeCompare(b.time);
-        }
-        
-        // Nenhuma tem horário: manter ordem de criação
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      }
-      
-      // Se apenas A tem data, A vem primeiro
-      if (a.due_date && !b.due_date) {
-        return -1;
-      }
-      
-      // Se apenas B tem data, B vem primeiro
-      if (!a.due_date && b.due_date) {
-        return 1;
-      }
-      
-      // Se nenhuma tem data, ordenar por data de criação (mais antigas primeiro, novas no final)
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    });
-  };
+  const tasks = tasksData ?? [];
+  const isLoading = isQueryLoading;
+  const error = queryError ? 'Failed to fetch tasks' : null;
 
-  const fetchTasks = async () => {
-    if (!token) return;
+  const fetchTasks = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  }, [queryClient]);
 
-    try {
-      setIsLoading(true);
-      setError(null);
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
-      console.log('TaskContext - Fetching tasks from:', `${API_BASE_URL}/api/tasks`);
-      console.log('TaskContext - Token:', token ? 'Present' : 'Missing');
-      
-      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch tasks');
-      }
-
-      const tasksData = await response.json();
-      setTasks(sortTasks(tasksData));
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      setError('Failed to fetch tasks');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createTask = async (taskData: CreateTaskData, showLoading: boolean = true): Promise<Task> => {
-    if (!token) throw new Error('No authentication token');
-
-    try {
-      if (showLoading) {
-        setIsLoading(true);
-      }
-      setError(null);
-
-      const requestData = {
+  const createMutation = useMutation({
+    mutationFn: (taskData: CreateTaskData) =>
+      apiClient.post<Task>('/api/tasks', {
         ...taskData,
         dueDate: taskData.dueDate,
         important: taskData.important || false,
-      };
-      
-      console.log('Creating task with data:', requestData);
-
-      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create task');
-      }
-
-      const newTask = await response.json();
-
+      }),
+    onSuccess: (newTask) => {
+      queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+        sortTasks([...(old ?? []), newTask]),
+      );
       if (posthog) {
         posthog.capture('task_created', {
           task_id: newTask.id,
@@ -278,317 +212,151 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
           has_recurrence: newTask.recurrence_type && newTask.recurrence_type !== 'none',
         });
       }
+    },
+  });
 
-      setTasks(prev => sortTasks([...prev, newTask]));
-      return newTask;
-    } catch (error) {
-      console.error('Error creating task:', error);
-      setError('Failed to create task');
-      throw error;
-    } finally {
-      if (showLoading) {
-        setIsLoading(false);
-      }
-    }
-  };
+  const createTask = useCallback(async (taskData: CreateTaskData, _showLoading?: boolean): Promise<Task> => {
+    if (!token) throw new Error('No authentication token');
+    return createMutation.mutateAsync(taskData);
+  }, [token, createMutation]);
 
-  const updateTask = async (taskId: string, taskData: UpdateTaskData, showLoading: boolean = true) => {
+  const updateTask = useCallback(async (taskId: string, taskData: UpdateTaskData, _showLoading?: boolean) => {
     if (!token) return;
 
+    // Optimistic update
+    queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+      (old ?? []).map(task => task.id === taskId ? { ...task, ...taskData } : task),
+    );
+
     try {
-      if (showLoading) {
-        setIsLoading(true);
-      }
-      setError(null);
-
-      // Atualização otimista - atualizar a UI imediatamente
-      setTasks(prev => prev.map(task => 
-        task.id === taskId ? { ...task, ...taskData } : task
-      ));
-
       const requestData = {
         ...taskData,
         dueDate: taskData.dueDate === undefined ? null : taskData.dueDate,
         important: taskData.important !== undefined ? taskData.important : false,
       };
-      
-      console.log('Updating task with data:', requestData);
 
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update task');
-      }
-
-      const updatedTask = await response.json();
-      // Atualizar com os dados reais do servidor e reordenar
-      setTasks(prev => sortTasks(prev.map(task => 
-        task.id === taskId ? updatedTask : task
-      )));
-    } catch (error) {
-      console.error('Error updating task:', error);
-      setError('Failed to update task');
-      
-      // Reverter a atualização otimista em caso de erro
-      setTasks(prev => prev.map(task => {
-        if (task.id === taskId) {
-          // Buscar a tarefa original ou manter como estava
-          return task;
-        }
-        return task;
-      }));
-      
-      throw error;
-    } finally {
-      if (showLoading) {
-        setIsLoading(false);
-      }
+      const updatedTask = await apiClient.put<Task>(`/api/tasks/${taskId}`, requestData);
+      queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+        sortTasks((old ?? []).map(task => task.id === taskId ? updatedTask : task)),
+      );
+    } catch (err) {
+      // Revert on error
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      throw err;
     }
-  };
+  }, [token, queryClient]);
 
-  const deleteTask = async (taskId: string, showLoading: boolean = true): Promise<Task | null> => {
+  const deleteTask = useCallback(async (taskId: string, _showLoading?: boolean): Promise<Task | null> => {
     if (!token) return null;
 
-    try {
-      if (showLoading) {
-        setIsLoading(true);
-      }
-      setError(null);
+    const currentTasks = queryClient.getQueryData<Task[]>(['tasks']) ?? [];
+    const taskToDelete = currentTasks.find(task => task.id === taskId);
+    if (!taskToDelete) return null;
 
-      // Find the task before deleting
-      const taskToDelete = tasks.find(task => task.id === taskId);
-      if (!taskToDelete) return null;
+    const originalIndex = currentTasks.findIndex(task => task.id === taskId);
 
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    await apiClient.delete(`/api/tasks/${taskId}`);
 
-      if (!response.ok) {
-        throw new Error('Failed to delete task');
-      }
+    queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+      (old ?? []).filter(task => task.id !== taskId),
+    );
 
-      // Find the original index of the task before removing it
-      const originalIndex = tasks.findIndex(task => task.id === taskId);
-      
-      // Remove from tasks and add to deleted tasks for undo functionality
-      setTasks(prev => prev.filter(task => task.id !== taskId));
-      
-      const newDeletedTask = { task: taskToDelete, deletedAt: Date.now(), originalIndex };
-      setDeletedTasks(prev => [...prev, newDeletedTask]);
+    setDeletedTasks(prev => [...prev, { task: taskToDelete, deletedAt: Date.now(), originalIndex }]);
+    return taskToDelete;
+  }, [token, queryClient]);
 
-      // Note: Cleanup of old deleted tasks is handled in the initialization filter
+  const undoDeleteTask = useCallback(async (taskId: string): Promise<boolean> => {
+    if (!token) return false;
 
-      return taskToDelete;
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      setError('Failed to delete task');
-      throw error;
-    } finally {
-      if (showLoading) {
-        setIsLoading(false);
-      }
-    }
-  };
+    let taskData: { task: Task; originalIndex: number } | null = null;
 
-  const undoDeleteTask = async (taskId: string): Promise<boolean> => {
-    if (!token) {
-      return false;
-    }
-
-    try {
-      // Find the deleted task
-      const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
-      
-      if (!deletedTaskData) {
-        
-        // Try to reload from localStorage as fallback
-        try {
-          const stored = localStorage.getItem('jarvi_deleted_tasks');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            const fallbackTask = parsed.find((deleted: { task: Task; deletedAt: number }) => deleted.task.id === taskId);
-            if (fallbackTask) {
-              // Use the task directly from localStorage instead of recursive call
-              const taskData = {
-                title: fallbackTask.task.title,
-                description: fallbackTask.task.description,
-                priority: fallbackTask.task.priority,
-                category: fallbackTask.task.category,
-                important: fallbackTask.task.important,
-                time: fallbackTask.task.time,
-                dueDate: fallbackTask.task.due_date,
-              };
-              
-              const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(taskData),
-              });
-
-              if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Failed to restore task from fallback:', errorText);
-                throw new Error('Failed to restore task');
-              }
-
-              const restoredTask = await response.json();
-
-              // Add back to tasks at original position and remove from deleted tasks
-              setTasks(prev => {
-                const newTasks = [...prev];
-                const insertIndex = Math.min(fallbackTask.originalIndex || 0, newTasks.length);
-                newTasks.splice(insertIndex, 0, restoredTask);
-                return newTasks;
-              });
-              
-              // Clean up localStorage
-              const updatedStored = parsed.filter((deleted: { task: Task; deletedAt: number }) => deleted.task.id !== taskId);
-              localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(updatedStored));
-              
-              return true;
-            }
+    const deletedTaskData = deletedTasks.find(deleted => deleted.task.id === taskId);
+    if (deletedTaskData) {
+      taskData = { task: deletedTaskData.task, originalIndex: deletedTaskData.originalIndex };
+    } else {
+      try {
+        const stored = localStorage.getItem('jarvi_deleted_tasks');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const fallback = parsed.find((d: any) => d.task.id === taskId);
+          if (fallback) {
+            taskData = { task: fallback.task, originalIndex: fallback.originalIndex || 0 };
           }
-        } catch (error) {
-          console.error('Error in localStorage fallback:', error);
         }
-        
-        return false;
-      }
+      } catch { /* ignore */ }
+    }
 
-      // Recreate the task
-      const taskData = {
-        title: deletedTaskData.task.title,
-        description: deletedTaskData.task.description,
-        priority: deletedTaskData.task.priority,
-        category: deletedTaskData.task.category,
-        important: deletedTaskData.task.important,
-        time: deletedTaskData.task.time,
-        dueDate: deletedTaskData.task.due_date,
+    if (!taskData) return false;
+
+    try {
+      const restorePayload = {
+        title: taskData.task.title,
+        description: taskData.task.description,
+        priority: taskData.task.priority,
+        category: taskData.task.category,
+        important: taskData.task.important,
+        time: taskData.task.time,
+        dueDate: taskData.task.due_date,
       };
-      
-      const response = await fetch(`${API_BASE_URL}/api/tasks`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(taskData),
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to restore task:', errorText);
-        throw new Error('Failed to restore task');
-      }
+      const restoredTask = await apiClient.post<Task>('/api/tasks', restorePayload);
 
-      const restoredTask = await response.json();
-
-      // Add back to tasks at original position and remove from deleted tasks
-      setTasks(prev => {
-        const newTasks = [...prev];
-        const insertIndex = Math.min(deletedTaskData.originalIndex || 0, newTasks.length);
+      queryClient.setQueryData<Task[]>(['tasks'], (old) => {
+        const newTasks = [...(old ?? [])];
+        const insertIndex = Math.min(taskData!.originalIndex, newTasks.length);
         newTasks.splice(insertIndex, 0, restoredTask);
         return newTasks;
       });
+
       setDeletedTasks(prev => {
         const filtered = prev.filter(deleted => deleted.task.id !== taskId);
-        // Also update localStorage
         try {
           localStorage.setItem('jarvi_deleted_tasks', JSON.stringify(filtered));
-        } catch (error) {
-          console.error('Error updating localStorage:', error);
-        }
+        } catch { /* ignore */ }
         return filtered;
       });
       return true;
-    } catch (error) {
-      console.error('Error restoring task:', error);
-      setError(error instanceof Error ? error.message : 'Failed to restore task');
+    } catch {
       return false;
     }
-  };
+  }, [token, deletedTasks, queryClient]);
 
-  const toggleTaskCompletion = async (taskId: string) => {
-    if (!token) {
-      return;
-    }
+  const toggleTaskCompletion = useCallback(async (taskId: string) => {
+    if (!token) return;
 
-    // Encontrar a tarefa atual
-    const currentTask = tasks.find(task => task.id === taskId);
-    if (!currentTask) {
-      console.error('Task not found:', taskId);
-      return;
-    }
+    const currentTasks = queryClient.getQueryData<Task[]>(['tasks']) ?? [];
+    const currentTask = currentTasks.find(task => task.id === taskId);
+    if (!currentTask) return;
 
     const originalCompleted = currentTask.completed;
     const newCompleted = !originalCompleted;
 
-    try {
-      // Atualização otimista - atualizar imediatamente na UI com reordenação
-      setTasks(prev => {
-        const updatedTasks = prev.map(task => 
-          task.id === taskId ? { ...task, completed: newCompleted } : task
-        );
-        
-        // Se a tarefa foi marcada como concluída, movê-la para o final
-        if (newCompleted) {
-          const taskIndex = updatedTasks.findIndex(task => task.id === taskId);
-          if (taskIndex !== -1) {
-            const taskToMove = updatedTasks[taskIndex];
-            const remainingTasks = updatedTasks.filter(task => task.id !== taskId);
-            return [...remainingTasks, taskToMove];
-          }
+    // Optimistic update with reordering
+    queryClient.setQueryData<Task[]>(['tasks'], (old) => {
+      const updatedTasks = (old ?? []).map(task =>
+        task.id === taskId ? { ...task, completed: newCompleted } : task,
+      );
+      if (newCompleted) {
+        const idx = updatedTasks.findIndex(task => task.id === taskId);
+        if (idx !== -1) {
+          const taskToMove = updatedTasks[idx];
+          const rest = updatedTasks.filter(task => task.id !== taskId);
+          return [...rest, taskToMove];
         }
-        // Se a tarefa foi desmarcada como concluída, movê-la para o início das não concluídas
-        else {
-          const taskIndex = updatedTasks.findIndex(task => task.id === taskId);
-          if (taskIndex !== -1) {
-            const taskToMove = updatedTasks[taskIndex];
-            const completedTasks = updatedTasks.filter(task => task.id !== taskId && task.completed);
-            const incompleteTasks = updatedTasks.filter(task => task.id !== taskId && !task.completed);
-            return [...incompleteTasks, taskToMove, ...completedTasks];
-          }
+      } else {
+        const idx = updatedTasks.findIndex(task => task.id === taskId);
+        if (idx !== -1) {
+          const taskToMove = updatedTasks[idx];
+          const completed = updatedTasks.filter(task => task.id !== taskId && task.completed);
+          const incomplete = updatedTasks.filter(task => task.id !== taskId && !task.completed);
+          return [...incomplete, taskToMove, ...completed];
         }
-        
-        return updatedTasks;
-      });
-
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/toggle`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Toggle task completion failed:', response.status, errorText);
-        
-        // Reverter a atualização otimista
-        setTasks(prev => prev.map(task => 
-          task.id === taskId ? { ...task, completed: originalCompleted } : task
-        ));
-        
-        throw new Error('Failed to toggle task completion');
       }
+      return updatedTasks;
+    });
 
-      const updatedTask = await response.json();
+    try {
+      const updatedTask = await apiClient.patch<Task>(`/api/tasks/${taskId}/toggle`);
 
       if (updatedTask.completed && posthog) {
         posthog.capture('task_completed', {
@@ -600,34 +368,28 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
           had_recurrence: updatedTask.recurrence_type && updatedTask.recurrence_type !== 'none',
         });
       }
-      
-      // Confirmar com dados do servidor e manter a reordenação
-      setTasks(prev => {
-        const tasksWithUpdated = prev.map(task => 
-          task.id === taskId ? updatedTask : task
+
+      // Confirm with server data
+      queryClient.setQueryData<Task[]>(['tasks'], (old) => {
+        const tasksWithUpdated = (old ?? []).map(task =>
+          task.id === taskId ? updatedTask : task,
         );
-        
-        // Garantir que a ordenação está correta após a confirmação do servidor
         if (updatedTask.completed) {
-          const taskIndex = tasksWithUpdated.findIndex(task => task.id === taskId);
-          if (taskIndex !== -1) {
-            const taskToMove = tasksWithUpdated[taskIndex];
-            const remainingTasks = tasksWithUpdated.filter(task => task.id !== taskId);
-            return [...remainingTasks, taskToMove];
+          const idx = tasksWithUpdated.findIndex(task => task.id === taskId);
+          if (idx !== -1) {
+            const taskToMove = tasksWithUpdated[idx];
+            const rest = tasksWithUpdated.filter(task => task.id !== taskId);
+            return [...rest, taskToMove];
           }
         }
-        
         return tasksWithUpdated;
       });
 
-      // Se a tarefa foi completada e tem recorrência, criar próxima instância
+      // Handle recurrence
       if (newCompleted && currentTask.recurrence_type && currentTask.recurrence_type !== 'none') {
-        console.log('Creating next recurrence instance for completed task');
-        
-        // Calcular próxima data diretamente (sem import dinâmico)
         const currentDate = new Date(currentTask.due_date || new Date().toISOString().split('T')[0]);
-        let nextDate = new Date(currentDate);
-        
+        const nextDate = new Date(currentDate);
+
         switch (currentTask.recurrence_type) {
           case 'daily':
             nextDate.setDate(nextDate.getDate() + 1);
@@ -639,140 +401,98 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
             nextDate.setMonth(nextDate.getMonth() + 1);
             break;
         }
-        
-        const nextDateStr = nextDate.toISOString().split('T')[0];
 
-        const newInstance = await createTask({
+        await createTask({
           title: currentTask.title,
           description: currentTask.description,
           priority: currentTask.priority,
           category: currentTask.category,
           important: currentTask.important,
           time: currentTask.time,
-          dueDate: nextDateStr,
+          dueDate: nextDate.toISOString().split('T')[0],
           recurrence_type: currentTask.recurrence_type,
           recurrence_config: currentTask.recurrence_config,
-        }, false); // showLoading = false para experiência fluida
-
-        console.log('Next recurrence instance created:', newInstance);
+        }, false);
       }
-    } catch (error) {
-      console.error('Error toggling task completion:', error);
-      setError('Failed to toggle task completion');
+    } catch {
+      // Revert optimistic update
+      queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+        (old ?? []).map(task =>
+          task.id === taskId ? { ...task, completed: originalCompleted } : task,
+        ),
+      );
     }
-  };
+  }, [token, queryClient, posthog, createTask]);
 
-  const reorderTasks = (reorderedTasks: Task[]) => {
-    setTasks(reorderedTasks);
-  };
+  const reorderTasks = useCallback((reorderedTasks: Task[]) => {
+    queryClient.setQueryData<Task[]>(['tasks'], reorderedTasks);
+  }, [queryClient]);
 
-  // ── Sub-task functions ──────────────────────────────────────────────────────
+  // ── Sub-task functions ────────────────────────────────────────────────────
 
-  const fetchSubTasks = async (taskId: string) => {
+  const fetchSubTasks = useCallback(async (taskId: string) => {
     if (!token) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Failed to fetch subtasks');
-      const data: SubTask[] = await response.json();
+      const data = await apiClient.get<SubTask[]>(`/api/tasks/${taskId}/subtasks`);
       setSubtasksByTaskId(prev => ({ ...prev, [taskId]: data }));
-    } catch (error) {
-      console.error('Error fetching subtasks:', error);
-    }
-  };
+    } catch { /* ignore */ }
+  }, [token]);
 
-  const createSubTask = async (taskId: string, title: string): Promise<SubTask> => {
+  const createSubTask = useCallback(async (taskId: string, title: string): Promise<SubTask> => {
     if (!token) throw new Error('No authentication token');
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    });
-    if (!response.ok) throw new Error('Failed to create subtask');
-    const newSubTask: SubTask = await response.json();
+    const newSubTask = await apiClient.post<SubTask>(`/api/tasks/${taskId}/subtasks`, { title });
     setSubtasksByTaskId(prev => ({
       ...prev,
       [taskId]: [...(prev[taskId] ?? []), newSubTask],
     }));
     return newSubTask;
-  };
+  }, [token]);
 
-  const updateSubTask = async (taskId: string, subtaskId: string, title: string) => {
+  const updateSubTask = useCallback(async (taskId: string, subtaskId: string, title: string) => {
     if (!token) return;
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks/${subtaskId}`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    });
-    if (!response.ok) throw new Error('Failed to update subtask');
-    const updated: SubTask = await response.json();
+    const updated = await apiClient.put<SubTask>(`/api/tasks/${taskId}/subtasks/${subtaskId}`, { title });
     setSubtasksByTaskId(prev => ({
       ...prev,
       [taskId]: (prev[taskId] ?? []).map(s => s.id === subtaskId ? updated : s),
     }));
-  };
+  }, [token]);
 
-  const toggleSubTask = async (taskId: string, subtaskId: string) => {
+  const toggleSubTask = useCallback(async (taskId: string, subtaskId: string) => {
     if (!token) return;
-    // Optimistic toggle
     setSubtasksByTaskId(prev => ({
       ...prev,
       [taskId]: (prev[taskId] ?? []).map(s =>
-        s.id === subtaskId ? { ...s, completed: !s.completed } : s
+        s.id === subtaskId ? { ...s, completed: !s.completed } : s,
       ),
     }));
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks/${subtaskId}/toggle`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Failed to toggle subtask');
-      const updated: SubTask = await response.json();
+      const updated = await apiClient.patch<SubTask>(`/api/tasks/${taskId}/subtasks/${subtaskId}/toggle`);
       setSubtasksByTaskId(prev => ({
         ...prev,
         [taskId]: (prev[taskId] ?? []).map(s => s.id === subtaskId ? updated : s),
       }));
-    } catch (error) {
-      // Revert optimistic update
+    } catch {
       setSubtasksByTaskId(prev => ({
         ...prev,
         [taskId]: (prev[taskId] ?? []).map(s =>
-          s.id === subtaskId ? { ...s, completed: !s.completed } : s
+          s.id === subtaskId ? { ...s, completed: !s.completed } : s,
         ),
       }));
-      console.error('Error toggling subtask:', error);
     }
-  };
+  }, [token]);
 
-  const deleteSubTask = async (taskId: string, subtaskId: string) => {
+  const deleteSubTask = useCallback(async (taskId: string, subtaskId: string) => {
     if (!token) return;
-    // Optimistic remove
     setSubtasksByTaskId(prev => ({
       ...prev,
       [taskId]: (prev[taskId] ?? []).filter(s => s.id !== subtaskId),
     }));
     try {
-      const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/subtasks/${subtaskId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error('Failed to delete subtask');
-    } catch (error) {
-      // Revert: re-fetch to restore state
+      await apiClient.delete(`/api/tasks/${taskId}/subtasks/${subtaskId}`);
+    } catch {
       fetchSubTasks(taskId);
-      console.error('Error deleting subtask:', error);
     }
-  };
-
-  // Fetch tasks when token changes
-  useEffect(() => {
-    if (token) {
-      fetchTasks();
-    } else {
-      setTasks([]);
-    }
-  }, [token]);
+  }, [token, fetchSubTasks]);
 
   const value: TaskContextType = {
     tasks,

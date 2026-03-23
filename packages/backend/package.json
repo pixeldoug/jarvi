@@ -13,6 +13,7 @@
     "stripe:trigger:payment-failed": "stripe trigger invoice.payment_failed"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@jarvi/shared": "file:../shared",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",

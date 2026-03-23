@@ -875,4 +875,76 @@ router.put('/memory-profile', authenticateToken, async (req: Request, res: Respo
   }
 });
 
+/**
+ * GET /api/users/timezone
+ * Returns the authenticated user's timezone setting.
+ */
+router.get('/timezone', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    let timezone = 'America/Sao_Paulo';
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query('SELECT timezone FROM users WHERE id = $1', [userId]);
+      timezone = result.rows[0]?.timezone || 'America/Sao_Paulo';
+    } else {
+      const db = getDatabase();
+      const row = await db.get<{ timezone?: string }>('SELECT timezone FROM users WHERE id = ?', [userId]);
+      timezone = row?.timezone || 'America/Sao_Paulo';
+    }
+
+    res.json({ timezone });
+  } catch (error) {
+    console.error('Error fetching timezone:', error);
+    res.status(500).json({ error: 'Erro ao carregar fuso horário' });
+  }
+});
+
+/**
+ * PUT /api/users/timezone
+ * Updates the authenticated user's timezone setting.
+ */
+router.put('/timezone', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const { timezone } = req.body as { timezone?: string };
+    if (!timezone || typeof timezone !== 'string') {
+      res.status(400).json({ error: 'timezone é obrigatório' });
+      return;
+    }
+
+    // Validate timezone using Intl API
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: timezone });
+    } catch {
+      res.status(400).json({ error: 'Fuso horário inválido' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (isPostgreSQL()) {
+      await getPool().query('UPDATE users SET timezone = $1, updated_at = $2 WHERE id = $3', [timezone, now, userId]);
+    } else {
+      await getDatabase().run('UPDATE users SET timezone = ?, updated_at = ? WHERE id = ?', [timezone, now, userId]);
+    }
+
+    res.json({ success: true, timezone });
+  } catch (error) {
+    console.error('Error updating timezone:', error);
+    res.status(500).json({ error: 'Erro ao atualizar fuso horário' });
+  }
+});
+
 export default router;

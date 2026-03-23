@@ -29,6 +29,9 @@
   flex: 1;
   padding: var(--sizes-4) var(--sizes-4) var(--sizes-16);
   min-height: 0;
+  /* Sidebar offset used by ControlBar to center itself in the content area.
+     (sidebar 320px + gap 12px) / 2 = 166px */
+  --sidebar-offset: 166px;
 }
 
 /* Sidebar container */
@@ -206,5 +209,10 @@
   .rightSidebar {
     width: 496px;
     max-width: 496px;
+  }
+
+  /* (sidebar 260px + gap 12px) / 2 = 136px */
+  .content {
+    --sidebar-offset: 136px;
   }
 }

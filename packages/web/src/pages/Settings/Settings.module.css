@@ -138,6 +138,48 @@
 }
 
 /* ============================================================================
+   TIMEZONE SELECT
+   ============================================================================ */
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.fieldLabel {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: 500;
+  color: var(--semantic-content-primary);
+}
+
+.select {
+  width: 100%;
+  padding: var(--sizes-3) var(--sizes-4);
+  border: 1px solid var(--semantic-border-default);
+  border-radius: var(--radius-radius-sm);
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  line-height: var(--typography-body-sm-line-height);
+  cursor: pointer;
+  appearance: auto;
+  transition: border-color 0.15s ease;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--color-brand-primary-400);
+}
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ============================================================================
    GOOGLE BUTTON WRAPPER
    ============================================================================ */
 

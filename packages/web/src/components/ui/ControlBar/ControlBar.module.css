@@ -1,112 +1,111 @@
-/**
- * ControlBar Styles
- * Following JarviDS Web design system from Figma
- */
-
-.controlBar {
+.controlBar,
+.controlBarTask {
   position: fixed;
   bottom: 24px;
-  left: 50%;
+  /* Offset by half the left sidebar width so the bar centers in the content area */
+  left: calc(20% + var(--sidebar-offset, 0px));
   transform: translateX(-50%);
   z-index: 100;
-  
+
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  
-  width: 672px;
+
   max-width: calc(100vw - 48px);
   padding: var(--sizes-2);
-  
-  background: var(--component-control-bar-bg-default);
+
   border: 1px solid var(--component-control-bar-border);
   border-radius: var(--radius-radius-lg);
-  box-shadow: 
-    0px 1px 4px 0px rgba(0, 0, 0, 0.15),
+}
+
+/* AI / prompt mode — narrower pill */
+.controlBar {
+  width: 608px;
+}
+
+/* Manual task creation — wider to fit chips + buttons */
+.controlBarTask {
+  width: 718px;
+}
+
+/* ── Prompt mode (default) ─────────────────────────────────────────────────── */
+
+.controlBar {
+  background: var(--component-control-bar-bg-default);
+  box-shadow:
+    0px 29px 12px -28px rgba(0, 0, 0, 0.6),
+    0px 4px 40px 0px #ffe6d8,
+    0px 1px 22px 0px rgba(97, 55, 243, 0.86),
     0px 1px 0px 0px rgba(0, 0, 0, 0.3);
 }
 
-.footer {
+.promptRow {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--sizes-2);
   width: 100%;
 }
 
-/* Tab button - uses ControlBar-specific tokens */
-.tab {
+.promptInput {
   flex: 1;
-  white-space: nowrap;
-  width: 100%; 
-  background: var(--component-control-bar-tab-bg-default) !important;
-  color: var(--component-control-bar-tab-content) !important;
-  padding: 0 var(--sizes-3) !important;
-  
+  min-width: 0;
+  padding: var(--sizes-4) var(--sizes-4);
+
+  background: transparent;
+  border: none;
+  outline: none;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
 }
 
-.tab:hover {
-  background: var(--component-control-bar-tab-bg-hover) !important;
+.promptInput::placeholder {
+  color: var(--semantic-content-secondary);
 }
 
-/* Lock icon for coming soon tabs */
-.lockIcon {
-  width: 14px;
-  height: 14px;
-  margin-right: var(--sizes-2);
+/* Send button (paper plane) */
+.sendButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-}
 
-/* Active tab - visual state specific to ControlBar navigation */
-.tabActive {
-  background: var(--component-control-bar-tab-bg-active) !important;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-button-icon-radius, 16px);
+  border: none;
   border-bottom: 2px solid rgba(0, 0, 0, 0.3);
-  color: var(--component-control-bar-tab-content) !important;
-  box-shadow: 0px 1px 0px 0px rgba(0, 0, 0, 0.15);
+
+  background: var(--component-button-primary-bg-default);
+  color: var(--component-button-primary-content-default, #fff);
+  box-shadow: 0px 1px 0px 0px rgba(97, 55, 243, 0.15);
+
+  cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
-.tabActive:hover {
-  background: var(--component-control-bar-tab-bg-active) !important;
-  color: var(--component-control-bar-tab-content) !important;
+.sendButton:hover {
+  opacity: 0.9;
 }
 
-/* Primary action button - extends Button primary with ControlBar-specific styles */
-.actionButton {
-  flex-shrink: 0;
-  white-space: nowrap;
+.sendButton:active {
+  opacity: 0.8;
 }
 
-/* ============================================
-   TASK MODE STYLES
-   ============================================ */
+/* ── Task mode ──────────────────────────────────────────────────────────────── */
 
 .controlBarTask {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  
-  width: 672px;
-  max-width: calc(100vw - 48px);
-  padding: var(--sizes-2);
-
-  
   background: var(--component-control-bar-bg-active);
-  border: 1px solid var(--component-control-bar-border);
-  border-radius: var(--radius-radius-lg);
-  box-shadow: 
-    0px 1px 4px 0px rgba(0, 0, 0, 0.15),
+  box-shadow:
+    0px 29px 12px -28px rgba(0, 0, 0, 0.6),
     0px 1px 0px 0px rgba(0, 0, 0, 0.3);
 }
 
-/* Task Content Area */
 .taskContent {
   display: flex;
   flex-direction: column;
@@ -115,7 +114,6 @@
   padding: 0 var(--sizes-3) var(--sizes-3) 0;
 }
 
-/* Task Input Wrapper */
 .taskWrapper {
   display: flex;
   flex-direction: column;
@@ -124,7 +122,6 @@
   padding-right: var(--sizes-14);
 }
 
-/* Title Input Container */
 .taskInputContainer {
   display: flex;
   flex-direction: column;
@@ -134,15 +131,14 @@
   padding: var(--sizes-3) var(--sizes-3) var(--sizes-2) var(--sizes-4);
 }
 
-/* Title Input */
 .taskTitleInput {
   width: 100%;
   padding: 0;
-  
+
   background: transparent;
   border: none;
   outline: none !important;
-  
+
   font-family: var(--typography-heading-md-font-family);
   font-size: var(--typography-heading-md-font-size);
   font-weight: var(--typography-heading-md-font-weight);
@@ -154,32 +150,30 @@
   color: var(--semantic-content-secondary);
 }
 
-/* Description Textarea Container */
 .taskDescriptionContainer {
   display: flex;
   align-items: center;
   gap: var(--sizes-3);
   width: 100%;
   padding: var(--sizes-4) var(--sizes-0) var(--sizes-4) var(--sizes-4);
-  
+
   background: var(--color-bw-transparent);
   border-radius: var(--radius-radius-sm);
 }
 
-/* Description Textarea */
 .taskDescriptionInput {
   width: 100%;
   min-height: 22px;
   padding: 0;
   resize: none;
-  
+
   background: transparent;
   border: none;
   outline: none !important;
 
-  max-height: var(--sizes-60); /* 240px */
+  max-height: var(--sizes-60);
   overflow-y: auto;
-  
+
   font-family: var(--typography-label-md-font-family);
   font-size: var(--typography-label-md-font-size);
   font-weight: var(--typography-label-md-font-weight);
@@ -191,7 +185,6 @@
   color: var(--semantic-control-content-placeholder);
 }
 
-/* Scrollbar customizada para o textarea de descrição */
 .taskDescriptionContainer::-webkit-scrollbar,
 .taskDescriptionInput::-webkit-scrollbar {
   width: 6px;
@@ -206,7 +199,7 @@
 .taskDescriptionContainer::-webkit-scrollbar-thumb,
 .taskDescriptionInput::-webkit-scrollbar-thumb {
   background: var(--semantic-surface-tertiary);
-  border-radius: var(--radius-radius-round); 
+  border-radius: var(--radius-radius-round);
 }
 
 .taskDescriptionContainer::-webkit-scrollbar-thumb:hover,
@@ -214,8 +207,6 @@
   background: var(--semantic-content-secondary);
 }
 
-
-/* Task Footer with Chips */
 .taskFooter {
   display: flex;
   align-items: center;
@@ -223,7 +214,6 @@
   width: 100%;
 }
 
-/* Chips Group */
 .chipsGroup {
   display: flex;
   flex: 1;
@@ -232,8 +222,6 @@
   cursor: pointer;
 }
 
-
-/* Submit Button - ControlBar-specific overrides for Button component */
 .submitButton {
   flex-shrink: 0;
   white-space: nowrap;
@@ -244,17 +232,54 @@
   color: var(--component-control-bar-button-content-disabled) !important;
 }
 
-/* Close Button - ControlBar-specific overrides for Button component */
-.closeButton {
-  position: absolute;
-  top: 15px;
-  right: 18px;
-  background: var(--component-control-bar-close-button-bg) !important;
-  border: 1px solid var(--component-control-bar-border) !important;
-  color: var(--component-control-bar-close-button-content) !important;
+/* ── Toggle group (shared between both modes) ─────────────────────────────── */
+
+.toggleGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  flex-shrink: 0;
+
+  background: #23232f;
+  border-radius: 18px;
 }
 
-.closeButton:hover {
-  background: var(--component-control-bar-tab-bg-hover) !important;
+.toggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  border: none;
+
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  opacity: 0.5;
+
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
+.toggleButton:hover:not(:disabled) {
+  opacity: 0.75;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.toggleButton:disabled {
+  cursor: not-allowed;
+}
+
+.toggleButtonActive {
+  background: #1a1a27;
+  color: var(--semantic-content-primary);
+  opacity: 1;
+}
+
+.toggleButtonActive:hover {
+  background: #1a1a27 !important;
+  opacity: 1 !important;
+}

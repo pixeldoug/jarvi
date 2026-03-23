@@ -36,34 +36,73 @@ export const Settings: React.FC = () => {
   const [memoryMessage, setMemoryMessage] = useState('');
   const [memoryError, setMemoryError] = useState('');
 
+  // Timezone state
+  const [timezone, setTimezone] = useState('America/Sao_Paulo');
+  const [timezoneSaving, setTimezoneSaving] = useState(false);
+  const [timezoneMessage, setTimezoneMessage] = useState('');
+  const [timezoneError, setTimezoneError] = useState('');
+
   const isGoogleUser = user?.authProvider === 'google';
+
+  const TIMEZONES = [
+    { value: 'America/Sao_Paulo',      label: 'Brasília (UTC-3)' },
+    { value: 'America/Manaus',         label: 'Manaus (UTC-4)' },
+    { value: 'America/Belem',          label: 'Belém / Fortaleza (UTC-3)' },
+    { value: 'America/Noronha',        label: 'Fernando de Noronha (UTC-2)' },
+    { value: 'America/Rio_Branco',     label: 'Rio Branco (UTC-5)' },
+    { value: 'America/New_York',       label: 'Nova York / Miami (UTC-5/-4)' },
+    { value: 'America/Chicago',        label: 'Chicago / Dallas (UTC-6/-5)' },
+    { value: 'America/Denver',         label: 'Denver / Phoenix (UTC-7/-6)' },
+    { value: 'America/Los_Angeles',    label: 'Los Angeles / Seattle (UTC-8/-7)' },
+    { value: 'America/Anchorage',      label: 'Anchorage (UTC-9/-8)' },
+    { value: 'Pacific/Honolulu',       label: 'Havaí (UTC-10)' },
+    { value: 'America/Toronto',        label: 'Toronto / Montreal (UTC-5/-4)' },
+    { value: 'America/Vancouver',      label: 'Vancouver (UTC-8/-7)' },
+    { value: 'America/Mexico_City',    label: 'Cidade do México (UTC-6/-5)' },
+    { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (UTC-3)' },
+    { value: 'America/Santiago',       label: 'Santiago (UTC-4/-3)' },
+    { value: 'America/Lima',           label: 'Lima / Bogotá (UTC-5)' },
+    { value: 'Europe/Lisbon',          label: 'Lisboa (UTC+0/+1)' },
+    { value: 'Europe/London',          label: 'Londres (UTC+0/+1)' },
+    { value: 'Europe/Madrid',          label: 'Madrid / Paris (UTC+1/+2)' },
+    { value: 'Europe/Berlin',          label: 'Berlim / Amsterdã (UTC+1/+2)' },
+    { value: 'Europe/Rome',            label: 'Roma / Milão (UTC+1/+2)' },
+    { value: 'Europe/Moscow',          label: 'Moscou (UTC+3)' },
+    { value: 'Asia/Dubai',             label: 'Dubai (UTC+4)' },
+    { value: 'Asia/Kolkata',           label: 'Índia (UTC+5:30)' },
+    { value: 'Asia/Bangkok',           label: 'Bangkok / Jacarta (UTC+7)' },
+    { value: 'Asia/Singapore',         label: 'Singapura / Kuala Lumpur (UTC+8)' },
+    { value: 'Asia/Shanghai',          label: 'Xangai / Pequim (UTC+8)' },
+    { value: 'Asia/Tokyo',             label: 'Tóquio (UTC+9)' },
+    { value: 'Australia/Sydney',       label: 'Sydney (UTC+10/+11)' },
+  ];
 
   useEffect(() => {
     let isCancelled = false;
 
-    const fetchMemoryProfile = async () => {
+    const fetchSettings = async () => {
       if (!token) return;
       setMemoryLoading(true);
       setMemoryError('');
 
       try {
-        const response = await fetch(`${API_URL}/api/users/memory-profile`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        const [memoryRes, timezoneRes] = await Promise.all([
+          fetch(`${API_URL}/api/users/memory-profile`, { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/users/timezone`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        ]);
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Erro ao carregar memória');
-        }
+        const memoryData = await memoryRes.json();
+        if (!memoryRes.ok) throw new Error(memoryData.error || 'Erro ao carregar memória');
+
+        const timezoneData = await timezoneRes.json();
 
         if (!isCancelled) {
-          setMemoryText(typeof data.memoryText === 'string' ? data.memoryText : '');
+          setMemoryText(typeof memoryData.memoryText === 'string' ? memoryData.memoryText : '');
+          if (timezoneData.timezone) setTimezone(timezoneData.timezone);
         }
       } catch (err) {
         if (!isCancelled) {
-          setMemoryError(err instanceof Error ? err.message : 'Erro ao carregar memória');
+          setMemoryError(err instanceof Error ? err.message : 'Erro ao carregar configurações');
         }
       } finally {
         if (!isCancelled) {
@@ -72,11 +111,38 @@ export const Settings: React.FC = () => {
       }
     };
 
-    void fetchMemoryProfile();
+    void fetchSettings();
     return () => {
       isCancelled = true;
     };
   }, [token]);
+
+  const handleTimezoneSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTimezoneError('');
+    setTimezoneMessage('');
+    setTimezoneSaving(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/users/timezone`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ timezone }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao salvar fuso horário');
+
+      setTimezoneMessage('Fuso horário atualizado com sucesso');
+    } catch (err) {
+      setTimezoneError(err instanceof Error ? err.message : 'Erro ao salvar fuso horário');
+    } finally {
+      setTimezoneSaving(false);
+    }
+  };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,6 +339,49 @@ export const Settings: React.FC = () => {
               loading={memorySaving}
             >
               Salvar memória
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Fuso horário</h2>
+        <p className={styles.sectionDescription}>
+          Usado pela Jarvi para interpretar corretamente datas e horários nas suas tarefas.
+        </p>
+
+        {timezoneMessage && <div className={styles.success}>{timezoneMessage}</div>}
+        {timezoneError && <div className={styles.error}>{timezoneError}</div>}
+
+        <form className={styles.form} onSubmit={handleTimezoneSubmit}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel} htmlFor="timezone">
+              Fuso horário
+            </label>
+            <select
+              id="timezone"
+              className={styles.select}
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              disabled={timezoneSaving}
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className={styles.formActions}>
+            <Button
+              type="submit"
+              variant="primary"
+              size="medium"
+              disabled={timezoneSaving}
+              loading={timezoneSaving}
+            >
+              Salvar fuso horário
             </Button>
           </div>
         </form>

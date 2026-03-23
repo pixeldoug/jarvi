@@ -1,22 +1,15 @@
 /**
  * ControlBar Component - Jarvi Web
- * 
- * Navigation bar for switching between app sections
- * Supports two modes:
- * - navigation: Default tabs + action button
- * - task: Expanded task creation form
- * 
- * Following JarviDS design system from Figma
- * Uses Motion One for smooth animations
+ *
+ * Prompt bar with toggle to switch between AI mode and manual task creation.
+ * Following JarviDS design system from Figma (node 40000921:35316).
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CalendarDots, Hash, Fire, X, LockSimple } from '@phosphor-icons/react';
+import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../Button';
 import { Chip } from '../Chip';
-import { Tooltip } from '../Tooltip';
 import { TaskDatePicker, PriorityPicker, CategoryPicker } from '../../features/tasks';
 import { useCategories, type Category } from '../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
@@ -32,34 +25,35 @@ export interface TaskCreationData {
 }
 
 export interface ControlBarProps {
-  /** Current active page */
-  activePage?: 'tasks' | 'notes' | 'goals' | 'finances';
-  /** Callback when a task is created - returns the created task */
+  /** Callback when a task is created */
   onCreateTask?: (task: TaskCreationData) => Promise<any> | void;
   /** Callback to open task details sidebar with a task */
   onOpenTaskDetails?: (task: any) => void;
-  /** Primary action button text */
-  primaryActionText?: string;
+  /** Callback to open AI chat panel */
+  onOpenChat?: () => void;
+  /** Callback when prompt is submitted with text (optional – falls back to onOpenChat) */
+  onSubmitPrompt?: (text: string) => void;
+  /** When true, slides and fades the bar out of view */
+  hidden?: boolean;
 }
 
-const tabs = [
-  { id: 'tasks', label: 'Tarefas', path: '/tasks', comingSoon: false },
-  { id: 'notes', label: 'Notas', path: '/notes', comingSoon: true },
-  { id: 'goals', label: 'Objetivos', path: '/goals', comingSoon: true },
-  { id: 'finances', label: 'Finanças', path: '/finances', comingSoon: true },
-] as const;
-
 export function ControlBar({
-  activePage = 'tasks',
   onCreateTask,
   onOpenTaskDetails,
-  primaryActionText = 'Nova Tarefa',
+  onOpenChat,
+  onSubmitPrompt,
+  hidden = false,
 }: ControlBarProps) {
-  const navigate = useNavigate();
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
-  const [mode, setMode] = useState<'navigation' | 'task'>('navigation');
-  
+
+  // 'prompt' = AI mode (default) | 'task' = manual task creation
+  const [mode, setMode] = useState<'prompt' | 'task'>('prompt');
+
+  // Prompt bar state
+  const [promptText, setPromptText] = useState('');
+  const promptInputRef = useRef<HTMLInputElement>(null);
+
   // Task creation state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -67,83 +61,75 @@ export function ControlBar({
   const [dueTime, setDueTime] = useState<string>('');
   const [category, setCategory] = useState<string>('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | undefined>(undefined);
-  const [isDefaultDate, setIsDefaultDate] = useState(false); // Track if date is default "Hoje"
-  
+  const [isDefaultDate, setIsDefaultDate] = useState(false);
+
   // Popover states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
-  
+
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const priorityChipRef = useRef<HTMLDivElement>(null);
 
-  const handleOpenTaskMode = useCallback(() => {
+  const handleSwitchToTask = useCallback(() => {
     setMode('task');
-    // Definir data padrão como "Hoje"
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     setDueDate(today);
-    setIsDefaultDate(true); // Mark as default date
+    setIsDefaultDate(true);
   }, []);
 
-  // Focus title input when switching to task mode
-  // Delay accounts for animation duration (150ms) + small buffer
+  const handleSwitchToPrompt = useCallback(() => {
+    setMode('prompt');
+    setTitle('');
+    setDescription('');
+    setDueDate(null);
+    setDueTime('');
+    setCategory('');
+    setPriority(undefined);
+    setIsDefaultDate(false);
+    setShowDatePicker(false);
+    setShowCategoryPicker(false);
+    setShowPriorityPicker(false);
+  }, []);
+
+  // Focus title input when entering task mode
   useEffect(() => {
     if (mode === 'task') {
-      const timeoutId = setTimeout(() => {
-        if (titleInputRef.current) {
-          titleInputRef.current.focus();
-        }
-      }, 200); // Wait for animation to complete (150ms) + buffer
-      
-      return () => clearTimeout(timeoutId);
+      const id = setTimeout(() => titleInputRef.current?.focus(), 200);
+      return () => clearTimeout(id);
     }
   }, [mode]);
 
-  // Global keyboard shortcut handler for Cmd/Ctrl+/
+  // Global Cmd+/ shortcut → switch to task mode
   useEffect(() => {
-    if (!onCreateTask) return; // Only add listener if onCreateTask is provided
+    if (!onCreateTask) return;
 
-    const handleGlobalKeyDown = (event: KeyboardEvent) => {
-      // Check if Cmd+/ (Mac) or Ctrl+/ (Windows/Linux) is pressed
-      const isModifierPressed = event.metaKey || event.ctrlKey;
-      const isSlashKey = event.key === '/' || event.code === 'Slash';
-      
-      // Debug log (can be removed later)
-      if (isModifierPressed && (event.key === '/' || event.code === 'Slash')) {
-        console.log('Cmd+/ detected:', { key: event.key, code: event.code, metaKey: event.metaKey, ctrlKey: event.ctrlKey });
-      }
-      
-      if (isModifierPressed && isSlashKey) {
-        // Check if user is typing in an input/textarea
-        const target = event.target as HTMLElement;
-        const isInput = 
-          target.tagName === 'INPUT' || 
-          target.tagName === 'TEXTAREA' || 
-          target.isContentEditable ||
-          target.closest('[contenteditable="true"]') !== null;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isModifier = e.metaKey || e.ctrlKey;
+      const isSlash = e.key === '/' || e.code === 'Slash';
+      if (!isModifier || !isSlash) return;
 
-        // Only prevent default and open task mode if not in an input field
-        if (!isInput && mode === 'navigation') {
-          console.log('Opening task mode via Cmd+/');
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-          handleOpenTaskMode();
-        }
+      const target = e.target as HTMLElement;
+      const isInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]') !== null;
+
+      if (!isInput && mode === 'prompt') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        handleSwitchToTask();
       }
     };
 
-    // Use capture phase with high priority to intercept before other handlers
-    document.addEventListener('keydown', handleGlobalKeyDown, { capture: true, passive: false });
-
-    return () => {
-      document.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
-    };
-  }, [onCreateTask, mode, handleOpenTaskMode]); // Include handleOpenTaskMode in dependencies
+    document.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [onCreateTask, mode, handleSwitchToTask]);
 
   // Auto-resize description textarea
   useEffect(() => {
@@ -153,32 +139,33 @@ export function ControlBar({
     }
   }, [description]);
 
-  const handleTabClick = (path: string) => {
-    navigate(path);
+  // ── Prompt handlers ──────────────────────────────────────────────────────────
+
+  const handlePromptSubmit = () => {
+    if (onSubmitPrompt && promptText.trim()) {
+      onSubmitPrompt(promptText.trim());
+    } else if (onOpenChat) {
+      onOpenChat();
+    }
+    setPromptText('');
   };
 
-  const handleCloseTaskMode = () => {
-    setMode('navigation');
-    setTitle('');
-    setDescription('');
-    setDueDate(null);
-    setDueTime('');
-    setCategory('');
-    setPriority(undefined);
-    setIsDefaultDate(false);
-    setShowDatePicker(false);
+  const handlePromptKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handlePromptSubmit();
+    }
   };
+
+  // ── Task creation handlers ────────────────────────────────────────────────────
 
   const handleSubmitTask = async () => {
     if (!title.trim()) return;
 
-    // Format date as ISO string (YYYY-MM-DD) if present
     let formattedDueDate: string | undefined;
     if (dueDate) {
       formattedDueDate = dueDate.toISOString().split('T')[0];
-      if (dueTime) {
-        formattedDueDate = `${formattedDueDate}T${dueTime}:00`;
-      }
+      if (dueTime) formattedDueDate = `${formattedDueDate}T${dueTime}:00`;
     }
 
     const taskData: TaskCreationData = {
@@ -189,108 +176,69 @@ export function ControlBar({
       priority,
     };
 
-    // Create task and get the created task
     const createdTask = await onCreateTask?.(taskData);
-    
-    // Show toast notification with callback to open task details
-    toast.success('Tarefa criada com sucesso', { 
+
+    toast.success('Tarefa criada com sucesso', {
       hasButton: true,
-      action: createdTask && onOpenTaskDetails ? {
-        label: 'Visualizar',
-        onClick: () => onOpenTaskDetails(createdTask),
-      } : undefined,
+      action:
+        createdTask && onOpenTaskDetails
+          ? { label: 'Visualizar', onClick: () => onOpenTaskDetails(createdTask) }
+          : undefined,
     });
-    
-    handleCloseTaskMode();
+
+    handleSwitchToPrompt();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      handleCloseTaskMode();
-    }
+  const handleTaskKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') handleSwitchToPrompt();
     if (e.key === 'Enter' && !e.shiftKey && e.target === titleInputRef.current) {
       e.preventDefault();
-      if (title.trim()) {
-        handleSubmitTask();
-      }
+      if (title.trim()) handleSubmitTask();
     }
   };
 
-  // Handle date selection from TaskDatePicker
   const handleDateSelect = (date: Date | null) => {
     setDueDate(date);
-    setIsDefaultDate(false); // User explicitly selected a date, no longer default
-    if (!date) {
-      setDueTime('');
-    }
-    // Não fechar automaticamente - o popover só fecha ao clicar fora
+    setIsDefaultDate(false);
+    if (!date) setDueTime('');
   };
 
-  // Handle time selection from TaskDatePicker integrated time picker
   const handleTimeSelect = (time: string | null) => {
     setDueTime(time || '');
   };
 
-  // Open date picker
-  const handleDateChipClick = () => {
-    setShowDatePicker(true);
-  };
-
-  // Format the date chip label
   const formatDateChip = () => {
     if (!dueDate) return 'Sem data';
-    
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
     const selected = new Date(dueDate);
     selected.setHours(0, 0, 0, 0);
-    
+
     if (selected.getTime() === today.getTime()) {
       return dueTime ? `Hoje ${dueTime}` : 'Hoje';
     }
-    
+
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (selected.getTime() === tomorrow.getTime()) {
       return dueTime ? `Amanhã ${dueTime}` : 'Amanhã';
     }
-    
+
     const day = dueDate.getDate();
-    const month = dueDate.toLocaleDateString('pt-BR', { month: 'short' })
+    const month = dueDate
+      .toLocaleDateString('pt-BR', { month: 'short' })
       .replace('.', '')
-      .replace(/^./, str => str.toUpperCase());
-    
+      .replace(/^./, (s) => s.toUpperCase());
     return dueTime ? `${day} ${month} ${dueTime}` : `${day} ${month}`;
   };
 
-  // Clear date and time
-  const handleClearDate = () => {
-    setDueDate(null);
-    setDueTime('');
-    setIsDefaultDate(false);
-  };
+  const handleCategorySelect = (cat: Category) => setCategory(cat.name);
 
-  // Clear priority
-  const handleClearPriority = () => {
-    setPriority(undefined);
-  };
-
-  // Clear category
-  const handleClearCategory = () => {
-    setCategory('');
-  };
-
-  // Handle category selection
-  const handleCategorySelect = (cat: Category) => {
-    setCategory(cat.name);
-  };
-
-  // Handle create category
   const handleCreateCategory = async (name: string) => {
     try {
       const newCategory = await createCategory({ name: name.trim() });
-      setCategory(newCategory.name); // Auto-select the new category
+      setCategory(newCategory.name);
     } catch (error: any) {
       if (error.message?.includes('already exists')) {
         toast.error('Categoria já existe', { description: 'Escolha um nome diferente' });
@@ -302,59 +250,57 @@ export function ControlBar({
 
   const isSubmitDisabled = !title.trim();
 
-  // ============================================================
-  // 🎨 ANIMATION CONFIG - EDITE AQUI!
-  // ============================================================
-  //
-  // 📌 OPÇÕES DE TRANSITION:
-  //
-  // 1) Simples com duração:
-  //    transition={{ duration: 0.2 }}
-  //
-  // 2) Com easing (linear, easeIn, easeOut, easeInOut):
-  //    transition={{ duration: 0.2, ease: 'easeOut' }}
-  //
-  // 3) Com delay (espera antes de começar):
-  //    transition={{ duration: 0.2, delay: 0.1 }}
-  //
-  // 4) Spring (animação com bounce):
-  //    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-  //    - stiffness: 100-1000 (maior = mais rápido)
-  //    - damping: 10-100 (maior = menos bounce)
-  //
-  // 📌 PROPRIEDADES ANIMÁVEIS:
-  //    opacity, x, y, scale, rotate, width, height...
-  //
-  // 📌 INTERAÇÃO:
-  //    whileHover={{ scale: 1.05 }}
-  //    whileTap={{ scale: 0.95 }}
-  //
-  // ============================================================
+  // ── Toggle group ─────────────────────────────────────────────────────────────
+
+  const toggleGroup = (
+    <div className={styles.toggleGroup}>
+      {/* Sparkle = AI / prompt mode */}
+      <button
+        type="button"
+        className={`${styles.toggleButton} ${mode === 'prompt' ? styles.toggleButtonActive : ''}`}
+        onClick={mode === 'task' ? handleSwitchToPrompt : undefined}
+        aria-label="Modo AI"
+        aria-pressed={mode === 'prompt'}
+      >
+        <Sparkle weight={mode === 'prompt' ? 'fill' : 'regular'} size={18} />
+      </button>
+      {/* Pencil = task creation mode */}
+      <button
+        type="button"
+        className={`${styles.toggleButton} ${mode === 'task' ? styles.toggleButtonActive : ''}`}
+        onClick={mode === 'prompt' ? handleSwitchToTask : undefined}
+        aria-label="Criar tarefa"
+        aria-pressed={mode === 'task'}
+        disabled={!onCreateTask}
+      >
+        <PencilSimple weight={mode === 'task' ? 'fill' : 'regular'} size={18} />
+      </button>
+    </div>
+  );
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div
+    <motion.div
       className={mode === 'task' ? styles.controlBarTask : styles.controlBar}
-      onKeyDown={mode === 'task' ? handleKeyDown : undefined}
+      onKeyDown={mode === 'task' ? handleTaskKeyDown : undefined}
       data-theme="dark"
       data-control-bar
+      animate={hidden ? { opacity: 0, y: 20, pointerEvents: 'none' } : { opacity: 1, y: 0, pointerEvents: 'auto' }}
+      transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
     >
-      {/* mode: 'wait' | 'popLayout' | 'sync' */}
       <AnimatePresence mode="wait">
         {mode === 'task' ? (
-          // ========== TASK MODE ==========
+          // ── TASK MODE ──────────────────────────────────────────────────────────
           <motion.div
             key="task-mode"
-            // Estado inicial (antes de aparecer)
             initial={{ opacity: 0 }}
-            // Estado final (quando visível)
             animate={{ opacity: 1 }}
-            // Estado de saída (quando some)
             exit={{ opacity: 0 }}
-            // Como animar
             transition={{ duration: 0.15 }}
             style={{ width: '100%' }}
           >
-            {/* Content Area */}
+            {/* Content */}
             <div className={styles.taskContent}>
               <div className={styles.taskWrapper}>
                 <div className={styles.taskInputContainer}>
@@ -369,7 +315,7 @@ export function ControlBar({
                   />
                 </div>
               </div>
-              
+
               <div className={styles.taskDescriptionContainer}>
                 <textarea
                   ref={descriptionRef}
@@ -382,10 +328,9 @@ export function ControlBar({
               </div>
             </div>
 
-            {/* Footer with Chips + Submit */}
+            {/* Footer */}
             <div className={styles.taskFooter}>
               <div className={styles.chipsGroup}>
-                {/* Date Chip */}
                 <div ref={dateChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
                     label={formatDateChip()}
@@ -393,12 +338,11 @@ export function ControlBar({
                     size="medium"
                     interactive
                     active={showDatePicker || (!isDefaultDate && !!dueDate) || !!dueTime}
-                    onClick={handleDateChipClick}
-                    onClear={(dueDate || dueTime) ? handleClearDate : undefined}
+                    onClick={() => setShowDatePicker(true)}
+                    onClear={dueDate || dueTime ? () => { setDueDate(null); setDueTime(''); setIsDefaultDate(false); } : undefined}
                   />
                 </div>
 
-                {/* Category Chip */}
                 <div ref={categoryChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
                     label={category || 'Categoria'}
@@ -407,97 +351,78 @@ export function ControlBar({
                     interactive
                     active={!!category || showCategoryPicker}
                     onClick={() => setShowCategoryPicker(true)}
-                    onClear={category ? handleClearCategory : undefined}
+                    onClear={category ? () => setCategory('') : undefined}
                   />
                 </div>
 
-                {/* Priority Chip */}
                 <div ref={priorityChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
-                    label={priority === 'high' ? 'Urgente' : priority === 'medium' ? 'Média' : priority === 'low' ? 'Baixa' : 'Prioridade'}
+                    label={
+                      priority === 'high'
+                        ? 'Urgente'
+                        : priority === 'medium'
+                        ? 'Média'
+                        : priority === 'low'
+                        ? 'Baixa'
+                        : 'Prioridade'
+                    }
                     icon={<Fire weight="regular" />}
                     size="medium"
                     interactive
                     active={!!priority || showPriorityPicker}
                     onClick={() => setShowPriorityPicker(true)}
-                    onClear={priority ? handleClearPriority : undefined}
+                    onClear={priority ? () => setPriority(undefined) : undefined}
                   />
                 </div>
               </div>
 
-              {/* Submit Button */}
+              {toggleGroup}
+
               <Button
                 variant="primary"
                 className={styles.submitButton}
                 onClick={handleSubmitTask}
                 disabled={isSubmitDisabled}
               >
-                Adicionar Tarefa
+                Adicionar
               </Button>
             </div>
-
-            {/* Close Button */}
-            <Button
-              variant="ghost"
-              icon={X}
-              iconPosition="icon-only"
-              className={styles.closeButton}
-              onClick={handleCloseTaskMode}
-              aria-label="Fechar"
-            />
           </motion.div>
         ) : (
-          // ========== NAVIGATION MODE ==========
+          // ── PROMPT MODE ────────────────────────────────────────────────────────
           <motion.div
-            key="navigation-mode"
+            key="prompt-mode"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={styles.footer}
+            className={styles.promptRow}
           >
-            {tabs.map((tab) => (
-              <div key={tab.id} style={{ flex: 1 }}>
-                {tab.comingSoon ? (
-                  <Tooltip label="Em breve" position="top">
-                    <Button
-                      variant="ghost"
-                      className={`${styles.tab}`}
-                      onClick={(e) => e.preventDefault()}
-                      aria-disabled="true"
-                      
-                    >
-                      <LockSimple weight="fill" className={styles.lockIcon} />
-                      {tab.label}
-                    </Button>
-                  </Tooltip>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    className={`${styles.tab} ${activePage === tab.id ? styles.tabActive : ''}`}
-                    onClick={() => handleTabClick(tab.path)}
-                  >
-                    {tab.label}
-                  </Button>
-                )}
-              </div>
-            ))}
-            
-            {onCreateTask && (
-              <Button
-                variant="primary"
-                className={styles.actionButton}
-                onClick={handleOpenTaskMode}
-                shortcut="⌘/"
-              >
-                {primaryActionText}
-              </Button>
-            )}
+            <input
+              ref={promptInputRef}
+              type="text"
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              onKeyDown={handlePromptKeyDown}
+              placeholder="Me diga o que você precisa fazer ou saber..."
+              className={styles.promptInput}
+            />
+
+            {toggleGroup}
+
+            <button
+              type="button"
+              className={styles.sendButton}
+              onClick={handlePromptSubmit}
+              aria-label="Enviar"
+            >
+              <PaperPlaneTilt weight="fill" size={20} />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* Popovers - rendered outside AnimatePresence for proper positioning */}
+
+      {/* Popovers */}
       <TaskDatePicker
         isOpen={showDatePicker}
         onClose={() => setShowDatePicker(false)}
@@ -525,6 +450,6 @@ export function ControlBar({
         onPrioritySelect={(p) => setPriority(p)}
         anchorRef={priorityChipRef}
       />
-    </div>
+    </motion.div>
   );
 }

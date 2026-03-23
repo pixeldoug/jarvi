@@ -824,6 +824,20 @@ const runMigrations = async (): Promise<void> => {
           // Column already exists, ignore
         }
       }
+
+      // Migration: Add timezone column to users
+      try {
+        await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'America/Sao_Paulo'");
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      // Migration: Add last_reconciled_at column to users
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reconciled_at TIMESTAMP');
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -995,6 +1009,20 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+    }
+
+    // Migration: Add timezone column to users
+    try {
+      await db.exec("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'America/Sao_Paulo'");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add last_reconciled_at column to users
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN last_reconciled_at DATETIME');
+    } catch (e) {
+      // Column already exists, ignore
     }
   }
 };

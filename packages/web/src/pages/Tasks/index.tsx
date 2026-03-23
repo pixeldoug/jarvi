@@ -5,12 +5,17 @@
  */
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
-import { Gear } from '@phosphor-icons/react';
+import { useScrollSpy } from '../../hooks/useScrollSpy';
+import { Gear, CaretRight, Sparkle } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
+import type { ToolCallData } from '../../hooks/useChatStream';
 import { useLists } from '../../contexts/ListContext';
 import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
+import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
-import { TasksSidebar, ListType } from '../../components/features/tasks';
+import { TasksSidebar, ListType, SECTION_IDS, LIST_TO_SECTION } from '../../components/features/tasks';
+import type { SectionId } from '../../components/features/tasks';
 import { Button, TaskCreationData, Collapsible } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
@@ -83,6 +88,39 @@ function getCurrentWeekUpcomingBounds(today: Date): { start: string; end: string
   };
 }
 
+// ── Module-level constants (stable, never recreated) ─────────────────────────
+
+/** Default open/collapsed state for every section in the all-view. */
+const ALL_SECTIONS_OPEN: Record<string, boolean> = {
+  vencidas: true,
+  hoje: true,
+  amanha: true,
+  'esta-semana': true,
+  'semana-que-vem': true,
+  'sem-data': true,
+  'eventos-futuros': true,
+  'algum-dia': true,
+  completadas: false,
+};
+
+/**
+ * Maps a section DOM id → the openSections keys that should remain open when
+ * the user focuses that section from the sidebar.
+ * "Esta semana" keeps all three week-group sub-sections open together.
+ */
+const SECTION_FOCUS_MAP: Record<string, string[]> = {
+  'section-vencidas': ['vencidas'],
+  'section-hoje': ['hoje'],
+  'section-amanha': ['amanha', 'esta-semana', 'semana-que-vem'],
+  'section-esta-semana': ['amanha', 'esta-semana', 'semana-que-vem'],
+  'section-semana-que-vem': ['amanha', 'esta-semana', 'semana-que-vem'],
+  'section-eventos-futuros': ['eventos-futuros'],
+  'section-sem-data': ['sem-data'],
+  'section-completadas': ['completadas'],
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function Tasks() {
   const [selectedList, setSelectedList] = useState<ListType>('all');
   const [selectedCustomListId, setSelectedCustomListId] = useState<string | null>(null);
@@ -90,25 +128,69 @@ export function Tasks() {
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
   const [isEditListOpen, setIsEditListOpen] = useState(false);
   const addListButtonRef = useRef<HTMLButtonElement>(null);
+  // Ref forwarded to MainLayout's .mainBody — used as IntersectionObserver root
+  const mainBodyRef = useRef<HTMLDivElement>(null);
+
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [movingTask, setMovingTask] = useState<{ taskId: string; fromSection: string; toSection: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMode, setChatMode] = useState<'task' | 'general'>('general');
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
+  const [chatKey, setChatKey] = useState(0);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    vencidas: true,
-    hoje: true,
-    amanha: true,
-    'esta-semana': true,
-    'semana-que-vem': true,
-    'sem-data': true,
-    'eventos-futuros': true,
-    'algum-dia': true,
-    completadas: false,
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
+
+  // ── Scroll spy (only active in the "all" grouped view) ──────────────────────
+  const activeSectionId = useScrollSpy({
+    sectionIds: [...SECTION_IDS],
+    enabled: selectedList === 'all' && !selectedCustomListId && !selectedCategoryName,
   });
 
+  // ── Programmatic scroll-to-section ──────────────────────────────────────────
+  //
+  // Called by TasksSidebar when the user clicks a nav item while in all-view.
+  // 1. Collapses every section except the focused group (instant state update).
+  // 2. Waits for the Collapsible CSS transition to finish (300 ms + 40 ms buffer).
+  // 3. Measures the element's final position and scrolls the container to it.
+  //
+  // We use mainBodyRef.current.scrollTo() instead of scrollIntoView() because
+  // the browser can't reliably target elements inside a custom overflow container
+  // while its siblings are still mid-animation.
+  const handleScrollToSection = useCallback(
+    (sectionId: SectionId) => {
+      const keysToOpen = SECTION_FOCUS_MAP[sectionId] ?? [];
+      setOpenSections(
+        Object.fromEntries(
+          Object.keys(ALL_SECTIONS_OPEN).map((k) => [k, keysToOpen.includes(k)]),
+        ),
+      );
+
+      // The Collapsible content transitions over 300 ms (max-height 0.3s ease).
+      // We wait 340 ms so the layout is fully settled before measuring positions.
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        const container = mainBodyRef.current;
+        if (!el || !container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        // Offset from the element top to the container top, adjusted for the
+        // container's current scroll position. Subtract 16 px for visual breathing room.
+        const targetScrollTop =
+          container.scrollTop + (elRect.top - containerRect.top) - 16;
+
+        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+      }, 340);
+    },
+    // mainBodyRef is a stable ref object — safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const queryClient = useQueryClient();
   const { 
-    fetchTasks,
     tasks, 
     isLoading, 
     error, 
@@ -239,7 +321,118 @@ export function Tasks() {
 
   const handleDialogClose = () => {
     setSelectedTask(null);
+    setIsChatOpen(false);
   };
+
+  const handleOpenChatFromTask = useCallback(() => {
+    setChatMode('task');
+    setIsChatOpen(true);
+  }, []);
+
+  const handleOpenChatGeneral = useCallback((text?: string) => {
+    setChatMode('general');
+    if (text) {
+      // Force a fresh panel so the initial message is always sent cleanly
+      setChatKey((k) => k + 1);
+      setChatInitialMessage(text);
+    }
+    setIsChatOpen(true);
+  }, []);
+
+  const handleCloseChat = useCallback(() => {
+    setIsChatOpen(false);
+    setChatInitialMessage(undefined);
+  }, []);
+
+  const handleChatTaskCardClick = useCallback((taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (task) setSelectedTask(task);
+  }, [tasks]);
+
+  const handleChatTaskMutated = useCallback((toolCalls: ToolCallData[]) => {
+    toolCalls.forEach((tc) => {
+      if (!tc.result?.success || !tc.result.data) return;
+      const d = tc.result.data;
+
+      switch (tc.toolName) {
+        case 'create_task': {
+          const newTask: Task = {
+            id: d.id as string,
+            user_id: '',
+            title: d.title as string,
+            description: (d.description as string | undefined) ?? undefined,
+            completed: false,
+            priority: (d.priority as Task['priority']) || 'medium',
+            category: (d.category as string | undefined) ?? undefined,
+            due_date: (d.due_date as string | undefined) ?? undefined,
+            important: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          queryClient.setQueryData<Task[]>(['tasks'], (old) => [...(old ?? []), newTask]);
+          break;
+        }
+        case 'update_task': {
+          const updatedId = d.id as string;
+          const patch = {
+            title: d.title as string | undefined,
+            description: d.description as string | undefined,
+            priority: d.priority as Task['priority'] | undefined,
+            category: d.category as string | undefined,
+            due_date: d.due_date as string | undefined,
+            completed: d.completed as boolean | undefined,
+          };
+          // Update query cache immediately so the list reflects changes
+          queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+            (old ?? []).map((t) =>
+              t.id === updatedId
+                ? {
+                    ...t,
+                    ...(patch.title !== undefined && { title: patch.title }),
+                    ...(patch.description !== undefined && { description: patch.description }),
+                    ...(patch.priority !== undefined && { priority: patch.priority }),
+                    ...(patch.category !== undefined && { category: patch.category }),
+                    ...(patch.due_date !== undefined && { due_date: patch.due_date }),
+                    ...(patch.completed !== undefined && { completed: patch.completed }),
+                  }
+                : t,
+            ),
+          );
+          // Also update the open sidebar immediately
+          setSelectedTask((prev) => {
+            if (!prev || prev.id !== updatedId) return prev;
+            return {
+              ...prev,
+              ...(patch.title !== undefined && { title: patch.title }),
+              ...(patch.description !== undefined && { description: patch.description }),
+              ...(patch.priority !== undefined && { priority: patch.priority }),
+              ...(patch.category !== undefined && { category: patch.category }),
+              ...(patch.due_date !== undefined && { due_date: patch.due_date }),
+              ...(patch.completed !== undefined && { completed: patch.completed }),
+            };
+          });
+          break;
+        }
+        case 'complete_task':
+          queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+            (old ?? []).map((t) =>
+              t.id === (d.id as string) ? { ...t, completed: true } : t,
+            ),
+          );
+          break;
+        case 'delete_task':
+          queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+            (old ?? []).filter((t) => t.id !== (d.id as string)),
+          );
+          break;
+        default:
+          break;
+      }
+    });
+
+    // Always follow up with a refetch to ensure consistency with the server
+    queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  }, [queryClient]);
 
   const handleOpenDatePicker = (task: any) => {
     // Placeholder - can add date picker later
@@ -249,12 +442,12 @@ export function Tasks() {
   const handleConfirmPendingTask = useCallback(async (pendingTaskId: string) => {
     try {
       await confirmPendingTask(pendingTaskId);
-      await fetchTasks();
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
     } catch (error) {
       console.error('Failed to confirm pending task:', error);
       toast.error('Não foi possível confirmar a tarefa pendente.');
     }
-  }, [confirmPendingTask, fetchTasks]);
+  }, [confirmPendingTask, queryClient]);
 
   const handleRejectPendingTask = useCallback(async (pendingTaskId: string) => {
     try {
@@ -403,34 +596,34 @@ export function Tasks() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
+    const { start: nextWeekStartStr } = getNextWeekBounds(today);
 
     return visibleTasks.filter(task => {
-      // For list views, we typically show incomplete tasks only
-      // (completed tasks can be shown separately if needed)
-      
       switch (selectedList) {
         case 'important':
           return task.important === true && !task.completed;
-        case 'overdue':
+        case 'overdue': {
           if (!task.due_date || task.completed) return false;
-          const taskDateStr = task.due_date.split('T')[0];
-          return taskDateStr < todayStr;
+          return task.due_date.split('T')[0] < todayStr;
+        }
         case 'today':
           if (!task.due_date || task.completed) return false;
           return task.due_date.split('T')[0] === todayStr;
-        case 'tomorrow':
+        case 'tomorrow': {
+          const tomorrow = new Date(today);
+          tomorrow.setDate(today.getDate() + 1);
           if (!task.due_date || task.completed) return false;
-          return task.due_date.split('T')[0] === tomorrowStr;
+          return task.due_date.split('T')[0] === tomorrow.toISOString().split('T')[0];
+        }
         case 'week':
+          // "Esta semana" = today through the day before next Monday
           if (!task.due_date || task.completed) return false;
-          const weekTaskDateStr = task.due_date.split('T')[0];
-          return weekTaskDateStr >= nextWeekStartStr && weekTaskDateStr < nextWeekEndStr;
+          return task.due_date.split('T')[0] >= todayStr && task.due_date.split('T')[0] < nextWeekStartStr;
+        case 'later':
+          // "Mais pra frente" = next week and beyond
+          if (!task.due_date || task.completed) return false;
+          return task.due_date.split('T')[0] >= nextWeekStartStr;
         case 'noDate':
           return !task.due_date && !task.completed;
         case 'completed':
@@ -570,26 +763,17 @@ export function Tasks() {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const { start: nextWeekStartStr } = getNextWeekBounds(today);
 
-    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
-
-    let important = 0;
-    let overdue = 0;
     let todayCount = 0;
-    let tomorrowCount = 0;
-    let week = 0;
-    let later = 0;
+    let week = 0;   // Esta semana: today → end of this calendar week
+    let later = 0;  // Mais pra frente: next week+
     let noDate = 0;
     let all = 0;
 
     tasks.forEach((task) => {
       if (task.completed) return;
       all += 1;
-
-      if (task.important) important += 1;
 
       if (!task.due_date) {
         noDate += 1;
@@ -598,32 +782,25 @@ export function Tasks() {
 
       const dateStr = task.due_date.split('T')[0];
 
-      if (dateStr < todayStr) {
-        overdue += 1;
-      } else if (dateStr === todayStr) {
+      if (dateStr === todayStr) {
         todayCount += 1;
-      } else if (dateStr === tomorrowStr) {
-        tomorrowCount += 1;
-      } else if (dateStr >= nextWeekStartStr && dateStr < nextWeekEndStr) {
+      } else if (dateStr > todayStr && dateStr < nextWeekStartStr) {
         week += 1;
-      } else if (dateStr > tomorrowStr) {
+      } else if (dateStr >= nextWeekStartStr) {
         later += 1;
       }
+      // overdue tasks (dateStr < todayStr) are shown in the all-view but not
+      // counted for the new simplified sidebar items.
     });
 
-    return {
-      all,
-      important,
-      overdue,
-      today: todayCount,
-      tomorrow: tomorrowCount,
-      week,
-      later,
-      noDate,
-    };
+    return { all, today: todayCount, week, later, noDate };
   }, [tasks]);
 
   const handleListSelect = (listType: ListType) => {
+    // Returning to the all-view: restore every section to its default open state
+    if (listType === 'all') {
+      setOpenSections(ALL_SECTIONS_OPEN);
+    }
     setSelectedList(listType);
     setSelectedCustomListId(null);
     setSelectedCategoryName(null);
@@ -690,6 +867,8 @@ export function Tasks() {
         taskCounts={sidebarTaskCounts}
         categories={sidebarCategories}
         customLists={customLists.map((l) => ({ id: l.id, name: l.name }))}
+        activeSectionId={activeSectionId}
+        onScrollToSection={handleScrollToSection}
       />
       <CreateListPopover
         isOpen={isCreateListOpen}
@@ -1025,6 +1204,30 @@ export function Tasks() {
     );
   }), []);
 
+  // Compute right sidebar content based on chat/task selection state
+  const computedRightSidebar = isChatOpen ? (
+    <AIChatPanel
+      key={chatKey}
+      mode={chatMode}
+      taskId={chatMode === 'task' ? selectedTask?.id : undefined}
+      taskTitle={chatMode === 'task' ? selectedTask?.title : undefined}
+      onClose={handleCloseChat}
+      onTaskMutated={handleChatTaskMutated}
+      initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
+      onTaskCardClick={handleChatTaskCardClick}
+    />
+  ) : selectedTask ? (
+    <TaskDetailsSidebar
+      isOpen={true}
+      task={selectedTask}
+      onClose={handleDialogClose}
+      onUpdateTask={handleUpdateTask}
+      onToggleCompletion={handleToggleCompletion}
+      onDelete={handleDeleteTask}
+      onOpenChat={handleOpenChatFromTask}
+    />
+  ) : undefined;
+
   if (isLoading) {
     return (
       <MainLayout
@@ -1033,17 +1236,12 @@ export function Tasks() {
         titleVariant={isCustomListView ? 'heading' : 'display'}
         titleDescription={pageDescription}
         headerActions={headerActions}
-        activePage="tasks"
         onCreateTask={handleControlBarCreateTask}
-        rightSidebar={selectedTask ? (
-          <TaskDetailsSidebar
-            isOpen={true}
-            task={selectedTask}
-            onClose={handleDialogClose}
-            onUpdateTask={handleUpdateTask}
-            onToggleCompletion={handleToggleCompletion}
-          />
-        ) : undefined}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        mainBodyRef={mainBodyRef}
       >
         <div className={styles.loading}>Carregando tarefas...</div>
       </MainLayout>
@@ -1058,19 +1256,96 @@ export function Tasks() {
         titleVariant={isCustomListView ? 'heading' : 'display'}
         titleDescription={pageDescription}
         headerActions={headerActions}
-        activePage="tasks"
         onCreateTask={handleControlBarCreateTask}
-        rightSidebar={selectedTask ? (
-          <TaskDetailsSidebar
-            isOpen={true}
-            task={selectedTask}
-            onClose={handleDialogClose}
-            onUpdateTask={handleUpdateTask}
-            onToggleCompletion={handleToggleCompletion}
-          />
-        ) : undefined}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        mainBodyRef={mainBodyRef}
       >
         <div className={styles.error}>Erro: {error}</div>
+      </MainLayout>
+    );
+  }
+
+  // General chat + task selected: task detail in center, chat stays intact on right
+  if (isChatOpen && chatMode === 'general' && selectedTask) {
+    return (
+      <MainLayout
+        sidebar={sidebarNode}
+        title={pageTitle}
+        hideHeader={true}
+        onCreateTask={handleControlBarCreateTask}
+        rightSidebar={computedRightSidebar}
+        hideControlBar={true}
+        mainBodyRef={mainBodyRef}
+      >
+        <div className={styles.taskChatCenter}>
+          <div className={styles.taskChatSidebarWrapper}>
+            <TaskDetailsSidebar
+              isOpen={true}
+              task={selectedTask}
+              onClose={() => setSelectedTask(null)}
+              onUpdateTask={handleUpdateTask}
+              onToggleCompletion={handleToggleCompletion}
+              onDelete={handleDeleteTask}
+              onOpenChat={undefined}
+            />
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Task + Chat mode: task details expand to center column, chat stays on right
+  if (isChatOpen && chatMode === 'task' && selectedTask) {
+    return (
+      <MainLayout
+        sidebar={sidebarNode}
+        title={pageTitle}
+        hideHeader={true}
+        onCreateTask={handleControlBarCreateTask}
+        mainBodyRef={mainBodyRef}
+        rightSidebar={
+          <AIChatPanel
+            key={chatKey}
+            mode="task"
+            taskId={selectedTask.id}
+            taskTitle={selectedTask.title}
+            onClose={handleCloseChat}
+            onTaskMutated={handleChatTaskMutated}
+          />
+        }
+        hideControlBar={true}
+      >
+        <div className={styles.taskChatCenter}>
+          <nav className={styles.taskBreadcrumb}>
+            <Sparkle weight="fill" size={16} className={styles.taskBreadcrumbIcon} />
+            <button
+              className={styles.taskBreadcrumbHome}
+              onClick={handleCloseChat}
+              type="button"
+            >
+              {pageTitle}
+            </button>
+            <CaretRight size={14} className={styles.taskBreadcrumbSeparator} />
+            <span className={styles.taskBreadcrumbCurrent}>{selectedTask.title}</span>
+          </nav>
+          <div className={styles.taskChatSidebarWrapper}>
+            <TaskDetailsSidebar
+              isOpen={true}
+              task={selectedTask}
+              onClose={() => {
+                handleCloseChat();
+                setSelectedTask(null);
+              }}
+              onUpdateTask={handleUpdateTask}
+              onToggleCompletion={handleToggleCompletion}
+              onDelete={handleDeleteTask}
+              onOpenChat={undefined}
+            />
+          </div>
+        </div>
       </MainLayout>
     );
   }
@@ -1093,17 +1368,12 @@ export function Tasks() {
         titleVariant={isCustomListView ? 'heading' : 'display'}
         titleDescription={pageDescription}
         headerActions={headerActions}
-        activePage="tasks"
         onCreateTask={handleControlBarCreateTask}
-        rightSidebar={selectedTask ? (
-          <TaskDetailsSidebar
-            isOpen={true}
-            task={selectedTask}
-            onClose={handleDialogClose}
-            onUpdateTask={handleUpdateTask}
-            onToggleCompletion={handleToggleCompletion}
-          />
-        ) : undefined}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        mainBodyRef={mainBodyRef}
       >
         <div className={styles.content}>
           <div className={styles.sectionContent}>
@@ -1171,19 +1441,13 @@ export function Tasks() {
       titleVariant={isCustomListView ? 'heading' : 'display'}
       titleDescription={pageDescription}
       headerActions={headerActions}
-      activePage="tasks"
       onCreateTask={handleControlBarCreateTask}
       onOpenTaskDetails={handleTaskClick}
-      rightSidebar={selectedTask ? (
-        <TaskDetailsSidebar
-          isOpen={true}
-          task={selectedTask}
-          onClose={handleDialogClose}
-          onUpdateTask={handleUpdateTask}
-          onToggleCompletion={handleToggleCompletion}
-          onDelete={handleDeleteTask}
-        />
-      ) : undefined}
+      rightSidebar={computedRightSidebar}
+      onOpenChat={handleOpenChatGeneral}
+      onSubmitPrompt={handleOpenChatGeneral}
+      hideControlBar={isChatOpen}
+      mainBodyRef={mainBodyRef}
     >
       <DndContext
         sensors={sensors}
@@ -1228,129 +1492,112 @@ export function Tasks() {
             </section>
           )}
 
+          {/* ── Section anchors: each div gets a stable id so IntersectionObserver
+               can track which section is currently visible (scroll spy). ── */}
+
           {/* Vencidas */}
-          <DroppableSection
-            title="Vencidas"
-            tasks={categorizedTasks.vencidas}
-            emptyMessage="Nenhuma tarefa vencida"
-            sectionId="vencidas"
-            defaultOpen={true}
-            isOpen={openSections.vencidas}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, vencidas: isOpen }))}
-            onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
-            onUpdateTask={handleUpdateTask}
-            onOpenDatePicker={handleOpenDatePicker}
-            onClick={handleTaskClick}
-            insertionIndicator={insertionIndicator}
-            movingTask={movingTask}
-            selectedTaskId={selectedTask?.id}
-            hideCategoryChip={!!selectedTask}
-            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
-          />
+          <div id="section-vencidas" className={styles.sectionAnchor}>
+            <DroppableSection
+              title="Vencidas"
+              tasks={categorizedTasks.vencidas}
+              emptyMessage="Nenhuma tarefa vencida"
+              sectionId="vencidas"
+              defaultOpen={true}
+              isOpen={openSections.vencidas}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, vencidas: isOpen }))}
+              onToggleCompletion={handleToggleCompletion}
+              onEdit={handleEdit}
+              onDelete={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
+              insertionIndicator={insertionIndicator}
+              movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
+            />
+          </div>
 
           {/* Hoje */}
-          <DroppableSection
-            title="Hoje"
-            tasks={categorizedTasks.hoje}
-            emptyMessage="Nenhuma tarefa para hoje"
-            sectionId="hoje"
-            defaultOpen={true}
-            isOpen={openSections.hoje}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, hoje: isOpen }))}
-            onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
-            onUpdateTask={handleUpdateTask}
-            onOpenDatePicker={handleOpenDatePicker}
-            onClick={handleTaskClick}
-            insertionIndicator={insertionIndicator}
-            movingTask={movingTask}
-            selectedTaskId={selectedTask?.id}
-            hideCategoryChip={!!selectedTask}
-            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
-          />
+          <div id="section-hoje" className={styles.sectionAnchor}>
+            <DroppableSection
+              title="Hoje"
+              tasks={categorizedTasks.hoje}
+              emptyMessage="Nenhuma tarefa para hoje"
+              sectionId="hoje"
+              defaultOpen={true}
+              isOpen={openSections.hoje}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, hoje: isOpen }))}
+              onToggleCompletion={handleToggleCompletion}
+              onEdit={handleEdit}
+              onDelete={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
+              insertionIndicator={insertionIndicator}
+              movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
+            />
+          </div>
 
           {/* Amanhã */}
-          <DroppableSection
-            title="Amanhã"
-            tasks={categorizedTasks.amanha}
-            emptyMessage="Nenhuma tarefa para amanhã"
-            sectionId="amanha"
-            defaultOpen={true}
-            isOpen={openSections.amanha}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, amanha: isOpen }))}
-            onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
-            onUpdateTask={handleUpdateTask}
-            onOpenDatePicker={handleOpenDatePicker}
-            onClick={handleTaskClick}
-            insertionIndicator={insertionIndicator}
-            movingTask={movingTask}
-            selectedTaskId={selectedTask?.id}
-            hideCategoryChip={!!selectedTask}
-            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
-          />
+          <div id="section-amanha" className={styles.sectionAnchor}>
+            <DroppableSection
+              title="Amanhã"
+              tasks={categorizedTasks.amanha}
+              emptyMessage="Nenhuma tarefa para amanhã"
+              sectionId="amanha"
+              defaultOpen={true}
+              isOpen={openSections.amanha}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, amanha: isOpen }))}
+              onToggleCompletion={handleToggleCompletion}
+              onEdit={handleEdit}
+              onDelete={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
+              insertionIndicator={insertionIndicator}
+              movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
+            />
+          </div>
 
-          {/* Esta semana */}
-          <DroppableSection
-            title="Ainda esta semana"
-            tasks={categorizedTasks.estaSemana}
-            emptyMessage="Nenhuma tarefa para esta semana"
-            sectionId="esta-semana"
-            defaultOpen={true}
-            isOpen={openSections['esta-semana']}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'esta-semana': isOpen }))}
-            onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
-            onUpdateTask={handleUpdateTask}
-            onOpenDatePicker={handleOpenDatePicker}
-            onClick={handleTaskClick}
-            insertionIndicator={insertionIndicator}
-            movingTask={movingTask}
-            selectedTaskId={selectedTask?.id}
-            hideCategoryChip={!!selectedTask}
-            showDayOfWeek={true}
-            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
-          />
+          {/* Esta semana (restante) */}
+          <div id="section-esta-semana" className={styles.sectionAnchor}>
+            <DroppableSection
+              title="Ainda esta semana"
+              tasks={categorizedTasks.estaSemana}
+              emptyMessage="Nenhuma tarefa para esta semana"
+              sectionId="esta-semana"
+              defaultOpen={true}
+              isOpen={openSections['esta-semana']}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'esta-semana': isOpen }))}
+              onToggleCompletion={handleToggleCompletion}
+              onEdit={handleEdit}
+              onDelete={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
+              insertionIndicator={insertionIndicator}
+              movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
+              showDayOfWeek={true}
+            />
+          </div>
 
           {/* Semana que vem */}
-          <DroppableSection
-            title="Semana que vem"
-            tasks={categorizedTasks.semanaQueVem}
-            emptyMessage="Nenhuma tarefa para a semana que vem"
-            sectionId="semana-que-vem"
-            defaultOpen={true}
-            isOpen={openSections['semana-que-vem']}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'semana-que-vem': isOpen }))}
-            onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
-            onUpdateTask={handleUpdateTask}
-            onOpenDatePicker={handleOpenDatePicker}
-            onClick={handleTaskClick}
-            insertionIndicator={insertionIndicator}
-            movingTask={movingTask}
-            selectedTaskId={selectedTask?.id}
-            hideCategoryChip={!!selectedTask}
-            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
-          />
-
-         
-
-          {/* Eventos Futuros */}
-          {categorizedTasks.eventosFuturos.length > 0 && (
+          <div id="section-semana-que-vem" className={styles.sectionAnchor}>
             <DroppableSection
-              title="Mais pra Frente"
-              tasks={categorizedTasks.eventosFuturos}
-              emptyMessage="Nenhum evento futuro"
-              sectionId="eventos-futuros"
+              title="Semana que vem"
+              tasks={categorizedTasks.semanaQueVem}
+              emptyMessage="Nenhuma tarefa para a semana que vem"
+              sectionId="semana-que-vem"
               defaultOpen={true}
-              isOpen={openSections['eventos-futuros']}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
+              isOpen={openSections['semana-que-vem']}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'semana-que-vem': isOpen }))}
               onToggleCompletion={handleToggleCompletion}
               onEdit={handleEdit}
               onDelete={handleDeleteTask}
@@ -1361,54 +1608,81 @@ export function Tasks() {
               movingTask={movingTask}
               selectedTaskId={selectedTask?.id}
               hideCategoryChip={!!selectedTask}
-              // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
             />
-          )}
+          </div>
 
-           {/* Sem data */}
-           <DroppableSection
-            title="Sem data ainda"
-            tasks={categorizedTasks.semData}
-            emptyMessage="Nenhuma tarefa sem data"
-            sectionId="sem-data"
-            defaultOpen={true}
-            isOpen={openSections['sem-data']}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'sem-data': isOpen }))}
-            onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
-            onUpdateTask={handleUpdateTask}
-            onOpenDatePicker={handleOpenDatePicker}
-            onClick={handleTaskClick}
-            insertionIndicator={insertionIndicator}
-            movingTask={movingTask}
-            selectedTaskId={selectedTask?.id}
-            hideCategoryChip={!!selectedTask}
-            // onQuickCreate={handleQuickCreate} // NOT USED IN MVP INITIAL
-          />
+          {/* Mais pra Frente */}
+          <div id="section-eventos-futuros" className={styles.sectionAnchor}>
+            {categorizedTasks.eventosFuturos.length > 0 && (
+              <DroppableSection
+                title="Mais pra Frente"
+                tasks={categorizedTasks.eventosFuturos}
+                emptyMessage="Nenhum evento futuro"
+                sectionId="eventos-futuros"
+                defaultOpen={true}
+                isOpen={openSections['eventos-futuros']}
+                onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
+                onToggleCompletion={handleToggleCompletion}
+                onEdit={handleEdit}
+                onDelete={handleDeleteTask}
+                onUpdateTask={handleUpdateTask}
+                onOpenDatePicker={handleOpenDatePicker}
+                onClick={handleTaskClick}
+                insertionIndicator={insertionIndicator}
+                movingTask={movingTask}
+                selectedTaskId={selectedTask?.id}
+                hideCategoryChip={!!selectedTask}
+              />
+            )}
+          </div>
+
+          {/* Sem data */}
+          <div id="section-sem-data" className={styles.sectionAnchor}>
+            <DroppableSection
+              title="Sem data ainda"
+              tasks={categorizedTasks.semData}
+              emptyMessage="Nenhuma tarefa sem data"
+              sectionId="sem-data"
+              defaultOpen={true}
+              isOpen={openSections['sem-data']}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'sem-data': isOpen }))}
+              onToggleCompletion={handleToggleCompletion}
+              onEdit={handleEdit}
+              onDelete={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
+              insertionIndicator={insertionIndicator}
+              movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
+            />
+          </div>
 
           {/* Tarefas Concluídas */}
-          {categorizedTasks.completadas.length > 0 && (
-            <DroppableSection
-              title="Tarefas Concluídas"
-              tasks={categorizedTasks.completadas}
-              emptyMessage="Nenhuma tarefa concluída"
-              sectionId="completadas"
-              defaultOpen={false}
-              isOpen={openSections.completadas}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, completadas: isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-            />
-          )}
+          <div id="section-completadas" className={styles.sectionAnchor}>
+            {categorizedTasks.completadas.length > 0 && (
+              <DroppableSection
+                title="Tarefas Concluídas"
+                tasks={categorizedTasks.completadas}
+                emptyMessage="Nenhuma tarefa concluída"
+                sectionId="completadas"
+                defaultOpen={false}
+                isOpen={openSections.completadas}
+                onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, completadas: isOpen }))}
+                onToggleCompletion={handleToggleCompletion}
+                onEdit={handleEdit}
+                onDelete={handleDeleteTask}
+                onUpdateTask={handleUpdateTask}
+                onOpenDatePicker={handleOpenDatePicker}
+                onClick={handleTaskClick}
+                insertionIndicator={insertionIndicator}
+                movingTask={movingTask}
+                selectedTaskId={selectedTask?.id}
+                hideCategoryChip={!!selectedTask}
+              />
+            )}
+          </div>
         </div>
 
         <DragOverlay>

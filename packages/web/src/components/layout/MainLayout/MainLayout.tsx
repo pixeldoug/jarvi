@@ -5,7 +5,7 @@
  * Following JarviDS design system from Figma
  */
 
-import { ReactNode } from 'react';
+import { ReactNode, RefObject } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
@@ -23,8 +23,6 @@ export interface MainLayoutProps {
   children: ReactNode;
   /** Page title */
   title: string;
-  /** Current active page for ControlBar */
-  activePage?: 'tasks' | 'notes' | 'goals' | 'finances';
   /** Header actions (optional buttons/icons) */
   headerActions?: ReactNode;
   /** Header title visual variant */
@@ -37,19 +35,33 @@ export interface MainLayoutProps {
   onOpenTaskDetails?: (task: any) => void;
   /** Right sidebar slot (e.g., TaskDetailsSidebar) */
   rightSidebar?: ReactNode;
+  /** Callback to open AI chat panel */
+  onOpenChat?: () => void;
+  /** Callback when user submits a prompt from the ControlBar (passes the text) */
+  onSubmitPrompt?: (text: string) => void;
+  /** When true, hides the ControlBar (e.g. while chat panel is open) */
+  hideControlBar?: boolean;
+  /** When true, hides the page title/header (e.g. when task details fill the center column) */
+  hideHeader?: boolean;
+  /** Ref forwarded to the scrollable main body div — used for scroll-spy roots. */
+  mainBodyRef?: RefObject<HTMLDivElement>;
 }
 
 export function MainLayout({
   sidebar,
   children,
   title,
-  activePage = 'tasks',
   headerActions,
   titleVariant = 'display',
   titleDescription,
   onCreateTask,
   onOpenTaskDetails,
   rightSidebar,
+  onOpenChat,
+  onSubmitPrompt,
+  hideControlBar = false,
+  hideHeader = false,
+  mainBodyRef,
 }: MainLayoutProps) {
   const { isDark } = useTheme();
   const backgroundImage = isDark ? bgDark : bgLight;
@@ -84,21 +96,23 @@ export function MainLayout({
             <UserMenu compact={!!rightSidebar} />
           </div>
 
-          <header className={styles.mainHeader}>
-            <div className={styles.mainHeaderContent}>
-              <div className={styles.mainTitleRow}>
-                <h1 className={mainTitleClasses}>{title}</h1>
-                {headerActions && (
-                  <div className={styles.mainHeaderActions}>{headerActions}</div>
+          {!hideHeader && (
+            <header className={styles.mainHeader}>
+              <div className={styles.mainHeaderContent}>
+                <div className={styles.mainTitleRow}>
+                  <h1 className={mainTitleClasses}>{title}</h1>
+                  {headerActions && (
+                    <div className={styles.mainHeaderActions}>{headerActions}</div>
+                  )}
+                </div>
+                {titleDescription && (
+                  <p className={styles.mainDescription}>{titleDescription}</p>
                 )}
               </div>
-              {titleDescription && (
-                <p className={styles.mainDescription}>{titleDescription}</p>
-              )}
-            </div>
-          </header>
+            </header>
+          )}
           
-          <div className={styles.mainBody}>
+          <div className={styles.mainBody} ref={mainBodyRef}>
             {children}
           </div>
         </main>
@@ -118,8 +132,14 @@ export function MainLayout({
           )}
         </AnimatePresence>
 
-        {/* Control Bar */}
-        <ControlBar activePage={activePage} onCreateTask={onCreateTask} onOpenTaskDetails={onOpenTaskDetails} />
+        {/* Control Bar – hidden while chat panel is open */}
+        <ControlBar
+          onCreateTask={onCreateTask}
+          onOpenTaskDetails={onOpenTaskDetails}
+          onOpenChat={onOpenChat}
+          onSubmitPrompt={onSubmitPrompt}
+          hidden={hideControlBar}
+        />
       </div>
     </div>
   );

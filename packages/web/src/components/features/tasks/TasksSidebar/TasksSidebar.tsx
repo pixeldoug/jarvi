@@ -1,86 +1,132 @@
 /**
  * TasksSidebar Component - Jarvi Web
- * 
- * Sidebar specific to Tasks page with lists and categories
- * Following JarviDS design system from Figma
+ *
+ * Left-rail navigation for the Tasks page.
+ *
+ * Behaviour
+ * ─────────
+ * • The six high-level items represent *context* (what the user is looking at),
+ *   not filters.
+ * • When the user is in the "Todas as tarefas" (all) view, scrolling through the
+ *   grouped sections updates the active sidebar item via scroll-spy.  Clicking
+ *   a section item scrolls to that section instead of switching views.
+ * • In every other view (Hoje, Esta semana, …) clicking an item switches the
+ *   view context.
  */
 
 import {
   Checks,
-  FireSimple,
   Flag,
-  SunHorizon,
   Couch,
-  Prohibit,
-  HourglassLow,
   MoonStars,
+  Prohibit,
+  CheckCircle,
   Plus,
   Hash,
 } from '@phosphor-icons/react';
 import { ListItem } from '../../../ui/ListItem';
 import styles from './TasksSidebar.module.css';
 
-export type ListType = 'all' | 'important' | 'today' | 'tomorrow' | 'week' | 'later' | 'noDate' | 'overdue' | 'completed';
+export type ListType =
+  | 'all'
+  | 'important'
+  | 'today'
+  | 'tomorrow'
+  | 'week'
+  | 'later'
+  | 'noDate'
+  | 'overdue'
+  | 'completed';
+
 export type CategoryType = string;
 
+// ── Section-ID constants ──────────────────────────────────────────────────────
+// These must match the `id` attributes placed on the section anchor <div>s in
+// the Tasks page "all" view.
+
+export const SECTION_IDS = [
+  'section-vencidas',
+  'section-hoje',
+  'section-amanha',
+  'section-esta-semana',
+  'section-semana-que-vem',
+  'section-eventos-futuros',
+  'section-sem-data',
+  'section-completadas',
+] as const;
+
+export type SectionId = (typeof SECTION_IDS)[number];
+
+/** Maps a section DOM id → the sidebar ListType that "owns" it. */
+export const SECTION_TO_LIST: Record<SectionId, ListType> = {
+  'section-vencidas': 'today',
+  'section-hoje': 'today',
+  'section-amanha': 'week',
+  'section-esta-semana': 'week',
+  'section-semana-que-vem': 'week',
+  'section-eventos-futuros': 'later',
+  'section-sem-data': 'noDate',
+  'section-completadas': 'completed',
+};
+
+/** Maps a sidebar ListType → the first section to scroll to in the all-view. */
+export const LIST_TO_SECTION: Partial<Record<ListType, SectionId>> = {
+  today: 'section-hoje',
+  week: 'section-amanha',
+  later: 'section-eventos-futuros',
+  noDate: 'section-sem-data',
+  completed: 'section-completadas',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface TasksSidebarProps {
-  /** Currently selected list */
   selectedList?: ListType | null;
-  /** Currently selected custom list id */
   selectedCustomListId?: string | null;
-  /** Currently selected category */
   selectedCategory?: CategoryType | null;
-  /** Handler when a list is selected */
   onListSelect?: (listType: ListType) => void;
-  /** Handler when a custom list is selected */
   onCustomListSelect?: (listId: string) => void;
-  /** Handler when a category is selected */
   onCategorySelect?: (category: CategoryType) => void;
-  /** Handler for adding a new list/category */
   onAddClick?: () => void;
-  /** Ref to the add button (for anchoring popovers) */
   addButtonRef?: React.RefObject<HTMLButtonElement>;
-  /** Task counts per list */
   taskCounts?: {
     all?: number;
-    important?: number;
     today?: number;
-    tomorrow?: number;
     week?: number;
     later?: number;
     noDate?: number;
-    overdue?: number;
-    completed?: number;
   };
-  /** Categories with their task counts */
-  categories?: Array<{
-    id: string;
-    name: string;
-    count: number;
-  }>;
-
-  /** Custom lists (saved filters) */
-  customLists?: Array<{
-    id: string;
-    name: string;
-  }>;
+  categories?: Array<{ id: string; name: string; count: number }>;
+  customLists?: Array<{ id: string; name: string }>;
+  /**
+   * Section ID currently active via scroll-spy (only relevant when
+   * `selectedList === 'all'`).  The sidebar derives which nav item to
+   * highlight from this value using `SECTION_TO_LIST`.
+   */
+  activeSectionId?: string | null;
+  /**
+   * Called when the user clicks a non-"all" item while `selectedList === 'all'`.
+   * The Tasks page uses this to scroll-to-section instead of switching views.
+   */
+  onScrollToSection?: (sectionId: SectionId) => void;
 }
 
-const lists: Array<{
+// ─── Static nav list ──────────────────────────────────────────────────────────
+
+const NAV_ITEMS: Array<{
   id: ListType;
   label: string;
   icon: typeof Checks;
 }> = [
   { id: 'all', label: 'Todas as tarefas', icon: Checks },
-  { id: 'important', label: 'Prioridades', icon: FireSimple },
-  { id: 'overdue', label: 'Vencidas', icon: HourglassLow },
   { id: 'today', label: 'Hoje', icon: Flag },
-  { id: 'tomorrow', label: 'Amanhã', icon: SunHorizon },
-  { id: 'week', label: 'Semana que vem', icon: Couch },
+  { id: 'week', label: 'Esta semana', icon: Couch },
   { id: 'later', label: 'Mais pra frente', icon: MoonStars },
   { id: 'noDate', label: 'Sem data', icon: Prohibit },
-  { id: 'completed', label: 'Concluídas', icon: Checks },
+  { id: 'completed', label: 'Concluídas', icon: CheckCircle },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function TasksSidebar({
   selectedList = 'all',
@@ -94,17 +140,33 @@ export function TasksSidebar({
   taskCounts = {},
   categories = [],
   customLists = [],
+  activeSectionId,
+  onScrollToSection,
 }: TasksSidebarProps) {
-  const handleListClick = (listType: ListType) => {
+  // Derive which nav item the scroll-spy should highlight (all-view only)
+  const scrollSpyList: ListType | null =
+    selectedList === 'all' && activeSectionId
+      ? (SECTION_TO_LIST[activeSectionId as SectionId] ?? null)
+      : null;
+
+  const handleNavClick = (listType: ListType) => {
+    if (listType === 'all') {
+      // Always switch to all-view / deselect
+      onListSelect?.('all');
+      return;
+    }
+
+    if (selectedList === 'all' && onScrollToSection) {
+      // In all-view: scroll to the corresponding section anchor
+      const sectionId = LIST_TO_SECTION[listType];
+      if (sectionId) {
+        onScrollToSection(sectionId);
+        return;
+      }
+    }
+
+    // Filtered view: switch context
     onListSelect?.(listType);
-  };
-
-  const handleCustomListClick = (listId: string) => {
-    onCustomListSelect?.(listId);
-  };
-
-  const handleCategoryClick = (categoryName: string) => {
-    onCategorySelect?.(categoryName);
   };
 
   return (
@@ -127,25 +189,44 @@ export function TasksSidebar({
 
       {/* Body */}
       <div className={styles.body}>
-        {/* Lists */}
+        {/* Primary navigation */}
         <div className={styles.listSection}>
-          {lists.map((list) => (
-            <ListItem
-              key={list.id}
-              label={list.label}
-              icon={list.icon}
-              active={selectedList === list.id && !selectedCategory && !selectedCustomListId}
-              counter={list.id === 'completed' ? undefined : taskCounts[list.id]}
-              counterVariant="chip"
-              onClick={() => handleListClick(list.id)}
-            />
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isAllView = selectedList === 'all' && !selectedCategory && !selectedCustomListId;
+
+            let isActive: boolean;
+            if (isAllView) {
+              if (item.id === 'all') {
+                // "Todas as tarefas" is active only when no section is spy-active
+                isActive = scrollSpyList === null;
+              } else {
+                isActive = scrollSpyList === item.id;
+              }
+            } else {
+              isActive =
+                selectedList === item.id && !selectedCategory && !selectedCustomListId;
+            }
+
+            return (
+              <ListItem
+                key={item.id}
+                label={item.label}
+                icon={item.icon}
+                active={isActive}
+                counter={item.id !== 'all' && item.id !== 'completed' ? taskCounts[item.id as keyof typeof taskCounts] : undefined}
+                counterVariant="chip"
+                onClick={() => handleNavClick(item.id)}
+              />
+            );
+          })}
         </div>
 
         {/* Divider */}
-        {(customLists.length > 0 || categories.length > 0) && <div className={styles.divider} />}
+        {(customLists.length > 0 || categories.length > 0) && (
+          <div className={styles.divider} />
+        )}
 
-        {/* Custom Lists */}
+        {/* Custom lists */}
         {customLists.length > 0 && (
           <div className={styles.listSection}>
             {customLists.map((list) => (
@@ -154,13 +235,15 @@ export function TasksSidebar({
                 label={list.name}
                 icon={Hash}
                 active={selectedCustomListId === list.id}
-                onClick={() => handleCustomListClick(list.id)}
+                onClick={() => onCustomListSelect?.(list.id)}
               />
             ))}
           </div>
         )}
 
-        {customLists.length > 0 && categories.length > 0 && <div className={styles.divider} />}
+        {customLists.length > 0 && categories.length > 0 && (
+          <div className={styles.divider} />
+        )}
 
         {/* Categories */}
         {categories.length > 0 && (
@@ -173,7 +256,7 @@ export function TasksSidebar({
                 active={selectedCategory === category.name}
                 counter={category.count}
                 counterVariant="chip"
-                onClick={() => handleCategoryClick(category.name)}
+                onClick={() => onCategorySelect?.(category.name)}
               />
             ))}
           </div>
@@ -182,4 +265,3 @@ export function TasksSidebar({
     </div>
   );
 }
-

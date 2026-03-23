@@ -4,6 +4,7 @@
  */
 
 .sidebar {
+  position: relative;
   width: 100%;
   height: 100%;
   padding: var(--sizes-14) var(--sizes-9) var(--sizes-9);
@@ -14,11 +15,13 @@
   overflow-y: auto;
 }
 
-/* Close Button */
+/* Header Actions (Close + AI button) */
 .closeButton {
   position: absolute;
   top: 24px;
   right: 24px;
+  display: flex;
+  gap: var(--sizes-1);
 }
 
 /* Header: Checkbox + Title */

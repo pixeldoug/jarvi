@@ -18,8 +18,10 @@ import userRoutes from './routes/userRoutes';
 import earlyAccessRoutes from './routes/earlyAccessRoutes';
 import whatsappRoutes from './routes/whatsappRoutes';
 import pendingTaskRoutes from './routes/pendingTaskRoutes';
+import aiRoutes from './routes/aiRoutes';
 import { CollaborationService } from './services/collaborationService';
 import { initializeWhatsappWorker } from './queues/whatsappQueue';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -27,11 +29,21 @@ const PORT = process.env.PORT || 3001;
 // Keep original protocol/host when running behind reverse proxies (Railway, etc.).
 app.set('trust proxy', 1);
 
-// Rate limiting
+// Global rate limiter – per IP
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 500 : 5000,
   message: { error: 'Too many requests from this IP, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// AI rate limiter – per authenticated user (OpenAI calls are expensive)
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => (req as any).user?.id || req.ip || 'unknown',
+  message: { error: 'Too many AI requests, please wait a moment.' },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -161,7 +173,12 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/early-access', earlyAccessRoutes);
 app.use('/api/pending-tasks', pendingTaskRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api', noteShareRoutes);
+
+// Catch-all for unknown routes & central error handler
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Initialize database and start server
 initializeDatabase()
