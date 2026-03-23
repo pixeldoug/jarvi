@@ -14,7 +14,7 @@ import { useLists } from '../../contexts/ListContext';
 import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
-import { TasksSidebar, ListType, SECTION_IDS, LIST_TO_SECTION } from '../../components/features/tasks';
+import { TasksSidebar, ListType, SECTION_IDS } from '../../components/features/tasks';
 import type { SectionId } from '../../components/features/tasks';
 import { Button, TaskCreationData, Collapsible } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
