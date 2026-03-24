@@ -19,7 +19,7 @@ type FeatureKey = 'whatsapp' | 'email' | 'calendar' | 'wand' | 'cards' | 'checks
 const featureOrder: FeatureKey[] = ['whatsapp', 'email', 'calendar', 'wand', 'cards', 'checks'];
 
 const assets = {
-  screenExample: '/assets/images/screen-example.png',
+  screenExample: '/assets/images/screen-demo.avif',
   showcaseImage: '/assets/images/showcase-image.png',
   ctaBg: '/assets/images/cta-bg.png',
   heroBgAvif: '/assets/images/hero.avif',
@@ -184,11 +184,14 @@ export default function LandingPage() {
 
         <div className={styles.screenFrameReveal}>
           <div className={`${styles.screenFrame} ${styles.reveal} ${styles.revealDelay4}`}>
-            <img
-              src={assets.screenExample}
-              alt="Preview do app Jarvi"
-              className={styles.screenFrameImage}
-            />
+            <picture>
+              <source srcSet={assets.screenExample} type="image/avif" />
+              <img
+                src="/assets/images/screen-example.png"
+                alt="Preview do app Jarvi"
+                className={styles.screenFrameImage}
+              />
+            </picture>
           </div>
         </div>
 

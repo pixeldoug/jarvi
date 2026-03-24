@@ -1005,3 +1005,19 @@
     padding-top: calc(75px + 25vw);
   }
 }
+
+/* ======================================================
+   Responsive – large screens (≥ 1440px)
+   ====================================================== */
+
+@media (min-width: 1440px) {
+  .screenFrameReveal {
+    width: min(calc(100% - 48px), 1200px);
+    top: -460px;
+  }
+
+  .featuresContent {
+    width: 1200px;
+    padding-top: 310px;
+  }
+}
