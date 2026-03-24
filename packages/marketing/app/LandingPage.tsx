@@ -29,6 +29,15 @@ const assets = {
   bgBlob: '/assets/images/hero-blob.svg',
 };
 
+const featureImages: Record<FeatureKey, string> = {
+  whatsapp: '/assets/images/whatsapp-integration.png',
+  email: '/assets/images/showcase-image.png',
+  calendar: '/assets/images/showcase-image.png',
+  wand: '/assets/images/showcase-image.png',
+  cards: '/assets/images/showcase-image.png',
+  checks: '/assets/images/showcase-image.png',
+};
+
 const featureCopyByFeature: Record<FeatureKey, { title: string; description: string }> = {
   whatsapp: {
     title: 'Crie tarefas pelo Whatsapp',
@@ -209,7 +218,7 @@ export default function LandingPage() {
           <div className={`${styles.featurePreviewWrapper} ${styles.reveal} ${styles.revealDelay6}`}>
             <div className={styles.showcaseCard}>
               <img
-                src={assets.showcaseImage}
+                src={featureImages[activeFeature]}
                 alt=""
                 aria-hidden="true"
                 className={styles.showcaseImage}
