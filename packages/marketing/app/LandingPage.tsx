@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  CalendarDots,
-  CardsThree,
-  Checks,
-  EnvelopeSimple,
+  Brain,
+  ChatsTeardrop,
+  CirclesFour,
   MagicWand,
+  Palette,
   Sparkle,
 } from '@phosphor-icons/react';
 import { usePostHog } from 'posthog-js/react';
@@ -31,11 +31,11 @@ const assets = {
 
 const featureImages: Record<FeatureKey, string> = {
   whatsapp: '/assets/images/whatsapp-integration.png',
-  email: '/assets/images/showcase-image.png',
-  calendar: '/assets/images/showcase-image.png',
-  wand: '/assets/images/showcase-image.png',
-  cards: '/assets/images/showcase-image.png',
-  checks: '/assets/images/showcase-image.png',
+  email: '/assets/images/app.png',
+  calendar: '/assets/images/memory.avif',
+  wand: '/assets/images/ai-mode-jarvi.gif',
+  cards: '/assets/images/ai-chat-jarvi.gif',
+  checks: '/assets/images/themming-demo.gif',
 };
 
 const featureCopyByFeature: Record<FeatureKey, { title: string; description: string }> = {
@@ -45,29 +45,29 @@ const featureCopyByFeature: Record<FeatureKey, { title: string; description: str
       'Envie textos, áudios ou documentos e a Jarvi entende o contexto e cria a tarefa para você.',
   },
   email: {
-    title: 'Transforme e-mails em tarefas',
+    title: 'Centralize suas tarefas',
     description:
-      'Encaminhe um e-mail e a Jarvi extrai os pontos de ação para você acompanhar tudo em um só lugar.',
+      'Integre suas ferramentas e acompanhe tudo o que precisa fazer em um único lugar, sem perder nada.',
   },
   calendar: {
-    title: 'Integração com calendário',
+    title: 'Memória que evolui com você',
     description:
-      'Conecte seus compromissos e receba sugestões de tarefas alinhadas com sua agenda e prioridades.',
+      'A Jarvi aprende com suas interações e com os dados de apps conectados para construir seu contexto.',
   },
   wand: {
-    title: 'Edite com ajuda de IA',
+    title: 'Do seu jeito, com ou sem IA',
     description:
-      'Ajuste títulos, descrições e contexto das tarefas com sugestões inteligentes em poucos toques.',
+      'Crie e edite tarefas manualmente ou com ajuda da IA. Você escolhe o que for mais prático.',
   },
   cards: {
-    title: 'Visualize em diferentes formatos',
+    title: 'Organize suas ideias conversando com a Jarvi',
     description:
-      'Alterne entre visões para organizar melhor o trabalho e enxergar o que é prioridade no dia.',
+      'Interaja com a Jarvi para clarear prioridades e transformar pensamentos em ações.',
   },
   checks: {
-    title: 'Conclua com mais clareza',
+    title: 'A experiência com a sua cara',
     description:
-      'Acompanhe o progresso das tarefas e mantenha o foco no que já foi finalizado e no que falta.',
+      'Customize tema e visual para deixar tudo mais leve e agradável no dia a dia.',
   },
 };
 
@@ -118,11 +118,11 @@ export default function LandingPage() {
     if (feature === 'whatsapp') {
       return <img src={assets.whatsappIcon} alt="" aria-hidden="true" width={size} height={size} />;
     }
-    if (feature === 'email') return <EnvelopeSimple {...iconProps} />;
-    if (feature === 'calendar') return <CalendarDots {...iconProps} />;
+    if (feature === 'email') return <CirclesFour {...iconProps} />;
+    if (feature === 'calendar') return <Brain {...iconProps} />;
     if (feature === 'wand') return <MagicWand {...iconProps} />;
-    if (feature === 'cards') return <CardsThree {...iconProps} />;
-    return <Checks {...iconProps} />;
+    if (feature === 'cards') return <ChatsTeardrop {...iconProps} />;
+    return <Palette {...iconProps} />;
   };
 
   return (
