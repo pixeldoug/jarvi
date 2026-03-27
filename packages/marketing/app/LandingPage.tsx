@@ -20,8 +20,7 @@ const featureOrder: FeatureKey[] = ['whatsapp', 'email', 'calendar', 'wand', 'ca
 
 const assets = {
   screenExample: '/assets/images/screen-demo.avif',
-  showcaseImage: '/assets/images/showcase-image.png',
-  ctaBg: '/assets/images/cta-bg.png',
+  ctaBg: '/assets/images/cta-bg.avif',
   heroBgAvif: '/assets/images/hero.avif',
   heroBgWebp: '/assets/images/hero.webp',
   logo: '/assets/icons/logo-icon.svg',
@@ -29,13 +28,25 @@ const assets = {
   bgBlob: '/assets/images/hero-blob.svg',
 };
 
-const featureImages: Record<FeatureKey, string> = {
-  whatsapp: '/assets/images/whatsapp-integration.png',
-  email: '/assets/images/app.png',
+const featureImages: Partial<Record<FeatureKey, string>> = {
+  whatsapp: '/assets/images/whatsapp-integration.avif',
+  email: '/assets/images/app.avif',
   calendar: '/assets/images/memory.avif',
-  wand: '/assets/images/ai-mode-jarvi.gif',
-  cards: '/assets/images/ai-chat-jarvi.gif',
-  checks: '/assets/images/themming-demo.gif',
+};
+
+const featureVideos: Partial<Record<FeatureKey, { webm: string; mp4: string }>> = {
+  wand: {
+    webm: '/assets/videos/ai-mode-jarvi.webm',
+    mp4: '/assets/videos/ai-mode-jarvi.mp4',
+  },
+  cards: {
+    webm: '/assets/videos/ai-chat-jarvi.webm',
+    mp4: '/assets/videos/ai-chat-jarvi.mp4',
+  },
+  checks: {
+    webm: '/assets/videos/themming-demo.webm',
+    mp4: '/assets/videos/themming-demo.mp4',
+  },
 };
 
 const featureCopyByFeature: Record<FeatureKey, { title: string; description: string }> = {
@@ -162,6 +173,8 @@ export default function LandingPage() {
             alt=""
             aria-hidden="true"
             className={styles.heroBgImage}
+            fetchPriority="high"
+            loading="eager"
           />
         </picture>
         <div className={styles.heroBgBlur} />
@@ -193,14 +206,12 @@ export default function LandingPage() {
 
         <div className={styles.screenFrameReveal}>
           <div className={`${styles.screenFrame} ${styles.reveal} ${styles.revealDelay4}`}>
-            <picture>
-              <source srcSet={assets.screenExample} type="image/avif" />
-              <img
-                src="/assets/images/screen-example.png"
-                alt="Preview do app Jarvi"
-                className={styles.screenFrameImage}
-              />
-            </picture>
+            <img
+              src={assets.screenExample}
+              alt="Preview do app Jarvi"
+              className={styles.screenFrameImage}
+              loading="lazy"
+            />
           </div>
         </div>
 
@@ -217,12 +228,28 @@ export default function LandingPage() {
 
           <div className={`${styles.featurePreviewWrapper} ${styles.reveal} ${styles.revealDelay6}`}>
             <div className={styles.showcaseCard}>
-              <img
-                src={featureImages[activeFeature]}
-                alt=""
-                aria-hidden="true"
-                className={styles.showcaseImage}
-              />
+              {featureVideos[activeFeature] ? (
+                <video
+                  key={activeFeature}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  aria-hidden="true"
+                  className={styles.showcaseImage}
+                >
+                  <source src={featureVideos[activeFeature]!.webm} type="video/webm" />
+                  <source src={featureVideos[activeFeature]!.mp4} type="video/mp4" />
+                </video>
+              ) : (
+                <img
+                  src={featureImages[activeFeature]}
+                  alt=""
+                  aria-hidden="true"
+                  className={styles.showcaseImage}
+                  loading="lazy"
+                />
+              )}
             </div>
 
             <div className={styles.featureButtonRow} ref={railRef}>
@@ -271,7 +298,7 @@ export default function LandingPage() {
         className={styles.ctaSection}
         id="acesso-antecipado"
       >
-        <img src={assets.ctaBg} alt="" aria-hidden="true" className={styles.ctaBgImage} />
+        <img src={assets.ctaBg} alt="" aria-hidden="true" className={styles.ctaBgImage} loading="lazy" />
         <div className={styles.ctaBgBlur} />
         <div className={styles.ctaBgDetailTop} aria-hidden="true">
           <CurveDivider className={styles.ctaBgDetailImg} />
