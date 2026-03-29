@@ -134,7 +134,7 @@ export const opacity = {
    ======================================== */
 
 export const lightTheme = {
-  ..."contentContent-primary": "#34373C",
+  "contentContent-primary": "#34373C",
   "contentContent-secondary": "#A0ABB4",
   "contentContent-tertiary": "#B5BCC4",
   "contentContent-accent": "#F3F1FC",
@@ -158,7 +158,7 @@ export const lightTheme = {
   "elevationElevation-base": "#09090B",
   "elevationElevation-spread": "#09090B",
   // Component tokens
-  ..."buttonBg-disabled": "#E8EAED",
+  "buttonBg-disabled": "#E8EAED",
   "buttonContent-disabled": "{Semantic.content.content-disabled}",
   "buttonPrimaryBg-default": "{Semantic.surface.surface-accent}",
   "buttonPrimaryBg-hover": "#3812B7",
@@ -223,7 +223,7 @@ export const lightTheme = {
 } as const;
 
 export const darkTheme = {
-  ..."contentContent-primary": "#F7F8F9",
+  "contentContent-primary": "#F7F8F9",
   "contentContent-secondary": "#B5BCC4",
   "contentContent-tertiary": "#A0ABB4",
   "contentContent-accent": "#F3F1FC",
@@ -247,7 +247,7 @@ export const darkTheme = {
   "elevationElevation-base": "#FFFFFF",
   "elevationElevation-spread": "#FFFFFF",
   // Component tokens
-  ..."buttonBg-disabled": "#34373C",
+  "buttonBg-disabled": "#34373C",
   "buttonContent-disabled": "#757F88",
   "buttonPrimaryBg-default": "{Semantic.surface.surface-accent}",
   "buttonPrimaryBg-hover": "#3812B7",
@@ -324,7 +324,7 @@ export type FontFamilyKey = keyof typeof fontFamily;
 /**
  * Get theme based on mode
  */
-export function getTheme(mode: ThemeMode): Theme {
+export function getTheme(mode: ThemeMode): typeof lightTheme | typeof darkTheme {
   return mode === 'dark' ? darkTheme : lightTheme;
 }
 

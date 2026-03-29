@@ -13,4 +13,3 @@ export * from './design-tokens/core';
 
 // Export platform-specific tokens
 export * from './design-tokens/platforms/web';
-export * from './design-tokens/platforms/native';
