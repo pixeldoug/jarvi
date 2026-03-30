@@ -20,20 +20,18 @@ const getAnthropicClient = (): Anthropic => {
   return anthropicClient;
 };
 
-let geminiClient: OpenAI | null = null;
+let openaiClient: OpenAI | null = null;
 
-const getGeminiClient = (): OpenAI => {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is required');
+const getOpenAIClient = (): OpenAI => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is required');
   }
-  if (!geminiClient) {
-    geminiClient = new OpenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-    });
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
-  return geminiClient;
+  return openaiClient;
 };
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -461,7 +459,7 @@ async function getAllUserTasks(userId: string): Promise<TaskRow[]> {
 async function reconcileMemory(userId: string, currentMemory: string, timezone: string): Promise<string> {
   if (!currentMemory.trim()) return currentMemory;
 
-  const gemini = getGeminiClient();
+  const openai = getOpenAIClient();
   const tasks = await getAllUserTasks(userId);
 
   const activeTasks = tasks.filter((t) => !t.completed);
@@ -500,8 +498,8 @@ Regras:
 - Retorne APENAS o texto da memória atualizada, sem explicações adicionais.`;
 
   try {
-    const response = await gemini.chat.completions.create({
-      model: 'gemini-2.0-flash',
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 800,
     });
