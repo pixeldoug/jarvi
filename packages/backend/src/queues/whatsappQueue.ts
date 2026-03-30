@@ -333,12 +333,12 @@ const processAggregatedInboxPayload = async (
       const { url, contentType } = mediaItem;
       try {
         if (contentType.startsWith('audio/')) {
-          await sendTextMessage(from, '⏳ Processando seu áudio...');
+          await sendTextMessage(from, 'Processando...');
           const buffer = await downloadMedia(url);
           const transcription = await transcribeAudio(buffer, contentType);
           textParts.push(`[Áudio transcrito]: ${transcription}`);
         } else if (contentType.startsWith('image/')) {
-          await sendTextMessage(from, '⏳ Analisando sua imagem...');
+          await sendTextMessage(from, 'Processando...');
           const buffer = await downloadMedia(url);
           const description = await analyzeImageForChat(buffer, contentType);
           textParts.push(`[Imagem recebida]: ${description}`);
