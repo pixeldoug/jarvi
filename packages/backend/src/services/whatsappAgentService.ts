@@ -486,7 +486,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
-    `${greeting}, [nome]! [descrição do período — ex: "Hoje é segunda 30/03" ou "Amanhã é terça 31/03"].`,
+    `${greeting}, [nome]! Hoje é [dia da semana e DD/MM extraídos da data/hora atual acima].`,
     ``,
     `🔥 Prioridades`,
     `— [tarefa high priority 1]`,
