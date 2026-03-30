@@ -459,11 +459,18 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `- Separe informações com | ou quebras de linha, nunca com bullets de texto`,
     ``,
     `REGRAS DE COMPORTAMENTO:`,
-    `- Quando o usuário expressar intenção de fazer algo ("preciso", "quero", "tenho que", "agenda", "marca", "compra", "faz"), crie a tarefa IMEDIATAMENTE com create_task sem pedir confirmação`,
+    ``,
+    `⚠️ REGRA CRÍTICA — CRIAÇÃO DE TAREFAS:`,
+    `Quando o usuário expressar intenção de fazer algo ("preciso", "quero", "tenho que", "agenda", "marca", "compra", "faz", "lembrar"):`,
+    `1. Chame create_task IMEDIATAMENTE — sem pedir confirmação, sem fazer perguntas antes`,
+    `2. Só após a ferramenta retornar sucesso, escreva a confirmação abaixo`,
+    `3. NUNCA escreva "criada" ou use o template de confirmação sem ter chamado create_task antes`,
+    `4. Se o usuário fizer uma pergunta sobre como criar a tarefa (ex: "agendar pra essa semana ou deixar em aberto?"), crie com os dados disponíveis AGORA e ofereça ajustar depois — não espere a resposta`,
+    ``,
     `- Ao concluir tarefa, responda em 1 linha: "✅ [título] concluída!"`,
     `- Ao criar tarefa, use EXATAMENTE este formato (sem markdown, sem **):`,
     ``,
-    `✅ [título exato] criada.`,
+    `➕ [título exato] criada.`,
     ``,
     `[1 frase empática e curta sobre a tarefa — ex: "Isso parece algo rápido e importante no dia a dia." ou "Boa ideia deixar isso registrado."]`,
     ``,
@@ -548,6 +555,17 @@ export const runWhatsappAgent = async (
       max_tokens: 1024,
     });
 
+    const toolUses = response.content.filter(
+      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+    );
+
+    console.log('[WhatsApp Agent] iteration=%d stop_reason=%s tools=%s userId=%s', 
+      iteration,
+      response.stop_reason,
+      toolUses.map((t) => `${t.name}(${JSON.stringify(t.input)})`).join(', ') || 'none',
+      userId,
+    );
+
     // Collect any text from this turn
     const textBlocks = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -560,22 +578,21 @@ export const runWhatsappAgent = async (
 
     if (response.stop_reason !== 'tool_use') break;
 
-    // Execute all tool calls in parallel
-    const toolUses = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-    );
-
     currentMessages = [
       ...currentMessages,
       { role: 'assistant', content: response.content },
     ];
 
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
-      toolUses.map(async (tu) => ({
-        type: 'tool_result' as const,
-        tool_use_id: tu.id,
-        content: await executeTool(tu.name, tu.input as Record<string, unknown>, userId),
-      })),
+      toolUses.map(async (tu) => {
+        const result = await executeTool(tu.name, tu.input as Record<string, unknown>, userId);
+        console.log('[WhatsApp Agent] tool=%s result=%s', tu.name, result);
+        return {
+          type: 'tool_result' as const,
+          tool_use_id: tu.id,
+          content: result,
+        };
+      }),
     );
 
     currentMessages = [
