@@ -379,26 +379,19 @@ async function executeTool(
 // ---------------------------------------------------------------------------
 
 function getDateTimeForTimezone(timezone: string): string {
+  const opts: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  };
   try {
-    return new Date().toLocaleString('pt-BR', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
+    return new Date().toLocaleString('pt-BR', { ...opts, timeZone: timezone });
   } catch {
-    return new Date().toLocaleString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
+    return new Date().toLocaleString('pt-BR', { ...opts, timeZone: 'America/Sao_Paulo' });
   }
 }
 
