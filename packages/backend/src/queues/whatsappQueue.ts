@@ -3,11 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { extractTextFromPdfBuffer } from '../services/documentService';
 import {
+  ExtractionOptions,
   ExtractedTask,
   extractExplicitDueDateFromText,
   extractTaskFromImage,
   extractTaskFromText,
   transcribeAudio,
+  updateMemoryFromWhatsappText,
 } from '../services/openaiService';
 import {
   downloadMedia,
@@ -339,6 +341,92 @@ const findUserByWhatsappPhone = async (phone: string): Promise<UserLookupResult 
   return (row as UserLookupResult) ?? null;
 };
 
+interface UserMemoryAndTimezone {
+  memory: string;
+  timezone: string;
+}
+
+const getUserMemoryAndTimezone = async (userId: string): Promise<UserMemoryAndTimezone> => {
+  try {
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const [memResult, tzResult] = await Promise.all([
+        pool.query(
+          'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = $1',
+          [userId],
+        ),
+        pool.query('SELECT timezone FROM users WHERE id = $1', [userId]),
+      ]);
+      const memRow = memResult.rows[0];
+      const memory = memRow && memRow.consent_ai_memory !== false ? (memRow.memory_text || '') : '';
+      const timezone = tzResult.rows[0]?.timezone || 'America/Sao_Paulo';
+      return { memory, timezone };
+    }
+
+    const db = getDatabase();
+    const [memRow, tzRow] = await Promise.all([
+      db.get<{ memory_text: string; consent_ai_memory: number }>(
+        'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = ?',
+        [userId],
+      ),
+      db.get<{ timezone?: string }>('SELECT timezone FROM users WHERE id = ?', [userId]),
+    ]);
+    const memory = memRow && memRow.consent_ai_memory ? (memRow.memory_text || '') : '';
+    const timezone = tzRow?.timezone || 'America/Sao_Paulo';
+    return { memory, timezone };
+  } catch {
+    return { memory: '', timezone: 'America/Sao_Paulo' };
+  }
+};
+
+const saveUserMemory = async (userId: string, memoryText: string): Promise<void> => {
+  const now = new Date().toISOString();
+  try {
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      await pool.query(
+        `INSERT INTO user_memory_profiles (id, user_id, memory_text, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE SET memory_text = $3, updated_at = $4`,
+        [uuidv4(), userId, memoryText, now],
+      );
+      return;
+    }
+
+    const db = getDatabase();
+    const existing = await db.get('SELECT id FROM user_memory_profiles WHERE user_id = ?', [userId]);
+    if (existing) {
+      await db.run(
+        'UPDATE user_memory_profiles SET memory_text = ?, updated_at = ? WHERE user_id = ?',
+        [memoryText, now, userId],
+      );
+    } else {
+      await db.run(
+        'INSERT INTO user_memory_profiles (id, user_id, memory_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        [uuidv4(), userId, memoryText, now, now],
+      );
+    }
+  } catch (error) {
+    console.error('Failed to save user memory from WhatsApp:', error);
+  }
+};
+
+const tryUpdateMemoryAsync = (
+  userId: string,
+  messageText: string,
+  existingMemory: string,
+): void => {
+  updateMemoryFromWhatsappText(messageText, existingMemory)
+    .then((updatedMemory) => {
+      if (updatedMemory) {
+        return saveUserMemory(userId, updatedMemory);
+      }
+    })
+    .catch((error) => {
+      console.error('Background memory update from WhatsApp failed:', error);
+    });
+};
+
 const createPendingTask = async (input: PendingTaskInsertInput): Promise<Record<string, unknown>> => {
   const pendingTaskId = uuidv4();
   const now = new Date().toISOString();
@@ -430,14 +518,18 @@ const createPendingTask = async (input: PendingTaskInsertInput): Promise<Record<
   return (pendingTask || {}) as Record<string, unknown>;
 };
 
-const processText = async (content: string): Promise<ExtractedTask> => extractTaskFromText(content);
+const processText = async (
+  content: string,
+  extractionOptions?: ExtractionOptions,
+): Promise<ExtractedTask> => extractTaskFromText(content, extractionOptions);
 
 const processAudio = async (
   from: string,
   mediaUrl: string,
   mediaContentType: string,
   originalText: string | null,
-  documentContext: string | null
+  documentContext: string | null,
+  extractionOptions?: ExtractionOptions,
 ) => {
   await sendTextMessage(from, '⏳ Processando seu áudio...');
   const audioBuffer = await downloadMedia(mediaUrl);
@@ -449,7 +541,7 @@ const processAudio = async (
   ]
     .filter(Boolean)
     .join('\n\n');
-  const extracted = await extractTaskFromText(promptForExtraction);
+  const extracted = await extractTaskFromText(promptForExtraction, extractionOptions);
 
   return {
     extracted,
@@ -457,10 +549,15 @@ const processAudio = async (
   };
 };
 
-const processImage = async (from: string, mediaUrl: string, mediaContentType: string) => {
+const processImage = async (
+  from: string,
+  mediaUrl: string,
+  mediaContentType: string,
+  extractionOptions?: ExtractionOptions,
+) => {
   await sendTextMessage(from, '⏳ Analisando sua imagem...');
   const imageBuffer = await downloadMedia(mediaUrl);
-  const extracted = await extractTaskFromImage(imageBuffer, mediaContentType);
+  const extracted = await extractTaskFromImage(imageBuffer, mediaContentType, extractionOptions);
 
   return {
     extracted,
@@ -545,6 +642,12 @@ const processAggregatedInboxPayload = async (
       return;
     }
 
+    const { memory, timezone } = await getUserMemoryAndTimezone(user.id);
+    const extractionOptions: ExtractionOptions = {
+      memoryContext: memory || undefined,
+      timezone,
+    };
+
     let extracted: ExtractedTask;
     let transcription: string | null = null;
     const originalWhatsappContent: string | null = content?.trim() || null;
@@ -593,7 +696,8 @@ const processAggregatedInboxPayload = async (
         firstAudioMedia.url,
         firstAudioMedia.contentType || 'audio/ogg',
         originalWhatsappContent,
-        documentContext
+        documentContext,
+        extractionOptions,
       );
       extracted = audioResult.extracted;
       transcription = audioResult.transcription;
@@ -607,7 +711,8 @@ const processAggregatedInboxPayload = async (
       const imageResult = await processImage(
         from,
         firstImageMedia.url,
-        firstImageMedia.contentType || 'image/jpeg'
+        firstImageMedia.contentType || 'image/jpeg',
+        extractionOptions,
       );
       extracted = imageResult.extracted;
       transcription = imageResult.transcription;
@@ -620,7 +725,8 @@ const processAggregatedInboxPayload = async (
       const imageResult = await processImage(
         from,
         firstImageMedia.url,
-        firstImageMedia.contentType || 'image/jpeg'
+        firstImageMedia.contentType || 'image/jpeg',
+        extractionOptions,
       );
       extracted = imageResult.extracted;
       transcription = imageResult.transcription;
@@ -629,7 +735,8 @@ const processAggregatedInboxPayload = async (
         extracted = await processText(
           `${originalWhatsappContent}\n\n[Anexos recebidos: ${
             mediaAttachments.length || mediaItems.length
-          }]${documentContext ? `\n\n${documentContext}` : ''}`
+          }]${documentContext ? `\n\n${documentContext}` : ''}`,
+          extractionOptions,
         );
       }
     } else if (hasMedia && !hasText) {
@@ -639,7 +746,7 @@ const processAggregatedInboxPayload = async (
           : `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`,
         documentContext
       ) || `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`;
-      extracted = await processText(fallbackText);
+      extracted = await processText(fallbackText, extractionOptions);
       rawContent = fallbackText;
     } else {
       if (!rawContent) {
@@ -651,7 +758,7 @@ const processAggregatedInboxPayload = async (
             documentContext ? `\n\n${documentContext}` : ''
           }`
         : rawContent;
-      extracted = await processText(textForExtraction);
+      extracted = await processText(textForExtraction, extractionOptions);
     }
 
     const dueDateSourceText = originalWhatsappContent || latestContent || '';
@@ -695,6 +802,12 @@ const processAggregatedInboxPayload = async (
 
     await sendTextMessage(from, formatTaskConfirmation(extracted));
     emitPendingTaskCreated(user.id, pendingTask);
+
+    // Fire-and-forget: update user memory if the message contains personal info
+    const textForMemory = originalWhatsappContent || transcription;
+    if (textForMemory) {
+      tryUpdateMemoryAsync(user.id, textForMemory, memory);
+    }
   } catch (error) {
     console.error('Failed to process WhatsApp message payload:', {
       from,

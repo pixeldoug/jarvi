@@ -37,6 +37,17 @@ Regras:
 - Se não parecer tarefa, retorne is_task = false
 - Nunca inclua markdown nem texto fora do JSON`;
 
+const MEMORY_UPDATE_SYSTEM_PROMPT = `Você mantém o perfil de memória de um usuário.
+Analise a mensagem e verifique se contém informação pessoal nova:
+nomes de pessoas ou animais, relacionamentos, localização, preferências, hábitos, eventos, datas importantes, contexto profissional ou pessoal.
+
+Retorne sempre JSON válido:
+{ "has_new_info": boolean, "updated_memory": "string | null" }
+
+Se has_new_info = true: updated_memory deve conter a memória completa atualizada, mesclando a anterior com as novas informações. Escreva em terceira pessoa, em português brasileiro.
+Se has_new_info = false: updated_memory = null.
+Nunca inclua markdown nem texto fora do JSON.`;
+
 let openaiClient: OpenAI | null = null;
 
 const getOpenAIClient = (): OpenAI => {
@@ -268,15 +279,43 @@ export const transcribeAudio = async (audioBuffer: Buffer, mimeType: string): Pr
   return transcription.text;
 };
 
-export const extractTaskFromText = async (text: string): Promise<ExtractedTask> => {
+export interface ExtractionOptions {
+  memoryContext?: string;
+  timezone?: string;
+}
+
+const buildDateTimeString = (timezone?: string): string => {
+  const tz = timezone || 'America/Sao_Paulo';
+  try {
+    return new Date().toLocaleString('pt-BR', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch {
+    return new Date().toISOString();
+  }
+};
+
+export const extractTaskFromText = async (
+  text: string,
+  options?: ExtractionOptions,
+): Promise<ExtractedTask> => {
   const openai = getOpenAIClient();
-  const now = new Date().toISOString();
+  const now = buildDateTimeString(options?.timezone);
+  const memorySection = options?.memoryContext
+    ? `\nContexto sobre o usuário (use para enriquecer título e descrição):\n${options.memoryContext}`
+    : '';
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: `${TASK_SYSTEM_PROMPT}\nData/hora atual: ${now}` },
+      { role: 'system', content: `${TASK_SYSTEM_PROMPT}${memorySection}\nData/hora atual: ${now}` },
       { role: 'user', content: text },
     ],
   });
@@ -286,17 +325,21 @@ export const extractTaskFromText = async (text: string): Promise<ExtractedTask> 
 
 export const extractTaskFromImage = async (
   imageBuffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  options?: ExtractionOptions,
 ): Promise<ExtractedTask> => {
   const openai = getOpenAIClient();
-  const now = new Date().toISOString();
+  const now = buildDateTimeString(options?.timezone);
   const base64Image = imageBuffer.toString('base64');
+  const memorySection = options?.memoryContext
+    ? `\nContexto sobre o usuário (use para enriquecer título e descrição):\n${options.memoryContext}`
+    : '';
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o',
     response_format: { type: 'json_object' },
     messages: [
-      { role: 'system', content: `${TASK_SYSTEM_PROMPT}\nData/hora atual: ${now}` },
+      { role: 'system', content: `${TASK_SYSTEM_PROMPT}${memorySection}\nData/hora atual: ${now}` },
       {
         role: 'user',
         content: [
@@ -313,6 +356,36 @@ export const extractTaskFromImage = async (
   });
 
   return normalizeExtractedTask(safeJsonParse(response.choices[0]?.message?.content));
+};
+
+export const updateMemoryFromWhatsappText = async (
+  messageText: string,
+  existingMemory: string,
+): Promise<string | null> => {
+  if (!messageText.trim()) return null;
+
+  const openai = getOpenAIClient();
+
+  const userContent = JSON.stringify({
+    existing_memory: existingMemory || '(sem memória ainda)',
+    whatsapp_message: messageText,
+  });
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: MEMORY_UPDATE_SYSTEM_PROMPT },
+      { role: 'user', content: userContent },
+    ],
+  });
+
+  const parsed = safeJsonParse(response.choices[0]?.message?.content);
+  if (parsed.has_new_info === true && typeof parsed.updated_memory === 'string' && parsed.updated_memory.trim()) {
+    return parsed.updated_memory.trim();
+  }
+
+  return null;
 };
 
 export const updateTaskFromFollowUp = async (
