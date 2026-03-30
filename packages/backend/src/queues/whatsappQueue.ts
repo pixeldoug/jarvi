@@ -112,7 +112,7 @@ export const whatsappQueue = new Queue<WhatsappMessageJob>('whatsapp-messages', 
 });
 
 let whatsappWorker: Worker<WhatsappMessageJob> | null = null;
-const AGGREGATION_WINDOW_MS = Number(process.env.WHATSAPP_MESSAGE_AGGREGATION_WINDOW_MS || 8000);
+const AGGREGATION_WINDOW_MS = Number(process.env.WHATSAPP_MESSAGE_AGGREGATION_WINDOW_MS || 2000);
 const AGGREGATION_STATE_TTL_MS = Math.max(AGGREGATION_WINDOW_MS * 6, 60_000);
 
 // ---------------------------------------------------------------------------
@@ -230,12 +230,13 @@ const consumeAggregatedInbox = async (
 
 export const enqueueIncomingWhatsappMessage = async (
   input: WhatsappIncomingMessage,
-): Promise<void> => {
+): Promise<{ isFirstInBurst: boolean }> => {
   const from = input.from.trim();
-  if (!from) return;
+  if (!from) return { isFirstInBurst: false };
 
   const redis = await whatsappQueue.client;
   const raw = await redis.get(inboxStateKey(from));
+  const isFirstInBurst = !raw; // no existing inbox state → first message of this turn
   const state = parseInboxState(raw, from);
   const nextContent = input.content?.trim();
 
@@ -255,6 +256,7 @@ export const enqueueIncomingWhatsappMessage = async (
   );
 
   await scheduleProcessingJob(from);
+  return { isFirstInBurst };
 };
 
 // ---------------------------------------------------------------------------

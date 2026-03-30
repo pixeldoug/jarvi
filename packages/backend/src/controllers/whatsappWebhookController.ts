@@ -599,7 +599,13 @@ export const receiveMessage = async (req: Request, res: Response): Promise<void>
       };
 
       try {
-        await enqueueIncomingWhatsappMessage(incomingMessagePayload);
+        const { isFirstInBurst } = await enqueueIncomingWhatsappMessage(incomingMessagePayload);
+        // Send immediate acknowledgment for text-only messages so the user knows
+        // Jarvi received the message while the agent processes (takes ~2-4s).
+        // Audio/image already show their own "⏳ Processando..." inside the worker.
+        if (isFirstInBurst && numMedia === 0) {
+          sendTextMessage(from, '⏳').catch(() => {});
+        }
       } catch (queueError) {
         console.error('Failed to enqueue WhatsApp message. Falling back to direct processing:', {
           from,
