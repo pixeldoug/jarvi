@@ -127,14 +127,28 @@ async function getUserTasks(userId: string): Promise<TaskRow[]> {
   if (isPostgreSQL()) {
     const result = await getPool().query(
       `SELECT id, title, description, completed, priority, category, due_date, time, created_at
-       FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+       FROM tasks WHERE user_id = $1
+       ORDER BY
+         CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
+         due_date ASC,
+         CASE WHEN time IS NULL THEN 1 ELSE 0 END,
+         time ASC,
+         created_at ASC
+       LIMIT 50`,
       [userId],
     );
     return result.rows as TaskRow[];
   }
   return getDatabase().all<TaskRow[]>(
     `SELECT id, title, description, completed, priority, category, due_date, time, created_at
-     FROM tasks WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`,
+     FROM tasks WHERE user_id = ?
+     ORDER BY
+       CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
+       due_date ASC,
+       CASE WHEN time IS NULL THEN 1 ELSE 0 END,
+       time ASC,
+       created_at ASC
+     LIMIT 50`,
     [userId],
   );
 }
