@@ -402,6 +402,26 @@ function getDateTimeForTimezone(timezone: string): string {
   }
 }
 
+function getCurrentHour(timezone: string): number {
+  try {
+    const hourStr = new Date().toLocaleString('pt-BR', {
+      timeZone: timezone,
+      hour: '2-digit',
+      hour12: false,
+    });
+    return parseInt(hourStr, 10);
+  } catch {
+    return new Date().getHours();
+  }
+}
+
+function getDynamicGreeting(timezone: string): string {
+  const hour = getCurrentHour(timezone);
+  if (hour >= 5 && hour < 12) return 'Bom dia';
+  if (hour >= 12 && hour < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
 function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
@@ -420,6 +440,8 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
           })
           .join('\n')
       : '(nenhuma tarefa ativa)';
+
+  const greeting = getDynamicGreeting(timezone);
 
   const lines: (string | null)[] = [
     `Você é o Jarvi, assistente pessoal de produtividade no WhatsApp, em português brasileiro.`,
@@ -444,6 +466,29 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `- Responda perguntas sobre tarefas, datas e prioridades usando a lista acima`,
     `- MEMÓRIA: Se a mensagem contiver informação pessoal nova (nomes, relacionamentos, localização, preferências, hábitos, datas importantes), chame update_memory mesclando com o que já existia — nunca descarte informações antigas`,
     `- Data/hora atual (${timezone}): ${getDateTimeForTimezone(timezone)}`,
+    ``,
+    `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
+    ``,
+    `${greeting}, [nome]! [descrição do período — ex: "Hoje é segunda 30/03" ou "Amanhã é terça 31/03"].`,
+    ``,
+    `🔥 Prioridades`,
+    `— [tarefa high priority 1]`,
+    `— [tarefa high priority 2]`,
+    ``,
+    `Outras tarefas`,
+    `• [demais tarefas do período]`,
+    `• ...`,
+    ``,
+    `[Pergunta curta e relevante para engajar — ex: "Quer que eu te mostre o jeito mais fácil de começar?"]`,
+    ``,
+    `Regras do briefing:`,
+    `- Use a saudação correta para o horário atual: "${greeting}"`,
+    `- Use o primeiro nome do usuário (da memória, se disponível)`,
+    `- "Prioridades" = tarefas com priority=high do período relevante (hoje, amanhã, ou próximas se não houver)`,
+    `- "Outras tarefas" = demais tarefas do mesmo período`,
+    `- Se não houver tarefas high, omita a seção "🔥 Prioridades" e liste tudo em "Outras tarefas"`,
+    `- Se o usuário só mandou uma saudação sem data específica, foque no dia atual ou no próximo período com tarefas`,
+    `- Nunca mostre IDs para o usuário`,
   ];
 
   return lines.filter((l): l is string => l !== null).join('\n');
