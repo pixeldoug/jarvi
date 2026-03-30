@@ -358,6 +358,39 @@ export const extractTaskFromImage = async (
   return normalizeExtractedTask(safeJsonParse(response.choices[0]?.message?.content));
 };
 
+export const analyzeImageForChat = async (
+  imageBuffer: Buffer,
+  mimeType: string,
+): Promise<string> => {
+  const openai = getOpenAIClient();
+  const base64Image = imageBuffer.toString('base64');
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Descreva o conteúdo desta imagem em português, de forma concisa (máximo 3 linhas), focando em qualquer tarefa, compromisso, lembrete ou ação que o usuário possa querer registrar.',
+          },
+          {
+            type: 'image_url',
+            image_url: { url: `data:${mimeType};base64,${base64Image}` },
+          },
+        ],
+      },
+    ],
+    max_tokens: 200,
+  });
+
+  return (
+    response.choices[0]?.message?.content?.trim() ||
+    'Imagem recebida (conteúdo não identificado).'
+  );
+};
+
 export const updateMemoryFromWhatsappText = async (
   messageText: string,
   existingMemory: string,

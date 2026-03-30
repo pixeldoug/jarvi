@@ -1,22 +1,9 @@
 import { Queue, Worker } from 'bullmq';
-import { v4 as uuidv4 } from 'uuid';
-import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { extractTextFromPdfBuffer } from '../services/documentService';
-import {
-  ExtractionOptions,
-  ExtractedTask,
-  extractExplicitDueDateFromText,
-  extractTaskFromImage,
-  extractTaskFromText,
-  transcribeAudio,
-  updateMemoryFromWhatsappText,
-} from '../services/openaiService';
-import {
-  downloadMedia,
-  formatTaskConfirmation,
-  sendTextMessage,
-} from '../services/whatsappService';
-import { getIO, hasIO } from '../utils/ioManager';
+import { analyzeImageForChat, transcribeAudio } from '../services/openaiService';
+import { downloadMedia, sendTextMessage } from '../services/whatsappService';
+import { runWhatsappAgent } from '../services/whatsappAgentService';
+import { getDatabase, getPool, isPostgreSQL } from '../database';
 
 interface WhatsappMessageJob {
   from: string;
@@ -55,26 +42,6 @@ interface UserLookupResult {
   id: string;
 }
 
-interface PendingTaskInsertInput {
-  userId: string;
-  from: string;
-  rawContent: string | null;
-  transcription: string | null;
-  originalWhatsappContent: string | null;
-  mediaAttachmentsJson: string | null;
-  extracted: ExtractedTask;
-  messageSid?: string | null;
-}
-
-interface MediaAttachment {
-  id: string;
-  attachmentType: 'image' | 'audio' | 'video' | 'document';
-  mimeType: string;
-  fileName: string;
-  sizeBytes: number;
-  dataUrl: string;
-}
-
 interface QueueConnectionConfig {
   host: string;
   port: number;
@@ -84,21 +51,22 @@ interface QueueConnectionConfig {
   tls?: Record<string, never>;
 }
 
+// ---------------------------------------------------------------------------
+// Redis connection config
+// ---------------------------------------------------------------------------
+
 const getFirstEnvValue = (keys: string[]): string | null => {
   for (const key of keys) {
     const value = process.env[key];
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim();
-    }
+    if (typeof value === 'string' && value.trim()) return value.trim();
   }
-
   return null;
 };
 
 const parsePort = (rawPort: string | null, fallback: number): number => {
   if (!rawPort) return fallback;
-  const parsedPort = Number.parseInt(rawPort, 10);
-  return Number.isNaN(parsedPort) ? fallback : parsedPort;
+  const parsed = Number.parseInt(rawPort, 10);
+  return Number.isNaN(parsed) ? fallback : parsed;
 };
 
 const buildQueueConnection = (): QueueConnectionConfig => {
@@ -116,18 +84,13 @@ const buildQueueConnection = (): QueueConnectionConfig => {
         port: parsePort(parsedUrl.port || null, envPort),
         family: 0,
       };
-
       const urlUsername = parsedUrl.username ? decodeURIComponent(parsedUrl.username) : null;
       const urlPassword = parsedUrl.password ? decodeURIComponent(parsedUrl.password) : null;
       const username = urlUsername || envUsername;
       const password = urlPassword || envPassword;
-
       if (username) connection.username = username;
       if (password) connection.password = password;
-      if (parsedUrl.protocol === 'rediss:') {
-        connection.tls = {};
-      }
-
+      if (parsedUrl.protocol === 'rediss:') connection.tls = {};
       return connection;
     } catch (error) {
       console.warn('Invalid REDIS_URL. Falling back to REDIS_HOST/REDIS_PORT.', {
@@ -136,15 +99,9 @@ const buildQueueConnection = (): QueueConnectionConfig => {
     }
   }
 
-  const connection: QueueConnectionConfig = {
-    host: envHost,
-    port: envPort,
-    family: 0,
-  };
-
+  const connection: QueueConnectionConfig = { host: envHost, port: envPort, family: 0 };
   if (envUsername) connection.username = envUsername;
   if (envPassword) connection.password = envPassword;
-
   return connection;
 };
 
@@ -157,6 +114,10 @@ export const whatsappQueue = new Queue<WhatsappMessageJob>('whatsapp-messages', 
 let whatsappWorker: Worker<WhatsappMessageJob> | null = null;
 const AGGREGATION_WINDOW_MS = Number(process.env.WHATSAPP_MESSAGE_AGGREGATION_WINDOW_MS || 8000);
 const AGGREGATION_STATE_TTL_MS = Math.max(AGGREGATION_WINDOW_MS * 6, 60_000);
+
+// ---------------------------------------------------------------------------
+// Inbox aggregation helpers
+// ---------------------------------------------------------------------------
 
 const normalizePhoneLookupVariants = (phone: string): string[] => {
   const digitsOnly = phone.replace(/\D/g, '');
@@ -176,7 +137,6 @@ const getInitialInboxState = (from: string): AggregatedInboxState => ({
 
 const parseInboxState = (raw: string | null, from: string): AggregatedInboxState => {
   if (!raw) return getInitialInboxState(from);
-
   try {
     const parsed = JSON.parse(raw) as Partial<AggregatedInboxState>;
     return {
@@ -190,7 +150,7 @@ const parseInboxState = (raw: string | null, from: string): AggregatedInboxState
               !!item &&
               typeof item.url === 'string' &&
               typeof item.contentType === 'string' &&
-              typeof item.index === 'number'
+              typeof item.index === 'number',
           )
         : [],
       messageSid: typeof parsed.messageSid === 'string' ? parsed.messageSid : null,
@@ -201,18 +161,16 @@ const parseInboxState = (raw: string | null, from: string): AggregatedInboxState
 };
 
 const uniqueMediaItems = (
-  mediaItems: Array<{ url: string; contentType: string; index: number }>
+  mediaItems: Array<{ url: string; contentType: string; index: number }>,
 ): Array<{ url: string; contentType: string; index: number }> => {
   const seen = new Set<string>();
   const unique: Array<{ url: string; contentType: string; index: number }> = [];
-
   for (const item of mediaItems) {
     const key = `${item.url}|${item.contentType}|${item.index}`;
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(item);
   }
-
   return unique;
 };
 
@@ -228,7 +186,6 @@ const scheduleProcessingJob = async (from: string): Promise<void> => {
       });
     }
   }
-
   await whatsappQueue.add(
     'process-message',
     { from },
@@ -237,12 +194,12 @@ const scheduleProcessingJob = async (from: string): Promise<void> => {
       delay: AGGREGATION_WINDOW_MS,
       removeOnComplete: true,
       removeOnFail: 100,
-    }
+    },
   );
 };
 
 const consumeAggregatedInbox = async (
-  from: string
+  from: string,
 ): Promise<{
   content: string | null;
   latestContent: string | null;
@@ -272,7 +229,7 @@ const consumeAggregatedInbox = async (
 };
 
 export const enqueueIncomingWhatsappMessage = async (
-  input: WhatsappIncomingMessage
+  input: WhatsappIncomingMessage,
 ): Promise<void> => {
   const from = input.from.trim();
   if (!from) return;
@@ -282,45 +239,41 @@ export const enqueueIncomingWhatsappMessage = async (
   const state = parseInboxState(raw, from);
   const nextContent = input.content?.trim();
 
-  if (nextContent) {
-    state.contents.push(nextContent);
-  }
+  if (nextContent) state.contents.push(nextContent);
 
   if (input.mediaItems && input.mediaItems.length > 0) {
     state.mediaItems = uniqueMediaItems([...state.mediaItems, ...input.mediaItems]);
   }
 
-  if (input.messageSid) {
-    state.messageSid = input.messageSid;
-  }
+  if (input.messageSid) state.messageSid = input.messageSid;
 
   await redis.set(
     inboxStateKey(from),
     JSON.stringify(state),
     'PX',
-    AGGREGATION_STATE_TTL_MS
+    AGGREGATION_STATE_TTL_MS,
   );
 
   await scheduleProcessingJob(from);
 };
 
+// ---------------------------------------------------------------------------
+// User lookup
+// ---------------------------------------------------------------------------
+
 const findUserByWhatsappPhone = async (phone: string): Promise<UserLookupResult | null> => {
   const variants = normalizePhoneLookupVariants(phone);
-  if (variants.length === 0) {
-    return null;
-  }
+  if (variants.length === 0) return null;
 
   if (isPostgreSQL()) {
     const pool = getPool();
     const client = await pool.connect();
     try {
       const result = await client.query(
-        `SELECT id
-         FROM users
-         WHERE whatsapp_verified = TRUE
-           AND whatsapp_phone IN ($1, $2)
+        `SELECT id FROM users
+         WHERE whatsapp_verified = TRUE AND whatsapp_phone IN ($1, $2)
          LIMIT 1`,
-        [variants[0], variants[1] ?? variants[0]]
+        [variants[0], variants[1] ?? variants[0]],
       );
       return (result.rows[0] as UserLookupResult) ?? null;
     } finally {
@@ -330,306 +283,30 @@ const findUserByWhatsappPhone = async (phone: string): Promise<UserLookupResult 
 
   const db = getDatabase();
   const row = await db.get(
-    `SELECT id
-     FROM users
-     WHERE whatsapp_verified = 1
-       AND whatsapp_phone IN (?, ?)
+    `SELECT id FROM users
+     WHERE whatsapp_verified = 1 AND whatsapp_phone IN (?, ?)
      LIMIT 1`,
-    [variants[0], variants[1] ?? variants[0]]
+    [variants[0], variants[1] ?? variants[0]],
   );
-
   return (row as UserLookupResult) ?? null;
 };
 
-interface UserMemoryAndTimezone {
-  memory: string;
-  timezone: string;
-}
-
-const getUserMemoryAndTimezone = async (userId: string): Promise<UserMemoryAndTimezone> => {
-  try {
-    if (isPostgreSQL()) {
-      const pool = getPool();
-      const [memResult, tzResult] = await Promise.all([
-        pool.query(
-          'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = $1',
-          [userId],
-        ),
-        pool.query('SELECT timezone FROM users WHERE id = $1', [userId]),
-      ]);
-      const memRow = memResult.rows[0];
-      const memory = memRow && memRow.consent_ai_memory !== false ? (memRow.memory_text || '') : '';
-      const timezone = tzResult.rows[0]?.timezone || 'America/Sao_Paulo';
-      return { memory, timezone };
-    }
-
-    const db = getDatabase();
-    const [memRow, tzRow] = await Promise.all([
-      db.get<{ memory_text: string; consent_ai_memory: number }>(
-        'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = ?',
-        [userId],
-      ),
-      db.get<{ timezone?: string }>('SELECT timezone FROM users WHERE id = ?', [userId]),
-    ]);
-    const memory = memRow && memRow.consent_ai_memory ? (memRow.memory_text || '') : '';
-    const timezone = tzRow?.timezone || 'America/Sao_Paulo';
-    return { memory, timezone };
-  } catch {
-    return { memory: '', timezone: 'America/Sao_Paulo' };
-  }
-};
-
-const saveUserMemory = async (userId: string, memoryText: string): Promise<void> => {
-  const now = new Date().toISOString();
-  try {
-    if (isPostgreSQL()) {
-      const pool = getPool();
-      await pool.query(
-        `INSERT INTO user_memory_profiles (id, user_id, memory_text, updated_at)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id) DO UPDATE SET memory_text = $3, updated_at = $4`,
-        [uuidv4(), userId, memoryText, now],
-      );
-      return;
-    }
-
-    const db = getDatabase();
-    const existing = await db.get('SELECT id FROM user_memory_profiles WHERE user_id = ?', [userId]);
-    if (existing) {
-      await db.run(
-        'UPDATE user_memory_profiles SET memory_text = ?, updated_at = ? WHERE user_id = ?',
-        [memoryText, now, userId],
-      );
-    } else {
-      await db.run(
-        'INSERT INTO user_memory_profiles (id, user_id, memory_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-        [uuidv4(), userId, memoryText, now, now],
-      );
-    }
-  } catch (error) {
-    console.error('Failed to save user memory from WhatsApp:', error);
-  }
-};
-
-const tryUpdateMemoryAsync = (
-  userId: string,
-  messageText: string,
-  existingMemory: string,
-): void => {
-  updateMemoryFromWhatsappText(messageText, existingMemory)
-    .then((updatedMemory) => {
-      if (updatedMemory) {
-        return saveUserMemory(userId, updatedMemory);
-      }
-    })
-    .catch((error) => {
-      console.error('Background memory update from WhatsApp failed:', error);
-    });
-};
-
-const createPendingTask = async (input: PendingTaskInsertInput): Promise<Record<string, unknown>> => {
-  const pendingTaskId = uuidv4();
-  const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-  if (isPostgreSQL()) {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `INSERT INTO pending_tasks (
-           id, user_id, source, raw_content, transcription, original_whatsapp_content, media_attachments,
-           suggested_title, suggested_description,
-           suggested_priority, suggested_due_date, suggested_time, suggested_category, status,
-           whatsapp_message_sid, whatsapp_phone, expires_at, created_at, updated_at
-         )
-         VALUES (
-           $1, $2, $3, $4, $5, $6, $7,
-           $8, $9, $10, $11, $12,
-           $13, $14, $15, $16, $17, $18, $19
-         )`,
-        [
-          pendingTaskId,
-          input.userId,
-          'whatsapp',
-          input.rawContent,
-          input.transcription,
-          input.originalWhatsappContent,
-          input.mediaAttachmentsJson,
-          input.extracted.title,
-          input.extracted.description,
-          input.extracted.priority,
-          input.extracted.due_date,
-          input.extracted.time,
-          input.extracted.category,
-          'awaiting_confirmation',
-          input.messageSid ?? null,
-          input.from,
-          expiresAt,
-          now,
-          now,
-        ]
-      );
-
-      const result = await client.query('SELECT * FROM pending_tasks WHERE id = $1', [pendingTaskId]);
-      return result.rows[0] as Record<string, unknown>;
-    } finally {
-      client.release();
-    }
-  }
-
-  const db = getDatabase();
-  await db.run(
-    `INSERT INTO pending_tasks (
-       id, user_id, source, raw_content, transcription, original_whatsapp_content, media_attachments,
-       suggested_title, suggested_description,
-       suggested_priority, suggested_due_date, suggested_time, suggested_category, status,
-       whatsapp_message_sid, whatsapp_phone, expires_at, created_at, updated_at
-     )
-     VALUES (
-       ?, ?, ?, ?, ?, ?, ?,
-       ?, ?, ?, ?, ?,
-       ?, ?, ?, ?, ?, ?, ?
-     )`,
-    [
-      pendingTaskId,
-      input.userId,
-      'whatsapp',
-      input.rawContent,
-      input.transcription,
-      input.originalWhatsappContent,
-      input.mediaAttachmentsJson,
-      input.extracted.title,
-      input.extracted.description,
-      input.extracted.priority,
-      input.extracted.due_date,
-      input.extracted.time,
-      input.extracted.category,
-      'awaiting_confirmation',
-      input.messageSid ?? null,
-      input.from,
-      expiresAt,
-      now,
-      now,
-    ]
-  );
-
-  const pendingTask = await db.get('SELECT * FROM pending_tasks WHERE id = ?', [pendingTaskId]);
-  return (pendingTask || {}) as Record<string, unknown>;
-};
-
-const processText = async (
-  content: string,
-  extractionOptions?: ExtractionOptions,
-): Promise<ExtractedTask> => extractTaskFromText(content, extractionOptions);
-
-const processAudio = async (
-  from: string,
-  mediaUrl: string,
-  mediaContentType: string,
-  originalText: string | null,
-  documentContext: string | null,
-  extractionOptions?: ExtractionOptions,
-) => {
-  await sendTextMessage(from, '⏳ Processando seu áudio...');
-  const audioBuffer = await downloadMedia(mediaUrl);
-  const transcription = await transcribeAudio(audioBuffer, mediaContentType);
-  const promptForExtraction = [
-    originalText ? `Texto original do WhatsApp:\n${originalText}` : null,
-    `Transcrição do áudio:\n${transcription}`,
-    documentContext ? `Contexto extraído de documentos:\n${documentContext}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-  const extracted = await extractTaskFromText(promptForExtraction, extractionOptions);
-
-  return {
-    extracted,
-    transcription,
-  };
-};
-
-const processImage = async (
-  from: string,
-  mediaUrl: string,
-  mediaContentType: string,
-  extractionOptions?: ExtractionOptions,
-) => {
-  await sendTextMessage(from, '⏳ Analisando sua imagem...');
-  const imageBuffer = await downloadMedia(mediaUrl);
-  const extracted = await extractTaskFromImage(imageBuffer, mediaContentType, extractionOptions);
-
-  return {
-    extracted,
-    transcription: null,
-  };
-};
-
-const detectAttachmentType = (
-  mimeType: string
-): MediaAttachment['attachmentType'] => {
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('audio/')) return 'audio';
-  if (mimeType.startsWith('video/')) return 'video';
-  return 'document';
-};
-
-const extensionByMimeType = (mimeType: string): string => {
-  const map: Record<string, string> = {
-    'image/jpeg': 'jpg',
-    'image/png': 'png',
-    'image/webp': 'webp',
-    'audio/ogg': 'ogg',
-    'audio/mpeg': 'mp3',
-    'audio/mp4': 'm4a',
-    'video/mp4': 'mp4',
-    'application/pdf': 'pdf',
-  };
-
-  if (map[mimeType]) return map[mimeType];
-  const fallback = mimeType.split('/')[1];
-  return fallback || 'bin';
-};
-
-const buildMediaAttachment = (
-  mimeType: string,
-  index: number,
-  buffer: Buffer
-): MediaAttachment => {
-  const attachmentType = detectAttachmentType(mimeType);
-  const extension = extensionByMimeType(mimeType);
-
-  return {
-    id: `${index}-${Date.now()}`,
-    attachmentType,
-    mimeType,
-    fileName: `${attachmentType}-${index + 1}.${extension}`,
-    sizeBytes: buffer.length,
-    dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
-  };
-};
+// ---------------------------------------------------------------------------
+// Media helpers
+// ---------------------------------------------------------------------------
 
 const isPdfMimeType = (mimeType: string): boolean =>
   mimeType.toLowerCase() === 'application/pdf' || mimeType.toLowerCase().endsWith('/pdf');
 
-const appendContext = (base: string | null, extra: string | null): string | null => {
-  const normalizedBase = base?.trim() || '';
-  const normalizedExtra = extra?.trim() || '';
-  const combined = [normalizedBase, normalizedExtra].filter(Boolean).join('\n\n').trim();
-  return combined || null;
-};
-
-const emitPendingTaskCreated = (userId: string, payload: Record<string, unknown>): void => {
-  if (!hasIO()) return;
-
-  getIO().to(`user:${userId}`).emit('pending-task:created', payload);
-};
+// ---------------------------------------------------------------------------
+// Core message processor
+// ---------------------------------------------------------------------------
 
 const processAggregatedInboxPayload = async (
   from: string,
-  aggregatedInbox: AggregatedInboxPayload
+  aggregatedInbox: AggregatedInboxPayload,
 ): Promise<void> => {
-  const { content, latestContent, mediaItems, messageSid } = aggregatedInbox;
+  const { content, mediaItems } = aggregatedInbox;
 
   try {
     const user = await findUserByWhatsappPhone(from);
@@ -637,210 +314,86 @@ const processAggregatedInboxPayload = async (
     if (!user) {
       await sendTextMessage(
         from,
-        '❌ Seu número não está vinculado a uma conta Jarvi. Vá em Configurações para vincular.'
+        '❌ Seu número não está vinculado a uma conta Jarvi. Vá em Configurações para vincular.',
       );
       return;
     }
 
-    const { memory, timezone } = await getUserMemoryAndTimezone(user.id);
-    const extractionOptions: ExtractionOptions = {
-      memoryContext: memory || undefined,
-      timezone,
-    };
+    const redis = await whatsappQueue.client;
+    const textParts: string[] = [];
 
-    let extracted: ExtractedTask;
-    let transcription: string | null = null;
-    const originalWhatsappContent: string | null = content?.trim() || null;
-    let rawContent: string | null = originalWhatsappContent;
-    const hasMedia = mediaItems.length > 0;
-    const hasAudio = mediaItems.some((item) => item.contentType.startsWith('audio/'));
-    const hasImage = mediaItems.some((item) => item.contentType.startsWith('image/'));
-    const hasText = !!originalWhatsappContent;
-    const mediaAttachments: MediaAttachment[] = [];
-    const extractedPdfTexts: string[] = [];
+    // Add text content from the message
+    const originalText = content?.trim() || null;
+    if (originalText) textParts.push(originalText);
 
+    // Process each media item into a text representation
     for (const mediaItem of mediaItems) {
+      const { url, contentType } = mediaItem;
       try {
-        const mediaBuffer = await downloadMedia(mediaItem.url);
-        mediaAttachments.push(
-          buildMediaAttachment(mediaItem.contentType, mediaItem.index, mediaBuffer)
-        );
-
-        if (isPdfMimeType(mediaItem.contentType)) {
-          const parsedPdfText = await extractTextFromPdfBuffer(mediaBuffer);
-          if (parsedPdfText) {
-            extractedPdfTexts.push(`Documento PDF ${mediaItem.index + 1}:\n${parsedPdfText}`);
-          }
+        if (contentType.startsWith('audio/')) {
+          await sendTextMessage(from, '⏳ Processando seu áudio...');
+          const buffer = await downloadMedia(url);
+          const transcription = await transcribeAudio(buffer, contentType);
+          textParts.push(`[Áudio transcrito]: ${transcription}`);
+        } else if (contentType.startsWith('image/')) {
+          await sendTextMessage(from, '⏳ Analisando sua imagem...');
+          const buffer = await downloadMedia(url);
+          const description = await analyzeImageForChat(buffer, contentType);
+          textParts.push(`[Imagem recebida]: ${description}`);
+        } else if (isPdfMimeType(contentType)) {
+          const buffer = await downloadMedia(url);
+          const pdfText = await extractTextFromPdfBuffer(buffer);
+          if (pdfText) textParts.push(`[Documento PDF]: ${pdfText}`);
         }
-      } catch (error) {
-        console.error('Failed to download media attachment:', error);
+      } catch (mediaError) {
+        console.error('Failed to process media item:', {
+          url,
+          contentType,
+          error: mediaError instanceof Error ? mediaError.message : String(mediaError),
+        });
       }
     }
 
-    const documentContext =
-      extractedPdfTexts.length > 0
-        ? `Trechos extraídos dos PDFs anexados:\n${extractedPdfTexts.join('\n\n')}`
-        : null;
-
-    const firstAudioMedia = mediaItems.find((item) => item.contentType.startsWith('audio/'));
-    const firstImageMedia = mediaItems.find((item) => item.contentType.startsWith('image/'));
-
-    if (hasAudio) {
-      if (!firstAudioMedia) {
-        await sendTextMessage(from, 'Não consegui baixar o áudio. Tente enviar novamente.');
-        return;
-      }
-
-      const audioResult = await processAudio(
-        from,
-        firstAudioMedia.url,
-        firstAudioMedia.contentType || 'audio/ogg',
-        originalWhatsappContent,
-        documentContext,
-        extractionOptions,
-      );
-      extracted = audioResult.extracted;
-      transcription = audioResult.transcription;
-      rawContent = transcription;
-    } else if (hasImage && !hasText) {
-      if (!firstImageMedia) {
-        await sendTextMessage(from, 'Não consegui baixar a imagem. Tente enviar novamente.');
-        return;
-      }
-
-      const imageResult = await processImage(
-        from,
-        firstImageMedia.url,
-        firstImageMedia.contentType || 'image/jpeg',
-        extractionOptions,
-      );
-      extracted = imageResult.extracted;
-      transcription = imageResult.transcription;
-    } else if (hasImage && hasText) {
-      if (!firstImageMedia) {
-        await sendTextMessage(from, 'Não consegui baixar a imagem. Tente enviar novamente.');
-        return;
-      }
-
-      const imageResult = await processImage(
-        from,
-        firstImageMedia.url,
-        firstImageMedia.contentType || 'image/jpeg',
-        extractionOptions,
-      );
-      extracted = imageResult.extracted;
-      transcription = imageResult.transcription;
-
-      if (!extracted.is_task || !extracted.title) {
-        extracted = await processText(
-          `${originalWhatsappContent}\n\n[Anexos recebidos: ${
-            mediaAttachments.length || mediaItems.length
-          }]${documentContext ? `\n\n${documentContext}` : ''}`,
-          extractionOptions,
-        );
-      }
-    } else if (hasMedia && !hasText) {
-      const fallbackText = appendContext(
-        originalWhatsappContent
-          ? `Mensagem do usuário: ${originalWhatsappContent}`
-          : `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`,
-        documentContext
-      ) || `Usuário enviou ${mediaAttachments.length || mediaItems.length} anexo(s) no WhatsApp.`;
-      extracted = await processText(fallbackText, extractionOptions);
-      rawContent = fallbackText;
-    } else {
-      if (!rawContent) {
-        await sendTextMessage(from, 'Envie uma mensagem com a tarefa que você quer criar.');
-        return;
-      }
-      const textForExtraction = hasMedia
-        ? `${rawContent}\n\n[Anexos recebidos: ${mediaItems.length}]${
-            documentContext ? `\n\n${documentContext}` : ''
-          }`
-        : rawContent;
-      extracted = await processText(textForExtraction, extractionOptions);
-    }
-
-    const dueDateSourceText = originalWhatsappContent || latestContent || '';
-    const explicitDueDate = extractExplicitDueDateFromText(dueDateSourceText);
-    if (explicitDueDate) {
-      extracted = {
-        ...extracted,
-        due_date: explicitDueDate,
-      };
-    }
-
-    if (!extracted.is_task || !extracted.title) {
-      if (hasMedia && !hasText && !transcription) {
-        await sendTextMessage(
-          from,
-          '📎 Recebi seus anexos. Agora me diga em texto o que você quer que eu transforme em tarefa.'
-        );
-      } else {
-        await sendTextMessage(
-          from,
-          '🤔 Não entendi como tarefa. Tente descrever claramente o que precisa fazer e quando.'
-        );
-      }
+    if (textParts.length === 0) {
+      await sendTextMessage(from, 'Envie uma mensagem ou arquivo e eu te ajudo!');
       return;
     }
 
-    const sourceTypeHint = hasAudio ? 'audio' : hasImage ? 'image' : hasMedia ? 'media' : 'text';
-    const rawContentWithDocuments = appendContext(rawContent, documentContext);
-
-    const pendingTask = await createPendingTask({
-      userId: user.id,
-      from,
-      rawContent: rawContentWithDocuments,
-      transcription,
-      extracted,
-      originalWhatsappContent:
-        originalWhatsappContent || transcription || `Mensagem sem texto (${sourceTypeHint})`,
-      mediaAttachmentsJson: mediaAttachments.length > 0 ? JSON.stringify(mediaAttachments) : null,
-      messageSid,
-    });
-
-    await sendTextMessage(from, formatTaskConfirmation(extracted));
-    emitPendingTaskCreated(user.id, pendingTask);
-
-    // Fire-and-forget: update user memory if the message contains personal info
-    const textForMemory = originalWhatsappContent || transcription;
-    if (textForMemory) {
-      tryUpdateMemoryAsync(user.id, textForMemory, memory);
-    }
+    const userMessage = textParts.join('\n\n');
+    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis);
+    await sendTextMessage(from, agentResponse);
   } catch (error) {
-    console.error('Failed to process WhatsApp message payload:', {
+    console.error('Failed to process WhatsApp message:', {
       from,
       error: error instanceof Error ? error.message : String(error),
     });
-
     try {
       await sendTextMessage(
         from,
-        '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.'
+        '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.',
       );
     } catch (sendError) {
-      console.error('Failed to send WhatsApp processing error notification:', sendError);
+      console.error('Failed to send WhatsApp error notification:', sendError);
     }
   }
 };
+
+// ---------------------------------------------------------------------------
+// Worker setup
+// ---------------------------------------------------------------------------
 
 const processMessageJob = async (jobData: WhatsappMessageJob): Promise<void> => {
   const { from } = jobData;
   const aggregatedInbox = await consumeAggregatedInbox(from);
-  if (!aggregatedInbox) {
-    return;
-  }
-
+  if (!aggregatedInbox) return;
   await processAggregatedInboxPayload(from, aggregatedInbox);
 };
 
 export const processIncomingWhatsappMessageDirect = async (
-  input: WhatsappIncomingMessage
+  input: WhatsappIncomingMessage,
 ): Promise<void> => {
   const from = input.from.trim();
   if (!from) return;
-
   const content = input.content?.trim() || null;
   const mediaItems = uniqueMediaItems(input.mediaItems || []);
   await processAggregatedInboxPayload(from, {
@@ -852,16 +405,14 @@ export const processIncomingWhatsappMessageDirect = async (
 };
 
 export const initializeWhatsappWorker = (): Worker<WhatsappMessageJob> => {
-  if (whatsappWorker) {
-    return whatsappWorker;
-  }
+  if (whatsappWorker) return whatsappWorker;
 
   whatsappWorker = new Worker<WhatsappMessageJob>(
     'whatsapp-messages',
     async (job) => {
       await processMessageJob(job.data);
     },
-    { connection: queueConnection }
+    { connection: queueConnection },
   );
 
   whatsappWorker.on('failed', (job, error) => {
