@@ -496,7 +496,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `• [demais tarefas do período]`,
     `• ...`,
     ``,
-    `[Pergunta curta e relevante para engajar — ex: "Quer que eu te mostre o jeito mais fácil de começar?"]`,
+    `Quer que eu te mostre o jeito mais fácil de começar?`,
     ``,
     `Regras do briefing:`,
     `- Use a saudação correta para o horário atual: "${greeting}"`,
