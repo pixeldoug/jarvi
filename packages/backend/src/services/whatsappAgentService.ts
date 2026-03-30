@@ -1,7 +1,13 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { Redis } from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+
+// Duck-typed interface covering the Redis methods we actually use,
+// compatible with both ioredis `Redis` and `Cluster` instances.
+interface RedisLike {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string, expiryMode: 'EX', time: number): Promise<unknown>;
+}
 
 // ---------------------------------------------------------------------------
 // Anthropic client
@@ -48,7 +54,7 @@ const historyKey = (userId: string) => `whatsapp:agent:history:${userId}`;
 const HISTORY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 const MAX_HISTORY_MESSAGES = 20; // 10 turns
 
-async function loadHistory(redis: Redis, userId: string): Promise<ConversationMessage[]> {
+async function loadHistory(redis: RedisLike, userId: string): Promise<ConversationMessage[]> {
   try {
     const raw = await redis.get(historyKey(userId));
     if (!raw) return [];
@@ -65,7 +71,7 @@ async function loadHistory(redis: Redis, userId: string): Promise<ConversationMe
 }
 
 async function appendHistory(
-  redis: Redis,
+  redis: RedisLike,
   userId: string,
   userMsg: string,
   assistantMsg: string,
@@ -436,7 +442,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
 export const runWhatsappAgent = async (
   userId: string,
   userMessage: string,
-  redis: Redis,
+  redis: RedisLike,
 ): Promise<string> => {
   const anthropic = getAnthropicClient();
 
