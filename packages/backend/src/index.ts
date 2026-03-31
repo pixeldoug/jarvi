@@ -117,6 +117,34 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// #region agent log - debug date endpoint
+app.get('/debug/date-dde797', (req, res) => {
+  const tz = (req.query.tz as string) || 'America/Sao_Paulo';
+  const now = new Date();
+  const formatted = now.toLocaleString('pt-BR', {
+    weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz,
+  });
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', day: '2-digit', timeZone: tz,
+  }).formatToParts(now);
+  const isoDate = `${parts.find(p=>p.type==='year')?.value}-${parts.find(p=>p.type==='month')?.value}-${parts.find(p=>p.type==='day')?.value}`;
+  const weekday = formatted.split(',')[0].trim();
+  res.json({
+    codeVersion: 'd7cf480',
+    serverUtcIso: now.toISOString(),
+    serverUtcMs: now.getTime(),
+    processEnvTZ: process.env.TZ || '(not set)',
+    nodeVersion: process.version,
+    inputTimezone: tz,
+    formatted,
+    isoDate,
+    weekday,
+    ddMM: isoDate.split('-').reverse().slice(0,2).join('/'),
+  });
+});
+// #endregion
+
 // Temporary endpoint to check notes table structure
 app.get('/debug/notes-table', async (req, res) => {
   try {
