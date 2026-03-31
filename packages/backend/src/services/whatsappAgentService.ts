@@ -69,8 +69,8 @@ async function loadHistory(
       redis.get(historyDateKey(userId)),
     ]);
 
-    // Different calendar day → discard stale history
-    if (storedDate && storedDate !== todayIso) {
+    // Clear if no date tag exists (pre-fix history) OR date has changed
+    if (!storedDate || storedDate !== todayIso) {
       await redis.set(historyKey(userId), JSON.stringify([]), 'EX', HISTORY_TTL_SECONDS);
       await redis.set(historyDateKey(userId), todayIso, 'EX', HISTORY_TTL_SECONDS);
       return [];
