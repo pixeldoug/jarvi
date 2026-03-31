@@ -127,7 +127,7 @@ async function getUserTasks(userId: string): Promise<TaskRow[]> {
   if (isPostgreSQL()) {
     const result = await getPool().query(
       `SELECT id, title, description, completed, priority, category, due_date, time, created_at
-       FROM tasks WHERE user_id = $1
+       FROM tasks WHERE user_id = $1 AND completed = FALSE
        ORDER BY
          CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
          due_date ASC,
@@ -141,7 +141,7 @@ async function getUserTasks(userId: string): Promise<TaskRow[]> {
   }
   return getDatabase().all<TaskRow[]>(
     `SELECT id, title, description, completed, priority, category, due_date, time, created_at
-     FROM tasks WHERE user_id = ?
+     FROM tasks WHERE user_id = ? AND completed = 0
      ORDER BY
        CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
        due_date ASC,
@@ -378,8 +378,18 @@ async function executeTool(
 // System prompt
 // ---------------------------------------------------------------------------
 
-function getDateTimeForTimezone(timezone: string): string {
-  const opts: Intl.DateTimeFormatOptions = {
+function getDateTimeForTimezone(timezone: string): { formatted: string; isoDate: string } {
+  const now = new Date();
+  const tz = (() => {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: timezone });
+      return timezone;
+    } catch {
+      return 'America/Sao_Paulo';
+    }
+  })();
+
+  const formatted = now.toLocaleString('pt-BR', {
     weekday: 'long',
     year: 'numeric',
     month: '2-digit',
@@ -387,12 +397,22 @@ function getDateTimeForTimezone(timezone: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  };
-  try {
-    return new Date().toLocaleString('pt-BR', { ...opts, timeZone: timezone });
-  } catch {
-    return new Date().toLocaleString('pt-BR', { ...opts, timeZone: 'America/Sao_Paulo' });
-  }
+    timeZone: tz,
+  });
+
+  // Build ISO date (YYYY-MM-DD) for the user's timezone to avoid off-by-one day errors
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    timeZone: tz,
+  }).formatToParts(now);
+  const year = parts.find((p) => p.type === 'year')?.value ?? '';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '';
+  const day = parts.find((p) => p.type === 'day')?.value ?? '';
+  const isoDate = `${year}-${month}-${day}`;
+
+  return { formatted, isoDate };
 }
 
 function getCurrentHour(timezone: string): number {
@@ -418,6 +438,7 @@ function getDynamicGreeting(timezone: string): string {
 function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
+  const { formatted: dateFormatted, isoDate: todayIso } = getDateTimeForTimezone(timezone);
 
   const taskList =
     activeTasks.length > 0
@@ -482,11 +503,12 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `- Ao listar tarefas, use o formato com emojis acima, sem IDs visíveis para o usuário`,
     `- Responda perguntas sobre tarefas, datas e prioridades usando a lista acima`,
     `- MEMÓRIA: Se a mensagem contiver informação pessoal nova (nomes, relacionamentos, localização, preferências, hábitos, datas importantes), chame update_memory mesclando com o que já existia — nunca descarte informações antigas`,
-    `- Data/hora atual (${timezone}): ${getDateTimeForTimezone(timezone)}`,
+    `- Data/hora atual (${timezone}): ${dateFormatted}`,
+    `- ⚠️ DATA DE HOJE (use EXATAMENTE esta data, nunca outra): ${todayIso} — ao exibir para o usuário, formate como ${todayIso.split('-').reverse().slice(0, 2).join('/')}`,
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
-    `${greeting}, [nome]! Hoje é [dia da semana e DD/MM extraídos da data/hora atual acima].`,
+    `${greeting}, [nome]! Hoje é [dia da semana] ${todayIso.split('-').reverse().slice(0, 2).join('/')}.`,
     ``,
     `🔥 Prioridades`,
     `— [tarefa high priority 1]`,
