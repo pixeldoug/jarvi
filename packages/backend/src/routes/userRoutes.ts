@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateToken } from '../middleware/auth';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sendEmailChangeConfirmation } from '../services/emailService';
-import { sendTextMessage } from '../services/whatsappService';
+import { sendVerificationCode } from '../services/whatsappService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
 
 // Helper to generate secure token
@@ -568,10 +568,7 @@ router.post('/whatsapp-link/request', authenticateToken, async (req: Request, re
       throw error;
     }
 
-    await sendTextMessage(
-      normalizedPhone,
-      `Seu código Jarvi é: ${linkCode}. Ele expira em 10 minutos.`
-    );
+    await sendVerificationCode(normalizedPhone, linkCode);
 
     res.json({
       success: true,

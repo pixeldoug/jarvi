@@ -68,6 +68,17 @@ export const sendTextMessage = async (to: string, text: string): Promise<void> =
   });
 };
 
+export const sendVerificationCode = async (to: string, code: string): Promise<void> => {
+  const client = getTwilioClient();
+
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid: 'HX8830c6449781229c647abbc819285165',
+    contentVariables: JSON.stringify({ '1': code }),
+  });
+};
+
 export const downloadMedia = async (mediaUrl: string): Promise<Buffer> => {
   const { accountSid, authToken } = getTwilioCredentials();
   const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
