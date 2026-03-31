@@ -415,10 +415,6 @@ function getDateTimeForTimezone(timezone: string): { formatted: string; isoDate:
   // Extract weekday directly from the formatted string (first segment before comma)
   const weekday = formatted.split(',')[0].trim();
 
-  // #region agent log
-  console.error('[DBG-dde797] getDateTimeForTimezone', JSON.stringify({serverUtcIso:now.toISOString(),inputTimezone:timezone,resolvedTz:tz,computedIsoDate:isoDate,formattedString:formatted,weekday,ddMM:isoDate.split('-').reverse().slice(0,2).join('/')}));
-  // #endregion
-
   return { formatted, isoDate, weekday };
 }
 
@@ -546,10 +542,6 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
 
   const prompt = lines.filter((l): l is string => l !== null).join('\n');
 
-  // #region agent log
-  console.error('[DBG-dde797] buildSystemPrompt', JSON.stringify({todayIso,todayWeekday,todayDDMM,briefingLine:`${greeting}, [nome]! Hoje é ${todayWeekday} ${todayDDMM}.`}));
-  // #endregion
-
   return prompt;
 }
 
@@ -651,10 +643,6 @@ export const runWhatsappAgent = async (
   }
 
   const finalResponse = responseText || 'Entendido! Como posso te ajudar?';
-
-  // #region agent log
-  console.error('[DBG-dde797] finalResponse', JSON.stringify({userMessage,finalResponse}));
-  // #endregion
 
   // Persist conversation turn to Redis history
   await appendHistory(redis, userId, userMessage, finalResponse);
