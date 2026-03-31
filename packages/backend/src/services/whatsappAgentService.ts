@@ -464,7 +464,15 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
 
   const greeting = getDynamicGreeting(timezone);
 
+  const todayDDMM = todayIso.split('-').reverse().slice(0, 2).join('/');
+
   const lines: (string | null)[] = [
+    `=== CONTEXTO TEMPORAL — LEIA ANTES DE TUDO ===`,
+    `DATA DE HOJE: ${todayIso} | Dia: ${todayWeekday} | Exibir como: ${todayDDMM}`,
+    `HORA ATUAL: ${dateFormatted.split(',').slice(-1)[0]?.trim() ?? ''} (${timezone})`,
+    `⛔ IGNORE qualquer data mencionada no histórico de conversa — use SOMENTE a data acima.`,
+    `==============================================`,
+    ``,
     `Você é o Jarvi, assistente pessoal de produtividade no WhatsApp, em português brasileiro.`,
     `Personalidade: amigo próximo, direto, empático, prático. Não é um bot que só cria tarefas — você conversa, orienta, responde perguntas e organiza a vida do usuário.`,
     ``,
@@ -510,9 +518,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `- Ao listar tarefas, use o formato com emojis acima, sem IDs visíveis para o usuário`,
     `- Responda perguntas sobre tarefas, datas e prioridades usando a lista acima`,
     `- MEMÓRIA: Se a mensagem contiver informação pessoal nova (nomes, relacionamentos, localização, preferências, hábitos, datas importantes), chame update_memory mesclando com o que já existia — nunca descarte informações antigas`,
-    `- Data/hora atual (${timezone}): ${dateFormatted}`,
-    `- ⚠️ DATA DE HOJE (use EXATAMENTE esta data, nunca outra): ${todayIso} | Dia da semana: ${todayWeekday} | Formato para exibir: ${todayIso.split('-').reverse().slice(0, 2).join('/')}`,
-    `- ⛔ PROIBIDO usar o histórico de conversa para determinar data ou dia da semana — use SOMENTE os valores acima`,
+    `- Data/hora atual: ${dateFormatted} (${timezone})`,
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
@@ -541,7 +547,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
   const prompt = lines.filter((l): l is string => l !== null).join('\n');
 
   // #region agent log
-  console.error('[DBG-dde797] buildSystemPrompt', JSON.stringify({todayIso,todayWeekday,dateFormatted,todayDDMM:todayIso.split('-').reverse().slice(0,2).join('/'),briefingLine:`${greeting}, [nome]! Hoje é ${todayWeekday} ${todayIso.split('-').reverse().slice(0,2).join('/')}.`}));
+  console.error('[DBG-dde797] buildSystemPrompt', JSON.stringify({todayIso,todayWeekday,todayDDMM,briefingLine:`${greeting}, [nome]! Hoje é ${todayWeekday} ${todayDDMM}.`}));
   // #endregion
 
   return prompt;
@@ -566,8 +572,22 @@ export const runWhatsappAgent = async (
 
   const systemPrompt = buildSystemPrompt(tasks, memory, timezone);
 
+  // Inject a date-correction anchor at the end of history so the model always
+  // sees the authoritative current date as the most recent context — this
+  // overrides any stale date mentions accumulated in previous history turns.
+  const { isoDate: todayIso, weekday: todayWeekday } = getDateTimeForTimezone(timezone);
+  const todayDDMM = todayIso.split('-').reverse().slice(0, 2).join('/');
+  const dateCorrectionPair: Anthropic.MessageParam[] =
+    history.length > 0
+      ? [
+          { role: 'user', content: `[SISTEMA] Qual é a data de hoje?` },
+          { role: 'assistant', content: `Hoje é ${todayWeekday}, ${todayDDMM}.` },
+        ]
+      : [];
+
   const conversationMessages: Anthropic.MessageParam[] = [
     ...history.map((m) => ({ role: m.role, content: m.content } as Anthropic.MessageParam)),
+    ...dateCorrectionPair,
     { role: 'user', content: userMessage },
   ];
 
