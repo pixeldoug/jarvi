@@ -51,12 +51,31 @@ interface ConversationMessage {
 // ---------------------------------------------------------------------------
 
 const historyKey = (userId: string) => `whatsapp:agent:history:${userId}`;
+const historyDateKey = (userId: string) => `whatsapp:agent:history:date:${userId}`;
 const HISTORY_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 const MAX_HISTORY_MESSAGES = 20; // 10 turns
 
-async function loadHistory(redis: RedisLike, userId: string): Promise<ConversationMessage[]> {
+// Load history for today only — clears automatically if the calendar date has
+// changed so that stale date references from yesterday never pollute today's
+// conversation context.
+async function loadHistory(
+  redis: RedisLike,
+  userId: string,
+  todayIso: string,
+): Promise<ConversationMessage[]> {
   try {
-    const raw = await redis.get(historyKey(userId));
+    const [raw, storedDate] = await Promise.all([
+      redis.get(historyKey(userId)),
+      redis.get(historyDateKey(userId)),
+    ]);
+
+    // Different calendar day → discard stale history
+    if (storedDate && storedDate !== todayIso) {
+      await redis.set(historyKey(userId), JSON.stringify([]), 'EX', HISTORY_TTL_SECONDS);
+      await redis.set(historyDateKey(userId), todayIso, 'EX', HISTORY_TTL_SECONDS);
+      return [];
+    }
+
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
@@ -75,13 +94,17 @@ async function appendHistory(
   userId: string,
   userMsg: string,
   assistantMsg: string,
+  todayIso: string,
 ): Promise<void> {
   try {
-    const history = await loadHistory(redis, userId);
+    const history = await loadHistory(redis, userId, todayIso);
     history.push({ role: 'user', content: userMsg });
     history.push({ role: 'assistant', content: assistantMsg });
     const trimmed = history.slice(-MAX_HISTORY_MESSAGES);
-    await redis.set(historyKey(userId), JSON.stringify(trimmed), 'EX', HISTORY_TTL_SECONDS);
+    await Promise.all([
+      redis.set(historyKey(userId), JSON.stringify(trimmed), 'EX', HISTORY_TTL_SECONDS),
+      redis.set(historyDateKey(userId), todayIso, 'EX', HISTORY_TTL_SECONDS),
+    ]);
   } catch {
     // ignore — history is best-effort
   }
@@ -556,19 +579,22 @@ export const runWhatsappAgent = async (
 ): Promise<string> => {
   const anthropic = getAnthropicClient();
 
-  const [{ memory, timezone }, tasks, history] = await Promise.all([
+  const [{ memory, timezone }, tasks] = await Promise.all([
     getUserMemoryAndTimezone(userId),
     getUserTasks(userId),
-    loadHistory(redis, userId),
   ]);
 
   const systemPrompt = buildSystemPrompt(tasks, memory, timezone);
 
-  // Inject a date-correction anchor at the end of history so the model always
-  // sees the authoritative current date as the most recent context — this
-  // overrides any stale date mentions accumulated in previous history turns.
+  // Compute today's date once and share across history load + message injection
   const { isoDate: todayIso, weekday: todayWeekday } = getDateTimeForTimezone(timezone);
   const todayDDMM = todayIso.split('-').reverse().slice(0, 2).join('/');
+
+  // Load history AFTER computing todayIso so we can auto-clear stale days
+  const history = await loadHistory(redis, userId, todayIso);
+
+  // Inject a date-correction anchor at the end of history so the model always
+  // sees the authoritative current date as the most recent context.
   const dateCorrectionPair: Anthropic.MessageParam[] =
     history.length > 0
       ? [
@@ -645,7 +671,7 @@ export const runWhatsappAgent = async (
   const finalResponse = responseText || 'Entendido! Como posso te ajudar?';
 
   // Persist conversation turn to Redis history
-  await appendHistory(redis, userId, userMessage, finalResponse);
+  await appendHistory(redis, userId, userMessage, finalResponse, todayIso);
 
   return finalResponse;
 };
