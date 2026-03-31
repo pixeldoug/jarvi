@@ -412,6 +412,10 @@ function getDateTimeForTimezone(timezone: string): { formatted: string; isoDate:
   const day = parts.find((p) => p.type === 'day')?.value ?? '';
   const isoDate = `${year}-${month}-${day}`;
 
+  // #region agent log
+  fetch('http://127.0.0.1:7394/ingest/45171c55-f0be-4178-88bb-f7affcac28ee',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dde797'},body:JSON.stringify({sessionId:'dde797',location:'whatsappAgentService.ts:getDateTimeForTimezone',message:'date-computed',data:{serverUtcIso:now.toISOString(),serverUtcTimestamp:now.getTime(),inputTimezone:timezone,resolvedTz:tz,computedIsoDate:isoDate,formattedString:formatted,ddMM:isoDate.split('-').reverse().slice(0,2).join('/')},timestamp:Date.now(),hypothesisId:'H-A,H-B,H-C'})}).catch(()=>{});
+  // #endregion
+
   return { formatted, isoDate };
 }
 
@@ -530,7 +534,13 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `- Nunca mostre IDs para o usuário`,
   ];
 
-  return lines.filter((l): l is string => l !== null).join('\n');
+  const prompt = lines.filter((l): l is string => l !== null).join('\n');
+
+  // #region agent log
+  fetch('http://127.0.0.1:7394/ingest/45171c55-f0be-4178-88bb-f7affcac28ee',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dde797'},body:JSON.stringify({sessionId:'dde797',location:'whatsappAgentService.ts:buildSystemPrompt',message:'system-prompt-date-lines',data:{todayIso,dateFormatted,todayDDMM:todayIso.split('-').reverse().slice(0,2).join('/'),briefingTemplateLine:`${greeting}, [nome]! Hoje é [dia da semana] ${todayIso.split('-').reverse().slice(0,2).join('/')}.`,warningLine:`⚠️ DATA DE HOJE (use EXATAMENTE esta data, nunca outra): ${todayIso} — ao exibir para o usuário, formate como ${todayIso.split('-').reverse().slice(0,2).join('/')}`},timestamp:Date.now(),hypothesisId:'H-C,H-D,H-E'})}).catch(()=>{});
+  // #endregion
+
+  return prompt;
 }
 
 // ---------------------------------------------------------------------------
@@ -617,6 +627,10 @@ export const runWhatsappAgent = async (
   }
 
   const finalResponse = responseText || 'Entendido! Como posso te ajudar?';
+
+  // #region agent log
+  fetch('http://127.0.0.1:7394/ingest/45171c55-f0be-4178-88bb-f7affcac28ee',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dde797'},body:JSON.stringify({sessionId:'dde797',location:'whatsappAgentService.ts:runWhatsappAgent',message:'final-response',data:{userMessage,finalResponse},timestamp:Date.now(),hypothesisId:'H-D,H-E'})}).catch(()=>{});
+  // #endregion
 
   // Persist conversation turn to Redis history
   await appendHistory(redis, userId, userMessage, finalResponse);
