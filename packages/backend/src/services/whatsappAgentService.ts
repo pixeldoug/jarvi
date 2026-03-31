@@ -461,10 +461,31 @@ function getDynamicGreeting(timezone: string): string {
   return 'Boa noite';
 }
 
+// Build an explicit day-of-week → date lookup for the next 7 days so the model
+// never needs to do calendar arithmetic (which small models get wrong consistently).
+function buildWeekCalendar(todayIso: string): string {
+  const PT_WEEKDAYS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+  const PT_LABELS: Record<number, string> = { 0: 'Hoje', 1: 'Amanhã', 2: 'Depois de amanhã' };
+
+  // Parse todayIso as a local date (no timezone shift) using UTC noon
+  const [y, m, d] = todayIso.split('-').map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(base.getTime() + i * 86400000);
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const weekday = PT_WEEKDAYS[date.getUTCDay()];
+    const label = PT_LABELS[i] ?? weekday;
+    return `${label} (${weekday}): ${dd}/${mm}`;
+  }).join('\n');
+}
+
 function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
   const { formatted: dateFormatted, isoDate: todayIso, weekday: todayWeekday } = getDateTimeForTimezone(timezone);
+  const weekCalendar = buildWeekCalendar(todayIso);
 
   const taskList =
     activeTasks.length > 0
@@ -489,7 +510,11 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `=== CONTEXTO TEMPORAL — LEIA ANTES DE TUDO ===`,
     `DATA DE HOJE: ${todayIso} | Dia: ${todayWeekday} | Exibir como: ${todayDDMM}`,
     `HORA ATUAL: ${dateFormatted.split(',').slice(-1)[0]?.trim() ?? ''} (${timezone})`,
-    `⛔ IGNORE qualquer data mencionada no histórico de conversa — use SOMENTE a data acima.`,
+    ``,
+    `CALENDÁRIO DOS PRÓXIMOS 7 DIAS (use ESTE calendário para todas as datas — nunca calcule):`,
+    weekCalendar,
+    ``,
+    `⛔ NUNCA calcule datas manualmente. NUNCA use datas do histórico de conversa. Use SOMENTE o calendário acima.`,
     `==============================================`,
     ``,
     `Você é o Jarvi, assistente pessoal de produtividade no WhatsApp, em português brasileiro.`,
