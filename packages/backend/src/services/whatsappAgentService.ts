@@ -378,7 +378,7 @@ async function executeTool(
 // System prompt
 // ---------------------------------------------------------------------------
 
-function getDateTimeForTimezone(timezone: string): { formatted: string; isoDate: string } {
+function getDateTimeForTimezone(timezone: string): { formatted: string; isoDate: string; weekday: string } {
   const now = new Date();
   const tz = (() => {
     try {
@@ -412,11 +412,14 @@ function getDateTimeForTimezone(timezone: string): { formatted: string; isoDate:
   const day = parts.find((p) => p.type === 'day')?.value ?? '';
   const isoDate = `${year}-${month}-${day}`;
 
+  // Extract weekday directly from the formatted string (first segment before comma)
+  const weekday = formatted.split(',')[0].trim();
+
   // #region agent log
-  console.error('[DBG-dde797] getDateTimeForTimezone', JSON.stringify({serverUtcIso:now.toISOString(),inputTimezone:timezone,resolvedTz:tz,computedIsoDate:isoDate,formattedString:formatted,ddMM:isoDate.split('-').reverse().slice(0,2).join('/')}));
+  console.error('[DBG-dde797] getDateTimeForTimezone', JSON.stringify({serverUtcIso:now.toISOString(),inputTimezone:timezone,resolvedTz:tz,computedIsoDate:isoDate,formattedString:formatted,weekday,ddMM:isoDate.split('-').reverse().slice(0,2).join('/')}));
   // #endregion
 
-  return { formatted, isoDate };
+  return { formatted, isoDate, weekday };
 }
 
 function getCurrentHour(timezone: string): number {
@@ -442,7 +445,7 @@ function getDynamicGreeting(timezone: string): string {
 function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
-  const { formatted: dateFormatted, isoDate: todayIso } = getDateTimeForTimezone(timezone);
+  const { formatted: dateFormatted, isoDate: todayIso, weekday: todayWeekday } = getDateTimeForTimezone(timezone);
 
   const taskList =
     activeTasks.length > 0
@@ -508,11 +511,12 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `- Responda perguntas sobre tarefas, datas e prioridades usando a lista acima`,
     `- MEMÓRIA: Se a mensagem contiver informação pessoal nova (nomes, relacionamentos, localização, preferências, hábitos, datas importantes), chame update_memory mesclando com o que já existia — nunca descarte informações antigas`,
     `- Data/hora atual (${timezone}): ${dateFormatted}`,
-    `- ⚠️ DATA DE HOJE (use EXATAMENTE esta data, nunca outra): ${todayIso} — ao exibir para o usuário, formate como ${todayIso.split('-').reverse().slice(0, 2).join('/')}`,
+    `- ⚠️ DATA DE HOJE (use EXATAMENTE esta data, nunca outra): ${todayIso} | Dia da semana: ${todayWeekday} | Formato para exibir: ${todayIso.split('-').reverse().slice(0, 2).join('/')}`,
+    `- ⛔ PROIBIDO usar o histórico de conversa para determinar data ou dia da semana — use SOMENTE os valores acima`,
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
-    `${greeting}, [nome]! Hoje é [dia da semana] ${todayIso.split('-').reverse().slice(0, 2).join('/')}.`,
+    `${greeting}, [nome]! Hoje é ${todayWeekday} ${todayIso.split('-').reverse().slice(0, 2).join('/')}.`,
     ``,
     `🔥 Prioridades`,
     `— [tarefa high priority 1]`,
@@ -537,7 +541,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
   const prompt = lines.filter((l): l is string => l !== null).join('\n');
 
   // #region agent log
-  console.error('[DBG-dde797] buildSystemPrompt', JSON.stringify({todayIso,dateFormatted,todayDDMM:todayIso.split('-').reverse().slice(0,2).join('/'),briefingLine:`${greeting}, [nome]! Hoje é [dia da semana] ${todayIso.split('-').reverse().slice(0,2).join('/')}.`}));
+  console.error('[DBG-dde797] buildSystemPrompt', JSON.stringify({todayIso,todayWeekday,dateFormatted,todayDDMM:todayIso.split('-').reverse().slice(0,2).join('/'),briefingLine:`${greeting}, [nome]! Hoje é ${todayWeekday} ${todayIso.split('-').reverse().slice(0,2).join('/')}.`}));
   // #endregion
 
   return prompt;
