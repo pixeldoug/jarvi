@@ -1,0 +1,285 @@
+/**
+ * AppsPage Styles - Jarvi Web
+ *
+ * Apps tab: integrations list + WhatsApp connection sub-page
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
+ * Nodes: 40001300-917, 40001302-3829, 40001305-4219, 40001305-4296
+ */
+
+/* ============================================================================
+   SHARED PAGE HEADER (list view)
+   ============================================================================ */
+
+.pageTitle {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.pageSubtitle {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* ============================================================================
+   APPS LIST VIEW
+   ============================================================================ */
+
+.listHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.integrationList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+.integrationRow {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.integrationInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.iconContainer {
+  width: 66px;
+  height: 66px;
+  flex-shrink: 0;
+  border-radius: var(--radius-radius-md);
+  background: rgba(9, 9, 11, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.appIcon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.integrationDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.integrationName {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integrationDescription {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+.integrationActions {
+  flex-shrink: 0;
+}
+
+/* "Em breve" disabled pill — same shape as Button but non-interactive */
+.comingSoonPill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 var(--sizes-4);
+  border-radius: var(--radius-button-radius, 16px);
+  border: 1px solid var(--semantic-border-primary);
+  background: var(--semantic-surface-disabled, #e8eaed);
+  cursor: default;
+  white-space: nowrap;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-disabled, #b5bcc4);
+}
+
+/* ============================================================================
+   WHATSAPP SUB-PAGE
+   ============================================================================ */
+
+.subPageWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+/* "← Apps" back link */
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  transition: color 0.15s ease;
+}
+
+.backLink:hover {
+  color: var(--semantic-content-primary);
+}
+
+/* App header: icon + name */
+.subPageAppHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+}
+
+.subPageAppName {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* ============================================================================
+   WHATSAPP CONNECTION FORM
+   ============================================================================ */
+
+.formSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.fieldLabel {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0 0 var(--sizes-2) 0;
+  display: block;
+}
+
+/* Input + button side-by-side row */
+.inputRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sizes-3);
+}
+
+.inputRow > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.helperText {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-disabled, #b5bcc4);
+  margin: 0;
+}
+
+.feedbackError {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  color: var(--semantic-content-negative);
+  margin: 0;
+}
+
+.feedbackSuccess {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  color: var(--semantic-content-positive);
+  margin: 0;
+}
+
+/* ============================================================================
+   CONNECTED STATE
+   ============================================================================ */
+
+.connectedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+}
+
+.connectedBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--sizes-3);
+  border-radius: 999px;
+  border: 1px solid var(--semantic-content-positive, #16a34a);
+  background: transparent;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--semantic-content-positive, #16a34a);
+  white-space: nowrap;
+}
+
+.connectedPhone {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.connectedActions {
+  margin-left: auto;
+}

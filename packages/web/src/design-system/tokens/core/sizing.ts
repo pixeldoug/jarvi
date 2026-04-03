@@ -37,19 +37,19 @@ export const typographySizing = {
   'body-lg': {
     fontSize: 16,
     lineHeight: 27,
-    fontWeight: 400,
+    fontWeight: 450,
     letterSpacing: 0.25,
   },
   'body-md': {
     fontSize: 14,
     lineHeight: 21,
-    fontWeight: 400,
+    fontWeight: 450,
     letterSpacing: 0.20000000298023224,
   },
   'body-sm': {
     fontSize: 13,
-    lineHeight: 18,
-    fontWeight: 400,
+    lineHeight: 16,
+    fontWeight: 450,
     letterSpacing: 0.15000000596046448,
   },
   'label-md': {
@@ -61,7 +61,7 @@ export const typographySizing = {
   'label-sm': {
     fontSize: 11,
     lineHeight: 16,
-    fontWeight: 400,
+    fontWeight: 450,
     letterSpacing: -0.10000000149011612,
   },
 } as const;

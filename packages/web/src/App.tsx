@@ -26,7 +26,6 @@ const VerifyPendingPage = lazy(() => import('./pages/VerifyPending'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPassword'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
-const SettingsPage = lazy(() => import('./pages/Settings'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,30 +62,17 @@ const AppRoutes: React.FC = () => {
     </ProtectedRoute>
   );
 
-  const settingsRouteElement = (
-    <ProtectedRoute>
-      <Suspense fallback={<Loading centered size="lg" />}>
-        <SettingsPage />
-      </Suspense>
-    </ProtectedRoute>
-  );
-
   return (
     <Router>
-      <ModalSwitch
-        subscribeRouteElement={subscribeRouteElement}
-        settingsRouteElement={settingsRouteElement}
-      />
+      <ModalSwitch subscribeRouteElement={subscribeRouteElement} />
     </Router>
   );
 };
 
 function ModalSwitch({
   subscribeRouteElement,
-  settingsRouteElement,
 }: {
   subscribeRouteElement: React.ReactElement;
-  settingsRouteElement: React.ReactElement;
 }) {
   const location = useLocation();
   const state = location.state as { backgroundLocation?: RouterLocation } | null;
@@ -132,7 +118,14 @@ function ModalSwitch({
 
         {/* Protected routes */}
         <Route path="/subscribe" element={subscribeRouteElement} />
-        <Route path="/settings" element={settingsRouteElement} />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/"
           element={

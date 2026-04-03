@@ -32,12 +32,12 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.4588235318660736,
-            0.49803921580314636,
-            0.5333333611488342
+            0.3490196168422699,
+            0.3843137323856354,
+            0.4117647111415863
           ],
           "alpha": 1,
-          "hex": "#757F88"
+          "hex": "#596269"
         },
         "$extensions": {
           "com.figma.variableId": "VariableID:1:458",
@@ -45,8 +45,8 @@
             "ALL_SCOPES"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:20fc83bdd6aa8020c7e990b4f89ef700c3a752b5/-1:-1",
-            "targetVariableName": "Colors/gray/700",
+            "targetVariableId": "VariableID:0f478546aef3ec096302cc62e400957083ee4333/-1:-1",
+            "targetVariableName": "Colors/gray/800",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -322,12 +322,12 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.9098039269447327,
-            0.9176470637321472,
-            0.929411768913269
+            0.9686274528503418,
+            0.9725490212440491,
+            0.9764705896377563
           ],
           "alpha": 1,
-          "hex": "#E8EAED"
+          "hex": "#F7F8F9"
         },
         "$extensions": {
           "com.figma.variableId": "VariableID:13102:65690",
@@ -336,8 +336,8 @@
             "SHAPE_FILL"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:858a50aa498f1dc3c6986c111222b041f4600df9/-1:-1",
-            "targetVariableName": "Colors/gray/100",
+            "targetVariableId": "VariableID:25c42479028d741589573a4ed74d043256c568f2/-1:-1",
+            "targetVariableName": "Colors/gray/50",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },

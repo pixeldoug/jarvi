@@ -17,7 +17,7 @@ This folder contains the raw design tokens exported from Figma using the **Figma
 4. Replace the corresponding files in this folder
 5. Run the token generation scripts:
    ```bash
-   cd packages/shared/src/design-tokens
+   cd packages/web
    npm run tokens:generate
    ```
 

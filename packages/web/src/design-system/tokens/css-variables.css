@@ -107,13 +107,13 @@
   --color-bw-black-transparent-80: rgba(9, 9, 11, 0.8);
 
   /* ===== Typography ===== */
-  --font-font-family-font-display: Georgia;
-  --font-font-family-font-ui: Poppins;
+  --font-font-family-font-display: Plus Jakarta Sans;
+  --font-font-family-font-ui: Plus Jakarta Sans;
   --font-font-family-font-mono: Menlo;
   --font-font-weight-thin: 100px;
   --font-font-weight-extralight: 200px;
   --font-font-weight-light: 300px;
-  --font-font-weight-normal: 400px;
+  --font-font-weight-normal: 450px;
   --font-font-weight-medium: 500px;
   --font-font-weight-semibold: 600px;
   --font-font-weight-bold: 700px;
@@ -154,7 +154,7 @@
   --sizes-36: 144px;
   --sizes-40: 160px;
   --sizes-44: 176px;
-  --sizes-45: 18px;
+  --sizes-45: 16px;
   --sizes-48: 192px;
   --sizes-52: 208px;
   --sizes-56: 224px;
@@ -191,15 +191,15 @@
   --typography-heading-sm-letter-spacing: -0.25px;
   --typography-body-lg-font-size: 16px;
   --typography-body-lg-line-height: 27px;
-  --typography-body-lg-font-weight: 400;
+  --typography-body-lg-font-weight: 450;
   --typography-body-lg-letter-spacing: 0.25px;
   --typography-body-md-font-size: 14px;
   --typography-body-md-line-height: 21px;
-  --typography-body-md-font-weight: 400;
+  --typography-body-md-font-weight: 450;
   --typography-body-md-letter-spacing: 0.20000000298023224px;
   --typography-body-sm-font-size: 13px;
-  --typography-body-sm-line-height: 18px;
-  --typography-body-sm-font-weight: 400;
+  --typography-body-sm-line-height: 16px;
+  --typography-body-sm-font-weight: 450;
   --typography-body-sm-letter-spacing: 0.15000000596046448px;
   --typography-label-md-font-size: 15px;
   --typography-label-md-line-height: 22px;
@@ -207,7 +207,7 @@
   --typography-label-md-letter-spacing: -0.25px;
   --typography-label-sm-font-size: 11px;
   --typography-label-sm-line-height: 16px;
-  --typography-label-sm-font-weight: 400;
+  --typography-label-sm-font-weight: 450;
   --typography-label-sm-letter-spacing: -0.10000000149011612px;
 
   /* ===== Radius (Mode) ===== */
@@ -235,7 +235,7 @@
 
   /* ===== Semantic Tokens (Light Mode) ===== */
   --semantic-content-primary: #18181B;
-  --semantic-content-secondary: #757F88;
+  --semantic-content-secondary: #596269;
   --semantic-content-tertiary: #A0ABB4;
   --semantic-content-accent: #F3F1FC;
   --semantic-content-subtle: #EEE9FE;
@@ -246,7 +246,7 @@
   --semantic-content-info: #6137F3;
   --semantic-surface-primary: #FFFFFF;
   --semantic-surface-secondary: #F7F8F9;
-  --semantic-surface-tertiary: #E8EAED;
+  --semantic-surface-tertiary: #F7F8F9;
   --semantic-surface-accent: #4F26E4;
   --semantic-surface-accent-subtle: #F3F1FC;
   --semantic-border-primary: #D8DDE0;
@@ -265,7 +265,7 @@
   --component-badge-bg-default: #F7F8F9;
   --component-badge-bg-disabled: #E8EAED;
   --component-badge-content-disabled: #B5BCC4;
-  --component-badge-bg-hover: #E8EAED;
+  --component-badge-bg-hover: #F7F8F9;
   --component-badge-content-hover: #18181B;
   --component-badge-content: #18181B;
   --component-button-bg-disabled: #E8EAED;
@@ -332,7 +332,7 @@
   --component-chip-content-hover: #8A97A2;
   --component-chip-border-active: #DED4FD;
   --component-googlebutton-bg-default: #FFFFFF;
-  --component-googlebutton-bg-hover: #E8EAED;
+  --component-googlebutton-bg-hover: #F7F8F9;
   --component-googlebutton-content-default: #18181B;
   --component-googlebutton-content-hover: #18181B;
   --component-list-item-bg-disabled: rgba(255, 255, 255, 0);
@@ -354,13 +354,13 @@
   --component-logo-content-stop-1: #FFFFFF;
   --component-logo-content-stop-2: #EEE9FE;
   --component-dialog-bg-overlay: rgba(9, 9, 11, 0.3);
-  --component-quick-task-creator-bg-default: #E8EAED;
+  --component-quick-task-creator-bg-default: #F7F8F9;
   --component-quick-task-creator-bg-hover: #6137F3;
   --component-quick-task-creator-border-default: rgba(9, 9, 11, 0.05);
   --component-quick-task-creator-border-hover: #6137F3;
-  --component-quick-task-creator-icon-default: #757F88;
+  --component-quick-task-creator-icon-default: #596269;
   --component-quick-task-creator-icon-hover: #F3F1FC;
-  --component-quick-task-creator-content: #757F88;
+  --component-quick-task-creator-content: #596269;
   --component-quick-task-creator-content-hover: #18181B;
   --component-tooltip-bg: #18181B;
   --component-tooltip-content: #F3F1FC;

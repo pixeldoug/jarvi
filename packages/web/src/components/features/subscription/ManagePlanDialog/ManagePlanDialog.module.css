@@ -68,31 +68,66 @@
   max-width: 480px;
 }
 
-.upgradeRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sizes-6);
+.planOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sizes-4);
   width: 100%;
 }
 
-.upgradeInfo {
+.planCard {
   display: flex;
   flex-direction: column;
   gap: var(--sizes-4);
+  padding: var(--sizes-4);
+  border: 1px solid var(--semantic-border-default);
+  border-radius: var(--radius-radius-md);
+  background: var(--semantic-background-subtle);
+}
+
+.planCardTop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  flex: 1;
+}
+
+.planCardLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.planBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--sizes-2);
+  border-radius: var(--radius-radius-sm);
+  background: var(--semantic-content-info);
+  color: #fff;
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: 600;
+  line-height: var(--typography-label-sm-line-height);
+  white-space: nowrap;
 }
 
 .priceBlock {
   display: flex;
   flex-direction: column;
-  gap: var(--sizes-2);
+  gap: var(--sizes-1);
 }
 
 .price {
   margin: 0;
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 4px;
   color: var(--semantic-content-info);
 }
 
@@ -111,21 +146,17 @@
 }
 
 .priceEmoji {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
 }
 
 .priceNote {
   margin: 0;
-  font-family: var(--typography-label-md-font-family);
-  font-size: var(--typography-label-md-font-size);
-  font-weight: var(--typography-label-md-font-weight);
-  line-height: var(--typography-label-md-line-height);
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
   color: var(--semantic-content-secondary);
-}
-
-.upgradeActions {
-  flex-shrink: 0;
 }
 
 .featureCard {
@@ -216,17 +247,8 @@
     line-height: var(--typography-heading-md-line-height);
   }
 
-  .upgradeRow {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .upgradeActions {
-    width: 100%;
-  }
-
-  .upgradeActions > button {
-    width: 100%;
+  .planOptions {
+    grid-template-columns: 1fr;
   }
 
   .featureGrid {

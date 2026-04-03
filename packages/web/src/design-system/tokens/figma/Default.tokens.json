@@ -1925,7 +1925,7 @@
     "fontFamily": {
       "font-display": {
         "$type": "string",
-        "$value": "Georgia",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:13102:14769",
           "com.figma.hiddenFromPublishing": true,
@@ -1938,7 +1938,7 @@
       },
       "font-ui": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:13102:14767",
           "com.figma.hiddenFromPublishing": true,
@@ -2030,7 +2030,7 @@
       },
       "normal": {
         "$type": "number",
-        "$value": 400,
+        "$value": 450,
         "$extensions": {
           "com.figma.variableId": "VariableID:1:115",
           "com.figma.hiddenFromPublishing": true,
@@ -2580,7 +2580,7 @@
     },
     "4-5": {
       "$type": "number",
-      "$value": 18,
+      "$value": 16,
       "$extensions": {
         "com.figma.variableId": "VariableID:40000790:10325",
         "com.figma.scopes": [
@@ -2826,6 +2826,6 @@
     }
   },
   "$extensions": {
-    "com.figma.modeName": "Product"
+    "com.figma.modeName": "Marketing"
   }
 }

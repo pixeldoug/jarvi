@@ -57,7 +57,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Georgia",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1818",
           "com.figma.hiddenFromPublishing": true,
@@ -143,7 +143,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1822",
           "com.figma.hiddenFromPublishing": true,
@@ -229,7 +229,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1826",
           "com.figma.hiddenFromPublishing": true,
@@ -315,7 +315,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1830",
           "com.figma.hiddenFromPublishing": true,
@@ -377,7 +377,7 @@
       },
       "font-weight": {
         "$type": "number",
-        "$value": 400,
+        "$value": 450,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1833",
           "com.figma.hiddenFromPublishing": true,
@@ -395,7 +395,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1834",
           "com.figma.hiddenFromPublishing": true,
@@ -457,7 +457,7 @@
       },
       "font-weight": {
         "$type": "number",
-        "$value": 400,
+        "$value": 450,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1837",
           "com.figma.hiddenFromPublishing": true,
@@ -475,7 +475,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1838",
           "com.figma.hiddenFromPublishing": true,
@@ -525,7 +525,7 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 18,
+        "$value": 16,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1840",
           "com.figma.hiddenFromPublishing": true,
@@ -543,7 +543,7 @@
       },
       "font-weight": {
         "$type": "number",
-        "$value": 400,
+        "$value": 450,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1841",
           "com.figma.hiddenFromPublishing": true,
@@ -561,7 +561,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1842",
           "com.figma.hiddenFromPublishing": true,
@@ -641,7 +641,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1846",
           "com.figma.hiddenFromPublishing": true,
@@ -709,7 +709,7 @@
       },
       "font-weight": {
         "$type": "number",
-        "$value": 400,
+        "$value": 450,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1849",
           "com.figma.hiddenFromPublishing": true,
@@ -727,7 +727,7 @@
       },
       "font-family": {
         "$type": "string",
-        "$value": "Poppins",
+        "$value": "Plus Jakarta Sans",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1850",
           "com.figma.hiddenFromPublishing": true,

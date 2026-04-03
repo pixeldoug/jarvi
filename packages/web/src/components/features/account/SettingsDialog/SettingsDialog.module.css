@@ -1,0 +1,483 @@
+/**
+ * SettingsDialog Styles - Jarvi Web
+ *
+ * Two-column layout: sidebar nav + scrollable canvas
+ * Following JarviDS design system from Figma
+ *
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
+ * Node: 40001321-32878
+ */
+
+/* ============================================================================
+   DIALOG OVERRIDES
+   Override Dialog component defaults for full-bleed layout
+   ============================================================================ */
+
+.dialogContainer {
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  max-width: 1056px !important;
+  /* Fixed height so all pages share the same dialog size.
+     Uses max-height from Dialog (calc(100vh - 80px)) as the viewport cap. */
+  height: 860px;
+}
+
+.dialogContent {
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0 !important;
+  height: 100%;
+}
+
+/* ============================================================================
+   WRAPPER
+   ============================================================================ */
+
+.wrapper {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ============================================================================
+   SIDEBAR
+   ============================================================================ */
+
+.sidebar {
+  width: 288px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  padding: var(--sizes-8) var(--sizes-8) var(--sizes-6) var(--sizes-6);
+  border-right: 1px solid var(--semantic-border-primary);
+  overflow-y: auto;
+}
+
+.sidebarTitle {
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: 600;
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+/* ============================================================================
+   CANVAS
+   ============================================================================ */
+
+.canvas {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  padding: 56px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--semantic-content-tertiary) transparent;
+}
+
+.canvas::-webkit-scrollbar {
+  width: 6px;
+}
+
+.canvas::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.canvas::-webkit-scrollbar-thumb {
+  background: var(--semantic-content-tertiary);
+  border-radius: var(--radius-radius-round);
+}
+
+.canvas::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+.sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--semantic-content-tertiary) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--semantic-content-tertiary);
+  border-radius: var(--radius-radius-round);
+}
+
+.closeButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-icon-radius);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--semantic-content-primary);
+  transition: background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.closeButton:hover {
+  background: var(--semantic-surface-secondary);
+}
+
+.pageHeader {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   PAGE SECTIONS — shared by all page components
+   ============================================================================ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  width: 100%;
+}
+
+/* Profile */
+
+.profileDetails {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+}
+
+.profileActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding-top: 2px;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: var(--sizes-2);
+}
+
+.helpText {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.fieldGroup {
+  width: 352px;
+  max-width: 100%;
+}
+
+/* Email / Account */
+
+.emailDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.emailLabel {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.emailValue {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+.sectionLabel {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.sectionDescription {
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* Delete account */
+
+.deleteInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sizes-4);
+}
+
+.deleteWarning {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  max-width: 400px;
+}
+
+/* Payments */
+
+.planHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+.planInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  flex: 1;
+}
+
+.planName {
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+.planDescription {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* Google */
+
+.googleButtonWrapper {
+  max-width: 352px;
+  width: 100%;
+}
+
+/* Memory */
+
+.memoryActions {
+  display: flex;
+  gap: var(--sizes-2);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   PAYMENTS — "Seu Plano" current plan section
+   ============================================================================ */
+
+.planCurrentName {
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* ============================================================================
+   PAYMENTS — upgrade section heading + cards grid
+   ============================================================================ */
+
+.upgradeTitle {
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: 600;
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.plansGrid {
+  display: flex;
+  gap: var(--sizes-3);
+  align-items: stretch;
+  width: 100%;
+}
+
+.planCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  padding: 18px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 18px;
+  min-width: 0;
+}
+
+.planCardInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  min-height: 0;
+}
+
+.planTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.planCardTitle {
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: 600;
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.planPriceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.planPrice {
+  font-family: var(--typography-heading-md-font-family);
+  font-weight: var(--typography-heading-md-font-weight);
+  color: var(--semantic-content-info);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.planPriceMain {
+  font-size: var(--typography-heading-md-font-size);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+}
+
+.planPriceSuffix {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+}
+
+.planCardDescription {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* Chip override for the accent/info variant used in plan cards */
+.chipAccent {
+  background: var(--semantic-surface-accent-subtle) !important;
+  border-color: transparent !important;
+  color: var(--semantic-content-info) !important;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .dialogContent {
+    flex-direction: column !important;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--semantic-border-primary);
+    padding: var(--sizes-4) var(--sizes-4) var(--sizes-2);
+  }
+
+  .sidebarNav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .canvas {
+    padding: var(--sizes-8) var(--sizes-4) var(--sizes-6);
+  }
+
+  .deleteInfo {
+    flex-direction: column;
+  }
+
+  .deleteWarning {
+    max-width: 100%;
+  }
+
+  .fieldGroup {
+    width: 100%;
+  }
+
+  .planHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

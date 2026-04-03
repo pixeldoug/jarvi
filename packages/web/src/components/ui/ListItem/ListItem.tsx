@@ -20,6 +20,8 @@ export interface ListItemProps {
   label: string;
   /** Icon component (Phosphor icon) */
   icon?: ElementType;
+  /** Icon weight (Phosphor icon prop) */
+  iconWeight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone';
   /** Custom icon node (supports non-Phosphor/custom styling) */
   iconNode?: ReactNode;
   /** Emoji as icon alternative */
@@ -47,6 +49,7 @@ export interface ListItemProps {
 export function ListItem({
   label,
   icon: Icon,
+  iconWeight = 'regular',
   iconNode,
   emoji,
   active = false,
@@ -75,7 +78,7 @@ export function ListItem({
       )}
       {Icon && !iconNode && (
         <span className={styles.icon}>
-          <Icon size={16} weight="regular" />
+          <Icon size={16} weight={iconWeight} />
         </span>
       )}
       {emoji && !Icon && !iconNode && (

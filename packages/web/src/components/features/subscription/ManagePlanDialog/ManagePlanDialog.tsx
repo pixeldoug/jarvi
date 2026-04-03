@@ -27,11 +27,50 @@ function formatDatePtBr(dateString: string | null | undefined): string | null {
   });
 }
 
+const PLANS = [
+  {
+    id: 'monthly',
+    label: 'Mensal',
+    envKey: 'VITE_STRIPE_PAYMENT_LINK_URL',
+    price: 'R$ 24,90',
+    period: '/mês',
+    note: null,
+    badge: null,
+    emoji: '👌',
+  },
+  {
+    id: 'yearly',
+    label: 'Anual',
+    envKey: 'VITE_STRIPE_PAYMENT_LINK_YEARLY_URL',
+    price: 'R$ 249,00',
+    period: '/ano',
+    note: 'equivale a R$ 20,75/mês',
+    badge: 'Economize 17%',
+    emoji: '🎉',
+  },
+  {
+    id: 'onetime',
+    label: 'Vitalício',
+    envKey: 'VITE_STRIPE_PAYMENT_LINK_ONETIME_URL',
+    price: 'R$ 398,00',
+    period: null,
+    note: 'pagamento único, acesso para sempre',
+    badge: 'Melhor valor',
+    emoji: '🚀',
+  },
+] as const;
+
 export function ManagePlanDialog({ isOpen, onClose }: ManagePlanDialogProps) {
   const { subscription, isLoading } = useSubscription();
 
-  const paymentLinkUrl = (import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL as string | undefined)?.trim();
-  const canUpgrade = Boolean(paymentLinkUrl);
+  const paymentLinks = useMemo(
+    () => ({
+      monthly: (import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL as string | undefined)?.trim() || '',
+      yearly: (import.meta.env.VITE_STRIPE_PAYMENT_LINK_YEARLY_URL as string | undefined)?.trim() || '',
+      onetime: (import.meta.env.VITE_STRIPE_PAYMENT_LINK_ONETIME_URL as string | undefined)?.trim() || '',
+    }),
+    []
+  );
 
   const formattedTrialEnd = useMemo(
     () => formatDatePtBr(subscription?.trialEndsAt),
@@ -65,12 +104,12 @@ export function ManagePlanDialog({ isOpen, onClose }: ManagePlanDialogProps) {
     onClose();
   };
 
-  const handleUpgrade = () => {
-    if (!paymentLinkUrl) {
+  const handleUpgrade = (url: string) => {
+    if (!url) {
       toast.error('Link de pagamento não configurado.');
       return;
     }
-    window.open(paymentLinkUrl, '_blank', 'noopener,noreferrer');
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const renderPlanDescription = () => {
@@ -143,32 +182,48 @@ export function ManagePlanDialog({ isOpen, onClose }: ManagePlanDialogProps) {
       <Divider />
 
       <section className={styles.section}>
-        <div className={styles.upgradeRow}>
-          <div className={styles.upgradeInfo}>
-            <p className={styles.sectionLabel}>Mude para o plano Plus</p>
+        <p className={styles.sectionLabel}>Mude para o plano Plus</p>
 
-            <div className={styles.priceBlock}>
-              <p className={styles.price}>
-                <span className={styles.priceValue}>R$ 12,90</span>
-                <span className={styles.pricePeriod}>/mês</span>
-                <span className={styles.priceEmoji} aria-hidden="true">👌</span>
-              </p>
-              <p className={styles.priceNote}>ou R$ 124,90/ano (economize 20%)</p>
-            </div>
-          </div>
+        <div className={styles.planOptions}>
+          {PLANS.map((plan) => {
+            const url = paymentLinks[plan.id];
+            return (
+              <div key={plan.id} className={styles.planCard}>
+                <div className={styles.planCardTop}>
+                  <div className={styles.planCardLabel}>
+                    <span>{plan.label}</span>
+                    {plan.badge && (
+                      <span className={styles.planBadge}>{plan.badge}</span>
+                    )}
+                  </div>
 
-          <div className={styles.upgradeActions}>
-            <Button
-              variant="primary"
-              size="small"
-              icon={Lightning}
-              iconPosition="left"
-              onClick={handleUpgrade}
-              disabled={!canUpgrade}
-            >
-              Fazer Upgrade
-            </Button>
-          </div>
+                  <div className={styles.priceBlock}>
+                    <p className={styles.price}>
+                      <span className={styles.priceValue}>{plan.price}</span>
+                      {plan.period && (
+                        <span className={styles.pricePeriod}>{plan.period}</span>
+                      )}
+                      <span className={styles.priceEmoji} aria-hidden="true">{plan.emoji}</span>
+                    </p>
+                    {plan.note && (
+                      <p className={styles.priceNote}>{plan.note}</p>
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="small"
+                  icon={Lightning}
+                  iconPosition="left"
+                  onClick={() => handleUpgrade(url)}
+                  disabled={!url}
+                >
+                  Assinar
+                </Button>
+              </div>
+            );
+          })}
         </div>
       </section>
 

@@ -8,14 +8,15 @@
  * Node: 40000503-11686
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Sun, Moon, Gear, SignOut } from '@phosphor-icons/react';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { UpgradeButton } from '../../ui/UpgradeButton/UpgradeButton';
 import { Avatar, Dropdown, ListItem } from '../../ui';
-import { AccountDialog } from '../../features/account/AccountDialog/AccountDialog';
+import { SettingsDialog } from '../../features/account/SettingsDialog/SettingsDialog';
 import styles from './UserMenu.module.css';
 
 export interface UserMenuProps {
@@ -30,8 +31,16 @@ export function UserMenu({ className = '', compact = false }: UserMenuProps) {
   const { user, logout } = useAuth();
   const { subscription, isLoading: isSubscriptionLoading } = useSubscription();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.pathname === '/settings') {
+      setIsSettingsDialogOpen(true);
+    }
+  }, [location.pathname]);
 
   // Show upgrade button for free/trial users; hide only for paid active subscriptions.
   const showUpgradeButton = !isSubscriptionLoading && subscription?.status !== 'active';
@@ -43,7 +52,12 @@ export function UserMenu({ className = '', compact = false }: UserMenuProps) {
 
   const handleMyAccount = () => {
     setIsDropdownOpen(false);
-    setIsAccountDialogOpen(true);
+    navigate('/settings');
+  };
+
+  const handleCloseSettings = () => {
+    setIsSettingsDialogOpen(false);
+    navigate('/tasks', { replace: true });
   };
 
   const userName = user?.name || 'Usuário';
@@ -115,10 +129,10 @@ export function UserMenu({ className = '', compact = false }: UserMenuProps) {
         </Dropdown>
       </div>
 
-      {/* Account Dialog */}
-      <AccountDialog
-        isOpen={isAccountDialogOpen}
-        onClose={() => setIsAccountDialogOpen(false)}
+      {/* Settings Dialog */}
+      <SettingsDialog
+        isOpen={isSettingsDialogOpen}
+        onClose={handleCloseSettings}
       />
     </div>
   );

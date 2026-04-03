@@ -6,8 +6,8 @@
 
 export const typography = {
   "fontFamily": {
-    "font-display": "Georgia",
-    "font-ui": "Poppins",
+    "font-display": "Plus Jakarta Sans",
+    "font-ui": "Plus Jakarta Sans",
     "font-mono": "Menlo"
   },
   "fontSize": {},
@@ -15,7 +15,7 @@ export const typography = {
     "thin": 100,
     "extralight": 200,
     "light": 300,
-    "normal": 400,
+    "normal": 450,
     "medium": 500,
     "semibold": 600,
     "bold": 700,
