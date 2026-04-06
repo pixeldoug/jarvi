@@ -1,0 +1,205 @@
+/**
+ * AppearancePage Styles
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001338-217221
+ *
+ * Card: 206 × 126px, radius-sm (12px)
+ * Grid: flex-wrap, 3 per row, gap 12px
+ * Checkmark badge: 24 × 24px, top-right corner
+ */
+
+/* ============================================================================
+   PAGE WRAPPER
+   ============================================================================ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);       /* 24px */
+  width: 100%;
+}
+
+/* ============================================================================
+   DARK MODE TOGGLE ROW
+   ============================================================================ */
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);       /* 8px */
+}
+
+.toggleLabel {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+/* ============================================================================
+   SECTION HEADING
+   ============================================================================ */
+
+.sectionTitle {
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: 600;
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+/* ============================================================================
+   BACKGROUND GRID
+   ============================================================================ */
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sizes-3);       /* 12px */
+}
+
+/* ============================================================================
+   BACKGROUND CARD
+   ============================================================================ */
+
+.card {
+  /* Reset */
+  appearance: none;
+  border: none;
+  padding: var(--sizes-2);   /* 8px */
+  cursor: pointer;
+
+  /* Sizing — Figma: 206 × 126px */
+  position: relative;
+  width: 206px;
+  height: 126px;
+  flex-shrink: 0;
+
+  /* Shape */
+  border-radius: var(--radius-sm);   /* 12px */
+  overflow: hidden;
+
+  /* Layout of inner content */
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  /* Selection ring */
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.15s ease;
+}
+
+.card:focus-visible {
+  outline-color: var(--semantic-content-info);
+}
+
+.cardSelected {
+  outline-color: var(--semantic-content-info);
+}
+
+/* ============================================================================
+   CARD BACKGROUND IMAGE / SOLID
+   ============================================================================ */
+
+.cardBg,
+.cardBgDark {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  border-radius: var(--radius-sm);
+}
+
+.cardBg {
+  object-fit: cover;
+}
+
+.cardBgDark {
+  background-color: #0a0a0b;
+}
+
+/* ============================================================================
+   MINI LAYOUT PREVIEW
+   ============================================================================ */
+
+.miniLayout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 5px;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+}
+
+/* Mini sidebar */
+.miniSidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding: 13px 7px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  width: 58.267px;
+  height: 100%;
+  background-color: var(--semantic-surface-primary);
+}
+
+.miniAccentBar {
+  width: 100%;
+  height: 7.34px;
+  border-radius: 4588px;
+  flex-shrink: 0;
+  background-color: var(--semantic-surface-accent);
+}
+
+/* Mini main */
+.miniMain {
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6.42px;
+  overflow: hidden;
+  padding: 12.85px 7.34px;
+  border-radius: 6px;
+  height: 100%;
+  background-color: var(--semantic-surface-primary);
+}
+
+.miniLine {
+  width: 100%;
+  height: 7.34px;
+  border-radius: 4588px;
+  flex-shrink: 0;
+  background-color: var(--semantic-surface-secondary);
+}
+
+/* ============================================================================
+   CHECK BADGE
+   ============================================================================ */
+
+.checkBadge {
+  position: absolute;
+  top: 6.5px;
+  right: 6px;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: var(--sizes-6);    /* 24px */
+  height: var(--sizes-6);
+  border-radius: 8px;
+  overflow: hidden;
+
+  background-color: var(--semantic-content-info);
+  color: #ffffff;
+}

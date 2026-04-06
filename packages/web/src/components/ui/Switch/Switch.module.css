@@ -1,0 +1,93 @@
+/**
+ * Switch Component Styles
+ * Following Figma Design System specifications
+ * Using design tokens from CSS variables
+ *
+ * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001298-53897
+ *
+ * Track:  44 × 24px (--sizes-11 × --sizes-6)
+ * Thumb:  18 × 18px
+ * Padding: 4px (--sizes-1)
+ */
+
+/* ============================================================================
+   TRACK (button wrapper)
+   ============================================================================ */
+
+.track {
+  /* Reset button */
+  border: none;
+  outline: none;
+  margin: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+
+  /* Layout — Figma: 44 × 24px, padding 4px */
+  display: inline-flex;
+  align-items: center;
+  width: var(--sizes-11);         /* 44px */
+  height: var(--sizes-6);         /* 24px */
+  padding: var(--sizes-1);        /* 4px */
+  flex-shrink: 0;
+  position: relative;
+
+  /* Shape */
+  border-radius: var(--radius-round);
+
+  /* Transition */
+  transition:
+    background-color 0.2s ease-in-out,
+    justify-content 0.2s ease-in-out;
+}
+
+.track:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(97, 55, 243, 0.15),
+    0 0 0 4.5px var(--semantic-control-focusring, #6137f3);
+}
+
+/* ============================================================================
+   STATES
+   ============================================================================ */
+
+.checked {
+  background-color: var(--semantic-content-info);
+  justify-content: flex-end;
+}
+
+.unchecked {
+  background-color: var(--semantic-content-disabled);
+  justify-content: flex-start;
+}
+
+/* ============================================================================
+   THUMB
+   ============================================================================ */
+
+.thumb {
+  /* Layout — Figma: 18 × 18px */
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--radius-round);
+
+  /* Color — Figma: semantic/content/accent */
+  background-color: var(--semantic-content-accent);
+
+  /* Elevation — Figma: elevation/first-level */
+  box-shadow: 0px 1px 2px 0px var(--semantic-elevation-first-level);
+
+  /* Smooth slide animation */
+  transition: transform 0.2s ease-in-out;
+}
+
+/* ============================================================================
+   DISABLED
+   ============================================================================ */
+
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

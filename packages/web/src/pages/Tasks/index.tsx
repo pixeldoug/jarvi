@@ -14,8 +14,8 @@ import { useLists } from '../../contexts/ListContext';
 import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
-import { TasksSidebar, ListType, SECTION_IDS } from '../../components/features/tasks';
-import type { SectionId } from '../../components/features/tasks';
+import { Sidebar, ListType, SECTION_IDS } from '../../components/layout/Sidebar';
+import type { SectionId } from '../../components/layout/Sidebar';
 import { Button, TaskCreationData, Collapsible } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
@@ -855,7 +855,7 @@ export function Tasks() {
 
   const sidebarNode = (
     <>
-      <TasksSidebar
+      <Sidebar
         selectedList={selectedList}
         selectedCustomListId={selectedCustomListId}
         selectedCategory={selectedCategoryName}

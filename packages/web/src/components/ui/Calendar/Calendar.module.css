@@ -39,7 +39,7 @@
   
   background: var(--component-calendar-arrow-button-bg);
   border: 1px solid var(--semantic-control-bg);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   
   /* Adicionar cor no button para que o SVG possa herdar */
   color: var(--component-calendar-arrow-button-content);
@@ -89,7 +89,7 @@
   justify-content: center;
   width: 36px;
   height: 21px;
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   
   font-family: var(--typography-label-sm-font-family);
   font-size: var(--typography-label-sm-font-size);

@@ -1,0 +1,82 @@
+/**
+ * SidebarUserMenu Styles
+ *
+ * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001333-124555
+ */
+
+/* ============================================================================
+   BUTTON CONTAINER
+   ============================================================================ */
+
+.button {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);        /* 12px */
+  padding: var(--sizes-15);   /* 6px */
+  border-radius: 20px;
+  background: var(--component-list-item-bg-default);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Hover state ── */
+.button:hover {
+  background: var(--component-list-item-bg-hover);
+}
+
+.button:hover .name,
+.button:hover .plan {
+  color: var(--component-list-item-content-hover);
+}
+
+/* ── Active state (dropdown open) — must come after hover to win specificity ── */
+.button.active {
+  background: var(--component-list-item-bg-active);
+}
+
+.button.active .name,
+.button.active .plan {
+  color: var(--component-list-item-content-active);
+}
+
+/* ============================================================================
+   DETAILS
+   ============================================================================ */
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.plan {
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  letter-spacing: var(--typography-label-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 128px;
+}

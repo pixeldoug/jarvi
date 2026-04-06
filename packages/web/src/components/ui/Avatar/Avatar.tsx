@@ -9,50 +9,39 @@
  */
 
 import { useState, useEffect } from 'react';
+import { getGenderFromName } from '../../../utils/gender';
+import avatarFemale from '../../../assets/avatars/avatar-female.avif';
+import avatarMale from '../../../assets/avatars/avatar-male.avif';
 import styles from './Avatar.module.css';
 
 export interface AvatarProps {
   /** Image source URL */
   src?: string | null;
-  /** User name for generating initials fallback */
+  /** User name for selecting the default avatar */
   name: string;
   /** Avatar size */
-  size?: 'medium' | 'large';
+  size?: 'small' | 'medium' | 'large';
   /** Additional CSS classes */
   className?: string;
   /** Alt text for the image */
   alt?: string;
 }
 
-/**
- * Get initials from a name
- * @param name - Full name
- * @returns Initials (1-2 characters)
- */
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(' ').filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
-};
-
 export function Avatar({
   src,
   name,
-  size = 'medium',
+  size = 'small',
   className = '',
   alt,
 }: AvatarProps) {
   const [imageError, setImageError] = useState(false);
 
-  // Reset error state when src changes
   useEffect(() => {
     setImageError(false);
   }, [src]);
 
   const showImage = src && !imageError;
-  const initials = getInitials(name);
+  const defaultAvatar = getGenderFromName(name) === 'female' ? avatarFemale : avatarMale;
 
   const containerClasses = [
     styles.avatar,
@@ -62,18 +51,12 @@ export function Avatar({
 
   return (
     <div className={containerClasses}>
-      {showImage ? (
-        <img
-          src={src}
-          alt={alt || name}
-          className={styles.image}
-          onError={() => setImageError(true)}
-        />
-      ) : (
-        <div className={styles.fallback}>
-          {initials}
-        </div>
-      )}
+      <img
+        src={showImage ? src : defaultAvatar}
+        alt={alt || name}
+        className={styles.image}
+        onError={showImage ? () => setImageError(true) : undefined}
+      />
     </div>
   );
 }

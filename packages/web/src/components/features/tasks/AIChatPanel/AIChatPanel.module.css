@@ -189,7 +189,7 @@
 .taskCard {
   background: var(--semantic-surface-secondary);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-md, 12px);
+  border-radius: var(--radius-md, 12px);
   padding: var(--sizes-3) var(--sizes-4);
   max-width: 85%;
   display: flex;
@@ -295,7 +295,7 @@
   gap: var(--sizes-2);
   background: var(--semantic-surface-secondary);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-lg, 16px);
+  border-radius: var(--radius-lg, 16px);
   padding: var(--sizes-2) var(--sizes-2) var(--sizes-2) var(--sizes-4);
   transition: border-color 0.15s ease;
 }

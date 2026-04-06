@@ -33,7 +33,7 @@
 .checkbox.large {
   width: var(--size-target-tight);
   height: var(--size-target-tight);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
 }
 
 .checkbox:hover {

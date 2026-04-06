@@ -56,7 +56,7 @@
 .titleButton:focus-visible {
   outline: 2px solid var(--semantic-border-focus, rgba(99, 102, 241, 0.6));
   outline-offset: 4px;
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
 }
 
 .titleInput {
@@ -90,7 +90,7 @@
 /* Editor Container (replaces textarea) */
 .textareaContainer {
   background: transparent;
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   overflow: hidden;
   position: relative;
   flex: 1;
@@ -101,7 +101,7 @@
 
 .descriptionReadOnly {
   cursor: text;
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   padding: var(--sizes-1) 0;
   transition: background-color 0.12s ease;
 }
@@ -126,7 +126,7 @@
   font-size: 11px;
   padding: 1px 5px;
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   background: var(--semantic-surface-secondary);
   color: var(--semantic-content-secondary);
   line-height: 1.4;

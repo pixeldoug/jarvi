@@ -1,6 +1,6 @@
 .card {
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-md);
+  border-radius: var(--radius-md);
   padding: var(--sizes-4);
   background: var(--semantic-surface-primary);
   display: flex;
@@ -25,7 +25,7 @@
 
 .badge {
   padding: 2px var(--sizes-2);
-  border-radius: var(--radius-radius-pill);
+  border-radius: var(--radius-round);
   background: var(--semantic-surface-secondary);
   color: var(--semantic-content-secondary);
   font-size: var(--typography-caption-sm-font-size);
@@ -71,7 +71,7 @@
 .field input {
   width: 100%;
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   padding: var(--sizes-2);
   background: var(--semantic-surface-primary);
   color: var(--semantic-content-primary);

@@ -525,7 +525,7 @@
       },
       "line-height": {
         "$type": "number",
-        "$value": 16,
+        "$value": 18,
         "$extensions": {
           "com.figma.variableId": "VariableID:40000037:1840",
           "com.figma.hiddenFromPublishing": true,
@@ -758,7 +758,7 @@
     }
   },
   "radius": {
-    "radius-sm": {
+    "sm": {
       "$type": "number",
       "$value": 12,
       "$extensions": {
@@ -775,7 +775,7 @@
         "com.figma.isOverride": true
       }
     },
-    "radius-md": {
+    "md": {
       "$type": "number",
       "$value": 16,
       "$extensions": {
@@ -792,7 +792,7 @@
         "com.figma.isOverride": true
       }
     },
-    "radius-lg": {
+    "lg": {
       "$type": "number",
       "$value": 24,
       "$extensions": {
@@ -809,7 +809,7 @@
         "com.figma.isOverride": true
       }
     },
-    "radius-round": {
+    "round": {
       "$type": "number",
       "$value": 9999,
       "$extensions": {
@@ -823,7 +823,7 @@
     "button": {
       "radius": {
         "$type": "number",
-        "$value": "{radius.radius-md}",
+        "$value": "{radius.md}",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000050:626",
           "com.figma.hiddenFromPublishing": true,
@@ -835,7 +835,7 @@
       },
       "icon-radius": {
         "$type": "number",
-        "$value": "{radius.radius-md}",
+        "$value": "{radius.md}",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000050:1502",
           "com.figma.hiddenFromPublishing": true,
@@ -861,7 +861,7 @@
     "calendar": {
       "day-button-radius": {
         "$type": "number",
-        "$value": "{radius.radius-sm}",
+        "$value": "{radius.sm}",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000063:21722",
           "com.figma.hiddenFromPublishing": true,
@@ -875,7 +875,7 @@
     "chip": {
       "radius": {
         "$type": "number",
-        "$value": "{radius.radius-md}",
+        "$value": "{radius.md}",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000054:4663",
           "com.figma.hiddenFromPublishing": true,
@@ -907,7 +907,7 @@
     "tooltip": {
       "radius": {
         "$type": "number",
-        "$value": "{radius.radius-sm}",
+        "$value": "{radius.sm}",
         "$extensions": {
           "com.figma.variableId": "VariableID:40000374:1310",
           "com.figma.hiddenFromPublishing": true,

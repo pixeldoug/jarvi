@@ -101,7 +101,7 @@
 
 .canvas::-webkit-scrollbar-thumb {
   background: var(--semantic-content-tertiary);
-  border-radius: var(--radius-radius-round);
+  border-radius: var(--radius-round);
 }
 
 .canvas::-webkit-scrollbar-thumb:hover {
@@ -123,7 +123,7 @@
 
 .sidebar::-webkit-scrollbar-thumb {
   background: var(--semantic-content-tertiary);
-  border-radius: var(--radius-radius-round);
+  border-radius: var(--radius-round);
 }
 
 .closeButton {

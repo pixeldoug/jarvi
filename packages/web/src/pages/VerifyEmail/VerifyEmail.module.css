@@ -43,7 +43,7 @@
   var(--semantic-gradient-primary-stop-78) 74.58%,
   var(--semantic-gradient-primary-stop-100) 93.94%
   );
-  border-radius: var(--radius-radius-lg);
+  border-radius: var(--radius-lg);
   
   position: relative;
 }

@@ -60,7 +60,7 @@
   height: 56px;
   background-color: var(--semantic-control-bg);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   transition: border-color 0.15s ease;
 }
 

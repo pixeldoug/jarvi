@@ -9,7 +9,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendGoogleAccountNoticeE
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { generateOtpFromToken } from '../utils/otp';
 
-const INTERNAL_TRIAL_DAYS = 14;
+const INTERNAL_TRIAL_DAYS = 7;
 
 // Helper to generate secure token
 const generateSecureToken = (): string => {

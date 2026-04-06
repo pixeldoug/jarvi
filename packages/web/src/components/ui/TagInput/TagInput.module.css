@@ -44,7 +44,7 @@
   padding: var(--sizes-2);
   background-color: var(--semantic-control-bg);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color 0.15s ease;
 }

@@ -150,6 +150,11 @@ export {
   type TooltipPosition,
 } from './Tooltip';
 
+export {
+  Switch,
+  type SwitchProps,
+} from './Switch';
+
 // ============================================================================
 // NAVIGATION COMPONENTS
 // ============================================================================

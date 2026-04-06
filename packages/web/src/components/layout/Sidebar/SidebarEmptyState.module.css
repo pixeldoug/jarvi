@@ -1,0 +1,51 @@
+/**
+ * SidebarEmptyState Styles
+ *
+ * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001337-180505
+ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);        /* 16px */
+  width: 100%;
+  padding: var(--sizes-4) var(--sizes-2); /* 16px 8px */
+  border: 1px dashed var(--semantic-border-primary);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Text block ── */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2); /* 8px */
+  padding: var(--sizes-1) var(--sizes-3); /* 4px 12px */
+  color: var(--semantic-content-primary);
+}
+
+.title {
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.description {
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+  padding: 0 var(--sizes-4); /* 0 16px */
+}

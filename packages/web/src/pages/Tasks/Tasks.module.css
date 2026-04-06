@@ -93,7 +93,7 @@
   min-height: 50px;
   padding: var(--sizes-1);
   padding-left: var(--sizes-4); /* Add left padding to accommodate drag handle */
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   transition: background-color 0.2s ease;
   /* Ensure drag handle is not hidden */
   overflow: visible;
@@ -220,7 +220,7 @@
   
   background: var(--semantic-surface-primary);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   
   font-family: var(--typography-label-md-font-family);
   font-size: var(--typography-label-md-font-size);
@@ -251,7 +251,7 @@
   
   background: var(--semantic-surface-primary);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   
   font-family: var(--typography-label-md-font-family);
   font-size: var(--typography-label-md-font-size);
@@ -352,7 +352,7 @@
   
   background: var(--semantic-surface-primary);
   border: 2px solid var(--color-brand-primary-300);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   
   transform: translateZ(0);

@@ -45,7 +45,7 @@
   gap: var(--sizes-2);
   width: 100%;
   padding: 0 var(--sizes-4);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--semantic-border-primary);
   background-color: var(--semantic-control-bg);
   transition: border-color 0.15s ease;

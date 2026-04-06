@@ -8,17 +8,18 @@
  * Node: 40001321-32878
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ElementType } from 'react';
-import { X, User, CreditCard, CirclesFour, Brain } from '@phosphor-icons/react';
+import { X, User, CreditCard, CirclesFour, Brain, Palette } from '@phosphor-icons/react';
 import { Dialog, ListItem } from '../../../ui';
 import { ProfilePage } from './pages/ProfilePage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { AppsPage } from './pages/AppsPage';
 import { MemoryPage } from './pages/MemoryPage';
+import { AppearancePage } from './pages/AppearancePage';
 import styles from './SettingsDialog.module.css';
 
-type SettingsPage = 'profile' | 'payments' | 'apps' | 'memory';
+type SettingsPage = 'profile' | 'payments' | 'apps' | 'memory' | 'appearance';
 
 interface SidebarItem {
   id: SettingsPage;
@@ -28,10 +29,11 @@ interface SidebarItem {
 }
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
-  { id: 'profile',  label: 'Meu perfil',  icon: User },
-  { id: 'payments', label: 'Pagamentos',  icon: CreditCard },
-  { id: 'apps',     label: 'Apps',        icon: CirclesFour },
-  { id: 'memory',   label: 'Memória',     icon: Brain },
+  { id: 'profile',    label: 'Meu perfil',  icon: User },
+  { id: 'payments',   label: 'Pagamentos',  icon: CreditCard },
+  { id: 'apps',       label: 'Apps',        icon: CirclesFour },
+  { id: 'memory',     label: 'Memória',     icon: Brain },
+  { id: 'appearance', label: 'Aparência',   icon: Palette },
 ];
 
 export interface SettingsDialogProps {
@@ -39,10 +41,16 @@ export interface SettingsDialogProps {
   isOpen: boolean;
   /** Callback when the dialog should close */
   onClose: () => void;
+  /** Page to show when the dialog opens (defaults to 'profile') */
+  initialPage?: SettingsPage;
 }
 
-export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
-  const [activePage, setActivePage] = useState<SettingsPage>('profile');
+export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: SettingsDialogProps) {
+  const [activePage, setActivePage] = useState<SettingsPage>(initialPage);
+
+  useEffect(() => {
+    if (isOpen) setActivePage(initialPage);
+  }, [isOpen, initialPage]);
 
   const activeItem = SIDEBAR_ITEMS.find((item) => item.id === activePage);
 
@@ -88,10 +96,11 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
             <h1 className={styles.pageHeader}>{activeItem?.label}</h1>
           )}
 
-          {activePage === 'profile'  && <ProfilePage />}
-          {activePage === 'payments' && <PaymentsPage onClose={onClose} />}
-          {activePage === 'apps'     && <AppsPage />}
-          {activePage === 'memory'   && <MemoryPage />}
+          {activePage === 'profile'    && <ProfilePage />}
+          {activePage === 'payments'   && <PaymentsPage onClose={onClose} />}
+          {activePage === 'apps'       && <AppsPage />}
+          {activePage === 'memory'     && <MemoryPage />}
+          {activePage === 'appearance' && <AppearancePage />}
         </main>
       </div>
     </Dialog>

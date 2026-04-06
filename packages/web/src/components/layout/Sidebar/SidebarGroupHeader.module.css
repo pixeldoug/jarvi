@@ -1,0 +1,95 @@
+/**
+ * SidebarGroupHeader Styles
+ *
+ * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001332-124364
+ */
+
+/* ============================================================================
+   CONTAINER
+   ============================================================================ */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--sizes-2) var(--sizes-25) var(--sizes-2) var(--sizes-4); /* 8px 10px 8px 16px */
+  border-radius: var(--radius-sm);
+  background: var(--component-sidebar-group-header-bg-default);
+  transition: background-color 0.15s ease;
+}
+
+.header:hover {
+  background: var(--component-sidebar-group-header-bg-hover);
+}
+
+/* ── Toggle button ── */
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Label ── */
+
+.label {
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Chevron ── */
+
+.chevron {
+  display: flex;
+  align-items: center;
+  color: var(--semantic-content-secondary);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   ADD BUTTON
+   Hidden by default; revealed when the header row is hovered.
+   ============================================================================ */
+
+.addButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--component-sidebar-group-header-button-bg-default);
+  border: none;
+  border-radius: 6px;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+
+  /* Hidden until the header is hovered */
+  opacity: 0;
+  pointer-events: none;
+}
+
+.header:hover .addButton {
+  opacity: 1;
+  pointer-events: auto;
+  background: var(--component-sidebar-group-header-button-bg-default);
+}
+
+.addButton:hover {
+  background: var(--component-sidebar-group-header-button-bg-hover) !important;
+}

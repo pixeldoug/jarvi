@@ -7,12 +7,12 @@
 export const semanticTokens = {
   light: {
   "content": {
-    "primary": "#18181B",
-    "secondary": "#596269",
-    "tertiary": "#A0ABB4",
+    "primary": "#18191B",
+    "secondary": "#4B5058",
+    "tertiary": "#A0A8B4",
     "accent": "#F3F1FC",
     "subtle": "#EEE9FE",
-    "disabled": "#B5BCC4",
+    "disabled": "rgba(9, 9, 11, 0.15)",
     "positive": "#16A34A",
     "negative": "#DC2626",
     "warning": "#D97706",
@@ -20,13 +20,13 @@ export const semanticTokens = {
   },
   "surface": {
     "primary": "#FFFFFF",
-    "secondary": "#F7F8F9",
-    "tertiary": "#F7F8F9",
+    "secondary": "#EEEFF2",
+    "tertiary": "#F9F9FA",
     "accent": "#4F26E4",
     "accent-subtle": "#F3F1FC"
   },
   "border": {
-    "primary": "#D8DDE0",
+    "primary": "#D8DBE0",
     "elevantion": "rgba(9, 9, 11, 0.3)"
   },
   "control": {
@@ -49,26 +49,26 @@ export const semanticTokens = {
 },
   dark: {
   "content": {
-    "primary": "#F7F8F9",
-    "secondary": "#B5BCC4",
-    "tertiary": "#A0ABB4",
+    "primary": "#EEEFF2",
+    "secondary": "#B5BBC4",
+    "tertiary": "#A0A8B4",
     "accent": "#F3F1FC",
     "subtle": "#EEE9FE",
-    "disabled": "#34373C",
+    "disabled": "rgba(255, 255, 255, 0.2)",
     "positive": "#4ADE80",
     "negative": "#F87171",
     "warning": "#FBBF24",
     "info": "#8D6EF7"
   },
   "surface": {
-    "primary": "#18181B",
-    "secondary": "#34373C",
-    "tertiary": "#596269",
+    "primary": "#18191B",
+    "secondary": "#2B2D31",
+    "tertiary": "#4B5058",
     "accent": "#4F26E4",
     "accent-subtle": "#160F2B"
   },
   "border": {
-    "primary": "#34373C",
+    "primary": "#2B2D31",
     "elevantion": "rgba(9, 9, 11, 0.3)"
   },
   "control": {
@@ -102,7 +102,7 @@ export const componentTokens = {
     "content": "{Semantic.content.primary}"
   },
   "button": {
-    "bg-disabled": "#E8EAED",
+    "bg-disabled": "rgba(9, 9, 11, 0.05)",
     "content-disabled": "{Semantic.content.disabled}",
     "shortcut": "rgba(255, 255, 255, 0.8)",
     "primary": {
@@ -126,17 +126,17 @@ export const componentTokens = {
       "bg-hover": "#E8EAED",
       "bg-active": "#EEE9FE",
       "content-default": "{Semantic.content.primary}",
-      "content-hover": "#8A97A2",
+      "content-hover": "#8A94A2",
       "content-active": "#6137F3",
       "border-active": "#8D6EF7"
     },
     "ghost": {
       "bg-default": "rgba(255, 255, 255, 0)",
       "bg-hover": "#E8EAED",
-      "bg-active": "#F7F8F9",
+      "bg-active": "#EEEFF2",
       "content-default": "{Semantic.content.primary}",
-      "content-hover": "#8A97A2",
-      "content-active": "#596269"
+      "content-hover": "#8A94A2",
+      "content-active": "#4B5058"
     }
   },
   "calendar": {
@@ -154,25 +154,25 @@ export const componentTokens = {
       "bg-selected": "#6137F3",
       "content-default": "{Semantic.content.primary}",
       "content-hover": "#6137F3",
-      "content-pressed": "#A0ABB4",
+      "content-pressed": "#A0A8B4",
       "content-disabled": "{Semantic.content.disabled}",
       "content-selected": "#F3F1FC",
       "current-bg-default": "#E8EAED",
-      "current-content-default": "#757F88"
+      "current-content-default": "#757D88"
     }
   },
   "control-bar": {
-    "bg-default": "#18181B",
-    "bg-active": "#18181B",
+    "bg-default": "#18191B",
+    "bg-active": "#18191B",
     "tab-content": "{Semantic.content.subtle}",
     "tab-bg-default": "rgba(255, 255, 255, 0)",
     "tab-bg-active": "rgba(255, 255, 255, 0.1)",
     "tab-bg-hover": "rgba(255, 255, 255, 0.05)",
-    "button-bg-disabled": "#34373C",
-    "button-content-disabled": "#757F88",
+    "button-bg-disabled": "#2B2D31",
+    "button-content-disabled": "#757D88",
     "close-button-bg": "rgba(255, 255, 255, 0)",
     "close-button-content": "{Semantic.content.accent}",
-    "border": "#34373C"
+    "border": "#2B2D31"
   },
   "chip": {
     "bg-disabled": "#E8EAED",
@@ -181,7 +181,7 @@ export const componentTokens = {
     "bg-hover": "#E8EAED",
     "bg-active": "#EEE9FE",
     "content-active": "#6137F3",
-    "content-hover": "#8A97A2",
+    "content-hover": "#8A94A2",
     "border-active": "#DED4FD"
   },
   "googlebutton": {
@@ -194,7 +194,7 @@ export const componentTokens = {
     "bg-disabled": "rgba(255, 255, 255, 0)",
     "content-disabled": "{Semantic.content.disabled}",
     "bg-default": "rgba(255, 255, 255, 0)",
-    "bg-hover": "#F7F8F9",
+    "bg-hover": "#EEEFF2",
     "bg-active": "#F3F1FC",
     "content-hover": "{Semantic.content.primary}",
     "content-active": "{Semantic.content.info}",
@@ -210,7 +210,7 @@ export const componentTokens = {
     }
   },
   "logo": {
-    "bg-default": "#18181B",
+    "bg-default": "#18191B",
     "content-stop-1": "#FFFFFF",
     "content-stop-2": "#EEE9FE"
   },
@@ -227,23 +227,31 @@ export const componentTokens = {
     "content": "{Semantic.content.secondary}",
     "content-hover": "{Semantic.content.primary}"
   },
+  "sidebar-group-header": {
+    "bg-default": "rgba(255, 255, 255, 0)",
+    "bg-hover": "{Semantic.surface.tertiary}",
+    "button": {
+      "bg-default": "rgba(255, 255, 255, 0)",
+      "bg-hover": "{Semantic.surface.secondary}"
+    }
+  },
   "tooltip": {
-    "bg": "#18181B",
+    "bg": "#18191B",
     "content": "{Semantic.content.accent}"
   }
 },
   dark: {
   "badge": {
     "bg-default": "{Semantic.surface.secondary}",
-    "bg-disabled": "#18181B",
+    "bg-disabled": "#18191B",
     "content-disabled": "{Semantic.content.disabled}",
     "bg-hover": "{Semantic.surface.tertiary}",
     "content-hover": "{Semantic.content.primary}",
     "content": "{Semantic.content.primary}"
   },
   "button": {
-    "bg-disabled": "#34373C",
-    "content-disabled": "#757F88",
+    "bg-disabled": "rgba(255, 255, 255, 0.05)",
+    "content-disabled": "{Semantic.content.disabled}",
     "shortcut": "rgba(255, 255, 255, 0.8)",
     "primary": {
       "bg-default": "{Semantic.surface.accent}",
@@ -263,7 +271,7 @@ export const componentTokens = {
     },
     "secondary": {
       "bg-default": "rgba(9, 9, 11, 0.1)",
-      "bg-hover": "#34373C",
+      "bg-hover": "#2B2D31",
       "bg-active": "#1D1440",
       "content-default": "{Semantic.content.primary}",
       "content-hover": "{Semantic.content.primary}",
@@ -272,11 +280,11 @@ export const componentTokens = {
     },
     "ghost": {
       "bg-default": "rgba(255, 255, 255, 0)",
-      "bg-hover": "#34373C",
-      "bg-active": "#34373C",
+      "bg-hover": "#2B2D31",
+      "bg-active": "#2B2D31",
       "content-default": "{Semantic.content.primary}",
       "content-hover": "{Semantic.content.secondary}",
-      "content-active": "#D8DDE0"
+      "content-active": "#D8DBE0"
     }
   },
   "calendar": {
@@ -289,36 +297,36 @@ export const componentTokens = {
     "day-button": {
       "bg-default": "rgba(255, 255, 255, 0)",
       "bg-hover": "#3812B7",
-      "bg-pressed": "#34373C",
-      "bg-disabled": "#34373C",
+      "bg-pressed": "#2B2D31",
+      "bg-disabled": "#2B2D31",
       "bg-selected": "#4F26E4",
       "content-default": "{Semantic.content.primary}",
       "content-hover": "#DED4FD",
       "content-pressed": "#F3F1FC",
-      "content-disabled": "#757F88",
+      "content-disabled": "#757D88",
       "content-selected": "#F3F1FC",
-      "current-bg-default": "#34373C",
-      "current-content-default": "#C7CDD3"
+      "current-bg-default": "#2B2D31",
+      "current-content-default": "#C7CCD3"
     }
   },
   "control-bar": {
-    "bg-default": "#34373C",
-    "bg-active": "#18181B",
+    "bg-default": "#2B2D31",
+    "bg-active": "#18191B",
     "tab-content": "{Semantic.content.subtle}",
     "tab-bg-default": "rgba(255, 255, 255, 0)",
     "tab-bg-active": "rgba(255, 255, 255, 0.1)",
     "tab-bg-hover": "rgba(255, 255, 255, 0.05)",
-    "button-bg-disabled": "#34373C",
-    "button-content-disabled": "#757F88",
+    "button-bg-disabled": "#2B2D31",
+    "button-content-disabled": "#757D88",
     "close-button-bg": "rgba(255, 255, 255, 0)",
     "close-button-content": "{Semantic.content.accent}",
-    "border": "#34373C"
+    "border": "#2B2D31"
   },
   "chip": {
-    "bg-disabled": "#18181B",
+    "bg-disabled": "#18191B",
     "content-disabled": "{Semantic.content.disabled}",
     "bg-default": "rgba(255, 255, 255, 0)",
-    "bg-hover": "#34373C",
+    "bg-hover": "#2B2D31",
     "bg-active": "#1D1440",
     "content-active": "#8D6EF7",
     "content-hover": "{Semantic.content.primary}",
@@ -367,9 +375,17 @@ export const componentTokens = {
     "content": "{Semantic.content.tertiary}",
     "content-hover": "{Semantic.content.primary}"
   },
+  "sidebar-group-header": {
+    "bg-default": "rgba(255, 255, 255, 0)",
+    "bg-hover": "{Semantic.surface.secondary}",
+    "button": {
+      "bg-default": "rgba(255, 255, 255, 0)",
+      "bg-hover": "{Semantic.surface.tertiary}"
+    }
+  },
   "tooltip": {
-    "bg": "#F9FAFA",
-    "content": "#18181B"
+    "bg": "#F9F9FA",
+    "content": "#18191B"
   }
 },
 } as const;

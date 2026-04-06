@@ -12,7 +12,7 @@
   
   background: var(--component-list-item-bg-default);
   border: none;
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   
   cursor: pointer;
   width: 100%;
@@ -112,7 +112,7 @@
   min-width: 30px;
   height: 24px;
   padding: 0 var(--sizes-2);
-  border-radius: var(--radius-radius-round);
+  border-radius: var(--radius-round);
   background: var(--component-list-item-counter-bg-default, var(--semantic-surface-secondary));
   color: var(--component-list-item-counter-content-default, var(--semantic-content-primary));
 }

@@ -9,12 +9,7 @@ import { ReactNode, RefObject } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
-import { UserMenu } from '../UserMenu';
-import { useTheme } from '../../../contexts/ThemeContext';
-
-// Background images
-import bgLight from '../../../assets/login-background.png';
-import bgDark from '../../../assets/background-dark.png';
+import { useBackground } from '../../../contexts/BackgroundContext';
 
 export interface MainLayoutProps {
   /** Content for the sidebar slot - each page provides its own */
@@ -63,8 +58,7 @@ export function MainLayout({
   hideHeader = false,
   mainBodyRef,
 }: MainLayoutProps) {
-  const { isDark } = useTheme();
-  const backgroundImage = isDark ? bgDark : bgLight;
+  const { backgroundSrc } = useBackground();
   const mainTitleClasses = [
     styles.mainTitle,
     titleVariant === 'heading' && styles.mainTitleHeading,
@@ -74,12 +68,16 @@ export function MainLayout({
     <div className={styles.layout}>
       {/* Background */}
       <div className={styles.background}>
-        <img 
-          src={backgroundImage} 
-          alt="" 
-          className={styles.backgroundImage}
-          aria-hidden="true"
-        />
+        {backgroundSrc ? (
+          <img
+            src={backgroundSrc}
+            alt=""
+            className={styles.backgroundImage}
+            aria-hidden="true"
+          />
+        ) : (
+          <div className={styles.backgroundSolid} aria-hidden="true" />
+        )}
       </div>
 
       {/* Content */}
@@ -91,11 +89,6 @@ export function MainLayout({
 
         {/* Main Content */}
         <main className={styles.main}>
-          {/* User Menu */}
-          <div className={styles.userMenuArea}>
-            <UserMenu compact={!!rightSidebar} />
-          </div>
-
           {!hideHeader && (
             <header className={styles.mainHeader}>
               <div className={styles.mainHeaderContent}>

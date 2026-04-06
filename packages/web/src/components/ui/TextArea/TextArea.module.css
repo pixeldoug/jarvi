@@ -43,7 +43,7 @@
   padding: var(--sizes-4) var(--sizes-6) var(--sizes-4) var(--sizes-4);
   background-color: var(--semantic-control-bg);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-radius-sm);
+  border-radius: var(--radius-sm);
   transition: border-color 0.15s ease;
   overflow: hidden;
 }
@@ -142,7 +142,7 @@
 
 .textarea::-webkit-scrollbar-thumb {
   background-color: var(--semantic-surface-tertiary);
-  border-radius: var(--radius-radius-round);
+  border-radius: var(--radius-round);
 }
 
 .textarea::-webkit-scrollbar-thumb:hover {

@@ -48,7 +48,7 @@ export const typographySizing = {
   },
   'body-sm': {
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 18,
     fontWeight: 450,
     letterSpacing: 0.15000000596046448,
   },
@@ -71,17 +71,17 @@ export const typographySizing = {
 // ============================================================================
 
 export const radius = {
-  'radius-sm': 12,
-  'radius-md': 16,
-  'radius-lg': 24,
-  'radius-round': 9999,
-  'button-radius': '{radius.radius-md}',
-  'button-icon-radius': '{radius.radius-md}',
+  sm: 12,
+  md: 16,
+  lg: 24,
+  round: 9999,
+  'button-radius': '{radius.md}',
+  'button-icon-radius': '{radius.md}',
   'button-ring-radius': 18,
-  'calendar-day-button-radius': '{radius.radius-sm}',
-  'chip-radius': '{radius.radius-md}',
+  'calendar-day-button-radius': '{radius.sm}',
+  'chip-radius': '{radius.md}',
   'chip-ring-radius': 20,
-  'tooltip-radius': '{radius.radius-sm}',
+  'tooltip-radius': '{radius.sm}',
 } as const;
 
 // ============================================================================
