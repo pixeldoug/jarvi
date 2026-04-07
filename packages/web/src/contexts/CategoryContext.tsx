@@ -131,10 +131,18 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
 
   const deleteCategory = useCallback(async (categoryId: string): Promise<void> => {
     if (!token) throw new Error('No authentication token');
-    await apiClient.delete(`/api/categories/${categoryId}`);
+    // Optimistic update — remove immediately so the UI feels instant
+    const previous = queryClient.getQueryData<Category[]>(['categories']);
     queryClient.setQueryData<Category[]>(['categories'], (old) =>
       (old ?? []).filter(cat => cat.id !== categoryId),
     );
+    try {
+      await apiClient.delete(`/api/categories/${categoryId}`);
+    } catch (error) {
+      // Rollback on failure
+      queryClient.setQueryData<Category[]>(['categories'], previous);
+      throw error;
+    }
   }, [token, queryClient]);
 
   const value: CategoryContextType = {

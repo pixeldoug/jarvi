@@ -27,6 +27,7 @@ import {
 import { useCategories } from '../../../../../contexts/CategoryContext';
 import { CategoryRow } from '../../../../ui/CategoryRow';
 import { PrimaryButton } from '../../../../ui';
+import { toast } from '../../../../ui/Sonner';
 import styles from './CategoriesPage.module.css';
 
 // ============================================================================
@@ -104,7 +105,7 @@ export function CategoriesPage() {
         await deleteCategory(id);
         setOrderedIds((prev) => prev.filter((oid) => oid !== id));
       } catch {
-        // Silently ignore — optimistic rollback handled by context
+        toast.error('Não foi possível excluir a categoria. Tente novamente.');
       }
     },
     [deleteCategory],
