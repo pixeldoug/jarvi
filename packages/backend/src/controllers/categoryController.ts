@@ -54,14 +54,15 @@ export const getCategories = async (req: Request, res: Response): Promise<void> 
     if (isPostgreSQL()) {
       const pool = getPool();
       const result = await pool.query(
-        'SELECT * FROM categories WHERE user_id = $1 ORDER BY name ASC',
+        'SELECT * FROM categories WHERE user_id = $1 ORDER BY position ASC NULLS LAST, name ASC',
         [userId]
       );
       categories = result.rows;
     } else {
       const db = getDatabase();
       categories = await db.all(
-        'SELECT * FROM categories WHERE user_id = ? ORDER BY name ASC',
+        `SELECT * FROM categories WHERE user_id = ?
+         ORDER BY CASE WHEN position IS NULL THEN 9999999 ELSE position END ASC, name ASC`,
         [userId]
       );
     }
@@ -98,10 +99,15 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
       const pool = getPool();
       const client = await pool.connect();
       try {
+        const posResult = await client.query(
+          'SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM categories WHERE user_id = $1',
+          [userId]
+        );
+        const nextPos = posResult.rows[0].next_pos;
         await client.query(
-          `INSERT INTO categories (id, user_id, name, color, icon, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [categoryId, userId, trimmedName, color || null, icon || null, now, now]
+          `INSERT INTO categories (id, user_id, name, color, icon, position, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [categoryId, userId, trimmedName, color || null, icon || null, nextPos, now, now]
         );
         const result = await client.query('SELECT * FROM categories WHERE id = $1', [categoryId]);
         newCategory = result.rows[0];
@@ -110,10 +116,15 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
       }
     } else {
       const db = getDatabase();
+      const posRow = await db.get<{ next_pos: number }>(
+        'SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM categories WHERE user_id = ?',
+        [userId]
+      );
+      const nextPos = posRow?.next_pos ?? 1;
       await db.run(
-        `INSERT INTO categories (id, user_id, name, color, icon, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [categoryId, userId, trimmedName, color || null, icon || null, now, now]
+        `INSERT INTO categories (id, user_id, name, color, icon, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [categoryId, userId, trimmedName, color || null, icon || null, nextPos, now, now]
       );
       newCategory = await db.get('SELECT * FROM categories WHERE id = ?', [categoryId]);
     }
@@ -134,7 +145,7 @@ export const createCategory = async (req: Request, res: Response): Promise<void>
 export const updateCategory = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, color, icon } = req.body;
+    const { name, color, icon, visible } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -172,12 +183,13 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
 
         await client.query(
           `UPDATE categories 
-           SET name = $1, color = $2, icon = $3, updated_at = $4
-           WHERE id = $5 AND user_id = $6`,
+           SET name = $1, color = $2, icon = $3, visible = $4, updated_at = $5
+           WHERE id = $6 AND user_id = $7`,
           [
             nextCategoryName,
             color !== undefined ? color : existingCategory.color,
             icon !== undefined ? icon : existingCategory.icon,
+            visible !== undefined ? visible : existingCategory.visible,
             now,
             id,
             userId,
@@ -280,12 +292,13 @@ export const updateCategory = async (req: Request, res: Response): Promise<void>
 
         await db.run(
           `UPDATE categories 
-           SET name = ?, color = ?, icon = ?, updated_at = ?
+           SET name = ?, color = ?, icon = ?, visible = ?, updated_at = ?
            WHERE id = ? AND user_id = ?`,
           [
             nextCategoryName,
             color !== undefined ? color : existingCategory.color,
             icon !== undefined ? icon : existingCategory.icon,
+            visible !== undefined ? (visible ? 1 : 0) : existingCategory.visible,
             now,
             id,
             userId,
@@ -555,4 +568,61 @@ export const deleteCategory = async (req: Request, res: Response): Promise<void>
   }
 };
 
+// Reorder categories — receives an ordered array of IDs and updates position for each
+export const reorderCategories = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      res.status(400).json({ error: 'ids must be a non-empty array' });
+      return;
+    }
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        for (let i = 0; i < ids.length; i++) {
+          await client.query(
+            'UPDATE categories SET position = $1 WHERE id = $2 AND user_id = $3',
+            [i + 1, ids[i], userId]
+          );
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      await db.exec('BEGIN');
+      try {
+        for (let i = 0; i < ids.length; i++) {
+          await db.run(
+            'UPDATE categories SET position = ? WHERE id = ? AND user_id = ?',
+            [i + 1, ids[i], userId]
+          );
+        }
+        await db.exec('COMMIT');
+      } catch (error) {
+        await db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error reordering categories:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 

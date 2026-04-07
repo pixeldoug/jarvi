@@ -30,7 +30,7 @@ import { Avatar } from '../../ui/Avatar/Avatar';
 import { Button } from '../../ui/Button/Button';
 import { ListItem } from '../../ui/ListItem/ListItem';
 import { Dropdown, Tooltip } from '../../ui';
-import { SettingsDialog } from '../../features/account/SettingsDialog/SettingsDialog';
+import { SettingsDialog, type SettingsPage } from '../../features/account/SettingsDialog/SettingsDialog';
 import { SidebarEmptyState } from './SidebarEmptyState';
 import { SidebarGroupHeader } from './SidebarGroupHeader';
 import { SidebarUserMenu } from './SidebarUserMenu';
@@ -141,11 +141,19 @@ export function Sidebar({
   onScrollToSection,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
-  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(() => customLists.length > 0);
+
+  useEffect(() => {
+    if (categories.length > 0) setIsCategoriesExpanded(true);
+  }, [categories.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (customLists.length > 0) setIsFiltersExpanded(true);
+  }, [customLists.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settingsInitialPage, setSettingsInitialPage] = useState<'profile' | 'payments' | 'apps' | 'memory'>('profile');
+  const [settingsInitialPage, setSettingsInitialPage] = useState<SettingsPage>('profile');
 
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
@@ -223,6 +231,11 @@ export function Sidebar({
 
   const handleUpgradeClick = () => {
     setSettingsInitialPage('payments');
+    setIsSettingsOpen(true);
+  };
+
+  const handleAddCategory = () => {
+    setSettingsInitialPage('categories');
     setIsSettingsOpen(true);
   };
 
@@ -387,7 +400,7 @@ export function Sidebar({
                 isExpanded={isCategoriesExpanded}
                 onToggle={() => setIsCategoriesExpanded((v) => !v)}
                 showAddButton
-                onAdd={onAddClick}
+                onAdd={handleAddCategory}
                 addButtonRef={addButtonRef}
               />
             </div>
@@ -409,7 +422,7 @@ export function Sidebar({
                   <SidebarEmptyState
                     description="Use categorias para filtrar, priorizar e visualizar melhor o que importa."
                     buttonLabel="Criar categoria"
-                    onButtonClick={onAddClick}
+                    onButtonClick={handleAddCategory}
                   />
                 )}
               </div>

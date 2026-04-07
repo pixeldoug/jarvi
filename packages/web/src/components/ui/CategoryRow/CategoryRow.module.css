@@ -1,0 +1,175 @@
+/**
+ * CategoryRow Styles
+ * Following JarviDS Web design system from Figma
+ * Node: 40001344-4909
+ */
+
+/* ── Row container ────────────────────────────────────────────────────────── */
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  height: var(--size-target-standard, 48px);
+  padding: 0 var(--sizes-3) 0 var(--sizes-4);
+  border-radius: var(--radius-sm);
+  background: var(--component-list-item-bg-default);
+  transition: background-color 0.15s ease;
+  overflow: visible;
+}
+
+.row:hover {
+  background: var(--component-list-item-bg-hover);
+}
+
+.dragging {
+  opacity: 0;
+}
+
+/* ── Drag handle ──────────────────────────────────────────────────────────── */
+
+.dragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  cursor: grab;
+
+  /* Hidden by default, revealed on row hover */
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.15s ease, width 0.15s ease;
+}
+
+.row:hover .dragHandle {
+  opacity: 1;
+  width: 22px;
+  overflow: visible;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.dragHandleIcon {
+  color: var(--semantic-content-secondary);
+}
+
+/* ── Hash icon ────────────────────────────────────────────────────────────── */
+
+.hashIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--semantic-content-primary);
+}
+
+/* ── Label ────────────────────────────────────────────────────────────────── */
+
+.label {
+  flex: 1;
+  min-width: 0;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+/* ── Actions group ────────────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+/* ── Action button ────────────────────────────────────────────────────────── */
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.actionBtn:hover {
+  background: var(--semantic-surface-secondary);
+}
+
+.actionIcon {
+  color: var(--semantic-content-secondary);
+  transition: color 0.15s ease;
+}
+
+.actionBtn:hover .actionIcon {
+  color: var(--semantic-content-primary);
+}
+
+/* Hover-only actions: hidden by default, revealed on row hover */
+.actionHoverOnly {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.15s ease, width 0.15s ease;
+}
+
+.row:hover .actionHoverOnly {
+  opacity: 1;
+  width: 22px;
+  overflow: visible;
+}
+
+/* Inactive (hidden) visibility state */
+.actionInactive .actionIcon {
+  color: var(--semantic-content-disabled);
+}
+
+/* ── Editing state ────────────────────────────────────────────────────────── */
+
+.editing {
+  background: var(--component-list-item-bg-hover);
+}
+
+.labelInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  outline: none;
+}
+
+.labelInput:focus {
+  outline: none;
+}

@@ -30,18 +30,18 @@ export interface TooltipProps {
 
 function PointerSvg({ position }: { position: TooltipPosition }) {
   switch (position) {
-    // ▼ points down (container is above)
+    // ▲ points up (tooltip is below trigger, arrow points toward trigger above)
     case 'bottom':
       return (
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
-          <path d="M5 6L0 0H10L5 6Z" fill="currentColor" />
+          <path d="M5 0L10 6H0L5 0Z" fill="currentColor" />
         </svg>
       );
-    // ▲ points up (container is below)
+    // ▼ points down (tooltip is above trigger, arrow points toward trigger below)
     case 'top':
       return (
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
-          <path d="M5 0L10 6H0L5 0Z" fill="currentColor" />
+          <path d="M5 6L0 0H10L5 6Z" fill="currentColor" />
         </svg>
       );
     // ◄ points left (container is to the right)

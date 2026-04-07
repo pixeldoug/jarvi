@@ -102,11 +102,11 @@
 
 /* ── Position-specific pointer ordering ── */
 
-/* Bottom: pointer below container */
-.bottom .pointer { order: 1; }
+/* Bottom: pointer above container (points up toward trigger) */
+.bottom .pointer { order: -1; }
 
-/* Top: pointer above container */
-.top .pointer { order: -1; }
+/* Top: pointer below container (points down toward trigger) */
+.top .pointer { order: 1; }
 
 /* Right: pointer to the left of container (points ←) */
 .right .pointer { order: -1; }

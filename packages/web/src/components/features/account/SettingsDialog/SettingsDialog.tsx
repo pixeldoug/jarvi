@@ -2,7 +2,7 @@
  * SettingsDialog Component - Jarvi Web
  *
  * Two-column settings modal: sidebar navigation + scrollable canvas.
- * Pages: Meu perfil / Pagamentos / Apps / Memória
+ * Pages: Meu perfil / Pagamentos / Apps / Memória / Categorias / Filtros / Aparência
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
  * Node: 40001321-32878
@@ -10,31 +10,65 @@
 
 import { useState, useEffect } from 'react';
 import type { ElementType } from 'react';
-import { X, User, CreditCard, CirclesFour, Brain, Palette } from '@phosphor-icons/react';
+import {
+  X,
+  User,
+  CreditCard,
+  CirclesFour,
+  Brain,
+  Palette,
+  Hash,
+  FunnelSimple,
+} from '@phosphor-icons/react';
 import { Dialog, ListItem } from '../../../ui';
 import { ProfilePage } from './pages/ProfilePage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { AppsPage } from './pages/AppsPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { AppearancePage } from './pages/AppearancePage';
+import { CategoriesPage } from './pages/CategoriesPage';
 import styles from './SettingsDialog.module.css';
 
-type SettingsPage = 'profile' | 'payments' | 'apps' | 'memory' | 'appearance';
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export type SettingsPage =
+  | 'profile'
+  | 'payments'
+  | 'apps'
+  | 'memory'
+  | 'categories'
+  | 'filters'
+  | 'appearance';
 
 interface SidebarItem {
   id: SettingsPage;
   label: string;
-  icon: ElementType;
+  icon?: ElementType;
   iconWeight?: 'thin' | 'light' | 'regular' | 'bold' | 'fill' | 'duotone';
 }
 
+// ============================================================================
+// SIDEBAR ITEMS
+// ============================================================================
+
 const SIDEBAR_ITEMS: SidebarItem[] = [
-  { id: 'profile',    label: 'Meu perfil',  icon: User },
-  { id: 'payments',   label: 'Pagamentos',  icon: CreditCard },
-  { id: 'apps',       label: 'Apps',        icon: CirclesFour },
-  { id: 'memory',     label: 'Memória',     icon: Brain },
-  { id: 'appearance', label: 'Aparência',   icon: Palette },
+  { id: 'profile',    label: 'Meu perfil', icon: User },
+  { id: 'payments',   label: 'Pagamentos', icon: CreditCard },
+  { id: 'apps',       label: 'Apps',       icon: CirclesFour },
+  { id: 'memory',     label: 'Memória',    icon: Brain },
+  { id: 'categories', label: 'Categorias', icon: Hash },
+  { id: 'filters',    label: 'Filtros',    icon: FunnelSimple },
+  { id: 'appearance', label: 'Aparência',  icon: Palette },
 ];
+
+// Pages that render their own full header (title + extras)
+const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['apps', 'categories']);
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export interface SettingsDialogProps {
   /** Whether the dialog is open */
@@ -92,7 +126,7 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
             <X size={20} weight="regular" />
           </button>
 
-          {activePage !== 'apps' && (
+          {!PAGES_WITH_CUSTOM_HEADER.has(activePage) && (
             <h1 className={styles.pageHeader}>{activeItem?.label}</h1>
           )}
 
@@ -100,9 +134,28 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
           {activePage === 'payments'   && <PaymentsPage onClose={onClose} />}
           {activePage === 'apps'       && <AppsPage />}
           {activePage === 'memory'     && <MemoryPage />}
+          {activePage === 'categories' && <CategoriesPage />}
+          {activePage === 'filters'    && <ComingSoonPage label="Filtros" />}
           {activePage === 'appearance' && <AppearancePage />}
         </main>
       </div>
     </Dialog>
+  );
+}
+
+// ============================================================================
+// PLACEHOLDER PAGE
+// ============================================================================
+
+function ComingSoonPage({ label }: { label: string }) {
+  return (
+    <p style={{
+      fontFamily: 'var(--typography-body-lg-font-family)',
+      fontSize: 'var(--typography-body-lg-font-size)',
+      color: 'var(--semantic-content-tertiary)',
+      margin: 0,
+    }}>
+      {label} — em breve.
+    </p>
   );
 }

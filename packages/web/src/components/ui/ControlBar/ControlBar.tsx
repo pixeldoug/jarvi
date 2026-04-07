@@ -286,6 +286,7 @@ export function ControlBar({
       onKeyDown={mode === 'task' ? handleTaskKeyDown : undefined}
       data-theme="dark"
       data-control-bar
+      style={{ x: "-50%" }}
       animate={hidden ? { opacity: 0, y: 20, pointerEvents: 'none' } : { opacity: 1, y: 0, pointerEvents: 'auto' }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
     >

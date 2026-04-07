@@ -170,6 +170,11 @@ export {
   type ListItemProps,
 } from './ListItem';
 
+export {
+  CategoryRow,
+  type CategoryRowProps,
+} from './CategoryRow';
+
 // ============================================================================
 // DATE & TIME COMPONENTS (Generic)
 // ============================================================================

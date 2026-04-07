@@ -54,10 +54,14 @@ export function useMergedTaskCategories(): MergedTaskCategory[] {
       }
     }
 
-    const knownCategories: MergedTaskCategory[] = categories.map((category) => ({
-      ...category,
-      count: countsByKnownId.get(category.id) || 0,
-    }));
+    // Only show categories marked visible.
+    // SQLite returns 0/1 instead of false/true, so check both falsy forms.
+    const knownCategories: MergedTaskCategory[] = categories
+      .filter((category) => category.visible !== false && category.visible !== 0)
+      .map((category) => ({
+        ...category,
+        count: countsByKnownId.get(category.id) || 0,
+      }));
 
     const unknownCategories: MergedTaskCategory[] = Array.from(unknownByNormalized.values()).map(
       (unknownCategory) => ({
@@ -72,6 +76,10 @@ export function useMergedTaskCategories(): MergedTaskCategory[] {
       })
     );
 
-    return [...knownCategories, ...unknownCategories].sort((a, b) => a.name.localeCompare(b.name));
+    // Known categories preserve server order (position); unknown ones appended alphabetically
+    return [
+      ...knownCategories,
+      ...unknownCategories.sort((a, b) => a.name.localeCompare(b.name)),
+    ];
   }, [categories, tasks]);
 }

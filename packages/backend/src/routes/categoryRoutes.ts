@@ -4,6 +4,7 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  reorderCategories,
 } from '../controllers/categoryController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -12,9 +13,8 @@ const router = Router();
 // Category routes (all require authentication)
 router.get('/', authenticateToken, getCategories);
 router.post('/', authenticateToken, createCategory);
+router.patch('/reorder', authenticateToken, reorderCategories);
 router.put('/:id', authenticateToken, updateCategory);
 router.delete('/:id', authenticateToken, deleteCategory);
 
 export default router;
-
-

@@ -838,6 +838,20 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Add position column to categories for user-defined ordering
+      try {
+        await client.query('ALTER TABLE categories ADD COLUMN IF NOT EXISTS position INTEGER');
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      // Migration: Add visible column to categories for sidebar visibility control
+      try {
+        await client.query('ALTER TABLE categories ADD COLUMN IF NOT EXISTS visible BOOLEAN DEFAULT TRUE');
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -1021,6 +1035,20 @@ const runMigrations = async (): Promise<void> => {
     // Migration: Add last_reconciled_at column to users
     try {
       await db.exec('ALTER TABLE users ADD COLUMN last_reconciled_at DATETIME');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add position column to categories for user-defined ordering
+    try {
+      await db.exec('ALTER TABLE categories ADD COLUMN position INTEGER');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add visible column to categories for sidebar visibility control
+    try {
+      await db.exec('ALTER TABLE categories ADD COLUMN visible INTEGER DEFAULT 1');
     } catch (e) {
       // Column already exists, ignore
     }

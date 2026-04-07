@@ -2,9 +2,10 @@
 .controlBarTask {
   position: fixed;
   bottom: 24px;
-  /* Offset by half the left sidebar width so the bar centers in the content area */
-  left: calc(20% + var(--sidebar-offset, 0px));
-  transform: translateX(-50%);
+  /* Centered in the full viewport (sidebar + content combined).
+     translateX(-50%) is handled via Framer Motion style={{ x: "-50%" }} so that
+     Framer Motion's animate does not overwrite this CSS transform. */
+  left: 50%;
   z-index: 100;
 
   display: flex;
