@@ -133,26 +133,16 @@
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
-  color: var(--semantic-content-secondary);
+  color: var(--semantic-content-primary);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .newRowBtn:hover:not(:disabled) {
   background: var(--semantic-surface-secondary);
-  color: var(--semantic-content-primary);
 }
 
 .newRowBtn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-.newRowBtnSave {
-  color: var(--semantic-status-success, #22c55e);
-}
-
-.newRowBtnSave:hover:not(:disabled) {
-  background: rgba(34, 197, 94, 0.1);
-  color: var(--semantic-status-success, #22c55e);
 }
