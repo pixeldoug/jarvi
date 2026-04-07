@@ -862,7 +862,6 @@ export function Tasks() {
         onListSelect={handleListSelect}
         onCustomListSelect={handleCustomListSelect}
         onCategorySelect={handleCategorySelect}
-        onAddClick={() => setIsCreateListOpen(true)}
         addButtonRef={addListButtonRef}
         taskCounts={sidebarTaskCounts}
         categories={sidebarCategories}
