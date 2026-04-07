@@ -8,7 +8,7 @@
  * Node: 40001329-122264
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -24,6 +24,7 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
+import { Check, X } from '@phosphor-icons/react';
 import { useCategories } from '../../../../../contexts/CategoryContext';
 import { CategoryRow } from '../../../../ui/CategoryRow';
 import { PrimaryButton } from '../../../../ui';
@@ -48,6 +49,7 @@ export function CategoriesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [createValue, setCreateValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const createInputRef = useRef<HTMLInputElement>(null);
 
   // Derive final sorted list: orderedIds first, then any new items appended
   const sortedCategories = orderedIds.length
@@ -190,12 +192,12 @@ export function CategoriesPage() {
           <div className={`${styles.newRow} ${isSaving ? styles.saving : ''}`}>
             <span className={styles.newRowHash}>#</span>
             <input
+              ref={createInputRef}
               type="text"
               autoFocus
               placeholder="Nome da categoria"
               value={createValue}
               onChange={(e) => setCreateValue(e.target.value)}
-              onBlur={() => void handleCreateSave()}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { e.preventDefault(); void handleCreateSave(); }
                 if (e.key === 'Escape') { e.preventDefault(); handleCreateCancel(); }
@@ -204,6 +206,26 @@ export function CategoriesPage() {
               className={styles.newRowInput}
               disabled={isSaving}
             />
+            <div className={styles.newRowActions}>
+              <button
+                type="button"
+                className={`${styles.newRowBtn} ${styles.newRowBtnSave}`}
+                onMouseDown={(e) => { e.preventDefault(); void handleCreateSave(); }}
+                title="Salvar"
+                disabled={isSaving || !createValue.trim()}
+              >
+                <Check size={16} weight="bold" />
+              </button>
+              <button
+                type="button"
+                className={styles.newRowBtn}
+                onMouseDown={(e) => { e.preventDefault(); handleCreateCancel(); }}
+                title="Cancelar"
+                disabled={isSaving}
+              >
+                <X size={16} weight="bold" />
+              </button>
+            </div>
           </div>
         )}
 
