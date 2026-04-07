@@ -97,7 +97,6 @@ export interface SidebarProps {
   onListSelect?: (listType: ListType) => void;
   onCustomListSelect?: (listId: string) => void;
   onCategorySelect?: (category: CategoryType) => void;
-  onAddClick?: () => void;
   addButtonRef?: RefObject<HTMLButtonElement>;
   taskCounts?: {
     all?: number;
@@ -132,7 +131,6 @@ export function Sidebar({
   onListSelect,
   onCustomListSelect,
   onCategorySelect,
-  onAddClick,
   addButtonRef,
   taskCounts = {},
   categories = [],

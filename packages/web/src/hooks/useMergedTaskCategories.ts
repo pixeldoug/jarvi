@@ -57,7 +57,7 @@ export function useMergedTaskCategories(): MergedTaskCategory[] {
     // Only show categories marked visible.
     // SQLite returns 0/1 instead of false/true, so check both falsy forms.
     const knownCategories: MergedTaskCategory[] = categories
-      .filter((category) => category.visible !== false && category.visible !== 0)
+      .filter((category) => category.visible !== false && (category.visible as unknown) !== 0)
       .map((category) => ({
         ...category,
         count: countsByKnownId.get(category.id) || 0,
