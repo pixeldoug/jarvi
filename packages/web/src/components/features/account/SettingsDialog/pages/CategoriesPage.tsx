@@ -125,6 +125,13 @@ export function CategoriesPage() {
     setIsSaving(true);
     try {
       await createCategory({ name: trimmed });
+    } catch (err: any) {
+      const msg = err?.status === 409
+        ? 'Já existe uma categoria com esse nome.'
+        : 'Não foi possível criar a categoria. Tente novamente.';
+      toast.error(msg);
+      setIsSaving(false);
+      return;
     } finally {
       setIsSaving(false);
       setIsCreating(false);
