@@ -29,7 +29,14 @@
   overflow: hidden;
 }
 
-/* Large size variant for TaskDetailsSidebar */
+/* Medium size variant for TaskDetailsSidebar */
+.checkbox.medium {
+  width: var(--sizes-7);
+  height: var(--sizes-7);
+  border-radius: 9px;
+}
+
+/* Large size variant */
 .checkbox.large {
   width: var(--size-target-tight);
   height: var(--size-target-tight);

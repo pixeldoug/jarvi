@@ -6,7 +6,8 @@
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { useScrollSpy } from '../../hooks/useScrollSpy';
-import { Gear, CaretRight, Sparkle } from '@phosphor-icons/react';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { Gear, SquaresFour, ArrowsDownUp, ArrowsInSimple, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
@@ -15,8 +16,8 @@ import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, ListType, SECTION_IDS } from '../../components/layout/Sidebar';
-import type { SectionId } from '../../components/layout/Sidebar';
-import { Button, TaskCreationData, Collapsible } from '../../components/ui';
+import type { SectionId, SettingsPage } from '../../components/layout/Sidebar';
+import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
@@ -141,6 +142,9 @@ export function Tasks() {
   const [chatKey, setChatKey] = useState(0);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
+
+  const isCompactHeader = useMediaQuery('(max-width: 824px)');
+  const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
 
   // ── Scroll spy (only active in the "all" grouped view) ──────────────────────
   const activeSectionId = useScrollSpy({
@@ -818,6 +822,17 @@ export function Tasks() {
     setSelectedCategoryName((prev) => (prev === categoryName ? null : categoryName));
   };
 
+  const allSectionsExpanded = Object.entries(openSections)
+    .filter(([key]) => key !== 'completadas')
+    .every(([, value]) => value);
+
+  const handleToggleAllSections = () => {
+    const nextValue = !allSectionsExpanded;
+    setOpenSections(prev =>
+      Object.fromEntries(Object.keys(prev).map(k => [k, k === 'completadas' ? false : nextValue]))
+    );
+  };
+
   const pageTitle =
     selectedCustomListId
       ? customLists.find((l) => l.id === selectedCustomListId)?.name || 'Tarefas'
@@ -829,18 +844,63 @@ export function Tasks() {
     : null;
   const isCustomListView = Boolean(selectedCustomList);
   const pageDescription = selectedCustomList?.description?.trim() || undefined;
+  const toggleSectionsLabel = allSectionsExpanded ? 'Colapsar tudo' : 'Expandir tudo';
+  const tableControls = (
+    <>
+      <Tooltip label="Apps" position="bottom" disabled={!isCompactHeader}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="medium"
+          icon={SquaresFour}
+          iconPosition={isCompactHeader ? 'icon-only' : 'left'}
+          aria-label={isCompactHeader ? 'Apps' : undefined}
+          onClick={() => openSettingsRef.current?.('apps')}
+        >
+          {!isCompactHeader && 'Apps'}
+        </Button>
+      </Tooltip>
+      <Tooltip label={toggleSectionsLabel} position="bottom">
+        <Button
+          type="button"
+          variant="ghost"
+          size="medium"
+          icon={allSectionsExpanded ? ArrowsInSimple : ArrowsDownUp}
+          iconPosition="icon-only"
+          aria-label={toggleSectionsLabel}
+          onClick={handleToggleAllSections}
+        />
+      </Tooltip>
+      <Tooltip label="Filtrar" position="bottom" disabled={!isCompactHeader}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="medium"
+          icon={FunnelSimple}
+          iconPosition={isCompactHeader ? 'icon-only' : 'left'}
+          aria-label={isCompactHeader ? 'Filtrar' : undefined}
+        >
+          {!isCompactHeader && 'Filtrar'}
+        </Button>
+      </Tooltip>
+    </>
+  );
+
   const headerActions = isCustomListView ? (
-    <Button
-      type="button"
-      variant="secondary"
-      size="small"
-      icon={Gear}
-      iconPosition="left"
-      onClick={() => setIsEditListOpen(true)}
-    >
-      Editar
-    </Button>
-  ) : undefined;
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        size="small"
+        icon={Gear}
+        iconPosition="left"
+        onClick={() => setIsEditListOpen(true)}
+      >
+        Editar
+      </Button>
+      {tableControls}
+    </>
+  ) : tableControls;
 
   useEffect(() => {
     if (!selectedCustomListId) {
@@ -868,6 +928,8 @@ export function Tasks() {
         customLists={customLists.map((l) => ({ id: l.id, name: l.name }))}
         activeSectionId={activeSectionId}
         onScrollToSection={handleScrollToSection}
+        openSettingsRef={openSettingsRef}
+        forceCollapsed={isChatOpen && !!selectedTask}
       />
       <CreateListPopover
         isOpen={isCreateListOpen}
@@ -1232,7 +1294,7 @@ export function Tasks() {
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
-        titleVariant={isCustomListView ? 'heading' : 'display'}
+        titleVariant="heading"
         titleDescription={pageDescription}
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
@@ -1252,7 +1314,7 @@ export function Tasks() {
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
-        titleVariant={isCustomListView ? 'heading' : 'display'}
+        titleVariant="heading"
         titleDescription={pageDescription}
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
@@ -1289,6 +1351,7 @@ export function Tasks() {
               onToggleCompletion={handleToggleCompletion}
               onDelete={handleDeleteTask}
               onOpenChat={undefined}
+              variant="expanded"
             />
           </div>
         </div>
@@ -1318,18 +1381,6 @@ export function Tasks() {
         hideControlBar={true}
       >
         <div className={styles.taskChatCenter}>
-          <nav className={styles.taskBreadcrumb}>
-            <Sparkle weight="fill" size={16} className={styles.taskBreadcrumbIcon} />
-            <button
-              className={styles.taskBreadcrumbHome}
-              onClick={handleCloseChat}
-              type="button"
-            >
-              {pageTitle}
-            </button>
-            <CaretRight size={14} className={styles.taskBreadcrumbSeparator} />
-            <span className={styles.taskBreadcrumbCurrent}>{selectedTask.title}</span>
-          </nav>
           <div className={styles.taskChatSidebarWrapper}>
             <TaskDetailsSidebar
               isOpen={true}
@@ -1342,6 +1393,7 @@ export function Tasks() {
               onToggleCompletion={handleToggleCompletion}
               onDelete={handleDeleteTask}
               onOpenChat={undefined}
+              variant="expanded"
             />
           </div>
         </div>
@@ -1364,7 +1416,7 @@ export function Tasks() {
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
-        titleVariant={isCustomListView ? 'heading' : 'display'}
+        titleVariant="heading"
         titleDescription={pageDescription}
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
@@ -1437,17 +1489,17 @@ export function Tasks() {
     <MainLayout
       sidebar={sidebarNode}
       title={pageTitle}
-      titleVariant={isCustomListView ? 'heading' : 'display'}
-      titleDescription={pageDescription}
-      headerActions={headerActions}
-      onCreateTask={handleControlBarCreateTask}
-      onOpenTaskDetails={handleTaskClick}
-      rightSidebar={computedRightSidebar}
-      onOpenChat={handleOpenChatGeneral}
-      onSubmitPrompt={handleOpenChatGeneral}
-      hideControlBar={isChatOpen}
-      mainBodyRef={mainBodyRef}
-    >
+        titleVariant="heading"
+        titleDescription={pageDescription}
+        headerActions={headerActions}
+        onCreateTask={handleControlBarCreateTask}
+        onOpenTaskDetails={handleTaskClick}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        mainBodyRef={mainBodyRef}
+      >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}

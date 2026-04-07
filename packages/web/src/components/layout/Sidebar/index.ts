@@ -5,4 +5,5 @@ export type {
   CategoryType,
   SectionId,
 } from './Sidebar';
+export type { SettingsPage } from '../../features/account/SettingsDialog/SettingsDialog';
 export { SECTION_IDS, SECTION_TO_LIST, LIST_TO_SECTION } from './Sidebar';

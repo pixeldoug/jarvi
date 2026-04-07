@@ -27,6 +27,8 @@ export interface TaskDetailsSidebarProps {
   onToggleCompletion: (taskId: string) => Promise<void>;
   onDelete?: (taskId: string) => void | Promise<void>;
   onOpenChat?: () => void;
+  /** Layout variant: sidebar (right panel) or expanded (center column) */
+  variant?: 'sidebar' | 'expanded';
 }
 
 export function TaskDetailsSidebar({
@@ -37,6 +39,7 @@ export function TaskDetailsSidebar({
   onToggleCompletion,
   onDelete,
   onOpenChat,
+  variant = 'sidebar',
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -430,82 +433,90 @@ export function TaskDetailsSidebar({
     high: 'Urgente',
   };
 
+  const sidebarClasses = [
+    styles.sidebar,
+    variant === 'expanded' && styles.expanded,
+  ].filter(Boolean).join(' ');
+
   return (
     <div 
-      className={styles.sidebar}
+      className={sidebarClasses}
       role="complementary"
       aria-label="Detalhes da tarefa"
     >
-      {/* Header Actions */}
-      <div className={styles.closeButton}>
-        {onOpenChat && (
-          <Button
-            variant="secondary"
-            icon={Sparkle}
-            iconPosition="icon-only"
-            onClick={onOpenChat}
-            aria-label="Abrir assistente AI"
-          />
-        )}
-        <Button
-          variant="secondary"
-          icon={X}
-          iconPosition="icon-only"
-          onClick={onClose}
-          aria-label="Fechar sidebar"
-        />
-      </div>
-
-      {/* Header: Checkbox + Title */}
+      {/* Header: Checkbox + Title + Action Buttons (same flex row) */}
       <div className={styles.header}>
-        <TaskCheckbox
-          checked={task.completed}
-          onChange={handleToggleCompletionClick}
-          ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
-          size="large"
-        />
-        {isEditingTitle ? (
-          <input
-            ref={titleInputRef}
-            className={styles.titleInput}
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={() => {
-              if (skipTitleBlurSaveRef.current) {
-                skipTitleBlurSaveRef.current = false;
-                return;
-              }
-              void handleTitleSave();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void handleTitleSave();
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-                skipTitleBlurSaveRef.current = true;
-                handleTitleCancel();
-              }
-            }}
-            aria-label="Título da tarefa"
+        <div className={styles.titleContainer}>
+          <TaskCheckbox
+            checked={task.completed}
+            onChange={handleToggleCompletionClick}
+            ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+            size={variant === 'expanded' ? 'large' : 'medium'}
           />
-        ) : (
-          <div
-            className={styles.titleButton}
-            onClick={handleTitleClick}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleTitleClick();
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            aria-label="Editar título da tarefa"
-          >
-            <h2 className={styles.title}>{title || task.title}</h2>
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              className={styles.titleInput}
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={() => {
+                if (skipTitleBlurSaveRef.current) {
+                  skipTitleBlurSaveRef.current = false;
+                  return;
+                }
+                void handleTitleSave();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleTitleSave();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  skipTitleBlurSaveRef.current = true;
+                  handleTitleCancel();
+                }
+              }}
+              aria-label="Título da tarefa"
+            />
+          ) : (
+            <div
+              className={styles.titleButton}
+              onClick={handleTitleClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleTitleClick();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Editar título da tarefa"
+            >
+              <h2 className={styles.title}>{title || task.title}</h2>
+            </div>
+          )}
+        </div>
+
+        {variant !== 'expanded' && (
+          <div className={styles.headerActions}>
+            {onOpenChat && (
+              <Button
+                variant="secondary"
+                icon={Sparkle}
+                iconPosition="icon-only"
+                onClick={onOpenChat}
+                aria-label="Abrir assistente AI"
+              />
+            )}
+            <Button
+              variant="secondary"
+              icon={X}
+              iconPosition="icon-only"
+              onClick={onClose}
+              aria-label="Fechar sidebar"
+            />
           </div>
         )}
       </div>

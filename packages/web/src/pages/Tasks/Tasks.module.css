@@ -297,7 +297,7 @@
   align-items: center;
   gap: var(--sizes-2);
   flex-shrink: 0;
-  padding: 0 var(--sizes-9);
+  padding: 0 var(--sizes-8);
   margin-bottom: var(--sizes-2);
 }
 

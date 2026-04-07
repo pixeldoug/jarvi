@@ -21,7 +21,7 @@ export interface TaskCheckboxProps {
   /** Additional CSS classes */
   className?: string;
   /** Size variant */
-  size?: 'default' | 'large';
+  size?: 'default' | 'medium' | 'large';
 }
 
 export function TaskCheckbox({
@@ -33,6 +33,7 @@ export function TaskCheckbox({
 }: TaskCheckboxProps) {
   const checkboxClasses = [
     styles.checkbox,
+    size === 'medium' && styles.medium,
     size === 'large' && styles.large,
     checked && styles.checked,
     className,

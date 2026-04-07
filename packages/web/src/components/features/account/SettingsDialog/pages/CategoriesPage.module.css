@@ -133,13 +133,13 @@
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
-  color: var(--semantic-content-primary);
+  color: var(--semantic-content-secondary);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .newRowBtn:hover:not(:disabled) {
-  background: var(--semantic-surface-secondary);
+  background: var(--semantic-surface-tertiary);
 }
 
 .newRowBtn:disabled {

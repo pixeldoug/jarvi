@@ -12,7 +12,7 @@
  * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001333-125371
  */
 
-import { useState, useRef, useEffect, type RefObject } from 'react';
+import { useState, useRef, useEffect, type RefObject, type MutableRefObject } from 'react';
 import {
   Checks,
   SunHorizon,
@@ -109,6 +109,10 @@ export interface SidebarProps {
   customLists?: Array<{ id: string; name: string }>;
   activeSectionId?: string | null;
   onScrollToSection?: (sectionId: SectionId) => void;
+  /** Imperative ref — caller sets this to open the SettingsDialog on any page */
+  openSettingsRef?: MutableRefObject<((page: SettingsPage) => void) | null>;
+  /** When true, collapses the sidebar; restores previous state when false */
+  forceCollapsed?: boolean;
 }
 
 // ── Nav items ─────────────────────────────────────────────────────────────────
@@ -132,13 +136,16 @@ export function Sidebar({
   onCustomListSelect,
   onCategorySelect,
   addButtonRef,
-  taskCounts = {},
+  taskCounts: _taskCounts = {},
   categories = [],
   customLists = [],
   activeSectionId,
   onScrollToSection,
+  openSettingsRef,
+  forceCollapsed,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const prevCollapsedRef = useRef<boolean>(false);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(() => customLists.length > 0);
 
@@ -152,6 +159,25 @@ export function Sidebar({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialPage, setSettingsInitialPage] = useState<SettingsPage>('profile');
+
+  useEffect(() => {
+    if (!openSettingsRef) return;
+    openSettingsRef.current = (page: SettingsPage) => {
+      setSettingsInitialPage(page);
+      setIsSettingsOpen(true);
+    };
+    return () => { openSettingsRef.current = null; };
+  }, [openSettingsRef]);
+
+  useEffect(() => {
+    if (forceCollapsed) {
+      prevCollapsedRef.current = isCollapsed;
+      setIsCollapsed(true);
+    } else {
+      setIsCollapsed(prevCollapsedRef.current);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceCollapsed]);
 
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
@@ -378,12 +404,6 @@ export function Sidebar({
                   label={item.label}
                   icon={item.icon}
                   active={isNavItemActive(item.id)}
-                  counter={
-                    item.id !== 'all' && item.id !== 'overdue' && item.id !== 'completed'
-                      ? taskCounts[item.id as keyof typeof taskCounts]
-                      : undefined
-                  }
-                  counterVariant="chip"
                   onClick={() => handleNavClick(item.id)}
                 />
               ))}
@@ -411,8 +431,6 @@ export function Sidebar({
                       label={category.name}
                       icon={Hash}
                       active={selectedCategory === category.name}
-                      counter={category.count}
-                      counterVariant="chip"
                       onClick={() => onCategorySelect?.(category.name)}
                     />
                   ))

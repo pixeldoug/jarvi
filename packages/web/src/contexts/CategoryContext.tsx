@@ -87,8 +87,8 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
   const createCategory = useCallback(async (data: CreateCategoryData): Promise<Category> => {
     if (!token) throw new Error('No authentication token');
     const newCategory = normalizeCategory(await apiClient.post<Category>('/api/categories', data));
-    // Append at end; position is assigned by the server
-    queryClient.setQueryData<Category[]>(['categories'], (old) => [...(old ?? []), newCategory]);
+    // Prepend so the new category appears at the top of the list immediately
+    queryClient.setQueryData<Category[]>(['categories'], (old) => [newCategory, ...(old ?? [])]);
     return newCategory;
   }, [token, queryClient]);
 
