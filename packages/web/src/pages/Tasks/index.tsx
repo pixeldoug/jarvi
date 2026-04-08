@@ -929,7 +929,7 @@ export function Tasks() {
         activeSectionId={activeSectionId}
         onScrollToSection={handleScrollToSection}
         openSettingsRef={openSettingsRef}
-        forceCollapsed={isChatOpen && !!selectedTask}
+        forceCollapsed={false}
       />
       <CreateListPopover
         isOpen={isCreateListOpen}
@@ -1325,78 +1325,6 @@ export function Tasks() {
         mainBodyRef={mainBodyRef}
       >
         <div className={styles.error}>Erro: {error}</div>
-      </MainLayout>
-    );
-  }
-
-  // General chat + task selected: task detail in center, chat stays intact on right
-  if (isChatOpen && chatMode === 'general' && selectedTask) {
-    return (
-      <MainLayout
-        sidebar={sidebarNode}
-        title={pageTitle}
-        hideHeader={true}
-        onCreateTask={handleControlBarCreateTask}
-        rightSidebar={computedRightSidebar}
-        hideControlBar={true}
-        mainBodyRef={mainBodyRef}
-      >
-        <div className={styles.taskChatCenter}>
-          <div className={styles.taskChatSidebarWrapper}>
-            <TaskDetailsSidebar
-              isOpen={true}
-              task={selectedTask}
-              onClose={() => setSelectedTask(null)}
-              onUpdateTask={handleUpdateTask}
-              onToggleCompletion={handleToggleCompletion}
-              onDelete={handleDeleteTask}
-              onOpenChat={undefined}
-              variant="expanded"
-            />
-          </div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  // Task + Chat mode: task details expand to center column, chat stays on right
-  if (isChatOpen && chatMode === 'task' && selectedTask) {
-    return (
-      <MainLayout
-        sidebar={sidebarNode}
-        title={pageTitle}
-        hideHeader={true}
-        onCreateTask={handleControlBarCreateTask}
-        mainBodyRef={mainBodyRef}
-        rightSidebar={
-          <AIChatPanel
-            key={chatKey}
-            mode="task"
-            taskId={selectedTask.id}
-            taskTitle={selectedTask.title}
-            onClose={handleCloseChat}
-            onTaskMutated={handleChatTaskMutated}
-          />
-        }
-        hideControlBar={true}
-      >
-        <div className={styles.taskChatCenter}>
-          <div className={styles.taskChatSidebarWrapper}>
-            <TaskDetailsSidebar
-              isOpen={true}
-              task={selectedTask}
-              onClose={() => {
-                handleCloseChat();
-                setSelectedTask(null);
-              }}
-              onUpdateTask={handleUpdateTask}
-              onToggleCompletion={handleToggleCompletion}
-              onDelete={handleDeleteTask}
-              onOpenChat={undefined}
-              variant="expanded"
-            />
-          </div>
-        </div>
       </MainLayout>
     );
   }

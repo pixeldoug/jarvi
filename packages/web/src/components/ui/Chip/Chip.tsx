@@ -16,6 +16,8 @@ export interface ChipProps {
   icon?: ReactNode;
   /** Size variant */
   size?: 'small' | 'medium';
+  /** Visual style variant */
+  chipStyle?: 'outline' | 'filled';
   /** Whether the chip is in active state */
   active?: boolean;
   /** Whether the chip is disabled */
@@ -34,6 +36,7 @@ export function Chip({
   label,
   icon,
   size = 'small',
+  chipStyle = 'outline',
   active = false,
   disabled = false,
   interactive = false,
@@ -44,6 +47,7 @@ export function Chip({
   const chipClasses = [
     styles.chip,
     size === 'small' ? styles.chipSmall : styles.chipMedium,
+    chipStyle === 'filled' && styles.filled,
     interactive && styles.interactive,
     active && styles.active,
     disabled && styles.disabled,

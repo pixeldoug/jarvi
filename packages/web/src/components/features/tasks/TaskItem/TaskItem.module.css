@@ -200,6 +200,31 @@
   color: var(--semantic-content-secondary);
 }
 
+/* Priority icon */
+.priorityIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.priority_high,
+.priority_urgent {
+  color: var(--semantic-content-negative);
+}
+
+.priority_medium {
+  color: var(--semantic-content-warning);
+}
+
+.priority_low {
+  color: var(--semantic-content-info);
+}
+
+.priorityDisabled {
+  color: var(--semantic-content-disabled);
+}
+
 /* Insertion line for drag and drop */
 .insertionLine {
   height: 2px;

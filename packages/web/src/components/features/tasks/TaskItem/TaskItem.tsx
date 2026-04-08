@@ -11,6 +11,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../../contexts/TaskContext';
 import { Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
+import { getTaskAppSource } from '../../../../lib/taskAppSource';
 import { formatTaskDate, formatTaskDateWeekday } from '../../../../lib/utils';
 import { 
   PencilSimple, 
@@ -18,6 +19,7 @@ import {
   DotsSixVertical, 
   Hash,
   Calendar,
+  FireSimple,
 } from '@phosphor-icons/react';
 import styles from './TaskItem.module.css';
 
@@ -170,6 +172,14 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
               size="small"
             />
 
+            {/* Priority icon */}
+            {task.priority && (
+              <FireSimple
+                weight="fill"
+                className={`${styles.priorityIcon} ${task.completed ? styles.priorityDisabled : styles[`priority_${task.priority}`]}`}
+              />
+            )}
+
             {/* Title - inline editing */}
             {editingTitle ? (
               <input
@@ -207,8 +217,21 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           </div>
         </div>
 
-        {/* Right: Category + Actions */}
+        {/* Right: App chip + Category + Actions */}
         <div className={styles.taskMeta}>
+          {/* App chip - shown when task originated from an external app */}
+          {(() => {
+            const appSource = getTaskAppSource(task);
+            return appSource ? (
+              <Chip
+                label={appSource.name}
+                icon={<img src={appSource.icon} alt={appSource.name} />}
+                chipStyle="filled"
+                size="small"
+              />
+            ) : null;
+          })()}
+
           {/* Category chip - hidden when details sidebar is open */}
           {!hideCategoryChip && (
             <Chip 
@@ -264,7 +287,8 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
     prevProps.task.completed !== nextProps.task.completed ||
     prevProps.task.due_date !== nextProps.task.due_date ||
     prevProps.task.time !== nextProps.task.time ||
-    prevProps.task.category !== nextProps.task.category;
+    prevProps.task.category !== nextProps.task.category ||
+    prevProps.task.priority !== nextProps.task.priority;
   
   // If task data changed, allow re-render
   if (taskChanged) return false;

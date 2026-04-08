@@ -40,6 +40,12 @@
   padding: 0 12px;
 }
 
+/* Filled style */
+.filled {
+  background: var(--component-chip-bg-default-outline);
+  border-color: transparent;
+}
+
 /* Interactive chip */
 .interactive {
   cursor: pointer;
@@ -112,22 +118,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   margin-left: 2px;
   flex-shrink: 0;
-  
+
   border-radius: 50%;
   cursor: pointer;
-  color: inherit; /* Inherit color from parent chip */
+  color: inherit;
   opacity: 0.7;
   transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.chipMedium .clearButton {
+  width: 16px;
+  height: 16px;
 }
 
 .clearButton svg {
   width: 12px;
   height: 12px;
-  color: currentColor; /* Ensure SVG inherits color */
+  color: currentColor;
 }
 
 .clearButton:hover {
@@ -138,10 +149,5 @@
 .clearButton:focus {
   outline: none;
   box-shadow: none;
-}
-
-.clearButton svg {
-  width: 12px;
-  height: 12px;
 }
 
