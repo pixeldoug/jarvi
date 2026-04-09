@@ -1,0 +1,179 @@
+/**
+ * FilterPopover styles
+ * Figma (empty):  node 40001094-31180
+ * Figma (filled): node 40001094-31266
+ *
+ * The Dropdown component wraps children in a .content div with 8px padding.
+ * We use a negative margin on .container to override it and apply our own
+ * spacing according to the Figma spec.
+ */
+
+/* ============================================================================
+   CONTAINER — overrides Dropdown's built-in .content padding
+   ============================================================================ */
+
+.container {
+  /* Cancel the 8px padding from Dropdown .content */
+  margin: calc(-1 * var(--sizes-2));
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================================
+   HEADER
+   ============================================================================ */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sizes-1) var(--sizes-2);   /* py-1 px-2 = 4px 8px */
+}
+
+.headerTitle {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+/* "Limpar" is a plain ghost-style text button */
+.clearBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 var(--sizes-4);
+  border-radius: var(--radius-button-radius);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+
+  transition: background 0.15s ease;
+}
+
+.clearBtn:hover:not(:disabled) {
+  background: var(--semantic-surface-secondary);
+}
+
+.clearBtnDisabled {
+  color: rgba(9, 9, 11, 0.15); /* --components/button/content-disabled */
+  cursor: default;
+}
+
+/* ============================================================================
+   FIELDS AREA
+   ============================================================================ */
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);      /* 12px between each field */
+  padding: 0 var(--sizes-2) var(--sizes-2); /* px-2 pb-2 */
+}
+
+/* ============================================================================
+   SWITCH ROW
+   ============================================================================ */
+
+.switchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);   /* 12px */
+  padding: var(--sizes-2) var(--sizes-2);  /* py-2 pl-2 */
+}
+
+.switchLabel {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ============================================================================
+   FOOTER
+   ============================================================================ */
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);      /* 8px between Aplicar and Salvar como */
+  padding: var(--sizes-2);  /* p-2 = 8px */
+  border-top: 1px solid var(--semantic-border-primary);
+}
+
+/* ============================================================================
+   SAVE AS INLINE FORM  (CategoryPicker "create" pattern)
+   ============================================================================ */
+
+.saveView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.saveLabel {
+  margin: 0;
+  padding: 0 var(--sizes-1);
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.saveInput {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--sizes-3);
+  background: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-control-border-active);
+  border-radius: var(--radius-sm);
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.saveInput:focus {
+  border-color: var(--semantic-control-border-active);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+.saveInput::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
+.saveInput:disabled {
+  opacity: 0.5;
+}
+
+.saveActions {
+  display: flex;
+  gap: var(--sizes-2);
+}
+
+.saveCancel {
+  flex: 1;
+}
+
+.saveConfirm {
+  flex: 1;
+}

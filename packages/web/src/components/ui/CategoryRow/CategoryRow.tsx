@@ -20,6 +20,10 @@ export interface CategoryRowProps {
   label: string;
   visible?: boolean;
   draggable?: boolean;
+  /** Whether to render the visibility toggle button (default: true) */
+  showVisibility?: boolean;
+  /** Tooltip / aria-label for the edit button (default: "Editar categoria") */
+  editLabel?: string;
   /** Inline editing */
   editing?: boolean;
   editValue?: string;
@@ -36,6 +40,8 @@ export function CategoryRow({
   label,
   visible = true,
   draggable = true,
+  showVisibility = true,
+  editLabel = 'Editar categoria',
   editing = false,
   editValue = '',
   onEditChange,
@@ -106,7 +112,7 @@ export function CategoryRow({
             type="button"
             className={`${styles.actionBtn} ${styles.actionHoverOnly}`}
             onClick={(e) => { e.stopPropagation(); onEdit?.(); }}
-            title="Editar categoria"
+            title={editLabel}
           >
             <PencilSimple size={16} weight="regular" className={styles.actionIcon} />
           </button>
@@ -121,24 +127,26 @@ export function CategoryRow({
             <Trash size={16} weight="regular" className={styles.actionIcon} />
           </button>
 
-          {/* Visibility — always visible */}
-          <Tooltip
-            label={visible ? 'Ocultar da barra lateral' : 'Mostrar na barra lateral'}
-            position="top"
-          >
-            <button
-              type="button"
-              className={`${styles.actionBtn} ${!visible ? styles.actionInactive : ''}`}
-              onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(); }}
-              aria-label={visible ? 'Ocultar da barra lateral' : 'Mostrar na barra lateral'}
+          {/* Visibility — conditionally rendered */}
+          {showVisibility && (
+            <Tooltip
+              label={visible ? 'Ocultar da barra lateral' : 'Mostrar na barra lateral'}
+              position="top"
             >
-              {visible ? (
-                <Eye size={16} weight="regular" className={styles.actionIcon} />
-              ) : (
-                <EyeSlash size={16} weight="regular" className={styles.actionIcon} />
-              )}
-            </button>
-          </Tooltip>
+              <button
+                type="button"
+                className={`${styles.actionBtn} ${!visible ? styles.actionInactive : ''}`}
+                onClick={(e) => { e.stopPropagation(); onToggleVisibility?.(); }}
+                aria-label={visible ? 'Ocultar da barra lateral' : 'Mostrar na barra lateral'}
+              >
+                {visible ? (
+                  <Eye size={16} weight="regular" className={styles.actionIcon} />
+                ) : (
+                  <EyeSlash size={16} weight="regular" className={styles.actionIcon} />
+                )}
+              </button>
+            </Tooltip>
+          )}
         </div>
       )}
     </div>

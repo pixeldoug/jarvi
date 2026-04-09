@@ -21,7 +21,7 @@ import {
   Tray,
   HourglassLow,
   Hash,
-  SlidersHorizontal,
+  FunnelSimple,
   SidebarSimple,
 } from '@phosphor-icons/react';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -345,7 +345,7 @@ export function Sidebar({
               <Button
                 variant="ghost"
                 size="small"
-                icon={SlidersHorizontal}
+                icon={FunnelSimple}
                 iconPosition="icon-only"
                 className={styles.collapsedNavButton}
                 aria-label="Filtros"
@@ -461,7 +461,7 @@ export function Sidebar({
                     <ListItem
                       key={list.id}
                       label={list.name}
-                      icon={SlidersHorizontal}
+                      icon={FunnelSimple}
                       active={selectedCustomListId === list.id}
                       onClick={() => onCustomListSelect?.(list.id)}
                     />

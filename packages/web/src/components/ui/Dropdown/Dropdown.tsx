@@ -143,12 +143,19 @@ export function Dropdown({
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Element;
+
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node) &&
+        !dropdownRef.current.contains(target) &&
         anchorRef?.current &&
-        !anchorRef.current.contains(e.target as Node)
+        !anchorRef.current.contains(target)
       ) {
+        // Don't close if the click landed inside a nested overlay (another
+        // Dropdown, Dialog, etc.) that carries data-dialog-outside-click-ignore.
+        if (target.closest?.('[data-dialog-outside-click-ignore]')) {
+          return;
+        }
         onClose();
       }
     };

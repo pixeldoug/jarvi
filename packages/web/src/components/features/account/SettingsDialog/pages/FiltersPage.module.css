@@ -1,0 +1,60 @@
+/**
+ * FiltersPage Styles
+ * Mirrors CategoriesPage.module.css — same layout, same tokens.
+ */
+
+/* ── Page container ───────────────────────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.title {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+/* ── List ─────────────────────────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.emptyText {
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--semantic-content-tertiary);
+  margin: 0;
+  padding: var(--sizes-4) 0;
+}

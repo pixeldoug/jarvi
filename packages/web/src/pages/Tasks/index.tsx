@@ -7,7 +7,7 @@
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { useScrollSpy } from '../../hooks/useScrollSpy';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
+import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple, X } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
@@ -20,6 +20,8 @@ import type { SectionId, SettingsPage } from '../../components/layout/Sidebar';
 import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
+import { FilterPopover, DEFAULT_FILTER_STATE, hasActiveFilters } from '../../components/features/tasks/FilterPopover/FilterPopover';
+import type { FilterState } from '../../components/features/tasks/FilterPopover/FilterPopover';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { usePendingTasks } from '../../hooks/usePendingTasks';
 import { motion, AnimatePresence } from 'motion/react';
@@ -142,6 +144,9 @@ export function Tasks() {
   const [chatKey, setChatKey] = useState(0);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
+  const filterAnchorRef = useRef<HTMLDivElement>(null);
 
   const isCompactHeader = useMediaQuery('(max-width: 824px)');
   const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
@@ -577,19 +582,33 @@ export function Tasks() {
 
   // Apply custom list/category filters (keeps the same main view structure)
   const visibleTasks = useMemo(() => {
+    let result = tasks;
+
     if (selectedCustomListId) {
       const selectedListObj = customLists.find((l) => l.id === selectedCustomListId);
       if (!selectedListObj) return tasks;
       const allowed = new Set(selectedListObj.category_names || []);
-      return tasks.filter((t) => !!t.category && allowed.has(t.category));
+      result = tasks.filter((t) => !!t.category && allowed.has(t.category));
+    } else if (selectedCategoryName) {
+      result = tasks.filter((t) => t.category === selectedCategoryName);
     }
 
-    if (selectedCategoryName) {
-      return tasks.filter((t) => t.category === selectedCategoryName);
+    // Apply popover filters
+    if (activeFilters.priority) {
+      result = result.filter((t) => t.priority === activeFilters.priority);
+    }
+    if (activeFilters.category) {
+      result = result.filter((t) => t.category === activeFilters.category);
+    }
+    if (activeFilters.connectedApp === 'whatsapp') {
+      result = result.filter((t) => !!t.original_whatsapp_content);
+    }
+    if (!activeFilters.showCompleted) {
+      result = result.filter((t) => !t.completed);
     }
 
-    return tasks;
-  }, [tasks, selectedCustomListId, selectedCategoryName, customLists]);
+    return result;
+  }, [tasks, selectedCustomListId, selectedCategoryName, customLists, activeFilters]);
 
   // Filter tasks based on selected list
   const filteredTasks = useMemo(() => {
@@ -845,6 +864,40 @@ export function Tasks() {
   const isCustomListView = Boolean(selectedCustomList);
   const pageDescription = selectedCustomList?.description?.trim() || undefined;
   const toggleSectionsLabel = allSectionsExpanded ? 'Colapsar tudo' : 'Expandir tudo';
+  const filterButton = (
+    <div ref={filterAnchorRef} style={{ display: 'inline-flex' }}>
+      {hasActiveFilters(activeFilters) ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="medium"
+          icon={X}
+          iconPosition="left"
+          active
+          onClick={() => setIsFilterOpen((prev) => !prev)}
+          aria-label="Filtro Aplicado"
+        >
+          Filtro Aplicado
+        </Button>
+      ) : (
+        <Tooltip label="Filtrar" position="bottom" disabled={!isCompactHeader}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="medium"
+            icon={FunnelSimple}
+            iconPosition={isCompactHeader ? 'icon-only' : 'left'}
+            aria-label={isCompactHeader ? 'Filtrar' : undefined}
+            onClick={() => setIsFilterOpen((prev) => !prev)}
+            active={isFilterOpen}
+          >
+            {!isCompactHeader && 'Filtrar'}
+          </Button>
+        </Tooltip>
+      )}
+    </div>
+  );
+
   const tableControls = (
     <>
       <Tooltip label="Apps" position="bottom" disabled={!isCompactHeader}>
@@ -871,34 +924,23 @@ export function Tasks() {
           onClick={handleToggleAllSections}
         />
       </Tooltip>
-      <Tooltip label="Filtrar" position="bottom" disabled={!isCompactHeader}>
-        <Button
-          type="button"
-          variant="secondary"
-          size="medium"
-          icon={FunnelSimple}
-          iconPosition={isCompactHeader ? 'icon-only' : 'left'}
-          aria-label={isCompactHeader ? 'Filtrar' : undefined}
-        >
-          {!isCompactHeader && 'Filtrar'}
-        </Button>
-      </Tooltip>
+      {!isCustomListView && filterButton}
     </>
   );
 
   const headerActions = isCustomListView ? (
     <>
+      {tableControls}
       <Button
         type="button"
         variant="secondary"
-        size="small"
+        size="medium"
         icon={Gear}
         iconPosition="left"
         onClick={() => setIsEditListOpen(true)}
       >
         Editar
       </Button>
-      {tableControls}
     </>
   ) : tableControls;
 
@@ -930,6 +972,14 @@ export function Tasks() {
         onScrollToSection={handleScrollToSection}
         openSettingsRef={openSettingsRef}
         forceCollapsed={isChatOpen}
+      />
+      <FilterPopover
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        anchorRef={filterAnchorRef}
+        filters={activeFilters}
+        onFiltersChange={setActiveFilters}
+        categoryOptions={popoverCategories.map((c) => ({ value: c.name, label: c.name }))}
       />
       <CreateListPopover
         isOpen={isCreateListOpen}

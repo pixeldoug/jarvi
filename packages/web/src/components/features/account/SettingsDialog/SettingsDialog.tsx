@@ -27,6 +27,7 @@ import { AppsPage } from './pages/AppsPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { AppearancePage } from './pages/AppearancePage';
 import { CategoriesPage } from './pages/CategoriesPage';
+import { FiltersPage } from './pages/FiltersPage';
 import styles from './SettingsDialog.module.css';
 
 // ============================================================================
@@ -135,7 +136,7 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
           {activePage === 'apps'       && <AppsPage />}
           {activePage === 'memory'     && <MemoryPage />}
           {activePage === 'categories' && <CategoriesPage />}
-          {activePage === 'filters'    && <ComingSoonPage label="Filtros" />}
+          {activePage === 'filters'    && <FiltersPage />}
           {activePage === 'appearance' && <AppearancePage />}
         </main>
       </div>
@@ -143,19 +144,3 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
   );
 }
 
-// ============================================================================
-// PLACEHOLDER PAGE
-// ============================================================================
-
-function ComingSoonPage({ label }: { label: string }) {
-  return (
-    <p style={{
-      fontFamily: 'var(--typography-body-lg-font-family)',
-      fontSize: 'var(--typography-body-lg-font-size)',
-      color: 'var(--semantic-content-tertiary)',
-      margin: 0,
-    }}>
-      {label} — em breve.
-    </p>
-  );
-}
