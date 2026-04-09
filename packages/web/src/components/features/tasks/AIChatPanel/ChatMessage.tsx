@@ -36,7 +36,7 @@ function renderAiContent(text: string): ReactNode {
     if (bulletMatch) {
       nodes.push(
         <div key={key++} className={styles.bulletLine}>
-          <span className={styles.bulletDot} aria-hidden>•</span>
+          <span className={styles.bulletDot} aria-hidden />
           <span>{renderInline(bulletMatch[2])}</span>
         </div>,
       );
