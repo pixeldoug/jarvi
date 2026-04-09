@@ -98,7 +98,7 @@ export const chipSizes = {
 // ============================================================================
 
 export const targetSizes = {
-  fine: 24,
+  fine: 28,
   tight: 36,
   compact: 40,
   standard: 48,

@@ -42,6 +42,20 @@ export function formatTaskDate(dueDate?: string, time?: string): string | null {
   }
 }
 
+/**
+ * Returns true if the given due date string represents today (local time).
+ */
+export function isToday(dueDate?: string): boolean {
+  const date = parseDateString(dueDate);
+  if (!date) return false;
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
 const WEEKDAY_NAMES_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 /**

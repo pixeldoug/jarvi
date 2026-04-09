@@ -46,6 +46,10 @@
 }
 
 /* Title text */
+.title::first-letter {
+  text-transform: uppercase;
+}
+
 .title {
   font-family: var(--font-font-family-font-ui);
   font-size: var(--typography-label-md-font-size);

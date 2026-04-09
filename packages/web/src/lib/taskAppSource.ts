@@ -11,7 +11,7 @@ export interface TaskAppSource {
  * Returns null if the task was not created from an external app.
  */
 export function getTaskAppSource(task: Task): TaskAppSource | null {
-  if (task.original_whatsapp_content) {
+  if (task.original_whatsapp_content || import.meta.env.DEV) {
     return { name: 'Whatsapp', icon: whatsappIcon };
   }
   return null;

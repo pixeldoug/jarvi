@@ -12,7 +12,7 @@ import { Task } from '../../../../contexts/TaskContext';
 import { Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
 import { getTaskAppSource } from '../../../../lib/taskAppSource';
-import { formatTaskDate, formatTaskDateWeekday } from '../../../../lib/utils';
+import { formatTaskDate, formatTaskDateWeekday, isToday } from '../../../../lib/utils';
 import { 
   PencilSimple, 
   Trash, 
@@ -115,12 +115,17 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
     setTitleValue('');
   };
 
-  // Format date chip label
-  const dateLabel = task.due_date
-    ? (showDayOfWeek
-        ? formatTaskDateWeekday(task.due_date, task.time) || formatTaskDate(task.due_date, task.time) || 'Definir'
-        : formatTaskDate(task.due_date, task.time) || 'Definir')
-    : 'Definir';
+  // Format date chip label.
+  // When the due date is today, show only the time (if set) — the section header
+  // already makes it clear it's today, so repeating the date is redundant.
+  const dateLabel = (() => {
+    if (!task.due_date) return 'Definir';
+    if (isToday(task.due_date)) return task.time ?? null;
+    if (showDayOfWeek) {
+      return formatTaskDateWeekday(task.due_date, task.time) || formatTaskDate(task.due_date, task.time) || 'Definir';
+    }
+    return formatTaskDate(task.due_date, task.time) || 'Definir';
+  })();
 
   // Handle click on task item (but not on interactive elements)
   const handleTaskItemClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -163,14 +168,16 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           />
 
           <div className={styles.taskTitle}>
-            {/* Date chip - always present */}
-            <Chip
-              label={dateLabel}
-              icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
-              interactive
-              onClick={() => onOpenDatePicker?.(task)}
-              size="small"
-            />
+            {/* Date chip — hidden when task is today and has no time set */}
+            {dateLabel !== null && (
+              <Chip
+                label={dateLabel}
+                icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
+                interactive
+                onClick={() => onOpenDatePicker?.(task)}
+                size="small"
+              />
+            )}
 
             {/* Priority icon */}
             {task.priority && (
@@ -217,30 +224,8 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           </div>
         </div>
 
-        {/* Right: App chip + Category + Actions */}
+        {/* Right: Actions + App chip + Category */}
         <div className={styles.taskMeta}>
-          {/* App chip - shown when task originated from an external app */}
-          {(() => {
-            const appSource = getTaskAppSource(task);
-            return appSource ? (
-              <Chip
-                label={appSource.name}
-                icon={<img src={appSource.icon} alt={appSource.name} />}
-                chipStyle="filled"
-                size="small"
-              />
-            ) : null;
-          })()}
-
-          {/* Category chip - hidden when details sidebar is open */}
-          {!hideCategoryChip && (
-            <Chip 
-              label={task.category || 'Categoria'}
-              icon={<Hash weight="regular" />}
-              size="small"
-            />
-          )}
-
           {/* Action buttons - appear on hover */}
           <div className={styles.actions}>
             <button
@@ -266,6 +251,28 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
               <Trash className={styles.actionButtonIcon} />
             </button>
           </div>
+
+          {/* App chip - shown when task originated from an external app */}
+          {(() => {
+            const appSource = getTaskAppSource(task);
+            return appSource ? (
+              <Chip
+                label={appSource.name}
+                icon={<img src={appSource.icon} alt={appSource.name} />}
+                chipStyle="filled"
+                size="small"
+              />
+            ) : null;
+          })()}
+
+          {/* Category chip - hidden when details sidebar is open */}
+          {!hideCategoryChip && (
+            <Chip 
+              label={task.category || 'Categoria'}
+              icon={<Hash weight="regular" />}
+              size="small"
+            />
+          )}
         </div>
       </div>
     </>

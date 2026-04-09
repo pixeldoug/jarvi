@@ -224,13 +224,13 @@
   --radius-tooltip-radius: 12px;
 
   /* ===== Target Sizes (Mode) ===== */
-  --size-target-fine: 24px;
+  --size-target-fine: 28px;
   --size-target-tight: 36px;
   --size-target-compact: 40px;
   --size-target-standard: 48px;
 
   /* ===== Chip Sizes (Mode) ===== */
-  --size-chip-small-height: 24px;
+  --size-chip-small-height: 28px;
   --size-chip-medium-height: 36px;
 
   /* ===== Semantic Tokens (Light Mode) ===== */
@@ -328,6 +328,7 @@
   --component-chip-bg-default: rgba(255, 255, 255, 0);
   --component-chip-bg-hover: #E8EAED;
   --component-chip-bg-active: #EEE9FE;
+  --component-chip-bg-default-outline: #E4E5E9;
   --component-chip-content-active: #6137F3;
   --component-chip-content-hover: #8A94A2;
   --component-chip-border-active: #DED4FD;
@@ -471,6 +472,7 @@
   --component-chip-bg-default: rgba(255, 255, 255, 0);
   --component-chip-bg-hover: #2B2D31;
   --component-chip-bg-active: #1D1440;
+  --component-chip-bg-default-outline: #2B2D31;
   --component-chip-content-active: #8D6EF7;
   --component-chip-content-hover: #EEEFF2;
   --component-chip-border-active: #6137F3;

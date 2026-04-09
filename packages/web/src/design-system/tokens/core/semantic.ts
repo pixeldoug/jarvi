@@ -180,6 +180,7 @@ export const componentTokens = {
     "bg-default": "rgba(255, 255, 255, 0)",
     "bg-hover": "#E8EAED",
     "bg-active": "#EEE9FE",
+    "bg-default-outline": "#E4E5E9",
     "content-active": "#6137F3",
     "content-hover": "#8A94A2",
     "border-active": "#DED4FD"
@@ -328,6 +329,7 @@ export const componentTokens = {
     "bg-default": "rgba(255, 255, 255, 0)",
     "bg-hover": "#2B2D31",
     "bg-active": "#1D1440",
+    "bg-default-outline": "#2B2D31",
     "content-active": "#8D6EF7",
     "content-hover": "{Semantic.content.primary}",
     "border-active": "#6137F3"
