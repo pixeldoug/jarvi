@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
-import { X, PaperPlaneRight, NotePencil } from '@phosphor-icons/react';
+import { X, PaperPlaneRight, NotePencil, Sparkle } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useChatStream, ToolCallData } from '../../../../hooks/useChatStream';
 import { Button } from '../../../ui';
@@ -118,15 +118,14 @@ export function AIChatPanel({
     <div className={styles.panel}>
       {/* Header */}
       <div className={styles.header}>
-        <img src={jarviLogo} alt="Jarvi" className={styles.headerIcon} />
+        <Sparkle weight="fill" size={20} className={styles.headerIcon} />
         <span className={styles.headerTitle}>
           {hasMessages ? 'Conversa' : 'Nova conversa'}
         </span>
         <div className={styles.headerActions}>
           {hasMessages && (
             <Button
-              variant="ghost"
-              size="small"
+              variant="secondary"
               icon={NotePencil}
               iconPosition="icon-only"
               aria-label="Nova conversa"
@@ -134,8 +133,7 @@ export function AIChatPanel({
             />
           )}
           <Button
-            variant="ghost"
-            size="small"
+            variant="secondary"
             icon={X}
             iconPosition="icon-only"
             aria-label="Fechar"
@@ -177,7 +175,7 @@ export function AIChatPanel({
 
       {/* Input */}
       <div className={styles.inputBar}>
-        <div className={styles.inputWrapper}>
+        <div className={styles.inputWrapper} data-theme="dark">
           <textarea
             ref={textareaRef}
             className={styles.inputField}
@@ -189,12 +187,12 @@ export function AIChatPanel({
             disabled={isStreaming}
           />
           <button
-            className={`${styles.sendButton} ${input.trim() && !isStreaming ? styles.sendButtonActive : ''}`}
+            className={styles.sendButton}
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
             aria-label="Enviar"
           >
-            <PaperPlaneRight size={18} weight="fill" />
+            <PaperPlaneRight size={20} weight="fill" />
           </button>
         </div>
       </div>

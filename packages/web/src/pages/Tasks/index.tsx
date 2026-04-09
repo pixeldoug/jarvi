@@ -7,7 +7,7 @@
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { useScrollSpy } from '../../hooks/useScrollSpy';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { Gear, SquaresFour, ArrowsDownUp, ArrowsInSimple, FunnelSimple } from '@phosphor-icons/react';
+import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
@@ -852,7 +852,7 @@ export function Tasks() {
           type="button"
           variant="ghost"
           size="medium"
-          icon={SquaresFour}
+          icon={CirclesFour}
           iconPosition={isCompactHeader ? 'icon-only' : 'left'}
           aria-label={isCompactHeader ? 'Apps' : undefined}
           onClick={() => openSettingsRef.current?.('apps')}
@@ -865,7 +865,7 @@ export function Tasks() {
           type="button"
           variant="ghost"
           size="medium"
-          icon={allSectionsExpanded ? ArrowsInSimple : ArrowsDownUp}
+          icon={allSectionsExpanded ? ArrowsInLineVertical : ArrowsOutLineVertical}
           iconPosition="icon-only"
           aria-label={toggleSectionsLabel}
           onClick={handleToggleAllSections}
@@ -929,7 +929,7 @@ export function Tasks() {
         activeSectionId={activeSectionId}
         onScrollToSection={handleScrollToSection}
         openSettingsRef={openSettingsRef}
-        forceCollapsed={false}
+        forceCollapsed={isChatOpen}
       />
       <CreateListPopover
         isOpen={isCreateListOpen}
@@ -1265,29 +1265,81 @@ export function Tasks() {
     );
   }), []);
 
-  // Compute right sidebar content based on chat/task selection state
-  const computedRightSidebar = isChatOpen ? (
-    <AIChatPanel
-      key={chatKey}
-      mode={chatMode}
-      taskId={chatMode === 'task' ? selectedTask?.id : undefined}
-      taskTitle={chatMode === 'task' ? selectedTask?.title : undefined}
-      onClose={handleCloseChat}
-      onTaskMutated={handleChatTaskMutated}
-      initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
-      onTaskCardClick={handleChatTaskCardClick}
-    />
-  ) : selectedTask ? (
-    <TaskDetailsSidebar
-      isOpen={true}
-      task={selectedTask}
-      onClose={handleDialogClose}
-      onUpdateTask={handleUpdateTask}
-      onToggleCompletion={handleToggleCompletion}
-      onDelete={handleDeleteTask}
-      onOpenChat={handleOpenChatFromTask}
-    />
+  // When AI chat is opened from a task, show task details in the center column
+  const showTaskInCenter = isChatOpen && chatMode === 'task' && !!selectedTask;
+
+  // Compute right sidebar content based on chat/task selection state.
+  // Wrapped in AnimatePresence so swapping between task details and chat
+  // plays a coordinated slide: details exits left, chat enters from right.
+  const panelTransition = { duration: 0.32, ease: [0.4, 0, 0.2, 1] } as const;
+
+  const computedRightSidebar = (isChatOpen || !!selectedTask) ? (
+    <AnimatePresence mode="wait" initial={false}>
+      {isChatOpen ? (
+        <motion.div
+          key="chat-panel"
+          style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
+          initial={{ opacity: 0, x: 60 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 60 }}
+          transition={panelTransition}
+        >
+          <AIChatPanel
+            key={chatKey}
+            mode={chatMode}
+            taskId={chatMode === 'task' ? selectedTask?.id : undefined}
+            taskTitle={chatMode === 'task' ? selectedTask?.title : undefined}
+            onClose={handleCloseChat}
+            onTaskMutated={handleChatTaskMutated}
+            initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
+            onTaskCardClick={handleChatTaskCardClick}
+          />
+        </motion.div>
+      ) : selectedTask ? (
+        <motion.div
+          key="task-details-panel"
+          style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
+          initial={{ opacity: 0, x: 60 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -60 }}
+          transition={panelTransition}
+        >
+          <TaskDetailsSidebar
+            isOpen={true}
+            task={selectedTask}
+            onClose={handleDialogClose}
+            onUpdateTask={handleUpdateTask}
+            onToggleCompletion={handleToggleCompletion}
+            onDelete={handleDeleteTask}
+            onOpenChat={handleOpenChatFromTask}
+          />
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   ) : undefined;
+
+  // Task details rendered in the center column when chat is open alongside a task.
+  // Slides in from the right to create the illusion of "moving" from the right panel.
+  const taskDetailsInCenter = showTaskInCenter ? (
+    <motion.div
+      key="task-details-center"
+      style={{ width: '100%', height: '100%' }}
+      initial={{ opacity: 0, x: '18%' }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={panelTransition}
+    >
+      <TaskDetailsSidebar
+        isOpen={true}
+        task={selectedTask}
+        onClose={handleDialogClose}
+        onUpdateTask={handleUpdateTask}
+        onToggleCompletion={handleToggleCompletion}
+        onDelete={handleDeleteTask}
+        onOpenChat={handleOpenChatFromTask}
+        variant="expanded"
+      />
+    </motion.div>
+  ) : null;
 
   if (isLoading) {
     return (
@@ -1302,9 +1354,10 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
       >
-        <div className={styles.loading}>Carregando tarefas...</div>
+        {showTaskInCenter ? taskDetailsInCenter : <div className={styles.loading}>Carregando tarefas...</div>}
       </MainLayout>
     );
   }
@@ -1322,9 +1375,10 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
       >
-        <div className={styles.error}>Erro: {error}</div>
+        {showTaskInCenter ? taskDetailsInCenter : <div className={styles.error}>Erro: {error}</div>}
       </MainLayout>
     );
   }
@@ -1352,9 +1406,10 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
       >
-        <div className={styles.content}>
+        {showTaskInCenter ? taskDetailsInCenter : <div className={styles.content}>
           <div className={styles.sectionContent}>
             {incompleteSimpleViewTasks.length > 0 ? (
               incompleteSimpleViewTasks.map((task) => (
@@ -1407,7 +1462,7 @@ export function Tasks() {
               </div>
             </Collapsible>
           )}
-        </div>
+        </div>}
       </MainLayout>
     );
   }
@@ -1426,9 +1481,10 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
       >
-      <DndContext
+      {showTaskInCenter ? taskDetailsInCenter : <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
@@ -1680,7 +1736,7 @@ export function Tasks() {
             </div>
           ) : null}
         </DragOverlay>
-      </DndContext>
+      </DndContext>}
     </MainLayout>
   );
 }

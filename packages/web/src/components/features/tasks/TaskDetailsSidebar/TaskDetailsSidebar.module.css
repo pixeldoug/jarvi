@@ -15,9 +15,11 @@
   overflow-y: auto;
 }
 
-/* Expanded variant: fills the center column, uniform padding */
+/* Expanded variant: fills the center column.
+   Padding is intentionally 0 — the parent .main container
+   already provides the outer inset (32px top, 48px horizontal). */
 .sidebar.expanded {
-  padding: var(--sizes-8);
+  padding: 0;
 }
 
 /* Header: full row — title container + action buttons */

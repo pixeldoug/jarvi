@@ -55,7 +55,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--sizes-2) 0 var(--sizes-4);
+  padding: var(--sizes-1) 0 var(--sizes-4);
   gap: var(--sizes-3);
   opacity: 0;
   pointer-events: none;
