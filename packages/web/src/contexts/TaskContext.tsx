@@ -3,6 +3,10 @@ import { useAuth } from './AuthContext';
 import { usePostHog } from 'posthog-js/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+import { io } from 'socket.io-client';
+import { toast } from '../components/ui/Sonner';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 export interface Task {
   id: string;
@@ -188,6 +192,29 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const fetchTasks = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['tasks'] });
   }, [queryClient]);
+
+  // ── Real-time: refresh tasks when created via WhatsApp ────────────────────
+  useEffect(() => {
+    if (!token) return;
+
+    const socket = io(API_BASE_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+    });
+
+    socket.on('task:created', () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Nova tarefa criada via WhatsApp! ✅');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('TaskContext socket error:', err);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [token, queryClient]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 

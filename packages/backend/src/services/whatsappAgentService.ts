@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+import { hasIO, getIO } from '../utils/ioManager';
 
 // Duck-typed interface covering the Redis methods we actually use,
 // compatible with both ioredis `Redis` and `Cluster` instances.
@@ -275,6 +276,7 @@ async function executeTool(
   name: string,
   args: Record<string, unknown>,
   userId: string,
+  originalWhatsappContent?: string,
 ): Promise<string> {
   const now = new Date().toISOString();
 
@@ -288,19 +290,39 @@ async function executeTool(
       const time = args.time ? String(args.time) : null;
       const category = args.category ? String(args.category) : null;
 
+      const whatsappContent = originalWhatsappContent || null;
+
       if (isPostgreSQL()) {
         await getPool().query(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [taskId, userId, title, description, priority, category, dueDate, time, now, now],
+          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, original_whatsapp_content, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [taskId, userId, title, description, priority, category, dueDate, time, whatsappContent, now, now],
         );
       } else {
         await getDatabase().run(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [taskId, userId, title, description, priority, category, dueDate, time, now, now],
+          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, original_whatsapp_content, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [taskId, userId, title, description, priority, category, dueDate, time, whatsappContent, now, now],
         );
       }
+
+      if (hasIO()) {
+        getIO().to(`user:${userId}`).emit('task:created', {
+          id: taskId,
+          user_id: userId,
+          title,
+          description,
+          priority,
+          category,
+          due_date: dueDate,
+          time,
+          original_whatsapp_content: whatsappContent,
+          completed: false,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+
       return JSON.stringify({ success: true, id: taskId, title });
     }
 
@@ -677,7 +699,7 @@ export const runWhatsappAgent = async (
 
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUses.map(async (tu) => {
-        const result = await executeTool(tu.name, tu.input as Record<string, unknown>, userId);
+        const result = await executeTool(tu.name, tu.input as Record<string, unknown>, userId, userMessage);
         console.log('[WhatsApp Agent] tool=%s result=%s', tu.name, result);
         return {
           type: 'tool_result' as const,

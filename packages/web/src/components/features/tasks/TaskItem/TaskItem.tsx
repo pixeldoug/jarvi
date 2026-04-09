@@ -288,7 +288,8 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
     prevProps.task.due_date !== nextProps.task.due_date ||
     prevProps.task.time !== nextProps.task.time ||
     prevProps.task.category !== nextProps.task.category ||
-    prevProps.task.priority !== nextProps.task.priority;
+    prevProps.task.priority !== nextProps.task.priority ||
+    prevProps.task.original_whatsapp_content !== nextProps.task.original_whatsapp_content;
   
   // If task data changed, allow re-render
   if (taskChanged) return false;
