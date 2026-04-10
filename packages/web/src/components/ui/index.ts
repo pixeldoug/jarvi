@@ -184,6 +184,12 @@ export {
   type CalendarProps,
 } from './Calendar';
 
+export {
+  CalendarListItem,
+  type CalendarListItemProps,
+  type CalendarListItemState,
+} from './CalendarListItem/CalendarListItem';
+
 // Note: TaskDatePicker and TaskTimePicker are in features/tasks/
 // They are task-specific and not generic UI components
 

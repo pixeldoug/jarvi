@@ -1,0 +1,38 @@
+/**
+ * CalendarListItem Styles
+ * Following JarviDS Web design system from Figma
+ */
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sizes-2) var(--sizes-4);
+  position: relative;
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 1px dashed var(--semantic-border-primary);
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+
+.item.active {
+  border-bottom: 2px solid var(--semantic-control-border-active);
+}
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  text-align: center;
+  white-space: nowrap;
+  color: var(--component-button-secondary-content-default);
+  transition: color 0.15s ease;
+}
+
+.item.active .label {
+  color: var(--component-button-secondary-content-active);
+}
