@@ -107,8 +107,6 @@ export interface SidebarProps {
   };
   categories?: Array<{ id: string; name: string; count: number }>;
   customLists?: Array<{ id: string; name: string }>;
-  activeSectionId?: string | null;
-  onScrollToSection?: (sectionId: SectionId) => void;
   /** Imperative ref — caller sets this to open the SettingsDialog on any page */
   openSettingsRef?: MutableRefObject<((page: SettingsPage) => void) | null>;
   /** When true, collapses the sidebar; restores previous state when false */
@@ -139,8 +137,6 @@ export function Sidebar({
   taskCounts: _taskCounts = {},
   categories = [],
   customLists = [],
-  activeSectionId,
-  onScrollToSection,
   openSettingsRef,
   forceCollapsed,
 }: SidebarProps) {
@@ -194,44 +190,13 @@ export function Sidebar({
     }
   }, [location.pathname]);
 
-  // ── Scroll-spy highlight ────────────────────────────────────────────────────
-  const scrollSpyList: ListType | null =
-    selectedList === 'all' && activeSectionId
-      ? (SECTION_TO_LIST[activeSectionId as SectionId] ?? null)
-      : null;
-
   // ── Nav click handler ───────────────────────────────────────────────────────
   const handleNavClick = (listType: ListType) => {
-    if (listType === 'all') {
-      onListSelect?.('all');
-      return;
-    }
-
-    if (selectedList === 'all' && onScrollToSection) {
-      const sectionId = LIST_TO_SECTION[listType];
-      // 'week' and 'today' have dedicated views — always navigate instead of scrolling
-      if (sectionId && listType !== 'week' && listType !== 'today') {
-        onScrollToSection(sectionId);
-        return;
-      }
-    }
-
     onListSelect?.(listType);
   };
 
-  const isNavItemActive = (itemId: ListType): boolean => {
-    const isAllView =
-      selectedList === 'all' && !selectedCategory && !selectedCustomListId;
-
-    if (isAllView) {
-      if (itemId === 'all') return scrollSpyList === null;
-      return scrollSpyList === itemId;
-    }
-
-    return (
-      selectedList === itemId && !selectedCategory && !selectedCustomListId
-    );
-  };
+  const isNavItemActive = (itemId: ListType): boolean =>
+    selectedList === itemId && !selectedCategory && !selectedCustomListId;
 
   // ── User info ───────────────────────────────────────────────────────────────
   const userName = user?.name || 'Usuário';

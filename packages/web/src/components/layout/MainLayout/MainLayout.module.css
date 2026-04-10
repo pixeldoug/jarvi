@@ -107,6 +107,19 @@
   gap: var(--sizes-4);
 }
 
+.mainTitleGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+  min-width: 0;
+}
+
+.mainTitleSuffix {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .mainTitle {
   font-family: var(--typography-heading-lg-font-family);
   font-size: var(--typography-heading-lg-font-size);

@@ -14,6 +14,7 @@
   border: none;
   border-bottom: 1px dashed var(--semantic-border-primary);
   flex-shrink: 0;
+  flex: 1;
   transition: border-color 0.15s ease;
 }
 
@@ -35,4 +36,26 @@
 
 .item.active .label {
   color: var(--component-button-secondary-content-active);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--sizes-1);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background-color: var(--semantic-border-primary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--component-button-secondary-content-default);
+}
+
+.badgeActive {
+  background-color: var(--semantic-control-border-active);
+  color: #fff;
 }

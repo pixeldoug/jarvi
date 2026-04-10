@@ -1,0 +1,59 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+}
+
+.chevronBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  border-radius: var(--border-radius-sm, 6px);
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chevronBtn:hover {
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-primary);
+}
+
+.monthLabel {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size, 13px);
+  font-weight: 600;
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  min-width: 96px;
+  text-align: center;
+}
+
+.todayBtn {
+  height: 32px;
+  padding: 0 var(--sizes-3, 12px);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--border-radius-sm, 6px);
+  background: var(--semantic-surface-primary, #f4f4f5);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size, 13px);
+  font-weight: 400;
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.todayBtn:hover {
+  background: var(--semantic-surface-secondary);
+}

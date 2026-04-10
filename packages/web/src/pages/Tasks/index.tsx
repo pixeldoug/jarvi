@@ -5,7 +5,6 @@
  */
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
-import { useScrollSpy } from '../../hooks/useScrollSpy';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple, X } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,9 +14,10 @@ import { useLists } from '../../contexts/ListContext';
 import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
-import { Sidebar, ListType, SECTION_IDS } from '../../components/layout/Sidebar';
-import type { SectionId, SettingsPage } from '../../components/layout/Sidebar';
+import { Sidebar, ListType } from '../../components/layout/Sidebar';
+import type { SettingsPage } from '../../components/layout/Sidebar';
 import { Button, TaskCreationData, Collapsible, Tooltip, CalendarListItem } from '../../components/ui';
+import { WeekNavigator } from '../../components/ui/WeekNavigator/WeekNavigator';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { FilterPopover, DEFAULT_FILTER_STATE, hasActiveFilters } from '../../components/features/tasks/FilterPopover/FilterPopover';
@@ -129,27 +129,6 @@ function getCurrentWeekDays(today: Date): Date[] {
 
 const PT_DAY_ABBREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 
-/**
- * Returns the next N week start dates (Mondays) after the given reference date.
- * Used for the "Futuro" week-tab navigation bar.
- */
-function getFutureWeeks(today: Date, count = 8): Array<{ dateStr: string; label: string }> {
-  const dayOfWeek = today.getDay();
-  const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-  const firstMonday = new Date(today);
-  firstMonday.setDate(today.getDate() + daysUntilNextMonday);
-  firstMonday.setHours(0, 0, 0, 0);
-
-  return Array.from({ length: count }, (_, i) => {
-    const monday = new Date(firstMonday);
-    monday.setDate(firstMonday.getDate() + i * 7);
-    const abbrev = PT_DAY_ABBREV[monday.getDay()];
-    return {
-      dateStr: monday.toISOString().split('T')[0],
-      label: `${abbrev} ${monday.getDate()}`,
-    };
-  });
-}
 
 // ── Module-level constants (stable, never recreated) ─────────────────────────
 
@@ -166,21 +145,6 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   completadas: false,
 };
 
-/**
- * Maps a section DOM id → the openSections keys that should remain open when
- * the user focuses that section from the sidebar.
- * "Esta semana" keeps all three week-group sub-sections open together.
- */
-const SECTION_FOCUS_MAP: Record<string, string[]> = {
-  'section-vencidas': ['vencidas'],
-  'section-hoje': ['hoje'],
-  'section-amanha': ['amanha', 'esta-semana', 'semana-que-vem'],
-  'section-esta-semana': ['amanha', 'esta-semana', 'semana-que-vem'],
-  'section-semana-que-vem': ['amanha', 'esta-semana', 'semana-que-vem'],
-  'section-eventos-futuros': ['eventos-futuros'],
-  'section-sem-data': ['sem-data'],
-  'section-completadas': ['completadas'],
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -208,57 +172,12 @@ export function Tasks() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
   const filterAnchorRef = useRef<HTMLDivElement>(null);
-  const [selectedFutureWeek, setSelectedFutureWeek] = useState<string | null>(null);
+  const [futureViewWeekStart, setFutureViewWeekStart] = useState<string | null>(null);
+  const [selectedFutureDay, setSelectedFutureDay] = useState<string | null>(null);
 
   const isCompactHeader = useMediaQuery('(max-width: 824px)');
   const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
 
-  // ── Scroll spy (only active in the "all" grouped view) ──────────────────────
-  const activeSectionId = useScrollSpy({
-    sectionIds: [...SECTION_IDS],
-    enabled: selectedList === 'all' && !selectedCustomListId && !selectedCategoryName,
-  });
-
-  // ── Programmatic scroll-to-section ──────────────────────────────────────────
-  //
-  // Called by TasksSidebar when the user clicks a nav item while in all-view.
-  // 1. Collapses every section except the focused group (instant state update).
-  // 2. Waits for the Collapsible CSS transition to finish (300 ms + 40 ms buffer).
-  // 3. Measures the element's final position and scrolls the container to it.
-  //
-  // We use mainBodyRef.current.scrollTo() instead of scrollIntoView() because
-  // the browser can't reliably target elements inside a custom overflow container
-  // while its siblings are still mid-animation.
-  const handleScrollToSection = useCallback(
-    (sectionId: SectionId) => {
-      const keysToOpen = SECTION_FOCUS_MAP[sectionId] ?? [];
-      setOpenSections(
-        Object.fromEntries(
-          Object.keys(ALL_SECTIONS_OPEN).map((k) => [k, keysToOpen.includes(k)]),
-        ),
-      );
-
-      // The Collapsible content transitions over 300 ms (max-height 0.3s ease).
-      // We wait 340 ms so the layout is fully settled before measuring positions.
-      setTimeout(() => {
-        const el = document.getElementById(sectionId);
-        const container = mainBodyRef.current;
-        if (!el || !container) return;
-
-        const containerRect = container.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        // Offset from the element top to the container top, adjusted for the
-        // container's current scroll position. Subtract 16 px for visual breathing room.
-        const targetScrollTop =
-          container.scrollTop + (elRect.top - containerRect.top) - 16;
-
-        container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
-      }, 340);
-    },
-    // mainBodyRef is a stable ref object — safe to omit from deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
 
   const queryClient = useQueryClient();
   const { 
@@ -721,32 +640,39 @@ export function Tasks() {
     });
   }, [visibleTasks, selectedList]);
 
-  // Futuro view: upcoming weeks with task counts for the CalendarListItem tab bar
-  const futureWeeksData = useMemo(() => {
+  // Futuro view: compute next Monday (start of first future week)
+  const nextMondayStr = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return getFutureWeeks(today).map(({ dateStr, label }) => {
-      const weekEnd = new Date(`${dateStr}T00:00:00`);
-      weekEnd.setDate(weekEnd.getDate() + 7);
-      const weekEndStr = weekEnd.toISOString().split('T')[0];
-      const count = filteredTasks.filter(
-        (t) => t.due_date && t.due_date.split('T')[0] >= dateStr && t.due_date.split('T')[0] < weekEndStr,
-      ).length;
-      return { dateStr, label, count };
-    });
-  }, [filteredTasks]);
+    return getNextWeekBounds(today).start;
+  }, []);
 
-  // Futuro view: tasks for the selected future week
+  // The Monday of the week currently being browsed in Futuro
+  const activeFutureWeekStart = futureViewWeekStart ?? nextMondayStr;
+
+  // Futuro view: 7 daily tabs for the active week, with per-day task counts
+  const futureDayTabs = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(`${activeFutureWeekStart}T00:00:00`);
+      day.setDate(day.getDate() + i);
+      const dateStr = day.toISOString().split('T')[0];
+      const abbrev = PT_DAY_ABBREV[day.getDay()];
+      const count = filteredTasks.filter(
+        (t) => t.due_date && t.due_date.split('T')[0] === dateStr,
+      ).length;
+      return { dateStr, label: `${abbrev} ${day.getDate()}`, count };
+    });
+  }, [activeFutureWeekStart, filteredTasks]);
+
+  // Futuro view: tasks for the selected day
   const futureWeekTasks = useMemo(() => {
-    const activeWeek = selectedFutureWeek ?? futureWeeksData[0]?.dateStr ?? null;
-    if (!activeWeek) return [];
-    const weekEnd = new Date(`${activeWeek}T00:00:00`);
-    weekEnd.setDate(weekEnd.getDate() + 7);
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    const firstDayWithTasks = futureDayTabs.find((d) => d.count > 0)?.dateStr ?? futureDayTabs[0]?.dateStr;
+    const activeDay = selectedFutureDay ?? firstDayWithTasks ?? null;
+    if (!activeDay) return [];
     return filteredTasks.filter(
-      (t) => t.due_date && t.due_date.split('T')[0] >= activeWeek && t.due_date.split('T')[0] < weekEndStr,
+      (t) => t.due_date && t.due_date.split('T')[0] === activeDay,
     );
-  }, [filteredTasks, selectedFutureWeek, futureWeeksData]);
+  }, [filteredTasks, selectedFutureDay, futureDayTabs]);
 
   // Week view: tasks grouped by each day (Mon–Sun) of the current week
   const weekViewData = useMemo(() => {
@@ -1079,8 +1005,6 @@ export function Tasks() {
         taskCounts={sidebarTaskCounts}
         categories={sidebarCategories}
         customLists={customLists.map((l) => ({ id: l.id, name: l.name }))}
-        activeSectionId={activeSectionId}
-        onScrollToSection={handleScrollToSection}
         openSettingsRef={openSettingsRef}
         forceCollapsed={isChatOpen}
       />
@@ -1604,9 +1528,43 @@ export function Tasks() {
     );
   }
 
-  // "Futuro" view: tasks from next week onward, grouped by week with CalendarListItem tabs
+  // "Futuro" view: tasks from next week onward, with daily tabs per week
   if (selectedList === 'later' && !selectedCustomListId) {
-    const activeWeek = selectedFutureWeek ?? futureWeeksData[0]?.dateStr ?? null;
+    const firstDayWithTasks = futureDayTabs.find((d) => d.count > 0)?.dateStr ?? futureDayTabs[0]?.dateStr;
+    const activeDay = selectedFutureDay ?? firstDayWithTasks ?? null;
+
+    const handlePrevWeek = () => {
+      const prev = new Date(`${activeFutureWeekStart}T00:00:00`);
+      prev.setDate(prev.getDate() - 7);
+      const prevStr = prev.toISOString().split('T')[0];
+      // Don't go before next Monday from today
+      if (prevStr >= nextMondayStr) {
+        setFutureViewWeekStart(prevStr);
+        setSelectedFutureDay(null);
+      }
+    };
+
+    const handleNextWeek = () => {
+      const next = new Date(`${activeFutureWeekStart}T00:00:00`);
+      next.setDate(next.getDate() + 7);
+      setFutureViewWeekStart(next.toISOString().split('T')[0]);
+      setSelectedFutureDay(null);
+    };
+
+    const handleTodayWeek = () => {
+      setFutureViewWeekStart(null);
+      setSelectedFutureDay(null);
+    };
+
+    const weekNavigator = (
+      <WeekNavigator
+        weekStart={activeFutureWeekStart}
+        onPrev={handlePrevWeek}
+        onNext={handleNextWeek}
+        onToday={handleTodayWeek}
+        isCurrentWeek={activeFutureWeekStart === nextMondayStr}
+      />
+    );
 
     return (
       <MainLayout
@@ -1614,6 +1572,7 @@ export function Tasks() {
         title={pageTitle}
         titleVariant="heading"
         titleDescription={pageDescription}
+        titleSuffix={weekNavigator}
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
@@ -1625,13 +1584,14 @@ export function Tasks() {
       >
         {showTaskInCenter ? taskDetailsInCenter : (
           <div className={styles.content}>
-            <nav className={styles.futureWeekNav} aria-label="Semanas futuras">
-              {futureWeeksData.map(({ dateStr, label }) => (
+            <nav className={styles.futureWeekNav} aria-label="Dias da semana">
+              {futureDayTabs.map(({ dateStr, label, count }) => (
                 <CalendarListItem
                   key={dateStr}
                   label={label}
-                  state={dateStr === activeWeek ? 'active' : 'default'}
-                  onClick={() => setSelectedFutureWeek(dateStr)}
+                  count={count}
+                  state={dateStr === activeDay ? 'active' : 'default'}
+                  onClick={() => setSelectedFutureDay(dateStr)}
                 />
               ))}
             </nav>
@@ -1656,7 +1616,7 @@ export function Tasks() {
                 ))
               ) : (
                 <div className={styles.emptyState}>
-                  Nenhuma tarefa nesta semana
+                  Nenhuma tarefa neste dia
                 </div>
               )}
             </div>
@@ -1814,156 +1774,121 @@ export function Tasks() {
                can track which section is currently visible (scroll spy). ── */}
 
           {/* Vencidas */}
-          <div id="section-vencidas" className={styles.sectionAnchor}>
-            <DroppableSection
-              title="Vencidas"
-              tasks={categorizedTasks.vencidas}
-              emptyMessage="Nenhuma tarefa vencida"
-              sectionId="vencidas"
-              defaultOpen={true}
-              isOpen={openSections.vencidas}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, vencidas: isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-            />
-          </div>
+          <DroppableSection
+            title="Vencidas"
+            tasks={categorizedTasks.vencidas}
+            emptyMessage="Nenhuma tarefa vencida"
+            sectionId="vencidas"
+            defaultOpen={true}
+            isOpen={openSections.vencidas}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, vencidas: isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+          />
 
           {/* Hoje */}
-          <div id="section-hoje" className={styles.sectionAnchor}>
-            <DroppableSection
-              title="Hoje"
-              tasks={categorizedTasks.hoje}
-              emptyMessage="Nenhuma tarefa para hoje"
-              sectionId="hoje"
-              defaultOpen={true}
-              isOpen={openSections.hoje}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, hoje: isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-            />
-          </div>
+          <DroppableSection
+            title="Hoje"
+            tasks={categorizedTasks.hoje}
+            emptyMessage="Nenhuma tarefa para hoje"
+            sectionId="hoje"
+            defaultOpen={true}
+            isOpen={openSections.hoje}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, hoje: isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+          />
 
           {/* Amanhã */}
-          <div id="section-amanha" className={styles.sectionAnchor}>
-            <DroppableSection
-              title="Amanhã"
-              tasks={categorizedTasks.amanha}
-              emptyMessage="Nenhuma tarefa para amanhã"
-              sectionId="amanha"
-              defaultOpen={true}
-              isOpen={openSections.amanha}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, amanha: isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-            />
-          </div>
+          <DroppableSection
+            title="Amanhã"
+            tasks={categorizedTasks.amanha}
+            emptyMessage="Nenhuma tarefa para amanhã"
+            sectionId="amanha"
+            defaultOpen={true}
+            isOpen={openSections.amanha}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, amanha: isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+          />
 
           {/* Esta semana (restante) */}
-          <div id="section-esta-semana" className={styles.sectionAnchor}>
-            <DroppableSection
-              title="Ainda esta semana"
-              tasks={categorizedTasks.estaSemana}
-              emptyMessage="Nenhuma tarefa para esta semana"
-              sectionId="esta-semana"
-              defaultOpen={true}
-              isOpen={openSections['esta-semana']}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'esta-semana': isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-              showDayOfWeek={true}
-            />
-          </div>
+          <DroppableSection
+            title="Ainda esta semana"
+            tasks={categorizedTasks.estaSemana}
+            emptyMessage="Nenhuma tarefa para esta semana"
+            sectionId="esta-semana"
+            defaultOpen={true}
+            isOpen={openSections['esta-semana']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'esta-semana': isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+            showDayOfWeek={true}
+          />
 
           {/* Semana que vem */}
-          <div id="section-semana-que-vem" className={styles.sectionAnchor}>
-            <DroppableSection
-              title="Semana que vem"
-              tasks={categorizedTasks.semanaQueVem}
-              emptyMessage="Nenhuma tarefa para a semana que vem"
-              sectionId="semana-que-vem"
-              defaultOpen={true}
-              isOpen={openSections['semana-que-vem']}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'semana-que-vem': isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-            />
-          </div>
+          <DroppableSection
+            title="Semana que vem"
+            tasks={categorizedTasks.semanaQueVem}
+            emptyMessage="Nenhuma tarefa para a semana que vem"
+            sectionId="semana-que-vem"
+            defaultOpen={true}
+            isOpen={openSections['semana-que-vem']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'semana-que-vem': isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+          />
 
           {/* Mais pra Frente */}
-          <div id="section-eventos-futuros" className={styles.sectionAnchor}>
-            {categorizedTasks.eventosFuturos.length > 0 && (
-              <DroppableSection
-                title="Mais pra Frente"
-                tasks={categorizedTasks.eventosFuturos}
-                emptyMessage="Nenhum evento futuro"
-                sectionId="eventos-futuros"
-                defaultOpen={true}
-                isOpen={openSections['eventos-futuros']}
-                onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
-                onToggleCompletion={handleToggleCompletion}
-                onEdit={handleEdit}
-                onDelete={handleDeleteTask}
-                onUpdateTask={handleUpdateTask}
-                onOpenDatePicker={handleOpenDatePicker}
-                onClick={handleTaskClick}
-                insertionIndicator={insertionIndicator}
-                movingTask={movingTask}
-                selectedTaskId={selectedTask?.id}
-                hideCategoryChip={!!selectedTask}
-              />
-            )}
-          </div>
-
-          {/* Sem data */}
-          <div id="section-sem-data" className={styles.sectionAnchor}>
+          {categorizedTasks.eventosFuturos.length > 0 && (
             <DroppableSection
-              title="Sem data ainda"
-              tasks={categorizedTasks.semData}
-              emptyMessage="Nenhuma tarefa sem data"
-              sectionId="sem-data"
+              title="Mais pra Frente"
+              tasks={categorizedTasks.eventosFuturos}
+              emptyMessage="Nenhum evento futuro"
+              sectionId="eventos-futuros"
               defaultOpen={true}
-              isOpen={openSections['sem-data']}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'sem-data': isOpen }))}
+              isOpen={openSections['eventos-futuros']}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
               onToggleCompletion={handleToggleCompletion}
               onEdit={handleEdit}
               onDelete={handleDeleteTask}
@@ -1975,32 +1900,51 @@ export function Tasks() {
               selectedTaskId={selectedTask?.id}
               hideCategoryChip={!!selectedTask}
             />
-          </div>
+          )}
+
+          {/* Sem data */}
+          <DroppableSection
+            title="Sem data ainda"
+            tasks={categorizedTasks.semData}
+            emptyMessage="Nenhuma tarefa sem data"
+            sectionId="sem-data"
+            defaultOpen={true}
+            isOpen={openSections['sem-data']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'sem-data': isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+          />
 
           {/* Tarefas Concluídas */}
-          <div id="section-completadas" className={styles.sectionAnchor}>
-            {categorizedTasks.completadas.length > 0 && (
-              <DroppableSection
-                title="Tarefas Concluídas"
-                tasks={categorizedTasks.completadas}
-                emptyMessage="Nenhuma tarefa concluída"
-                sectionId="completadas"
-                defaultOpen={false}
-                isOpen={openSections.completadas}
-                onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, completadas: isOpen }))}
-                onToggleCompletion={handleToggleCompletion}
-                onEdit={handleEdit}
-                onDelete={handleDeleteTask}
-                onUpdateTask={handleUpdateTask}
-                onOpenDatePicker={handleOpenDatePicker}
-                onClick={handleTaskClick}
-                insertionIndicator={insertionIndicator}
-                movingTask={movingTask}
-                selectedTaskId={selectedTask?.id}
-                hideCategoryChip={!!selectedTask}
-              />
-            )}
-          </div>
+          {categorizedTasks.completadas.length > 0 && (
+            <DroppableSection
+              title="Tarefas Concluídas"
+              tasks={categorizedTasks.completadas}
+              emptyMessage="Nenhuma tarefa concluída"
+              sectionId="completadas"
+              defaultOpen={false}
+              isOpen={openSections.completadas}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, completadas: isOpen }))}
+              onToggleCompletion={handleToggleCompletion}
+              onEdit={handleEdit}
+              onDelete={handleDeleteTask}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              onClick={handleTaskClick}
+              insertionIndicator={insertionIndicator}
+              movingTask={movingTask}
+              selectedTaskId={selectedTask?.id}
+              hideCategoryChip={!!selectedTask}
+            />
+          )}
         </div>
 
         <DragOverlay>

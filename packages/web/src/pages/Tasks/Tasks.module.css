@@ -10,15 +10,6 @@
   gap: var(--sizes-8);
 }
 
-/*
- * Section anchor wrapper
- * Each collapsible section in the "all" view is wrapped with this div so
- * IntersectionObserver can target it and scrollIntoView lands correctly.
- * scroll-margin-top compensates for the sticky header height.
- */
-.sectionAnchor {
-  scroll-margin-top: 16px;
-}
 
 .pendingSection {
   display: flex;
@@ -410,6 +401,11 @@
   flex-direction: row;
   overflow-x: auto;
   scrollbar-width: none;
+  width: 100%;
+}
+
+.futureWeekNav > * {
+  flex: 1;
 }
 
 .futureWeekNav::-webkit-scrollbar {

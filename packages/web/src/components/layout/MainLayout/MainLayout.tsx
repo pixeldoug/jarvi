@@ -20,6 +20,8 @@ export interface MainLayoutProps {
   title: string;
   /** Header actions (optional buttons/icons) */
   headerActions?: ReactNode;
+  /** Inline content rendered right after the title, before headerActions */
+  titleSuffix?: ReactNode;
   /** Header title visual variant */
   titleVariant?: 'display' | 'heading';
   /** Optional description below the title */
@@ -47,6 +49,7 @@ export function MainLayout({
   children,
   title,
   headerActions,
+  titleSuffix,
   titleVariant = 'display',
   titleDescription,
   onCreateTask,
@@ -93,7 +96,10 @@ export function MainLayout({
             <header className={styles.mainHeader}>
               <div className={styles.mainHeaderContent}>
                 <div className={styles.mainTitleRow}>
-                  <h1 className={mainTitleClasses}>{title}</h1>
+                  <div className={styles.mainTitleGroup}>
+                    <h1 className={mainTitleClasses}>{title}</h1>
+                    {titleSuffix && <div className={styles.mainTitleSuffix}>{titleSuffix}</div>}
+                  </div>
                   {headerActions && (
                     <div className={styles.mainHeaderActions}>{headerActions}</div>
                   )}
