@@ -146,5 +146,9 @@
 
 .labelDisabled {
   color: var(--semantic-content-secondary);
-  
+}
+
+/* Past day label — visually muted but section remains toggleable */
+.labelPast {
+  color: var(--semantic-content-secondary);
 }

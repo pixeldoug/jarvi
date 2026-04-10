@@ -17,7 +17,7 @@ import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, ListType, SECTION_IDS } from '../../components/layout/Sidebar';
 import type { SectionId, SettingsPage } from '../../components/layout/Sidebar';
-import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
+import { Button, TaskCreationData, Collapsible, Tooltip, CalendarListItem } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { FilterPopover, DEFAULT_FILTER_STATE, hasActiveFilters } from '../../components/features/tasks/FilterPopover/FilterPopover';
@@ -91,6 +91,66 @@ function getCurrentWeekUpcomingBounds(today: Date): { start: string; end: string
   };
 }
 
+/**
+ * Retorna o intervalo da semana atual (segunda a domingo inclusive),
+ * como strings YYYY-MM-DD para comparação.
+ * O `end` é exclusivo (segunda-feira da semana seguinte).
+ */
+function getCurrentWeekBounds(today: Date): { start: string; end: string } {
+  const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, …, 6 = Saturday
+  const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysFromMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const nextMonday = new Date(monday);
+  nextMonday.setDate(monday.getDate() + 7);
+
+  return {
+    start: monday.toISOString().split('T')[0],
+    end: nextMonday.toISOString().split('T')[0],
+  };
+}
+
+/**
+ * Retorna os 7 dias da semana atual (segunda a domingo),
+ * como objetos Date normalizados à meia-noite local.
+ */
+function getCurrentWeekDays(today: Date): Date[] {
+  const { start } = getCurrentWeekBounds(today);
+  const monday = new Date(`${start}T00:00:00`);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+const PT_DAY_ABBREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
+
+/**
+ * Returns the next N week start dates (Mondays) after the given reference date.
+ * Used for the "Futuro" week-tab navigation bar.
+ */
+function getFutureWeeks(today: Date, count = 8): Array<{ dateStr: string; label: string }> {
+  const dayOfWeek = today.getDay();
+  const daysUntilNextMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const firstMonday = new Date(today);
+  firstMonday.setDate(today.getDate() + daysUntilNextMonday);
+  firstMonday.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: count }, (_, i) => {
+    const monday = new Date(firstMonday);
+    monday.setDate(firstMonday.getDate() + i * 7);
+    const abbrev = PT_DAY_ABBREV[monday.getDay()];
+    return {
+      dateStr: monday.toISOString().split('T')[0],
+      label: `${abbrev} ${monday.getDate()}`,
+    };
+  });
+}
+
 // ── Module-level constants (stable, never recreated) ─────────────────────────
 
 /** Default open/collapsed state for every section in the all-view. */
@@ -144,9 +204,11 @@ export function Tasks() {
   const [chatKey, setChatKey] = useState(0);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
+  const [weekSectionOpen, setWeekSectionOpen] = useState<Record<string, boolean>>({});
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
   const filterAnchorRef = useRef<HTMLDivElement>(null);
+  const [selectedFutureWeek, setSelectedFutureWeek] = useState<string | null>(null);
 
   const isCompactHeader = useMediaQuery('(max-width: 824px)');
   const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
@@ -571,7 +633,7 @@ export function Tasks() {
       important: 'Prioridades',
       today: 'Hoje',
       tomorrow: 'Amanhã',
-      week: 'Semana que vem',
+      week: 'Esta semana',
       later: 'Mais pra frente',
       noDate: 'Sem data',
       overdue: 'Vencidas',
@@ -639,10 +701,12 @@ export function Tasks() {
           if (!task.due_date || task.completed) return false;
           return task.due_date.split('T')[0] === tomorrow.toISOString().split('T')[0];
         }
-        case 'week':
-          // "Esta semana" = today through the day before next Monday
-          if (!task.due_date || task.completed) return false;
-          return task.due_date.split('T')[0] >= todayStr && task.due_date.split('T')[0] < nextWeekStartStr;
+        case 'week': {
+          // "Esta semana" = segunda a domingo da semana atual (inclui dias passados para exibição agrupada)
+          if (!task.due_date) return false;
+          const { start: weekStart, end: weekEnd } = getCurrentWeekBounds(today);
+          return task.due_date.split('T')[0] >= weekStart && task.due_date.split('T')[0] < weekEnd;
+        }
         case 'later':
           // "Mais pra frente" = next week and beyond
           if (!task.due_date || task.completed) return false;
@@ -656,6 +720,53 @@ export function Tasks() {
       }
     });
   }, [visibleTasks, selectedList]);
+
+  // Futuro view: upcoming weeks with task counts for the CalendarListItem tab bar
+  const futureWeeksData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return getFutureWeeks(today).map(({ dateStr, label }) => {
+      const weekEnd = new Date(`${dateStr}T00:00:00`);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+      const count = filteredTasks.filter(
+        (t) => t.due_date && t.due_date.split('T')[0] >= dateStr && t.due_date.split('T')[0] < weekEndStr,
+      ).length;
+      return { dateStr, label, count };
+    });
+  }, [filteredTasks]);
+
+  // Futuro view: tasks for the selected future week
+  const futureWeekTasks = useMemo(() => {
+    const activeWeek = selectedFutureWeek ?? futureWeeksData[0]?.dateStr ?? null;
+    if (!activeWeek) return [];
+    const weekEnd = new Date(`${activeWeek}T00:00:00`);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    return filteredTasks.filter(
+      (t) => t.due_date && t.due_date.split('T')[0] >= activeWeek && t.due_date.split('T')[0] < weekEndStr,
+    );
+  }, [filteredTasks, selectedFutureWeek, futureWeeksData]);
+
+  // Week view: tasks grouped by each day (Mon–Sun) of the current week
+  const weekViewData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    return getCurrentWeekDays(today).map((day) => {
+      const dateStr = day.toISOString().split('T')[0];
+      const abbrev = PT_DAY_ABBREV[day.getDay()];
+      const label = `${abbrev}, ${day.getDate()}`;
+      const isPast = dateStr < todayStr;
+
+      const dayTasks = filteredTasks.filter(
+        (t) => t.due_date && t.due_date.split('T')[0] === dateStr,
+      );
+
+      return { dateStr, label, isPast, tasks: dayTasks };
+    });
+  }, [filteredTasks]);
 
   // Categorization based on due dates (following Figma structure)
   const categorizedTasks = useMemo(() => {
@@ -1429,6 +1540,128 @@ export function Tasks() {
         mainBodyRef={mainBodyRef}
       >
         {showTaskInCenter ? taskDetailsInCenter : <div className={styles.error}>Erro: {error}</div>}
+      </MainLayout>
+    );
+  }
+
+  // "Esta semana" view: collapsible sections grouped by each day of the current week
+  if (selectedList === 'week' && !selectedCustomListId) {
+    return (
+      <MainLayout
+        sidebar={sidebarNode}
+        title={pageTitle}
+        titleVariant="heading"
+        titleDescription={pageDescription}
+        headerActions={headerActions}
+        onCreateTask={handleControlBarCreateTask}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
+        mainBodyRef={mainBodyRef}
+      >
+        {showTaskInCenter ? taskDetailsInCenter : (
+          <div className={styles.content}>
+            {weekViewData.map(({ dateStr, label, isPast, tasks: dayTasks }) => {
+              const isOpen = weekSectionOpen[dateStr] ?? true;
+              return (
+                <Collapsible
+                  key={dateStr}
+                  label={label}
+                  defaultOpen={true}
+                  isOpen={isOpen}
+                  onOpenChange={(open) =>
+                    setWeekSectionOpen((prev) => ({ ...prev, [dateStr]: open }))
+                  }
+                  isPast={isPast}
+                  disabled={dayTasks.length === 0}
+                >
+                  <div className={styles.sectionContent}>
+                    {dayTasks.map((task) => (
+                      <TaskItem
+                        key={task.id}
+                        task={task}
+                        section="week"
+                        onToggleCompletion={handleToggleCompletion}
+                        onEdit={handleEdit}
+                        onDelete={handleDeleteTask}
+                        onUpdateTask={handleUpdateTask}
+                        onOpenDatePicker={handleOpenDatePicker}
+                        onClick={handleTaskClick}
+                        showInsertionLine={false}
+                        isActive={selectedTask?.id === task.id}
+                        hideCategoryChip={!!selectedTask}
+                      />
+                    ))}
+                  </div>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
+      </MainLayout>
+    );
+  }
+
+  // "Futuro" view: tasks from next week onward, grouped by week with CalendarListItem tabs
+  if (selectedList === 'later' && !selectedCustomListId) {
+    const activeWeek = selectedFutureWeek ?? futureWeeksData[0]?.dateStr ?? null;
+
+    return (
+      <MainLayout
+        sidebar={sidebarNode}
+        title={pageTitle}
+        titleVariant="heading"
+        titleDescription={pageDescription}
+        headerActions={headerActions}
+        onCreateTask={handleControlBarCreateTask}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
+        mainBodyRef={mainBodyRef}
+      >
+        {showTaskInCenter ? taskDetailsInCenter : (
+          <div className={styles.content}>
+            <nav className={styles.futureWeekNav} aria-label="Semanas futuras">
+              {futureWeeksData.map(({ dateStr, label }) => (
+                <CalendarListItem
+                  key={dateStr}
+                  label={label}
+                  state={dateStr === activeWeek ? 'active' : 'default'}
+                  onClick={() => setSelectedFutureWeek(dateStr)}
+                />
+              ))}
+            </nav>
+
+            <div className={styles.sectionContent}>
+              {futureWeekTasks.length > 0 ? (
+                futureWeekTasks.map((task) => (
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    section="later"
+                    onToggleCompletion={handleToggleCompletion}
+                    onEdit={handleEdit}
+                    onDelete={handleDeleteTask}
+                    onUpdateTask={handleUpdateTask}
+                    onOpenDatePicker={handleOpenDatePicker}
+                    onClick={handleTaskClick}
+                    showInsertionLine={false}
+                    isActive={selectedTask?.id === task.id}
+                    hideCategoryChip={!!selectedTask}
+                  />
+                ))
+              ) : (
+                <div className={styles.emptyState}>
+                  Nenhuma tarefa nesta semana
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </MainLayout>
     );
   }

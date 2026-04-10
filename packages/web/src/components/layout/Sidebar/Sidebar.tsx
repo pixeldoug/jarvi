@@ -209,7 +209,8 @@ export function Sidebar({
 
     if (selectedList === 'all' && onScrollToSection) {
       const sectionId = LIST_TO_SECTION[listType];
-      if (sectionId) {
+      // 'week' and 'today' have dedicated views — always navigate instead of scrolling
+      if (sectionId && listType !== 'week' && listType !== 'today') {
         onScrollToSection(sectionId);
         return;
       }

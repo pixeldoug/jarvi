@@ -402,3 +402,16 @@
   color: var(--semantic-content-secondary);
   text-decoration: line-through;
 }
+
+/* ── Futuro (later) view – week navigation bar ─────────────────────────────── */
+
+.futureWeekNav {
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.futureWeekNav::-webkit-scrollbar {
+  display: none;
+}

@@ -24,6 +24,8 @@ export interface CollapsibleProps {
   className?: string;
   /** Disable toggle interaction (e.g., when section is empty) */
   disabled?: boolean;
+  /** Visually mutes the label to indicate the section belongs to a past day */
+  isPast?: boolean;
 }
 
 export function Collapsible({
@@ -34,6 +36,7 @@ export function Collapsible({
   onOpenChange,
   className = '',
   disabled = false,
+  isPast = false,
 }: CollapsibleProps) {
   const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultOpen);
   const [isStuck, setIsStuck] = useState(false);
@@ -83,6 +86,7 @@ export function Collapsible({
   const labelClasses = [
     styles.label,
     disabled && styles.labelDisabled,
+    !disabled && isPast && styles.labelPast,
   ].filter(Boolean).join(' ');
   const contentClasses = [
     styles.content,
