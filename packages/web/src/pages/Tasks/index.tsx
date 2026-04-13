@@ -1009,8 +1009,8 @@ export function Tasks() {
         anchorRef={filterAnchorRef}
         filters={activeFilters}
         onFiltersChange={setActiveFilters}
-        categoryOptions={popoverCategories.map((c) => ({ id: c.name, label: c.name }))}
-        onListSaved={(listId) => {
+        categoryOptions={popoverCategories.map((c) => ({ value: c.name, label: c.name }))}
+        onListSaved={(listId: string) => {
           handleCustomListSelect(listId);
           setActiveFilters(DEFAULT_FILTER_STATE);
         }}

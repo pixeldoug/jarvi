@@ -11,7 +11,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Button, Dropdown, Select, Switch } from '../../../ui';
+import { Fire, Hash } from '@phosphor-icons/react';
+import { Button, Dropdown, Select, Switch, TagInput } from '../../../ui';
+import type { SelectOption } from '../../../ui/Select';
 import { useLists } from '../../../../contexts/ListContext';
 import { toast } from '../../../ui/Sonner';
 import styles from './FilterPopover.module.css';
@@ -22,14 +24,14 @@ import styles from './FilterPopover.module.css';
 
 export interface FilterState {
   priority: string;
-  category: string;
+  category: string[];
   connectedApp: string;
   showCompleted: boolean;
 }
 
 export const DEFAULT_FILTER_STATE: FilterState = {
   priority: '',
-  category: '',
+  category: [],
   connectedApp: '',
   showCompleted: true,
 };
@@ -37,7 +39,7 @@ export const DEFAULT_FILTER_STATE: FilterState = {
 export function hasActiveFilters(filters: FilterState): boolean {
   return (
     Boolean(filters.priority) ||
-    Boolean(filters.category) ||
+    filters.category.length > 0 ||
     Boolean(filters.connectedApp) ||
     !filters.showCompleted
   );
@@ -51,7 +53,9 @@ export interface FilterPopoverProps {
   filters: FilterState;
   /** Called with new filters when the user clicks "Aplicar" or "Limpar" */
   onFiltersChange: (filters: FilterState) => void;
-  categoryOptions: Array<{ value: string; label: string }>;
+  categoryOptions: SelectOption[];
+  /** Called with the new list id after a successful "Salvar como..." */
+  onListSaved?: (listId: string) => void;
 }
 
 // ============================================================================
@@ -59,10 +63,21 @@ export interface FilterPopoverProps {
 // ============================================================================
 
 const PRIORITY_OPTIONS = [
-  { value: 'low', label: 'Baixa' },
-  { value: 'medium', label: 'Média' },
-  { value: 'high', label: 'Alta' },
-  { value: 'urgent', label: 'Urgente' },
+  {
+    value: 'low',
+    label: 'Baixa',
+    iconNode: <Fire size={16} weight="fill" style={{ color: '#60A5FA' }} />,
+  },
+  {
+    value: 'medium',
+    label: 'Média',
+    iconNode: <Fire size={16} weight="fill" style={{ color: '#FCD34D' }} />,
+  },
+  {
+    value: 'high',
+    label: 'Urgente',
+    iconNode: <Fire size={16} weight="fill" style={{ color: '#F87171' }} />,
+  },
 ];
 
 const CONNECTED_APP_OPTIONS = [{ value: 'whatsapp', label: 'WhatsApp' }];
@@ -78,11 +93,19 @@ export function FilterPopover({
   filters,
   onFiltersChange,
   categoryOptions,
+  onListSaved,
 }: FilterPopoverProps) {
   const { createList } = useLists();
 
   // Internal draft — only committed on "Aplicar"
   const [draft, setDraft] = useState<FilterState>(filters);
+
+  // Tracks which Select dropdown is currently open (one at a time)
+  const [openDropdown, setOpenDropdown] = useState<'priority' | 'connectedApp' | null>(null);
+
+  const handleDropdownOpenChange = (key: 'priority' | 'connectedApp') => (open: boolean) => {
+    setOpenDropdown(open ? key : null);
+  };
 
   // "Salvar como..." inline form state
   const [isSaveView, setIsSaveView] = useState(false);
@@ -95,9 +118,10 @@ export function FilterPopover({
     if (isOpen) {
       setDraft(filters);
     } else {
-      // Reset save view when popover closes
+      // Reset save view and any open dropdowns when popover closes
       setIsSaveView(false);
       setSaveName('');
+      setOpenDropdown(null);
     }
   }, [isOpen, filters]);
 
@@ -133,14 +157,15 @@ export function FilterPopover({
 
     try {
       setIsSaving(true);
-      await createList({
+      const newList = await createList({
         name,
-        categoryNames: filters.category ? [filters.category] : [],
+        categoryNames: filters.category,
       });
       toast.success('Filtro salvo como lista');
       setIsSaveView(false);
       setSaveName('');
       onClose();
+      onListSaved?.(newList.id);
     } catch (err: any) {
       toast.error(err?.message || 'Erro ao salvar filtro');
     } finally {
@@ -191,13 +216,17 @@ export function FilterPopover({
             value={draft.priority}
             options={PRIORITY_OPTIONS}
             onChange={(e) => set('priority', e.target.value)}
+            isOpen={openDropdown === 'priority'}
+            onIsOpenChange={handleDropdownOpenChange('priority')}
           />
-          <Select
+          <TagInput
             label="Categoria"
             placeholder="Todas"
-            value={draft.category}
-            options={categoryOptions}
-            onChange={(e) => set('category', e.target.value)}
+            tags={draft.category.map((c) => ({ id: c, label: c }))}
+            onTagsChange={(tags) => set('category', tags.map((t) => t.label))}
+            options={categoryOptions.map((o) => ({ id: o.value, label: o.label }))}
+            optionIcon={Hash}
+            showBadgePrefix={false}
           />
           <Select
             label="Aplicativos Conectados"
@@ -205,6 +234,8 @@ export function FilterPopover({
             value={draft.connectedApp}
             options={CONNECTED_APP_OPTIONS}
             onChange={(e) => set('connectedApp', e.target.value)}
+            isOpen={openDropdown === 'connectedApp'}
+            onIsOpenChange={handleDropdownOpenChange('connectedApp')}
           />
 
           <div className={styles.switchRow}>
