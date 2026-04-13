@@ -1,0 +1,66 @@
+/**
+ * TaskEmptyState styles
+ * Follows JarviDS design tokens — matches Figma node 40001383:23080
+ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-6);
+  width: 100%;
+  min-height: 400px;
+  padding: var(--sizes-6) var(--sizes-2);
+
+  border: 1px dashed var(--semantic-border-primary);
+  border-radius: var(--radius-md);
+}
+
+/* ── Illustration: three ghost icons ─────────────────────────────────────── */
+
+.illustration {
+  display: flex;
+  align-items: center;
+}
+
+.iconDim {
+  color: var(--semantic-content-primary);
+  opacity: 0.25;
+}
+
+.iconMain {
+  color: var(--semantic-content-primary);
+}
+
+/* ── Text header ─────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-2);
+  padding: var(--sizes-1) var(--sizes-3);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+.description {
+  margin: 0;
+  font-family: var(--typography-body-lg-font-family);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+  color: var(--semantic-content-secondary);
+  text-align: center;
+}

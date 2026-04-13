@@ -23,6 +23,8 @@ import {
   Hash,
   FunnelSimple,
   SidebarSimple,
+  Bug,
+  Lightbulb,
 } from '@phosphor-icons/react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
@@ -35,6 +37,8 @@ import { SidebarEmptyState } from './SidebarEmptyState';
 import { SidebarGroupHeader } from './SidebarGroupHeader';
 import { SidebarUserMenu } from './SidebarUserMenu';
 import { UpgradeButton } from '../../ui/UpgradeButton/UpgradeButton';
+import { ThemeToggle } from '../../ui/ThemeToggle';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignOut, Gear } from '@phosphor-icons/react';
 import styles from './Sidebar.module.css';
@@ -181,6 +185,7 @@ export function Sidebar({
 
   const { user, logout } = useAuth();
   const { subscription, daysLeftInTrial } = useSubscription();
+  const { isLight } = useTheme();
 
   const showProCta = subscription?.status !== 'active';
 
@@ -319,6 +324,35 @@ export function Sidebar({
             </Tooltip>
           </div>
         )}
+
+        {/* Collapsed footer: compact ThemeToggle + action buttons */}
+        <div className={styles.collapsedFooter}>
+          <Tooltip
+            label={isLight ? 'Ativar modo escuro' : 'Ativar modo claro'}
+            position="right"
+            showDelay={300}
+          >
+            <ThemeToggle compact />
+          </Tooltip>
+          <Tooltip label="Sugerir ideias" position="right" showDelay={300}>
+            <button
+              type="button"
+              className={styles.footerBugButton}
+              aria-label="Sugerir ideias"
+            >
+              <Lightbulb size={20} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Reportar problema" position="right" showDelay={300}>
+            <button
+              type="button"
+              className={styles.footerBugButton}
+              aria-label="Reportar problema"
+            >
+              <Bug size={20} />
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       {/* ── Expanded panel (fades out when collapsed) ── */}
@@ -389,7 +423,7 @@ export function Sidebar({
               />
             </div>
             {isCategoriesExpanded && (
-              <div className={styles.navList}>
+              <div className={`${styles.navList} ${styles.navListScrollable}`}>
                 {categories.length > 0 ? (
                   categories.map((category) => (
                     <ListItem
@@ -421,7 +455,7 @@ export function Sidebar({
               />
             </div>
             {isFiltersExpanded && (
-              <div className={styles.navList}>
+              <div className={`${styles.navList} ${styles.navListScrollable}`}>
                 {customLists.length > 0 ? (
                   customLists.map((list) => (
                     <ListItem
@@ -440,6 +474,36 @@ export function Sidebar({
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Expanded footer: ThemeToggle + label + action buttons */}
+        <div className={styles.footer}>
+          <div className={styles.footerLeft}>
+            <ThemeToggle />
+            <span className={styles.footerThemeLabel}>
+              {isLight ? 'Modo Claro' : 'Modo Escuro'}
+            </span>
+          </div>
+          <div className={styles.footerActions}>
+            <Tooltip label="Sugerir ideias" position="top" showDelay={300}>
+              <button
+                type="button"
+                className={styles.footerBugButton}
+                aria-label="Sugerir ideias"
+              >
+                <Lightbulb size={20} />
+              </button>
+            </Tooltip>
+            <Tooltip label="Reportar problema" position="top" showDelay={300}>
+              <button
+                type="button"
+                className={styles.footerBugButton}
+                aria-label="Reportar problema"
+              >
+                <Bug size={20} />
+              </button>
+            </Tooltip>
           </div>
         </div>
       </div>

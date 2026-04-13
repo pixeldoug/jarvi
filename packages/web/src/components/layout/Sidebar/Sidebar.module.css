@@ -149,6 +149,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--sizes-2); /* 8px */
+  padding: 0 var(--sizes-2) var(--sizes-6); /* matches groupNav indent; bottom clears scrollbar */
   width: 100%;
   flex-shrink: 0;
 }
@@ -157,7 +158,6 @@
   height: 38px;
   display: flex;
   align-items: center;
-  padding: 0 var(--sizes-2);
   width: 100%;
 }
 
@@ -171,6 +171,105 @@
   width: 100%;
 }
 
+/* Capped at 6 items (6×48px + 5×2px gap) then scrollable */
+.navListScrollable {
+  max-height: 298px;
+  overflow-y: auto;
+}
+
+.navListScrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.navListScrollable::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-round);
+}
+
+.navListScrollable::-webkit-scrollbar-thumb {
+  background: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-round);
+}
+
+.navListScrollable::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+
+/* ── Footer (fixed bottom section) ──────────────────────────────────────── */
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  padding: 18px 28px;
+  border-top: 1px solid var(--semantic-border-primary);
+  flex-shrink: 0;
+}
+
+.footerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.footerThemeLabel {
+  font-family: var(--typography-label-md-font-family, 'Plus Jakarta Sans', sans-serif);
+  font-size: var(--typography-label-md-font-size, 15px);
+  font-weight: var(--typography-label-md-font-weight, 500);
+  line-height: var(--typography-label-md-line-height, 22px);
+  letter-spacing: var(--typography-label-md-letter-spacing, -0.25px);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2); /* 8px — matches Figma gap */
+  flex-shrink: 0;
+}
+
+.footerBugButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--component-button-secondary-bg-default, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-icon-radius);
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+
+.footerBugButton:hover {
+  background: var(--component-list-item-bg-hover);
+  color: var(--semantic-content-primary);
+}
+
+.footerBugButton:focus-visible {
+  box-shadow: 0 0 0 2px var(--semantic-content-info);
+}
+
+/* ── Collapsed panel footer ──────────────────────────────────────────────── */
+
+.collapsedFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-2);
+  margin-top: auto;
+  padding-bottom: var(--sizes-2);
+}
+
+/* ── Avatar button ───────────────────────────────────────────────────────── */
 
 .collapsedAvatarButton {
   display: flex;

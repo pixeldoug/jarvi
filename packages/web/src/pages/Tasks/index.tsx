@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple, X } from '@phosphor-icons/react';
+import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
@@ -20,8 +20,9 @@ import { Button, TaskCreationData, Collapsible, Tooltip, CalendarListItem } from
 import { WeekNavigator } from '../../components/ui/WeekNavigator/WeekNavigator';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
-import { FilterPopover, DEFAULT_FILTER_STATE, hasActiveFilters } from '../../components/features/tasks/FilterPopover/FilterPopover';
+import { FilterPopover, DEFAULT_FILTER_STATE } from '../../components/features/tasks/FilterPopover/FilterPopover';
 import type { FilterState } from '../../components/features/tasks/FilterPopover/FilterPopover';
+import { TaskEmptyState } from '../../components/features/tasks/EmptyState';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { usePendingTasks } from '../../hooks/usePendingTasks';
 import { motion, AnimatePresence } from 'motion/react';
@@ -548,12 +549,12 @@ export function Tasks() {
   // Get list name for header
   const getListName = (listType: ListType): string => {
     const listNames: Record<ListType, string> = {
-      all: 'Tarefas',
+      all: 'Todas as tarefas',
       important: 'Prioridades',
       today: 'Hoje',
       tomorrow: 'Amanhã',
       week: 'Esta semana',
-      later: 'Mais pra frente',
+      later: 'Futuro',
       noDate: 'Sem data',
       overdue: 'Vencidas',
       completed: 'Concluídas',
@@ -578,8 +579,8 @@ export function Tasks() {
     if (activeFilters.priority) {
       result = result.filter((t) => t.priority === activeFilters.priority);
     }
-    if (activeFilters.category) {
-      result = result.filter((t) => t.category === activeFilters.category);
+    if (activeFilters.category.length > 0) {
+      result = result.filter((t) => !!t.category && activeFilters.category.includes(t.category));
     }
     if (activeFilters.connectedApp === 'whatsapp') {
       result = result.filter((t) => !!t.original_whatsapp_content);
@@ -901,37 +902,31 @@ export function Tasks() {
   const isCustomListView = Boolean(selectedCustomList);
   const pageDescription = selectedCustomList?.description?.trim() || undefined;
   const toggleSectionsLabel = allSectionsExpanded ? 'Colapsar tudo' : 'Expandir tudo';
+  const activeFilterCount = [
+    activeFilters.priority,
+    activeFilters.category.length > 0,
+    activeFilters.connectedApp,
+    !activeFilters.showCompleted,
+  ].filter(Boolean).length;
+  const hasFilters = activeFilterCount > 0;
+  const filterLabel = hasFilters ? `Filtrar (${activeFilterCount})` : 'Filtrar';
+
   const filterButton = (
     <div ref={filterAnchorRef} style={{ display: 'inline-flex' }}>
-      {hasActiveFilters(activeFilters) ? (
+      <Tooltip label={filterLabel} position="bottom" disabled={!isCompactHeader}>
         <Button
           type="button"
           variant="secondary"
           size="medium"
-          icon={X}
-          iconPosition="left"
-          active
+          icon={FunnelSimple}
+          iconPosition={isCompactHeader ? 'icon-only' : 'left'}
+          active={hasFilters || isFilterOpen}
           onClick={() => setIsFilterOpen((prev) => !prev)}
-          aria-label="Filtro Aplicado"
+          aria-label={isCompactHeader ? filterLabel : undefined}
         >
-          Filtro Aplicado
+          {!isCompactHeader && filterLabel}
         </Button>
-      ) : (
-        <Tooltip label="Filtrar" position="bottom" disabled={!isCompactHeader}>
-          <Button
-            type="button"
-            variant="secondary"
-            size="medium"
-            icon={FunnelSimple}
-            iconPosition={isCompactHeader ? 'icon-only' : 'left'}
-            aria-label={isCompactHeader ? 'Filtrar' : undefined}
-            onClick={() => setIsFilterOpen((prev) => !prev)}
-            active={isFilterOpen}
-          >
-            {!isCompactHeader && 'Filtrar'}
-          </Button>
-        </Tooltip>
-      )}
+      </Tooltip>
     </div>
   );
 
@@ -1014,7 +1009,11 @@ export function Tasks() {
         anchorRef={filterAnchorRef}
         filters={activeFilters}
         onFiltersChange={setActiveFilters}
-        categoryOptions={popoverCategories.map((c) => ({ value: c.name, label: c.name }))}
+        categoryOptions={popoverCategories.map((c) => ({ id: c.name, label: c.name }))}
+        onListSaved={(listId) => {
+          handleCustomListSelect(listId);
+          setActiveFilters(DEFAULT_FILTER_STATE);
+        }}
       />
       <CreateListPopover
         isOpen={isCreateListOpen}
@@ -1615,9 +1614,10 @@ export function Tasks() {
                   />
                 ))
               ) : (
-                <div className={styles.emptyState}>
-                  Nenhuma tarefa neste dia
-                </div>
+                <TaskEmptyState
+                  title="Nada por aqui ainda"
+                  description="Nenhuma tarefa para este dia"
+                />
               )}
             </div>
           </div>
@@ -1626,14 +1626,14 @@ export function Tasks() {
     );
   }
 
-  // If a specific list is selected (not "all"), show simple list without Collapsible
-  if (selectedList !== 'all' || selectedCustomListId) {
-    const simpleViewTasks = selectedCustomListId ? visibleTasks : filteredTasks;
-    const simpleViewSection = selectedCustomListId ? 'custom-list' : selectedList;
-    const incompleteSimpleViewTasks = selectedCustomListId
+  // If a specific list or category is selected (not "all"), show simple list without Collapsible
+  if (selectedList !== 'all' || selectedCustomListId || selectedCategoryName) {
+    const simpleViewTasks = (selectedCustomListId || selectedCategoryName) ? visibleTasks : filteredTasks;
+    const simpleViewSection = selectedCustomListId ? 'custom-list' : selectedCategoryName ? 'category' : selectedList;
+    const incompleteSimpleViewTasks = (selectedCustomListId || selectedCategoryName)
       ? simpleViewTasks.filter((task) => !task.completed)
       : simpleViewTasks;
-    const completedSimpleViewTasks = selectedCustomListId
+    const completedSimpleViewTasks = (selectedCustomListId || selectedCategoryName)
       ? simpleViewTasks.filter((task) => task.completed)
       : [];
 
@@ -1672,9 +1672,14 @@ export function Tasks() {
                 />
               ))
             ) : (
-              <div className={styles.emptyState}>
-                Nenhuma tarefa nesta lista
-              </div>
+              <TaskEmptyState
+                title="Nada por aqui ainda"
+                description={
+                  selectedCategoryName
+                    ? 'Use categorias para filtrar, priorizar e visualizar melhor o que importa.'
+                    : 'Nenhuma tarefa encontrada nesta lista.'
+                }
+              />
             )}
           </div>
 
@@ -1735,6 +1740,12 @@ export function Tasks() {
         onDragEnd={handleDragEnd}
       >
         <div className={styles.content}>
+          {visibleTasks.length === 0 && pendingTasks.length === 0 && !isPendingTasksLoading && (
+            <TaskEmptyState
+              title="Nada por aqui ainda"
+              description="Crie sua primeira tarefa para começar a organizar seu dia."
+            />
+          )}
           {(isPendingTasksLoading || pendingTasksError || pendingTasks.length > 0) && (
             <section className={styles.pendingSection}>
               <div className={styles.pendingSectionHeader}>
@@ -1770,8 +1781,8 @@ export function Tasks() {
             </section>
           )}
 
-          {/* ── Section anchors: each div gets a stable id so IntersectionObserver
-               can track which section is currently visible (scroll spy). ── */}
+          {/* ── Section anchors: only rendered when there are tasks to show ── */}
+          {visibleTasks.length > 0 && <>
 
           {/* Vencidas */}
           <DroppableSection
@@ -1882,7 +1893,7 @@ export function Tasks() {
           {/* Mais pra Frente */}
           {categorizedTasks.eventosFuturos.length > 0 && (
             <DroppableSection
-              title="Mais pra Frente"
+              title="Futuro"
               tasks={categorizedTasks.eventosFuturos}
               emptyMessage="Nenhum evento futuro"
               sectionId="eventos-futuros"
@@ -1945,6 +1956,8 @@ export function Tasks() {
               hideCategoryChip={!!selectedTask}
             />
           )}
+
+          </>}
         </div>
 
         <DragOverlay>

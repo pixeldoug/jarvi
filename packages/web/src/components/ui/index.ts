@@ -155,6 +155,11 @@ export {
   type SwitchProps,
 } from './Switch';
 
+export {
+  ThemeToggle,
+  type ThemeToggleProps,
+} from './ThemeToggle';
+
 // ============================================================================
 // NAVIGATION COMPONENTS
 // ============================================================================
