@@ -248,17 +248,15 @@ export function Sidebar({
       {/* ── Collapsed panel (absolutely fills root, fades in when collapsed) ── */}
       <div className={styles.collapsedPanel}>
         {/* Avatar button */}
-        <Tooltip label={userName} position="right" showDelay={300}>
-          <button
-            ref={profileButtonRef}
-            className={styles.collapsedAvatarButton}
-            onClick={() => setIsDropdownOpen((v) => !v)}
-            type="button"
-            aria-label="Menu do usuário"
-          >
-            <Avatar src={userAvatar} name={userName} size="medium" />
-          </button>
-        </Tooltip>
+        <button
+          ref={profileButtonRef}
+          className={styles.collapsedAvatarButton}
+          onClick={() => setIsDropdownOpen((v) => !v)}
+          type="button"
+          aria-label="Menu do usuário"
+        >
+          <Avatar src={userAvatar} name={userName} size="medium" />
+        </button>
 
         {/* Expand toggle */}
         <Tooltip label="Expandir" position="right" showDelay={300}>
@@ -446,7 +444,7 @@ export function Sidebar({
           </div>
 
           {/* Filtros group */}
-          <div className={styles.groupSection}>
+          <div className={`${styles.groupSection} ${styles.groupSectionLast}`}>
             <div className={styles.groupHeaderWrapper}>
               <SidebarGroupHeader
                 label="Filtros"
@@ -515,6 +513,7 @@ export function Sidebar({
         anchorRef={profileButtonRef}
         align={isCollapsed ? 'right' : 'left'}
         width={200}
+        gap={8}
       >
         <ListItem label="Minha Conta" icon={Gear} onClick={handleSettings} />
         <ListItem label="Sair" icon={SignOut} onClick={handleLogout} />

@@ -261,8 +261,10 @@ export function TagInput({
           onClose={handleDropdownClose}
           anchorRef={containerRef}
           width={dropdownWidth}
+          gap={4}
           forceTheme={dropdownTheme}
           buttonSection={dropdownButtonSection}
+          disableOutsideIgnoreCheck
         >
           {renderDropdownContent ? (
             renderDropdownContent({
