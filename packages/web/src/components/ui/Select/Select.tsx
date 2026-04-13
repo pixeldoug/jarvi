@@ -17,6 +17,8 @@ import { ListItem } from '../ListItem';
 export interface SelectOption {
   value: string;
   label: string;
+  /** Per-option icon node (takes precedence over the shared optionIcon prop) */
+  iconNode?: React.ReactNode;
 }
 
 type PhosphorIcon = React.ComponentType<IconProps>;
@@ -44,6 +46,14 @@ export interface SelectProps {
   optionIcon?: PhosphorIcon;
   /** Optional section rendered below dropdown options */
   dropdownButtonSection?: React.ReactNode;
+  /**
+   * Controlled open state. When provided the component operates in controlled
+   * mode — internal open state is ignored and callers must also provide
+   * onIsOpenChange to drive updates.
+   */
+  isOpen?: boolean;
+  /** Called when the dropdown requests an open/close transition */
+  onIsOpenChange?: (open: boolean) => void;
 }
 
 // ============================================================================
@@ -70,19 +80,29 @@ export function Select({
   dropdownTheme,
   optionIcon: OptionIcon,
   dropdownButtonSection,
+  isOpen: controlledIsOpen,
+  onIsOpenChange,
 }: SelectProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const isControlled = value !== undefined;
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpenControlled = controlledIsOpen !== undefined;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = isOpenControlled ? controlledIsOpen! : internalOpen;
   const [internalValue, setInternalValue] = useState<string>(
     defaultValue ?? (placeholder ? '' : options[0]?.value ?? '')
   );
+
+  const setIsOpen = (next: boolean) => {
+    if (!isOpenControlled) setInternalOpen(next);
+    onIsOpenChange?.(next);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
     if (disabled || options.length === 0) {
       setIsOpen(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [disabled, isOpen, options.length]);
 
   useEffect(() => {
@@ -183,7 +203,7 @@ export function Select({
         disabled={disabled}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => setIsOpen(!isOpen)}
         className={selectClasses}
       >
         <span className={[styles.value, shouldShowPlaceholder && styles.placeholder].filter(Boolean).join(' ')}>
@@ -201,6 +221,7 @@ export function Select({
         width={dropdownWidth}
         forceTheme={dropdownTheme}
         buttonSection={dropdownButtonSection}
+        disableOutsideIgnoreCheck
       >
         <div
           id={id ? `${id}-options` : undefined}
@@ -215,7 +236,8 @@ export function Select({
               <ListItem
                 key={option.value}
                 label={option.label}
-                icon={OptionIcon}
+                iconNode={option.iconNode}
+                icon={option.iconNode ? undefined : OptionIcon}
                 active={isSelected}
                 onClick={() => handleSelectOption(option.value)}
                 buttonProps={{

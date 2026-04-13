@@ -37,6 +37,13 @@ export interface DropdownProps {
   gap?: number;
   /** Force dropdown token theme */
   forceTheme?: 'light' | 'dark';
+  /**
+   * When true, the outside-click handler closes even if the click target is
+   * inside a [data-dialog-outside-click-ignore] ancestor. Use this for
+   * dropdowns that live inside another overlay (e.g. Select inside FilterPopover)
+   * so that clicking anywhere in the parent overlay still closes the nested one.
+   */
+  disableOutsideIgnoreCheck?: boolean;
 }
 
 interface Position {
@@ -57,6 +64,7 @@ export function Dropdown({
   className = '',
   gap = 8,
   forceTheme,
+  disableOutsideIgnoreCheck = false,
 }: DropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [calculatedPosition, setCalculatedPosition] = useState<Position | null>(null);
@@ -152,8 +160,9 @@ export function Dropdown({
         !anchorRef.current.contains(target)
       ) {
         // Don't close if the click landed inside a nested overlay (another
-        // Dropdown, Dialog, etc.) that carries data-dialog-outside-click-ignore.
-        if (target.closest?.('[data-dialog-outside-click-ignore]')) {
+        // Dropdown, Dialog, etc.) that carries data-dialog-outside-click-ignore —
+        // unless the caller explicitly opts out of this check.
+        if (!disableOutsideIgnoreCheck && target.closest?.('[data-dialog-outside-click-ignore]')) {
           return;
         }
         onClose();
@@ -169,7 +178,7 @@ export function Dropdown({
       clearTimeout(timeoutId);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isOpen, onClose, anchorRef]);
+  }, [isOpen, onClose, anchorRef, disableOutsideIgnoreCheck]);
 
   // Handle keyboard navigation
   useEffect(() => {

@@ -23,3 +23,6 @@ export { PendingTaskCard } from './PendingTasks/PendingTaskCard';
 
 export { AIChatPanel } from './AIChatPanel';
 export type { AIChatPanelProps } from './AIChatPanel';
+
+export { TaskEmptyState } from './EmptyState';
+export type { TaskEmptyStateProps } from './EmptyState';
