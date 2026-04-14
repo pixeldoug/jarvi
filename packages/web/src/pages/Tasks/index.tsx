@@ -315,6 +315,13 @@ export function Tasks() {
     setIsChatOpen(false);
   };
 
+  const handleTaskDetailsCenterClose = useCallback(() => {
+    setSelectedTask(null);
+    if (chatMode === 'task') {
+      setIsChatOpen(false);
+    }
+  }, [chatMode]);
+
   const handleOpenChatFromTask = useCallback(() => {
     setChatMode('task');
     setIsChatOpen(true);
@@ -339,6 +346,16 @@ export function Tasks() {
     const task = tasks.find((t) => t.id === taskId);
     if (task) setSelectedTask(task);
   }, [tasks]);
+
+  const handleChatListCardClick = useCallback((listId: string) => {
+    setSelectedCustomListId(listId);
+    setSelectedCategoryName(null);
+  }, []);
+
+  const handleChatCategoryCardClick = useCallback((categoryName: string) => {
+    setSelectedCategoryName(categoryName);
+    setSelectedCustomListId(null);
+  }, []);
 
   const handleChatTaskMutated = useCallback((toolCalls: ToolCallData[]) => {
     toolCalls.forEach((tc) => {
@@ -415,6 +432,16 @@ export function Tasks() {
           queryClient.setQueryData<Task[]>(['tasks'], (old) =>
             (old ?? []).filter((t) => t.id !== (d.id as string)),
           );
+          break;
+        case 'create_list':
+        case 'update_list':
+        case 'delete_list':
+          queryClient.invalidateQueries({ queryKey: ['lists'] });
+          break;
+        case 'create_category':
+        case 'update_category':
+        case 'delete_category':
+          queryClient.invalidateQueries({ queryKey: ['categories'] });
           break;
         default:
           break;
@@ -569,8 +596,32 @@ export function Tasks() {
     if (selectedCustomListId) {
       const selectedListObj = customLists.find((l) => l.id === selectedCustomListId);
       if (!selectedListObj) return tasks;
+
+      // Apply category filter from list
       const allowed = new Set(selectedListObj.category_names || []);
-      result = tasks.filter((t) => !!t.category && allowed.has(t.category));
+      if (allowed.size > 0) {
+        result = result.filter((t) => !!t.category && allowed.has(t.category));
+      }
+
+      // Apply priority filter from list
+      if (selectedListObj.priority) {
+        result = result.filter((t) => t.priority === selectedListObj.priority);
+      }
+
+      // Apply connected app filter from list
+      if (selectedListObj.connected_app === 'whatsapp') {
+        result = result.filter((t) => !!t.original_whatsapp_content);
+      }
+
+      // Apply no-category filter from list
+      if (selectedListObj.filter_no_category) {
+        result = result.filter((t) => !t.category);
+      }
+
+      // Apply show_completed filter from list
+      if (selectedListObj.show_completed === false) {
+        result = result.filter((t) => !t.completed);
+      }
     } else if (selectedCategoryName) {
       result = tasks.filter((t) => t.category === selectedCategoryName);
     }
@@ -865,18 +916,21 @@ export function Tasks() {
     setSelectedList(listType);
     setSelectedCustomListId(null);
     setSelectedCategoryName(null);
+    setSelectedTask(null);
   };
 
   const handleCustomListSelect = (listId: string) => {
     setSelectedList('all');
     setSelectedCategoryName(null);
     setSelectedCustomListId((prev) => (prev === listId ? null : listId));
+    setSelectedTask(null);
   };
 
   const handleCategorySelect = (categoryName: string) => {
     setSelectedList('all');
     setSelectedCustomListId(null);
     setSelectedCategoryName((prev) => (prev === categoryName ? null : categoryName));
+    setSelectedTask(null);
   };
 
   const allSectionsExpanded = Object.entries(openSections)
@@ -1349,8 +1403,8 @@ export function Tasks() {
     );
   }), []);
 
-  // When AI chat is opened from a task, show task details in the center column
-  const showTaskInCenter = isChatOpen && chatMode === 'task' && !!selectedTask;
+  // Show task details in the center column whenever chat is open and a task is selected
+  const showTaskInCenter = isChatOpen && !!selectedTask;
 
   // Compute right sidebar content based on chat/task selection state.
   // Wrapped in AnimatePresence so swapping between task details and chat
@@ -1377,6 +1431,8 @@ export function Tasks() {
             onTaskMutated={handleChatTaskMutated}
             initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
             onTaskCardClick={handleChatTaskCardClick}
+            onListCardClick={handleChatListCardClick}
+            onCategoryCardClick={handleChatCategoryCardClick}
           />
         </motion.div>
       ) : selectedTask ? (
@@ -1415,7 +1471,7 @@ export function Tasks() {
       <TaskDetailsSidebar
         isOpen={true}
         task={selectedTask}
-        onClose={handleDialogClose}
+        onClose={handleTaskDetailsCenterClose}
         onUpdateTask={handleUpdateTask}
         onToggleCompletion={handleToggleCompletion}
         onDelete={handleDeleteTask}

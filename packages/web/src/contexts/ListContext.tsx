@@ -9,6 +9,10 @@ export interface List {
   name: string;
   description?: string | null;
   category_names: string[];
+  priority?: string | null;
+  connected_app?: string | null;
+  show_completed?: boolean;
+  filter_no_category?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -16,13 +20,21 @@ export interface List {
 export interface CreateListData {
   name: string;
   description?: string;
-  categoryNames: string[];
+  categoryNames?: string[];
+  priority?: string;
+  connectedApp?: string;
+  showCompleted?: boolean;
+  filterNoCategory?: boolean;
 }
 
 export interface UpdateListData {
   name?: string;
   description?: string;
   categoryNames?: string[];
+  priority?: string | null;
+  connectedApp?: string | null;
+  showCompleted?: boolean;
+  filterNoCategory?: boolean;
 }
 
 interface ListContextType {
@@ -73,6 +85,10 @@ export function ListProvider({ children }: { children: ReactNode }) {
       name: data.name,
       description: data.description,
       categoryNames: data.categoryNames,
+      priority: data.priority,
+      connectedApp: data.connectedApp,
+      showCompleted: data.showCompleted,
+      filterNoCategory: data.filterNoCategory,
     });
     queryClient.setQueryData<List[]>(['lists'], (old) => [newList, ...(old ?? [])]);
     return newList;
@@ -84,6 +100,10 @@ export function ListProvider({ children }: { children: ReactNode }) {
       name: data.name,
       description: data.description,
       categoryNames: data.categoryNames,
+      priority: data.priority,
+      connectedApp: data.connectedApp,
+      showCompleted: data.showCompleted,
+      filterNoCategory: data.filterNoCategory,
     });
     queryClient.setQueryData<List[]>(['lists'], (old) =>
       (old ?? []).map(l => l.id === listId ? updated : l),

@@ -852,6 +852,21 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Add filter fields to lists table
+      const listFilterMigrations = [
+        'ALTER TABLE lists ADD COLUMN IF NOT EXISTS priority TEXT',
+        'ALTER TABLE lists ADD COLUMN IF NOT EXISTS connected_app TEXT',
+        'ALTER TABLE lists ADD COLUMN IF NOT EXISTS show_completed INTEGER DEFAULT 1',
+        'ALTER TABLE lists ADD COLUMN IF NOT EXISTS filter_no_category INTEGER DEFAULT 0',
+      ];
+      for (const migration of listFilterMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
     } finally {
       client.release();
     }
@@ -1051,6 +1066,21 @@ const runMigrations = async (): Promise<void> => {
       await db.exec('ALTER TABLE categories ADD COLUMN visible INTEGER DEFAULT 1');
     } catch (e) {
       // Column already exists, ignore
+    }
+
+    // Migration: Add filter fields to lists table
+    const listFilterMigrationsSqlite = [
+      'ALTER TABLE lists ADD COLUMN priority TEXT',
+      'ALTER TABLE lists ADD COLUMN connected_app TEXT',
+      'ALTER TABLE lists ADD COLUMN show_completed INTEGER DEFAULT 1',
+      'ALTER TABLE lists ADD COLUMN filter_no_category INTEGER DEFAULT 0',
+    ];
+    for (const migration of listFilterMigrationsSqlite) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
     }
   }
 };

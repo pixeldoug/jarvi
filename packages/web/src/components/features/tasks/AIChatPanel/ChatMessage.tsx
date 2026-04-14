@@ -1,14 +1,26 @@
 import type { ReactNode } from 'react';
 import type { ChatMessageData } from '../../../../hooks/useChatStream';
 import { TaskCardMessage } from './TaskCardMessage';
+import { ListCardMessage } from './ListCardMessage';
+import { CategoryCardMessage } from './CategoryCardMessage';
 import styles from './AIChatPanel.module.css';
 
-// Renders **bold** markers within a line of text
+// Renders **bold**, `code`, and "quoted names" within a line of text.
+// "quoted" segments are rendered as code pills without the surrounding quotes.
 function renderInline(text: string): ReactNode[] {
-  const parts = text.split(/\*\*(.*?)\*\*/g);
-  return parts.map((part, i) =>
-    i % 2 === 1 ? <strong key={i}>{part}</strong> : part,
-  );
+  const segments = text.split(/(\*\*.*?\*\*|`[^`]+`|"[^"]+")/g);
+  return segments.map((seg, i) => {
+    if (seg.startsWith('**') && seg.endsWith('**')) {
+      return <strong key={i}>{seg.slice(2, -2)}</strong>;
+    }
+    if (seg.startsWith('`') && seg.endsWith('`')) {
+      return <code key={i} className={styles.codeInline}>{seg.slice(1, -1)}</code>;
+    }
+    if (seg.startsWith('"') && seg.endsWith('"')) {
+      return <code key={i} className={styles.codeInline}>{seg.slice(1, -1)}</code>;
+    }
+    return seg;
+  });
 }
 
 // Converts a plain text AI response into readable nodes:
@@ -55,15 +67,25 @@ function renderAiContent(text: string): ReactNode {
 interface ChatMessageProps {
   message: ChatMessageData;
   onTaskCardClick?: (taskId: string) => void;
+  onListCardClick?: (listId: string) => void;
+  onCategoryCardClick?: (categoryName: string) => void;
 }
 
-export function ChatMessage({ message, onTaskCardClick }: ChatMessageProps) {
+export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCategoryCardClick }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
   const taskToolCalls = (message.toolCalls || []).filter(
     (tc) =>
       tc.result?.success &&
       ['create_task', 'update_task', 'complete_task'].includes(tc.toolName),
+  );
+
+  const listToolCalls = (message.toolCalls || []).filter(
+    (tc) => tc.result?.success && tc.toolName === 'show_list',
+  );
+
+  const categoryToolCalls = (message.toolCalls || []).filter(
+    (tc) => tc.result?.success && tc.toolName === 'show_category',
   );
 
   return (
@@ -78,6 +100,14 @@ export function ChatMessage({ message, onTaskCardClick }: ChatMessageProps) {
 
       {taskToolCalls.map((tc, i) => (
         <TaskCardMessage key={`${message.id}-tc-${i}`} toolCall={tc} onTaskClick={onTaskCardClick} />
+      ))}
+
+      {listToolCalls.map((tc, i) => (
+        <ListCardMessage key={`${message.id}-lc-${i}`} toolCall={tc} onListClick={onListCardClick} />
+      ))}
+
+      {categoryToolCalls.map((tc, i) => (
+        <CategoryCardMessage key={`${message.id}-cc-${i}`} toolCall={tc} onCategoryClick={onCategoryCardClick} />
       ))}
 
       {!isUser && message.contentAfter && (

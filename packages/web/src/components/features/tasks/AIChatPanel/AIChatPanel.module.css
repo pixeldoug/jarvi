@@ -156,40 +156,51 @@
 .aiContent {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
 }
 
 .contentLine {
   margin: 0;
   font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-sm-font-size);
-  font-weight: var(--typography-body-sm-font-weight);
-  line-height: var(--typography-body-sm-line-height);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
 }
 
 .contentSpacer {
   display: block;
-  height: 12px;
+  height: 8px;
 }
 
 .bulletLine {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
+  padding-left: 4px;
   font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-sm-font-size);
-  font-weight: var(--typography-body-sm-font-weight);
-  line-height: var(--typography-body-sm-line-height);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
 }
 
 .bulletDot {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.7;
+  opacity: 0.5;
   flex-shrink: 0;
-  margin-top: 6px;
+  margin-top: 7px;
+}
+
+.codeInline {
+  font-family: var(--font-font-family-font-mono, monospace);
+  font-size: 0.84em;
+  background: var(--semantic-surface-tertiary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--color-brand-primary-400);
 }
 
 /* ---- Task card (inline) ---- */

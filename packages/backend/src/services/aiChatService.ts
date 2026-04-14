@@ -150,6 +150,173 @@ const AI_TOOLS: ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_list',
+      description: 'Cria um filtro personalizado (lista) para agrupar tarefas. Requer ao menos um critério: categorias, prioridade ou app conectado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Nome da lista/filtro' },
+          description: { type: 'string', description: 'Descrição opcional' },
+          category_names: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Nomes das categorias incluídas neste filtro',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high'],
+            description: 'Filtrar por prioridade',
+          },
+          connected_app: {
+            type: 'string',
+            enum: ['whatsapp'],
+            description: 'Filtrar por app de origem',
+          },
+          show_completed: {
+            type: 'boolean',
+            description: 'Se false, oculta tarefas concluídas. Padrão: true',
+          },
+          filter_no_category: {
+            type: 'boolean',
+            description: 'Se true, mostra apenas tarefas SEM categoria atribuída',
+          },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_list',
+      description: 'Atualiza um filtro/lista existente do usuário.',
+      parameters: {
+        type: 'object',
+        properties: {
+          list_id: { type: 'string', description: 'ID da lista a atualizar' },
+          name: { type: 'string', description: 'Novo nome' },
+          description: { type: 'string', description: 'Nova descrição' },
+          category_names: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Nova lista de categorias',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high'],
+            description: 'Novo filtro de prioridade (null para remover)',
+          },
+          connected_app: {
+            type: 'string',
+            enum: ['whatsapp'],
+            description: 'Novo filtro de app (null para remover)',
+          },
+          show_completed: {
+            type: 'boolean',
+            description: 'Mostrar ou ocultar tarefas concluídas',
+          },
+          filter_no_category: {
+            type: 'boolean',
+            description: 'Se true, mostra apenas tarefas sem categoria',
+          },
+        },
+        required: ['list_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_list',
+      description: 'Exclui um filtro/lista do usuário.',
+      parameters: {
+        type: 'object',
+        properties: {
+          list_id: { type: 'string', description: 'ID da lista a excluir' },
+        },
+        required: ['list_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'show_list',
+      description: 'Exibe um filtro/lista existente como artefato clicável no chat, para que o usuário possa navegar até ele com um clique. Use sempre que mencionar ou recomendar uma lista existente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          list_id: { type: 'string', description: 'ID da lista a exibir' },
+        },
+        required: ['list_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_category',
+      description: 'Cria uma nova categoria para organizar as tarefas do usuário.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Nome da categoria' },
+          color: { type: 'string', description: 'Cor em hex (ex: #FF5733)' },
+          icon: { type: 'string', description: 'Ícone da categoria' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_category',
+      description: 'Atualiza uma categoria existente. Renomear propaga automaticamente para todas as tarefas e listas.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category_id: { type: 'string', description: 'ID da categoria a atualizar' },
+          name: { type: 'string', description: 'Novo nome' },
+          color: { type: 'string', description: 'Nova cor em hex' },
+          icon: { type: 'string', description: 'Novo ícone' },
+          visible: { type: 'boolean', description: 'Visível na sidebar' },
+        },
+        required: ['category_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_category',
+      description: 'Exclui uma categoria. As tarefas que pertenciam a ela ficam sem categoria.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category_id: { type: 'string', description: 'ID da categoria a excluir' },
+        },
+        required: ['category_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'show_category',
+      description: 'Exibe uma categoria existente como artefato clicável no chat. Use sempre que mencionar ou recomendar uma categoria existente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          category_id: { type: 'string', description: 'ID da categoria a exibir' },
+        },
+        required: ['category_id'],
+      },
+    },
+  },
 ];
 
 // Converts AI_TOOLS (OpenAI format) to Anthropic tool format
@@ -224,6 +391,65 @@ async function getTaskById(taskId: string, userId: string): Promise<TaskRow | nu
     [taskId, userId],
   );
   return row || null;
+}
+
+// ---------------------------------------------------------------------------
+// DB helpers — lists & categories
+// ---------------------------------------------------------------------------
+
+interface ListRow {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string | null;
+  category_names: string;
+  priority?: string | null;
+  connected_app?: string | null;
+  show_completed?: number | null;
+  filter_no_category?: number | null;
+}
+
+interface CategoryRow {
+  id: string;
+  user_id: string;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  visible?: number | null;
+  position?: number | null;
+}
+
+function safeParseCategoryNames(raw: unknown): string[] {
+  if (Array.isArray(raw) && (raw as unknown[]).every((x) => typeof x === 'string')) return raw as string[];
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && (parsed as unknown[]).every((x) => typeof x === 'string')) return parsed as string[];
+    } catch { return []; }
+  }
+  return [];
+}
+
+async function getUserLists(userId: string): Promise<ListRow[]> {
+  if (isPostgreSQL()) {
+    const result = await getPool().query(
+      'SELECT * FROM lists WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId],
+    );
+    return result.rows as ListRow[];
+  }
+  return (await getDatabase().all<ListRow[]>('SELECT * FROM lists WHERE user_id = ? ORDER BY created_at DESC', [userId])) as ListRow[];
+}
+
+async function getUserCategories(userId: string): Promise<CategoryRow[]> {
+  if (isPostgreSQL()) {
+    const result = await getPool().query(
+      'SELECT * FROM categories WHERE user_id = $1 ORDER BY position ASC, name ASC',
+      [userId],
+    );
+    return result.rows as CategoryRow[];
+  }
+  return (await getDatabase().all<CategoryRow[]>('SELECT * FROM categories WHERE user_id = ? ORDER BY position ASC, name ASC', [userId])) as CategoryRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -356,6 +582,276 @@ async function executeToolCall(
         }
       }
       return { success: true };
+    }
+
+    case 'create_list': {
+      const listName = String(args.name || '').trim();
+      if (!listName) return { success: false, message: 'Nome da lista é obrigatório' };
+
+      const categoryNames = Array.isArray(args.category_names)
+        ? (args.category_names as string[]).map(String).filter(Boolean)
+        : [];
+      const priority = args.priority ? String(args.priority) : null;
+      const connectedApp = args.connected_app ? String(args.connected_app) : null;
+      const showCompleted = args.show_completed === false ? 0 : 1;
+      const filterNoCategory = args.filter_no_category ? 1 : 0;
+
+      if (categoryNames.length === 0 && !priority && !connectedApp && !filterNoCategory) {
+        return { success: false, message: 'Ao menos um critério de filtro é necessário (categoria, prioridade, app conectado ou sem categoria)' };
+      }
+
+      const listId = uuidv4();
+      const categoryNamesJson = JSON.stringify(categoryNames);
+
+      if (isPostgreSQL()) {
+        await getPool().query(
+          `INSERT INTO lists (id, user_id, name, category_names, priority, connected_app, show_completed, filter_no_category, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [listId, userId, listName, categoryNamesJson, priority, connectedApp, showCompleted, filterNoCategory, now, now],
+        );
+      } else {
+        await getDatabase().run(
+          `INSERT INTO lists (id, user_id, name, category_names, priority, connected_app, show_completed, filter_no_category, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [listId, userId, listName, categoryNamesJson, priority, connectedApp, showCompleted, filterNoCategory, now, now],
+        );
+      }
+
+      return {
+        success: true,
+        data: { id: listId, name: listName, category_names: categoryNames, priority, connected_app: connectedApp, show_completed: showCompleted === 1, filter_no_category: filterNoCategory === 1 },
+      };
+    }
+
+    case 'update_list': {
+      const listId = String(args.list_id || '');
+      if (!listId) return { success: false, message: 'list_id é obrigatório' };
+
+      let existing: ListRow | null = null;
+      if (isPostgreSQL()) {
+        const result = await getPool().query('SELECT * FROM lists WHERE id = $1 AND user_id = $2', [listId, userId]);
+        existing = result.rows[0] || null;
+      } else {
+        existing = await getDatabase().get<ListRow>('SELECT * FROM lists WHERE id = ? AND user_id = ?', [listId, userId]) || null;
+      }
+      if (!existing) return { success: false, message: 'Lista não encontrada' };
+
+      const newName = args.name ? String(args.name).trim() : existing.name;
+      const newCategoryNames = Array.isArray(args.category_names)
+        ? JSON.stringify((args.category_names as string[]).map(String).filter(Boolean))
+        : existing.category_names;
+      const newPriority = args.priority !== undefined ? (args.priority ? String(args.priority) : null) : existing.priority;
+      const newConnectedApp = args.connected_app !== undefined ? (args.connected_app ? String(args.connected_app) : null) : existing.connected_app;
+      const newShowCompleted = args.show_completed !== undefined ? (args.show_completed ? 1 : 0) : (existing.show_completed ?? 1);
+      const newFilterNoCategory = args.filter_no_category !== undefined ? (args.filter_no_category ? 1 : 0) : (existing.filter_no_category ?? 0);
+
+      if (isPostgreSQL()) {
+        await getPool().query(
+          `UPDATE lists SET name=$1, category_names=$2, priority=$3, connected_app=$4, show_completed=$5, filter_no_category=$6, updated_at=$7
+           WHERE id=$8 AND user_id=$9`,
+          [newName, newCategoryNames, newPriority, newConnectedApp, newShowCompleted, newFilterNoCategory, now, listId, userId],
+        );
+      } else {
+        await getDatabase().run(
+          `UPDATE lists SET name=?, category_names=?, priority=?, connected_app=?, show_completed=?, filter_no_category=?, updated_at=?
+           WHERE id=? AND user_id=?`,
+          [newName, newCategoryNames, newPriority, newConnectedApp, newShowCompleted, newFilterNoCategory, now, listId, userId],
+        );
+      }
+
+      return {
+        success: true,
+        data: { id: listId, name: newName, priority: newPriority, connected_app: newConnectedApp, show_completed: newShowCompleted === 1, filter_no_category: newFilterNoCategory === 1 },
+      };
+    }
+
+    case 'delete_list': {
+      const listId = String(args.list_id || '');
+      if (!listId) return { success: false, message: 'list_id é obrigatório' };
+
+      if (isPostgreSQL()) {
+        await getPool().query('DELETE FROM lists WHERE id = $1 AND user_id = $2', [listId, userId]);
+      } else {
+        await getDatabase().run('DELETE FROM lists WHERE id = ? AND user_id = ?', [listId, userId]);
+      }
+      return { success: true, data: { id: listId, deleted: true } };
+    }
+
+    case 'show_list': {
+      const listId = String(args.list_id || '');
+      if (!listId) return { success: false, message: 'list_id é obrigatório' };
+
+      let row: ListRow | null = null;
+      if (isPostgreSQL()) {
+        const result = await getPool().query('SELECT * FROM lists WHERE id = $1 AND user_id = $2', [listId, userId]);
+        row = result.rows[0] || null;
+      } else {
+        row = await getDatabase().get<ListRow>('SELECT * FROM lists WHERE id = ? AND user_id = ?', [listId, userId]) || null;
+      }
+      if (!row) return { success: false, message: 'Lista não encontrada' };
+
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          name: row.name,
+          category_names: safeParseCategoryNames(row.category_names),
+          priority: row.priority ?? null,
+          connected_app: row.connected_app ?? null,
+          show_completed: row.show_completed !== 0,
+          filter_no_category: Boolean(row.filter_no_category),
+        },
+      };
+    }
+
+    case 'create_category': {
+      const categoryName = String(args.name || '').trim();
+      if (!categoryName) return { success: false, message: 'Nome da categoria é obrigatório' };
+
+      const color = args.color ? String(args.color) : null;
+      const icon = args.icon ? String(args.icon) : null;
+      const categoryId = uuidv4();
+
+      let position = 0;
+      if (isPostgreSQL()) {
+        const posResult = await getPool().query(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM categories WHERE user_id = $1',
+          [userId],
+        );
+        position = posResult.rows[0]?.next_pos ?? 0;
+        await getPool().query(
+          `INSERT INTO categories (id, user_id, name, color, icon, position, visible, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $8)`,
+          [categoryId, userId, categoryName, color, icon, position, now, now],
+        );
+      } else {
+        const posResult = await getDatabase().get<{ next_pos: number }>(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM categories WHERE user_id = ?',
+          [userId],
+        );
+        position = posResult?.next_pos ?? 0;
+        await getDatabase().run(
+          `INSERT INTO categories (id, user_id, name, color, icon, position, visible, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          [categoryId, userId, categoryName, color, icon, position, now, now],
+        );
+      }
+
+      return { success: true, data: { id: categoryId, name: categoryName, color, icon } };
+    }
+
+    case 'update_category': {
+      const categoryId = String(args.category_id || '');
+      if (!categoryId) return { success: false, message: 'category_id é obrigatório' };
+
+      let existing: CategoryRow | null = null;
+      if (isPostgreSQL()) {
+        const result = await getPool().query('SELECT * FROM categories WHERE id = $1 AND user_id = $2', [categoryId, userId]);
+        existing = result.rows[0] || null;
+      } else {
+        existing = await getDatabase().get<CategoryRow>('SELECT * FROM categories WHERE id = ? AND user_id = ?', [categoryId, userId]) || null;
+      }
+      if (!existing) return { success: false, message: 'Categoria não encontrada' };
+
+      const newName = args.name ? String(args.name).trim() : existing.name;
+      const newColor = args.color !== undefined ? (args.color ? String(args.color) : null) : existing.color;
+      const newIcon = args.icon !== undefined ? (args.icon ? String(args.icon) : null) : existing.icon;
+      const newVisible = args.visible !== undefined ? (args.visible ? 1 : 0) : (existing.visible ?? 1);
+
+      if (isPostgreSQL()) {
+        await getPool().query(
+          `UPDATE categories SET name=$1, color=$2, icon=$3, visible=$4, updated_at=$5
+           WHERE id=$6 AND user_id=$7`,
+          [newName, newColor, newIcon, newVisible, now, categoryId, userId],
+        );
+        // Propagate rename to tasks, notes, and lists
+        if (newName !== existing.name) {
+          await getPool().query(
+            `UPDATE tasks SET category=$1 WHERE user_id=$2 AND category=$3`,
+            [newName, userId, existing.name],
+          );
+          const lists = await getPool().query('SELECT id, category_names FROM lists WHERE user_id = $1', [userId]);
+          for (const row of lists.rows) {
+            const names = safeParseCategoryNames(row.category_names);
+            const idx = names.indexOf(existing.name);
+            if (idx !== -1) {
+              names[idx] = newName;
+              await getPool().query('UPDATE lists SET category_names=$1 WHERE id=$2', [JSON.stringify(names), row.id]);
+            }
+          }
+        }
+      } else {
+        await getDatabase().run(
+          `UPDATE categories SET name=?, color=?, icon=?, visible=?, updated_at=? WHERE id=? AND user_id=?`,
+          [newName, newColor, newIcon, newVisible, now, categoryId, userId],
+        );
+        if (newName !== existing.name) {
+          await getDatabase().run(`UPDATE tasks SET category=? WHERE user_id=? AND category=?`, [newName, userId, existing.name]);
+          const lists = await getDatabase().all<ListRow[]>('SELECT id, category_names FROM lists WHERE user_id = ?', [userId]);
+          for (const row of lists) {
+            const names = safeParseCategoryNames(row.category_names);
+            const idx = names.indexOf(existing.name);
+            if (idx !== -1) {
+              names[idx] = newName;
+              await getDatabase().run('UPDATE lists SET category_names=? WHERE id=?', [JSON.stringify(names), row.id]);
+            }
+          }
+        }
+      }
+
+      return { success: true, data: { id: categoryId, name: newName, color: newColor, icon: newIcon, visible: newVisible === 1 } };
+    }
+
+    case 'show_category': {
+      const categoryId = String(args.category_id || '');
+      if (!categoryId) return { success: false, message: 'category_id é obrigatório' };
+
+      let row: CategoryRow | null = null;
+      if (isPostgreSQL()) {
+        const result = await getPool().query('SELECT * FROM categories WHERE id = $1 AND user_id = $2', [categoryId, userId]);
+        row = result.rows[0] || null;
+      } else {
+        row = await getDatabase().get<CategoryRow>('SELECT * FROM categories WHERE id = ? AND user_id = ?', [categoryId, userId]) || null;
+      }
+      if (!row) return { success: false, message: 'Categoria não encontrada' };
+
+      return {
+        success: true,
+        data: { id: row.id, name: row.name, color: row.color ?? null, icon: row.icon ?? null },
+      };
+    }
+
+    case 'delete_category': {
+      const categoryId = String(args.category_id || '');
+      if (!categoryId) return { success: false, message: 'category_id é obrigatório' };
+
+      if (isPostgreSQL()) {
+        const result = await getPool().query('SELECT name FROM categories WHERE id = $1 AND user_id = $2', [categoryId, userId]);
+        const categoryName = result.rows[0]?.name;
+        await getPool().query('DELETE FROM categories WHERE id = $1 AND user_id = $2', [categoryId, userId]);
+        if (categoryName) {
+          await getPool().query(`UPDATE tasks SET category=NULL WHERE user_id=$1 AND category=$2`, [userId, categoryName]);
+          const lists = await getPool().query('SELECT id, category_names FROM lists WHERE user_id = $1', [userId]);
+          for (const row of lists.rows) {
+            const names = safeParseCategoryNames(row.category_names).filter((n) => n !== categoryName);
+            await getPool().query('UPDATE lists SET category_names=$1 WHERE id=$2', [JSON.stringify(names), row.id]);
+          }
+        }
+      } else {
+        const row = await getDatabase().get<{ name: string }>('SELECT name FROM categories WHERE id = ? AND user_id = ?', [categoryId, userId]);
+        const categoryName = row?.name;
+        await getDatabase().run('DELETE FROM categories WHERE id = ? AND user_id = ?', [categoryId, userId]);
+        if (categoryName) {
+          await getDatabase().run(`UPDATE tasks SET category=NULL WHERE user_id=? AND category=?`, [userId, categoryName]);
+          const lists = await getDatabase().all<ListRow[]>('SELECT id, category_names FROM lists WHERE user_id = ?', [userId]);
+          for (const listRow of lists) {
+            const names = safeParseCategoryNames(listRow.category_names).filter((n) => n !== categoryName);
+            await getDatabase().run('UPDATE lists SET category_names=? WHERE id=?', [JSON.stringify(names), listRow.id]);
+          }
+        }
+      }
+
+      return { success: true, data: { id: categoryId, deleted: true } };
     }
 
     default:
@@ -544,7 +1040,13 @@ function buildTaskModeSystemPrompt(task: TaskRow, memory: string, timezone: stri
   return parts.filter(Boolean).join('\n');
 }
 
-function buildGeneralModeSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): string {
+function buildGeneralModeSystemPrompt(
+  tasks: TaskRow[],
+  memory: string,
+  timezone: string,
+  lists: ListRow[] = [],
+  categories: CategoryRow[] = [],
+): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
 
@@ -562,6 +1064,23 @@ function buildGeneralModeSystemPrompt(tasks: TaskRow[], memory: string, timezone
         .join('\n')
     : '  (nenhuma tarefa ativa)';
 
+  const categorySummary = categories.length > 0
+    ? categories.map((c) => `  - "${c.name}" (id: ${c.id})${c.visible === 0 ? ' [oculta]' : ''}`).join('\n')
+    : '  (nenhuma categoria)';
+
+  const listSummary = lists.length > 0
+    ? lists.map((l) => {
+        const catNames = safeParseCategoryNames(l.category_names);
+        const parts: string[] = [`"${l.name}" (id: ${l.id})`];
+        if (catNames.length > 0) parts.push(`cats: ${catNames.join(', ')}`);
+        if (l.priority) parts.push(`prioridade: ${l.priority}`);
+        if (l.connected_app) parts.push(`app: ${l.connected_app}`);
+        if (l.filter_no_category) parts.push('sem categoria');
+        if (l.show_completed === 0) parts.push('oculta concluídas');
+        return `  - ${parts.join(' | ')}`;
+      }).join('\n')
+    : '  (nenhuma lista)';
+
   const lines = [
     `Você é o Jarvi, assistente pessoal de produtividade em português brasileiro.`,
     `Personalidade: você age como um amigo próximo que realmente entende o problema do usuário — direto, empático, prático. Não é um bot que só cria tarefas: você raciocina sobre a situação, oferece orientação útil quando faz sentido, e só então organiza as ações necessárias. Use a memória do usuário ativamente para personalizar cada resposta.`,
@@ -571,12 +1090,20 @@ function buildGeneralModeSystemPrompt(tasks: TaskRow[], memory: string, timezone
     `Tarefas ativas:`,
     taskSummary,
     '',
+    `Categorias existentes:`,
+    categorySummary,
+    '',
+    `Filtros/listas salvos:`,
+    listSummary,
+    '',
     memory ? `Memória sobre o usuário:\n${memory}` : null,
     '',
     `Regras:`,
     `- Responda sempre em português brasileiro, de forma concisa e amigável.`,
     `- FORMATAÇÃO: Escreva de forma escaneável. Use quebras de linha (\n) para separar ideias. Use bullets (• item) para listar 2 ou mais itens. Use **negrito** para destacar informações-chave. Nunca escreva parágrafos longos — máximo 2 frases por bloco. Confirme ações em 1 linha curta, depois faça perguntas em linhas separadas.`,
     `- Use as ferramentas disponíveis para executar ações quando o usuário pedir.`,
+    `- FILTROS/LISTAS (OBRIGATÓRIO): Sempre que criar, atualizar ou mencionar um filtro/lista, chame show_list com o ID correspondente. Isso é o que exibe o artefato clicável no chat — sem show_list, nenhum artefato aparece. NUNCA descreva o filtro só em texto.`,
+    `- CATEGORIAS (OBRIGATÓRIO): Sempre que criar, atualizar ou mencionar uma categoria, chame show_category com o ID correspondente. Isso é o que exibe o artefato clicável no chat — sem show_category, nenhum artefato aparece. NUNCA mencione cor, ícone ou detalhes técnicos no texto da resposta.`,
     `- TÍTULO DA TAREFA: Use títulos concisos mas descritivos — devem ter contexto suficiente para que o usuário identifique a tarefa sem precisar abri-la. Inclua o elemento diferenciador (local, pessoa, motivo) quando relevante. Exemplos: prefira "Limpar piscina da casita para hóspedes" a "Limpar a piscina"; prefira "Agendar Airbnb – casamento do Fifi" a "Agendar Airbnb"; prefira "Comprar presente – aniversário da mãe" a "Comprar presente". Evite artigos desnecessários no início. Máximo de ~60 caracteres.`,
     `- CRIAR vs ATUALIZAR (CRÍTICO): Use create_task SEMPRE que o usuário pedir para criar/adicionar/agendar algo novo, mesmo que já exista uma tarefa com título parecido na lista. Tarefas similares são coisas distintas (ex: "Airbnb para casamento do Fifi" e "Airbnb para casamento da Sarah" são duas tarefas diferentes). Só use update_task quando: (a) o usuário pedir explicitamente para editar/atualizar/corrigir uma tarefa existente pelo nome ou ID, OU (b) o usuário estiver respondendo a uma pergunta de contexto que você fez sobre uma tarefa que acabou de ser criada nesta mesma conversa.`,
     `- DADOS DA NOVA TAREFA (CRÍTICO): Ao criar uma tarefa, preencha os campos (due_date, category, priority, description) APENAS com informações explicitamente ditas pelo usuário naquele pedido. NUNCA copie, herde ou reutilize datas, categorias ou detalhes de outras tarefas da lista ou de pedidos anteriores na conversa. Se o usuário não mencionou data, deixe due_date vazio. Se não mencionou categoria, deixe category vazio.`,
@@ -635,8 +1162,12 @@ export async function streamChat(
     }
     systemPrompt = buildTaskModeSystemPrompt(task, memory, timezone);
   } else {
-    const tasks = await getUserTasks(userId);
-    systemPrompt = buildGeneralModeSystemPrompt(tasks, memory, timezone);
+    const [tasks, lists, categories] = await Promise.all([
+      getUserTasks(userId),
+      getUserLists(userId),
+      getUserCategories(userId),
+    ]);
+    systemPrompt = buildGeneralModeSystemPrompt(tasks, memory, timezone, lists, categories);
   }
 
   // Anthropic uses a separate system param; messages must not contain system role

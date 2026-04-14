@@ -19,6 +19,10 @@ export interface AIChatPanelProps {
   initialMessage?: string;
   /** Called when the user clicks a task card artifact inside the chat */
   onTaskCardClick?: (taskId: string) => void;
+  /** Called when the user clicks a list/filter card artifact inside the chat */
+  onListCardClick?: (listId: string) => void;
+  /** Called when the user clicks a category card artifact inside the chat */
+  onCategoryCardClick?: (categoryName: string) => void;
 }
 
 export function AIChatPanel({
@@ -28,6 +32,8 @@ export function AIChatPanel({
   onTaskMutated,
   initialMessage,
   onTaskCardClick,
+  onListCardClick,
+  onCategoryCardClick,
 }: AIChatPanelProps) {
   const { user } = useAuth();
   const { messages, sendMessage, isStreaming, reset } = useChatStream(mode, taskId);
@@ -160,7 +166,7 @@ export function AIChatPanel({
         ) : (
           <div className={styles.messageList}>
             {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} onTaskCardClick={onTaskCardClick} />
+              <ChatMessage key={msg.id} message={msg} onTaskCardClick={onTaskCardClick} onListCardClick={onListCardClick} onCategoryCardClick={onCategoryCardClick} />
             ))}
             {isStreaming && messages[messages.length - 1]?.content === '' && (
               <div className={styles.typingIndicator}>

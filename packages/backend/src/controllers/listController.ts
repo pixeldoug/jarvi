@@ -41,10 +41,7 @@ export const getLists = async (req: Request, res: Response): Promise<void> => {
       lists = await db.all('SELECT * FROM lists WHERE user_id = ? ORDER BY created_at DESC', [userId]);
     }
 
-    const normalized = lists.map((l) => ({
-      ...l,
-      category_names: safeParseCategoryNames(l.category_names),
-    }));
+    const normalized = lists.map(normalizeList);
 
     res.json(normalized);
   } catch (error) {
@@ -53,13 +50,26 @@ export const getLists = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+function normalizeList(raw: any) {
+  return {
+    ...raw,
+    category_names: safeParseCategoryNames(raw?.category_names),
+    show_completed: raw?.show_completed === undefined ? true : Boolean(raw.show_completed),
+    filter_no_category: Boolean(raw?.filter_no_category),
+  };
+}
+
 // Create a new list
 export const createList = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, description, categoryNames } = req.body as {
+    const { name, description, categoryNames, priority, connectedApp, showCompleted, filterNoCategory } = req.body as {
       name?: string;
       description?: string;
       categoryNames?: string[];
+      priority?: string;
+      connectedApp?: string;
+      showCompleted?: boolean;
+      filterNoCategory?: boolean;
     };
     const userId = req.user?.id;
 
@@ -74,23 +84,24 @@ export const createList = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    if (!Array.isArray(categoryNames) || categoryNames.length === 0) {
-      res.status(400).json({ error: 'At least one category is required' });
-      return;
-    }
+    const cleanedCategoryNames = Array.isArray(categoryNames)
+      ? Array.from(new Set(categoryNames.map((c) => (typeof c === 'string' ? c.trim() : '')).filter(Boolean)))
+      : [];
 
-    const cleanedCategoryNames = Array.from(
-      new Set(categoryNames.map((c) => (typeof c === 'string' ? c.trim() : '')).filter(Boolean))
-    );
-
-    if (cleanedCategoryNames.length === 0) {
-      res.status(400).json({ error: 'At least one category is required' });
+    // Require at least one filter criterion
+    const hasPriority = !!priority;
+    const hasConnectedApp = !!connectedApp;
+    const hasFilterNoCategory = !!filterNoCategory;
+    if (cleanedCategoryNames.length === 0 && !hasPriority && !hasConnectedApp && !hasFilterNoCategory) {
+      res.status(400).json({ error: 'At least one filter criterion (category, priority, connected app, or no-category) is required' });
       return;
     }
 
     const listId = uuidv4();
     const now = new Date().toISOString();
     const categoryNamesJson = JSON.stringify(cleanedCategoryNames);
+    const showCompletedValue = showCompleted === false ? 0 : 1;
+    const filterNoCategoryValue = filterNoCategory ? 1 : 0;
 
     let newList: any;
     if (isPostgreSQL()) {
@@ -98,9 +109,9 @@ export const createList = async (req: Request, res: Response): Promise<void> => 
       const client = await pool.connect();
       try {
         await client.query(
-          `INSERT INTO lists (id, user_id, name, description, category_names, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [listId, userId, trimmedName, description?.trim() || null, categoryNamesJson, now, now]
+          `INSERT INTO lists (id, user_id, name, description, category_names, priority, connected_app, show_completed, filter_no_category, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          [listId, userId, trimmedName, description?.trim() || null, categoryNamesJson, priority || null, connectedApp || null, showCompletedValue, filterNoCategoryValue, now, now]
         );
         const result = await client.query('SELECT * FROM lists WHERE id = $1', [listId]);
         newList = result.rows[0];
@@ -110,17 +121,14 @@ export const createList = async (req: Request, res: Response): Promise<void> => 
     } else {
       const db = getDatabase();
       await db.run(
-        `INSERT INTO lists (id, user_id, name, description, category_names, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [listId, userId, trimmedName, description?.trim() || null, categoryNamesJson, now, now]
+        `INSERT INTO lists (id, user_id, name, description, category_names, priority, connected_app, show_completed, filter_no_category, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [listId, userId, trimmedName, description?.trim() || null, categoryNamesJson, priority || null, connectedApp || null, showCompletedValue, filterNoCategoryValue, now, now]
       );
       newList = await db.get('SELECT * FROM lists WHERE id = ?', [listId]);
     }
 
-    res.status(201).json({
-      ...newList,
-      category_names: safeParseCategoryNames(newList?.category_names),
-    });
+    res.status(201).json(normalizeList(newList));
   } catch (error: any) {
     // Handle unique constraint violation
     if (error.code === '23505' || error.message?.includes('UNIQUE constraint')) {
@@ -136,10 +144,14 @@ export const createList = async (req: Request, res: Response): Promise<void> => 
 export const updateList = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description, categoryNames } = req.body as {
+    const { name, description, categoryNames, priority, connectedApp, showCompleted, filterNoCategory } = req.body as {
       name?: string;
       description?: string;
       categoryNames?: string[];
+      priority?: string | null;
+      connectedApp?: string | null;
+      showCompleted?: boolean;
+      filterNoCategory?: boolean;
     };
     const userId = req.user?.id;
 
@@ -151,7 +163,7 @@ export const updateList = async (req: Request, res: Response): Promise<void> => 
     const now = new Date().toISOString();
 
     const maybeCategoryNamesJson =
-      Array.isArray(categoryNames) && categoryNames.length > 0
+      Array.isArray(categoryNames)
         ? JSON.stringify(
             Array.from(
               new Set(categoryNames.map((c) => (typeof c === 'string' ? c.trim() : '')).filter(Boolean))
@@ -181,12 +193,20 @@ export const updateList = async (req: Request, res: Response): Promise<void> => 
            SET name = $1,
                description = $2,
                category_names = $3,
-               updated_at = $4
-           WHERE id = $5 AND user_id = $6`,
+               priority = $4,
+               connected_app = $5,
+               show_completed = $6,
+               filter_no_category = $7,
+               updated_at = $8
+           WHERE id = $9 AND user_id = $10`,
           [
             name?.trim() || existing.name,
             description !== undefined ? description?.trim() || null : existing.description,
             maybeCategoryNamesJson !== undefined ? maybeCategoryNamesJson : existing.category_names,
+            priority !== undefined ? (priority || null) : existing.priority,
+            connectedApp !== undefined ? (connectedApp || null) : existing.connected_app,
+            showCompleted !== undefined ? (showCompleted ? 1 : 0) : existing.show_completed,
+            filterNoCategory !== undefined ? (filterNoCategory ? 1 : 0) : (existing.filter_no_category ?? 0),
             now,
             id,
             userId,
@@ -212,12 +232,20 @@ export const updateList = async (req: Request, res: Response): Promise<void> => 
          SET name = ?,
              description = ?,
              category_names = ?,
+             priority = ?,
+             connected_app = ?,
+             show_completed = ?,
+             filter_no_category = ?,
              updated_at = ?
          WHERE id = ? AND user_id = ?`,
         [
           name?.trim() || existing.name,
           description !== undefined ? description?.trim() || null : existing.description,
           maybeCategoryNamesJson !== undefined ? maybeCategoryNamesJson : existing.category_names,
+          priority !== undefined ? (priority || null) : existing.priority,
+          connectedApp !== undefined ? (connectedApp || null) : existing.connected_app,
+          showCompleted !== undefined ? (showCompleted ? 1 : 0) : existing.show_completed,
+          filterNoCategory !== undefined ? (filterNoCategory ? 1 : 0) : (existing.filter_no_category ?? 0),
           now,
           id,
           userId,
@@ -227,10 +255,7 @@ export const updateList = async (req: Request, res: Response): Promise<void> => 
       updatedList = await db.get('SELECT * FROM lists WHERE id = ?', [id]);
     }
 
-    res.json({
-      ...updatedList,
-      category_names: safeParseCategoryNames(updatedList?.category_names),
-    });
+    res.json(normalizeList(updatedList));
   } catch (error: any) {
     // Handle unique constraint violation
     if (error.code === '23505' || error.message?.includes('UNIQUE constraint')) {
