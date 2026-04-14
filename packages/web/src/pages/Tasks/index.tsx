@@ -163,6 +163,7 @@ export function Tasks() {
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [movingTask, setMovingTask] = useState<{ taskId: string; fromSection: string; toSection: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [expandedFromList, setExpandedFromList] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMode, setChatMode] = useState<'task' | 'general'>('general');
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
@@ -303,32 +304,38 @@ export function Tasks() {
   };
 
   const handleEdit = (task: any) => {
+    setExpandedFromList(isChatOpen);
     setSelectedTask(task);
   };
 
   const handleTaskClick = (task: Task) => {
+    setExpandedFromList(isChatOpen);
     setSelectedTask(task);
   };
 
   const handleDialogClose = () => {
     setSelectedTask(null);
+    setExpandedFromList(false);
     setIsChatOpen(false);
   };
 
   const handleTaskDetailsCenterClose = useCallback(() => {
     setSelectedTask(null);
+    setExpandedFromList(false);
     if (chatMode === 'task') {
       setIsChatOpen(false);
     }
   }, [chatMode]);
 
   const handleOpenChatFromTask = useCallback(() => {
+    setExpandedFromList(false);
     setChatMode('task');
     setIsChatOpen(true);
   }, []);
 
   const handleOpenChatGeneral = useCallback((text?: string) => {
     setChatMode('general');
+    setExpandedFromList(false);
     if (text) {
       // Force a fresh panel so the initial message is always sent cleanly
       setChatKey((k) => k + 1);
@@ -1403,8 +1410,8 @@ export function Tasks() {
     );
   }), []);
 
-  // Show task details in the center column whenever chat is open and a task is selected
-  const showTaskInCenter = isChatOpen && !!selectedTask;
+  // Show task details in center when: task-mode chat is open, OR user opened a task from the list while chat was active
+  const showTaskInCenter = isChatOpen && !!selectedTask && (chatMode === 'task' || expandedFromList);
 
   // Compute right sidebar content based on chat/task selection state.
   // Wrapped in AnimatePresence so swapping between task details and chat
@@ -1477,6 +1484,7 @@ export function Tasks() {
         onDelete={handleDeleteTask}
         onOpenChat={handleOpenChatFromTask}
         variant="expanded"
+        showBackButton={expandedFromList}
       />
     </motion.div>
   ) : null;

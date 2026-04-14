@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash, Sparkle } from '@phosphor-icons/react';
+import { X, Calendar, Hash, Fire, Trash, Sparkle, ArrowLeft } from '@phosphor-icons/react';
 import { Task } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
@@ -29,6 +29,8 @@ export interface TaskDetailsSidebarProps {
   onOpenChat?: () => void;
   /** Layout variant: sidebar (right panel) or expanded (center column) */
   variant?: 'sidebar' | 'expanded';
+  /** Show back button in expanded mode (only when opened from the task list while chat is open) */
+  showBackButton?: boolean;
 }
 
 export function TaskDetailsSidebar({
@@ -40,6 +42,7 @@ export function TaskDetailsSidebar({
   onDelete,
   onOpenChat,
   variant = 'sidebar',
+  showBackButton = false,
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -446,6 +449,15 @@ export function TaskDetailsSidebar({
     >
       {/* Header: Checkbox + Title + Action Buttons (same flex row) */}
       <div className={styles.header}>
+        {showBackButton && (
+          <Button
+            variant="secondary"
+            icon={ArrowLeft}
+            iconPosition="icon-only"
+            onClick={onClose}
+            aria-label="Voltar para lista de tarefas"
+          />
+        )}
         <div className={styles.titleContainer}>
           <TaskCheckbox
             checked={task.completed}
