@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { hasIO, getIO } from '../utils/ioManager';
@@ -24,6 +25,22 @@ const getAnthropicClient = (): Anthropic => {
     anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   }
   return anthropicClient;
+};
+
+// ---------------------------------------------------------------------------
+// OpenAI client (used for post-response memory extraction)
+// ---------------------------------------------------------------------------
+
+let openaiClient: OpenAI | null = null;
+
+const getOpenAIClient = (): OpenAI => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is required');
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openaiClient;
 };
 
 // ---------------------------------------------------------------------------
@@ -616,6 +633,68 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
 }
 
 // ---------------------------------------------------------------------------
+// Post-response memory extraction
+// ---------------------------------------------------------------------------
+
+async function extractMemoryPostResponse(
+  userId: string,
+  userMessage: string,
+  currentMemory: string,
+): Promise<void> {
+  if (!userMessage.trim()) return;
+
+  const openai = getOpenAIClient();
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          `Analise a mensagem abaixo e extraia QUALQUER informação pessoal nova sobre o usuário.`,
+          ``,
+          `MEMÓRIA ATUAL:`,
+          currentMemory || '(vazia)',
+          ``,
+          `MENSAGEM DO USUÁRIO:`,
+          userMessage,
+          ``,
+          `Se houver informação nova (nomes de pessoas/animais, relacionamentos, localização, preferências, hábitos, datas importantes, contexto profissional/pessoal), retorne a memória COMPLETA atualizada — mesclando o que já existia com o que é novo. Escreva em terceira pessoa, em português brasileiro, de forma concisa.`,
+          `Se NÃO houver nenhuma informação pessoal nova, retorne exatamente: NO_UPDATE`,
+        ].join('\n'),
+      },
+    ],
+    max_tokens: 800,
+  });
+
+  const result = response.choices[0]?.message?.content?.trim();
+  if (result && result !== 'NO_UPDATE') {
+    const now = new Date().toISOString();
+    if (isPostgreSQL()) {
+      await getPool().query(
+        `INSERT INTO user_memory_profiles (id, user_id, memory_text, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id) DO UPDATE SET memory_text = $3, updated_at = $4`,
+        [uuidv4(), userId, result, now],
+      );
+    } else {
+      const db = getDatabase();
+      const existing = await db.get('SELECT id FROM user_memory_profiles WHERE user_id = ?', [userId]);
+      if (existing) {
+        await db.run(
+          'UPDATE user_memory_profiles SET memory_text = ?, updated_at = ? WHERE user_id = ?',
+          [result, now, userId],
+        );
+      } else {
+        await db.run(
+          'INSERT INTO user_memory_profiles (id, user_id, memory_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+          [uuidv4(), userId, result, now, now],
+        );
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main agent runner
 // ---------------------------------------------------------------------------
 
@@ -719,6 +798,11 @@ export const runWhatsappAgent = async (
 
   // Persist conversation turn to Redis history
   await appendHistory(redis, userId, userMessage, finalResponse, todayIso);
+
+  // Fire-and-forget: extract personal info the model may have missed
+  extractMemoryPostResponse(userId, userMessage, memory).catch((err) => {
+    console.error('[WhatsApp Memory extraction] failed:', err);
+  });
 
   return finalResponse;
 };

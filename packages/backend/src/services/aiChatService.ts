@@ -1106,6 +1106,48 @@ Regras:
 }
 
 // ---------------------------------------------------------------------------
+// Post-response memory extraction
+// ---------------------------------------------------------------------------
+
+async function extractMemoryPostResponse(
+  userId: string,
+  messages: ChatMessage[],
+  currentMemory: string,
+): Promise<void> {
+  const userMessages = messages.filter((m) => m.role === 'user');
+  const lastUserMsg = userMessages[userMessages.length - 1];
+  if (!lastUserMsg || !lastUserMsg.content.trim()) return;
+
+  const openai = getOpenAIClient();
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          `Analise a mensagem abaixo e extraia QUALQUER informação pessoal nova sobre o usuário.`,
+          ``,
+          `MEMÓRIA ATUAL:`,
+          currentMemory || '(vazia)',
+          ``,
+          `MENSAGEM DO USUÁRIO:`,
+          lastUserMsg.content,
+          ``,
+          `Se houver informação nova (nomes de pessoas/animais, relacionamentos, localização, preferências, hábitos, datas importantes, contexto profissional/pessoal), retorne a memória COMPLETA atualizada — mesclando o que já existia com o que é novo. Escreva em terceira pessoa, em português brasileiro, de forma concisa.`,
+          `Se NÃO houver nenhuma informação pessoal nova, retorne exatamente: NO_UPDATE`,
+        ].join('\n'),
+      },
+    ],
+    max_tokens: 800,
+  });
+
+  const result = response.choices[0]?.message?.content?.trim();
+  if (result && result !== 'NO_UPDATE') {
+    await executeToolCall('update_memory', { summary: result }, userId);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // System prompt builders
 // ---------------------------------------------------------------------------
 
@@ -1389,4 +1431,9 @@ export async function streamChat(
     onEvent({ type: 'error', message: err?.message || 'Erro ao processar resposta da IA' });
     onEvent({ type: 'done' });
   }
+
+  // Fire-and-forget: extract personal info the model may have missed
+  extractMemoryPostResponse(userId, messages, memory).catch((err) => {
+    console.error('[Memory extraction] failed:', err);
+  });
 }
