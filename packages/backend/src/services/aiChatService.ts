@@ -3,6 +3,9 @@ import OpenAI from 'openai';
 import { ChatCompletionTool } from 'openai/resources/chat/completions';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
+import { getGmailTokens, fetchRecentEmails, markEmailsAsProcessed } from './gmailService';
+import { analyzeEmails } from './gmailAnalysisService';
+import { hasIO, getIO } from '../utils/ioManager';
 
 // ---------------------------------------------------------------------------
 // Provider clients
@@ -314,6 +317,18 @@ const AI_TOOLS: ChatCompletionTool[] = [
           category_id: { type: 'string', description: 'ID da categoria a exibir' },
         },
         required: ['category_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scan_gmail',
+      description: 'Analisa os emails recentes do Gmail do usuário e cria sugestões de tarefas para emails que requerem ação. Use quando o usuário pedir para verificar o Gmail, checar emails, ver se tem algo no email, ou qualquer variação disso.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
       },
     },
   },
@@ -854,6 +869,90 @@ async function executeToolCall(
       return { success: true, data: { id: categoryId, deleted: true } };
     }
 
+    case 'scan_gmail': {
+      const tokens = await getGmailTokens(userId);
+      if (!tokens) {
+        return {
+          success: false,
+          message: 'Gmail não está conectado. O usuário precisa conectar o Gmail em Configurações → Apps → Gmail.',
+        };
+      }
+
+      const emails = await fetchRecentEmails(userId);
+      if (emails.length === 0) {
+        return {
+          success: true,
+          data: { analyzed: 0, created: 0 },
+          message: 'Nenhum email encontrado na caixa de entrada dos últimos 3 dias.',
+        };
+      }
+
+      const results = await analyzeEmails(emails);
+      let created = 0;
+      const nowTs = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const createdTitles: string[] = [];
+      const successfullyAnalyzedIds: string[] = [];
+
+      for (const { email, suggestion, analyzed } of results) {
+        if (analyzed) successfullyAnalyzedIds.push(email.id);
+        if (!suggestion.isActionable || !suggestion.title) continue;
+
+        const pendingId = uuidv4();
+        const rawContent = `De: ${email.from}\nAssunto: ${email.subject}\nData: ${email.date}\n\n${email.snippet}`;
+
+        if (isPostgreSQL()) {
+          const pool = getPool();
+          await pool.query(
+            `INSERT INTO pending_tasks (
+              id, user_id, source, gmail_message_id, raw_content,
+              suggested_title, suggested_description, suggested_priority,
+              suggested_due_date, suggested_category,
+              status, expires_at, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+            ON CONFLICT (id) DO NOTHING`,
+            [
+              pendingId, userId, 'gmail', email.id, rawContent,
+              suggestion.title, suggestion.description, suggestion.priority,
+              suggestion.due_date, suggestion.category,
+              'awaiting_confirmation', expiresAt, nowTs, nowTs,
+            ],
+          );
+        } else {
+          const db = getDatabase();
+          await db.run(
+            `INSERT OR IGNORE INTO pending_tasks (
+              id, user_id, source, gmail_message_id, raw_content,
+              suggested_title, suggested_description, suggested_priority,
+              suggested_due_date, suggested_category,
+              status, expires_at, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [
+              pendingId, userId, 'gmail', email.id, rawContent,
+              suggestion.title, suggestion.description, suggestion.priority,
+              suggestion.due_date, suggestion.category,
+              'awaiting_confirmation', expiresAt, nowTs, nowTs,
+            ],
+          );
+        }
+
+        if (hasIO()) {
+          getIO().to(`user:${userId}`).emit('pending-task:created', { id: pendingId, source: 'gmail' });
+        }
+
+        createdTitles.push(suggestion.title);
+        created++;
+      }
+
+      // Only mark successfully analyzed emails — failed ones remain eligible for retry
+      await markEmailsAsProcessed(userId, successfullyAnalyzedIds);
+
+      return {
+        success: true,
+        data: { analyzed: emails.length, created, tasks: createdTitles },
+      };
+    }
+
     default:
       return { success: false, message: `Tool desconhecida: ${toolName}` };
   }
@@ -1113,6 +1212,7 @@ function buildGeneralModeSystemPrompt(
     `- CRIAR TAREFA IMEDIATAMENTE: Quando o usuário usar expressões de necessidade ou intenção ("preciso", "quero", "tenho que", "vou", "lembra de", "agenda", "marca", "compra", "faz", "resolve"), crie a tarefa na hora — não peça confirmação. NÃO escreva nada antes de chamar a ferramenta. Após a criação ser confirmada, escreva 1-2 perguntas de contexto específicas para enriquecer a tarefa (urgência, local, data, detalhes relevantes ao tipo).`,
     `- CONSELHO vs TAREFA: Só responda sem criar tarefa quando a mensagem for puramente uma dúvida, pedido de informação ou desabafo sem ação implícita (ex: "o que você acha de X?", "como funciona Y?"). Se houver qualquer intenção de fazer/resolver algo, crie a tarefa.`,
     `- MEMÓRIA (OBRIGATÓRIO): Em TODA resposta, antes de responder, verifique se a mensagem do usuário contém qualquer dado novo sobre ele: nomes de pessoas ou animais ("minha gata Tina", "meu filho Pedro"), relacionamentos, localização, preferências, hábitos, eventos, datas importantes, contexto profissional ou pessoal. Se detectar QUALQUER dado novo — mesmo que nenhuma tarefa seja criada — chame update_memory imediatamente, mesclando com o que já estava salvo. Exemplos de gatilhos: "minha esposa", "meu cachorro Rex", "moro em Campinas", "odeio acordar cedo", "tenho reunião toda segunda". Use a memória existente ativamente nas respostas para personalizar sugestões e contexto.`,
+    `- GMAIL (CRÍTICO): Você só verifica emails quando o usuário pedir explicitamente — não existe monitoramento automático, periódico ou em segundo plano. NUNCA sugira, ofereça ou pergunte sobre "monitorar regularmente", "verificar periodicamente" ou qualquer forma de escaneamento automático. Após verificar o Gmail, informe o resultado e pare. Nada de perguntar se o usuário quer monitoramento contínuo.`,
     `- Data/hora atual (fuso do usuário: ${timezone}): ${getDateTimeForTimezone(timezone)}`,
   ];
   return lines.filter(Boolean).join('\n');

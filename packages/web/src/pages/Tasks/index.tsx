@@ -11,7 +11,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
 import { useLists } from '../../contexts/ListContext';
-import { PendingTaskCard, TaskItem, TaskDetailsSidebar } from '../../components/features/tasks';
+import { PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
+import type { PendingTask } from '../../hooks/usePendingTasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, ListType } from '../../components/layout/Sidebar';
@@ -163,6 +164,7 @@ export function Tasks() {
   const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
   const [movingTask, setMovingTask] = useState<{ taskId: string; fromSection: string; toSection: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedPendingTask, setSelectedPendingTask] = useState<PendingTask | null>(null);
   const [expandedFromList, setExpandedFromList] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMode, setChatMode] = useState<'task' | 'general'>('general');
@@ -311,12 +313,23 @@ export function Tasks() {
   const handleTaskClick = (task: Task) => {
     setExpandedFromList(isChatOpen);
     setSelectedTask(task);
+    setSelectedPendingTask(null);
   };
 
   const handleDialogClose = () => {
     setSelectedTask(null);
+    setSelectedPendingTask(null);
     setExpandedFromList(false);
     setIsChatOpen(false);
+  };
+
+  const handlePendingTaskClick = (task: PendingTask) => {
+    setSelectedPendingTask((prev) => (prev?.id === task.id ? null : task));
+    setSelectedTask(null);
+  };
+
+  const handlePendingTaskSidebarClose = () => {
+    setSelectedPendingTask(null);
   };
 
   const handleTaskDetailsCenterClose = useCallback(() => {
@@ -1418,7 +1431,7 @@ export function Tasks() {
   // plays a coordinated slide: details exits left, chat enters from right.
   const panelTransition = { duration: 0.32, ease: [0.4, 0, 0.2, 1] } as const;
 
-  const computedRightSidebar = (isChatOpen || !!selectedTask) ? (
+  const computedRightSidebar = (isChatOpen || !!selectedTask || !!selectedPendingTask) ? (
     <AnimatePresence mode="wait" initial={false}>
       {isChatOpen ? (
         <motion.div
@@ -1440,6 +1453,22 @@ export function Tasks() {
             onTaskCardClick={handleChatTaskCardClick}
             onListCardClick={handleChatListCardClick}
             onCategoryCardClick={handleChatCategoryCardClick}
+          />
+        </motion.div>
+      ) : selectedPendingTask ? (
+        <motion.div
+          key="pending-task-details-panel"
+          style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
+          initial={{ opacity: 0, x: 60 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -60 }}
+          transition={panelTransition}
+        >
+          <PendingTaskDetailsSidebar
+            task={selectedPendingTask}
+            onClose={handlePendingTaskSidebarClose}
+            onConfirm={handleConfirmPendingTask}
+            onReject={handleRejectPendingTask}
           />
         </motion.div>
       ) : selectedTask ? (
@@ -1814,11 +1843,12 @@ export function Tasks() {
             <section className={styles.pendingSection}>
               <div className={styles.pendingSectionHeader}>
                 <h2 className={styles.pendingSectionTitle}>
-                  Pendentes do WhatsApp
+                  Integrações
                   {pendingTasks.length > 0 && (
                     <span className={styles.pendingSectionCount}>({pendingTasks.length})</span>
                   )}
                 </h2>
+                <div className={styles.pendingSectionDivider} />
               </div>
 
               {isPendingTasksLoading && (
@@ -1838,6 +1868,8 @@ export function Tasks() {
                       onConfirm={handleConfirmPendingTask}
                       onReject={handleRejectPendingTask}
                       onUpdate={handleUpdatePendingTask}
+                      onClick={handlePendingTaskClick}
+                      isActive={selectedPendingTask?.id === pendingTask.id}
                     />
                   ))}
                 </div>

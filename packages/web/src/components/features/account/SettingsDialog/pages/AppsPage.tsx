@@ -2,7 +2,7 @@
  * AppsPage - SettingsDialog
  *
  * Apps tab: integrations list + per-app connection sub-pages.
- * Currently only WhatsApp is available; all other apps show "Em breve".
+ * WhatsApp and Gmail are available; all other apps show "Em breve".
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
  * Nodes: 40001300-917 (list), 40001302-3829 / 40001305-4219 / 40001305-4296 (WA flow)
@@ -43,7 +43,7 @@ const APPS: AppDefinition[] = [
     description:
       'Transforme e-mails em tarefas acionáveis. Centralize suas demandas e nunca perca um follow-up importante.',
     icon: '/icons/apps/gmail.svg',
-    available: false,
+    available: true,
   },
   {
     id: 'outlook-mail',
@@ -109,15 +109,25 @@ const parseApiPayload = async (response: Response): Promise<Record<string, unkno
 // ROOT: VIEW CONTROLLER
 // ============================================================================
 
-type AppsView = 'list' | 'whatsapp';
+type AppsView = 'list' | 'whatsapp' | 'gmail';
 
 export function AppsPage() {
   const [view, setView] = useState<AppsView>('list');
 
-  if (view === 'list') {
-    return <AppsList onConnect={() => setView('whatsapp')} />;
+  if (view === 'whatsapp') {
+    return <WhatsAppConnectPage onBack={() => setView('list')} />;
   }
-  return <WhatsAppConnectPage onBack={() => setView('list')} />;
+  if (view === 'gmail') {
+    return <GmailConnectPage onBack={() => setView('list')} />;
+  }
+  return (
+    <AppsList
+      onConnect={(appId) => {
+        if (appId === 'whatsapp') setView('whatsapp');
+        else if (appId === 'gmail') setView('gmail');
+      }}
+    />
+  );
 }
 
 // ============================================================================
@@ -125,7 +135,7 @@ export function AppsPage() {
 // ============================================================================
 
 interface AppsListProps {
-  onConnect: () => void;
+  onConnect: (appId: string) => void;
 }
 
 function AppsList({ onConnect }: AppsListProps) {
@@ -156,7 +166,7 @@ function AppsList({ onConnect }: AppsListProps) {
 
             <div className={styles.integrationActions}>
               {app.available ? (
-                <Button variant="secondary" size="small" onClick={onConnect}>
+                <Button variant="secondary" size="small" onClick={() => onConnect(app.id)}>
                   Conectar
                 </Button>
               ) : (
@@ -480,6 +490,258 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// GMAIL CONNECTION SUB-PAGE
+// ============================================================================
+
+interface GmailConnectPageProps {
+  onBack: () => void;
+}
+
+function GmailConnectPage({ onBack }: GmailConnectPageProps) {
+  const { token } = useAuth();
+
+  const [connected, setConnected] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [disconnectLoading, setDisconnectLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [resyncLoading, setResyncLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const clearFeedback = () => {
+    setError('');
+    setSuccessMsg('');
+  };
+
+  // Check connection status on mount and when returning from OAuth redirect
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const checkStatus = async () => {
+      setStatusLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/api/gmail/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await parseApiPayload(res);
+        if (cancelled) return;
+        setConnected(Boolean(data.connected));
+
+        // Handle query params set by the OAuth callback redirect
+        const params = new URLSearchParams(window.location.search);
+        const gmailParam = params.get('gmail');
+        if (gmailParam === 'connected') {
+          setSuccessMsg('Gmail conectado com sucesso!');
+          setConnected(true);
+          // Clean up URL
+          const url = new URL(window.location.href);
+          url.searchParams.delete('gmail');
+          window.history.replaceState({}, '', url.toString());
+        } else if (gmailParam === 'error') {
+          const reason = params.get('reason') ?? 'unknown';
+          setError(`Falha ao conectar Gmail: ${reason}`);
+          const errorUrl = new URL(window.location.href);
+          errorUrl.searchParams.delete('gmail');
+          errorUrl.searchParams.delete('reason');
+          window.history.replaceState({}, '', errorUrl.toString());
+        }
+      } catch (err) {
+        if (!cancelled) setError('Erro ao verificar status do Gmail');
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    };
+
+    void checkStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const handleConnect = async () => {
+    clearFeedback();
+    setConnectLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/gmail/connect`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao iniciar conexão com Gmail'));
+      const url = typeof data.url === 'string' ? data.url : '';
+      if (url) window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao conectar Gmail');
+    } finally {
+      setConnectLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    clearFeedback();
+    setDisconnectLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/gmail/disconnect`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao desconectar Gmail'));
+      setConnected(false);
+      setSuccessMsg('Gmail desconectado com sucesso.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao desconectar Gmail');
+    } finally {
+      setDisconnectLoading(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    clearFeedback();
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/gmail/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao sincronizar emails'));
+      const created = typeof data.created === 'number' ? data.created : 0;
+      const analyzed = typeof data.analyzed === 'number' ? data.analyzed : 0;
+      setSuccessMsg(
+        created > 0
+          ? `${created} tarefa(s) sugerida(s) a partir de ${analyzed} email(s) analisado(s).`
+          : `${analyzed} email(s) analisado(s). Nenhuma ação necessária encontrada.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao sincronizar emails');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleResync = async () => {
+    clearFeedback();
+    setResyncLoading(true);
+    try {
+      // Clear processed history first so all emails are re-analyzed
+      await fetch(`${API_URL}/api/gmail/processed`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Then run a fresh sync
+      const res = await fetch(`${API_URL}/api/gmail/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao re-sincronizar emails'));
+      const created = typeof data.created === 'number' ? data.created : 0;
+      const analyzed = typeof data.analyzed === 'number' ? data.analyzed : 0;
+      setSuccessMsg(
+        created > 0
+          ? `${created} tarefa(s) sugerida(s) a partir de ${analyzed} email(s) analisado(s).`
+          : `${analyzed} email(s) analisado(s). Nenhuma ação necessária encontrada.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao re-sincronizar emails');
+    } finally {
+      setResyncLoading(false);
+    }
+  };
+
+  return (
+    <div className={styles.subPageWrapper}>
+      {/* Back navigation */}
+      <button type="button" className={styles.backLink} onClick={onBack}>
+        <ArrowLeft size={16} weight="regular" />
+        Apps
+      </button>
+
+      {/* App identity header */}
+      <div className={styles.subPageAppHeader}>
+        <div className={styles.iconContainer}>
+          <img
+            src="/icons/apps/gmail.svg"
+            alt="Gmail"
+            className={styles.appIcon}
+            draggable={false}
+          />
+        </div>
+        <h1 className={styles.subPageAppName}>Gmail</h1>
+      </div>
+
+      <p className={styles.pageSubtitle}>
+        Conecte seu Gmail para que a Jarvi identifique emails que precisam de ação e os transforme
+        em tarefas automaticamente.
+      </p>
+
+      {/* Feedback */}
+      {statusLoading && <p className={styles.pageSubtitle}>Carregando...</p>}
+      {error && <p className={styles.feedbackError}>{error}</p>}
+      {successMsg && <p className={styles.feedbackSuccess}>{successMsg}</p>}
+
+      {/* ── NOT CONNECTED ─────────────────────────────────────────── */}
+      {!statusLoading && !connected && (
+        <div className={styles.formSection}>
+          <Button
+            variant="primary"
+            loading={connectLoading}
+            disabled={connectLoading}
+            onClick={handleConnect}
+          >
+            Conectar com Google
+          </Button>
+          <p className={styles.helperText}>
+            Você será redirecionado para autenticação do Google. Jarvi solicitará apenas acesso de
+            leitura aos seus emails.
+          </p>
+        </div>
+      )}
+
+      {/* ── CONNECTED ─────────────────────────────────────────────── */}
+      {!statusLoading && connected && (
+        <div className={styles.formSection}>
+          <div className={styles.connectedRow}>
+            <span className={styles.connectedBadge}>Conectado</span>
+            <div className={styles.connectedActions}>
+              <Button
+                variant="secondary"
+                loading={syncLoading}
+                disabled={syncLoading || resyncLoading || disconnectLoading}
+                onClick={handleSyncNow}
+              >
+                Sincronizar novos
+              </Button>
+              <Button
+                variant="secondary"
+                loading={resyncLoading}
+                disabled={resyncLoading || syncLoading || disconnectLoading}
+                onClick={handleResync}
+              >
+                Re-analisar tudo
+              </Button>
+              <Button
+                variant="secondary"
+                loading={disconnectLoading}
+                disabled={disconnectLoading || syncLoading || resyncLoading}
+                onClick={handleDisconnect}
+              >
+                Desconectar
+              </Button>
+            </div>
+          </div>
+          <p className={styles.helperText}>
+            "Sincronizar novos" analisa apenas emails ainda não verificados. "Re-analisar tudo" refaz a análise dos últimos 3 dias completos.
+          </p>
         </div>
       )}
     </div>

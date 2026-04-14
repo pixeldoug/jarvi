@@ -20,6 +20,7 @@ export { CategoryPicker } from './CategoryPicker';
 export type { CategoryPickerProps, Category } from './CategoryPicker';
 
 export { PendingTaskCard } from './PendingTasks/PendingTaskCard';
+export { PendingTaskDetailsSidebar } from './PendingTasks/PendingTaskDetailsSidebar';
 
 export { AIChatPanel } from './AIChatPanel';
 export type { AIChatPanelProps } from './AIChatPanel';

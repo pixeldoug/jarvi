@@ -6,6 +6,7 @@ import { getIO, hasIO } from '../utils/ioManager';
 interface PendingTaskRecord {
   id: string;
   user_id: string;
+  source: string | null;
   suggested_title: string;
   suggested_description: string | null;
   suggested_priority: string | null;
@@ -13,6 +14,7 @@ interface PendingTaskRecord {
   suggested_time: string | null;
   suggested_category: string | null;
   original_whatsapp_content: string | null;
+  raw_content: string | null;
   media_attachments: string | null;
   status: string;
 }
@@ -20,6 +22,7 @@ interface PendingTaskRecord {
 interface TaskRecord {
   id: string;
   user_id: string;
+  source: string | null;
   title: string;
   description: string | null;
   priority: string | null;
@@ -82,9 +85,11 @@ const updatePendingTaskStatus = async (id: string, status: string): Promise<void
 const createTaskFromPending = async (pendingTask: PendingTaskRecord): Promise<TaskRecord> => {
   const taskId = uuidv4();
   const now = new Date().toISOString();
-  const context = pendingTask.original_whatsapp_content?.trim() || 'Sem texto original.';
+  const source = pendingTask.source || 'manual';
+  const rawContext = (pendingTask.original_whatsapp_content || pendingTask.raw_content)?.trim() || 'Sem texto original.';
+  const sourceLabel = source === 'gmail' ? 'Gmail' : 'WhatsApp';
   const aiSummary = pendingTask.suggested_description?.trim() || 'Resumo não informado pela IA.';
-  const finalDescription = `${aiSummary}\n\n---\nContexto original (WhatsApp):\n${context}`;
+  const finalDescription = `${aiSummary}\n\n---\nContexto original (${sourceLabel}):\n${rawContext}`;
 
   if (isPostgreSQL()) {
     const pool = getPool();
@@ -92,17 +97,18 @@ const createTaskFromPending = async (pendingTask: PendingTaskRecord): Promise<Ta
     try {
       await client.query(
         `INSERT INTO tasks (
-           id, user_id, title, description, completed, priority, category, important,
+           id, user_id, source, title, description, completed, priority, category, important,
            time, due_date, recurrence_type, recurrence_config, original_whatsapp_content,
            media_attachments, created_at, updated_at
          )
          VALUES (
-           $1, $2, $3, $4, $5, $6, $7, $8,
-           $9, $10, $11, $12, $13, $14, $15, $16
+           $1, $2, $3, $4, $5, $6, $7, $8, $9,
+           $10, $11, $12, $13, $14, $15, $16, $17
          )`,
         [
           taskId,
           pendingTask.user_id,
+          source,
           pendingTask.suggested_title,
           finalDescription,
           false,
@@ -130,17 +136,18 @@ const createTaskFromPending = async (pendingTask: PendingTaskRecord): Promise<Ta
   const db = getDatabase();
   await db.run(
     `INSERT INTO tasks (
-       id, user_id, title, description, completed, priority, category, important,
+       id, user_id, source, title, description, completed, priority, category, important,
        time, due_date, recurrence_type, recurrence_config, original_whatsapp_content,
        media_attachments, created_at, updated_at
      )
      VALUES (
-       ?, ?, ?, ?, ?, ?, ?, ?,
+       ?, ?, ?, ?, ?, ?, ?, ?, ?,
        ?, ?, ?, ?, ?, ?, ?, ?
      )`,
     [
       taskId,
       pendingTask.user_id,
+      source,
       pendingTask.suggested_title,
       finalDescription,
       false,

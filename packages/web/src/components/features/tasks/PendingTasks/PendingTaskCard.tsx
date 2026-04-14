@@ -1,65 +1,45 @@
-import { useMemo, useState } from 'react';
-import { Button, Textarea, TextInput } from '../../../../components/ui';
+import { useState } from 'react';
+import { X, Check } from '@phosphor-icons/react';
 import { PendingTask } from '../../../../hooks/usePendingTasks';
 import styles from './PendingTaskCard.module.css';
-
-interface PendingTaskUpdatePayload {
-  title?: string;
-  description?: string | null;
-  priority?: 'low' | 'medium' | 'high' | null;
-  dueDate?: string | null;
-  time?: string | null;
-  category?: string | null;
-}
+import whatsappIcon from '../../../../assets/icons/whatsapp.svg';
+import gmailIcon from '../../../../assets/icons/gmail.svg';
 
 interface PendingTaskCardProps {
   task: PendingTask;
   onConfirm: (id: string) => Promise<void>;
   onReject: (id: string) => Promise<void>;
-  onUpdate?: (id: string, updates: PendingTaskUpdatePayload) => Promise<void>;
+  onUpdate?: (id: string, updates: Record<string, unknown>) => Promise<void>;
+  onClick?: (task: PendingTask) => void;
+  isActive?: boolean;
 }
 
-const priorityLabelMap: Record<'low' | 'medium' | 'high', string> = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Alta',
+const formatDateShort = (value: string | null): string | null => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })
+    .replace('.', '')
+    .replace(' de ', ' ');
 };
 
-const formatDate = (value: string | null): string => {
-  if (!value) return 'Sem data';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Sem data';
-  return date.toLocaleDateString('pt-BR');
-};
-
-const toDateInputValue = (value: string | null): string => {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toISOString().split('T')[0];
+const getAppSource = (source: string): { name: string; icon: string } | null => {
+  if (source === 'gmail') return { name: 'Gmail', icon: gmailIcon };
+  if (source === 'whatsapp') return { name: 'WhatsApp', icon: whatsappIcon };
+  return null;
 };
 
 export const PendingTaskCard: React.FC<PendingTaskCardProps> = ({
   task,
   onConfirm,
   onReject,
-  onUpdate,
+  onClick,
+  isActive = false,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(task.suggested_title);
-  const [description, setDescription] = useState(task.suggested_description || '');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | ''>(
-    task.suggested_priority || ''
-  );
-  const [dueDate, setDueDate] = useState(toDateInputValue(task.suggested_due_date));
-  const [time, setTime] = useState(task.suggested_time || '');
-  const [category, setCategory] = useState(task.suggested_category || '');
 
-  const priorityLabel = useMemo(() => {
-    if (!task.suggested_priority) return 'Não definida';
-    return priorityLabelMap[task.suggested_priority] || 'Não definida';
-  }, [task.suggested_priority]);
+  const dateLabel = formatDateShort(task.suggested_due_date);
+  const appSource = getAppSource(task.source);
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
@@ -79,122 +59,61 @@ export const PendingTaskCard: React.FC<PendingTaskCardProps> = ({
     }
   };
 
-  const handleSaveEdit = async () => {
-    if (!onUpdate) return;
-
-    setIsSubmitting(true);
-    try {
-      await onUpdate(task.id, {
-        title: title.trim(),
-        description: description.trim() || null,
-        priority: priority || null,
-        dueDate: dueDate || null,
-        time: time || null,
-        category: category.trim() || null,
-      });
-      setIsEditing(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setTitle(task.suggested_title);
-    setDescription(task.suggested_description || '');
-    setPriority(task.suggested_priority || '');
-    setDueDate(toDateInputValue(task.suggested_due_date));
-    setTime(task.suggested_time || '');
-    setCategory(task.suggested_category || '');
-    setIsEditing(false);
-  };
-
   return (
-    <article className={styles.card}>
-      <div className={styles.header}>
-        <p className={styles.title}>{task.suggested_title}</p>
-        <span className={styles.badge}>Via WhatsApp</span>
+    <article
+      className={`${styles.card} ${isActive ? styles.cardActive : ''}`}
+      onClick={() => onClick?.(task)}
+      style={{ cursor: onClick ? 'pointer' : undefined }}
+    >
+      {/* Task content row */}
+      <div className={styles.row}>
+        {/* Left: checkbox + date chip + title */}
+        <div className={styles.left}>
+          <div className={styles.checkbox} aria-hidden="true" />
+          {dateLabel && <span className={styles.dateChip}>{dateLabel}</span>}
+          <span className={styles.title} title={task.suggested_title}>
+            {task.suggested_title}
+          </span>
+        </div>
+
+        {/* Right: source chip + category chip */}
+        <div className={styles.right}>
+          {appSource && (
+            <span className={styles.sourceChip}>
+              <img src={appSource.icon} alt={appSource.name} className={styles.sourceIcon} />
+              <span>{appSource.name}</span>
+            </span>
+          )}
+
+          {task.suggested_category && (
+            <span className={styles.categoryChip}>{task.suggested_category}</span>
+          )}
+        </div>
       </div>
 
-      {!isEditing && (
-        <div className={styles.meta}>
-          <span>Data: {formatDate(task.suggested_due_date)}</span>
-          <span>Hora: {task.suggested_time || 'Sem horário'}</span>
-          <span>Prioridade: {priorityLabel}</span>
-          <span>Categoria: {task.suggested_category || 'Sem categoria'}</span>
-        </div>
-      )}
+      {/* Action buttons — stopPropagation so card onClick isn't triggered */}
+      <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
+        <button
+          className={styles.actionBtn}
+          onClick={handleReject}
+          disabled={isSubmitting}
+          aria-label="Rejeitar tarefa"
+          title="Rejeitar"
+          type="button"
+        >
+          <X size={20} weight="regular" />
+        </button>
 
-      {!isEditing && task.suggested_description && (
-        <p className={styles.description}>{task.suggested_description}</p>
-      )}
-
-      {isEditing && (
-        <div className={styles.editForm}>
-          <TextInput value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título" />
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Descrição"
-            rows={3}
-          />
-          <div className={styles.grid}>
-            <label className={styles.field}>
-              <span>Prioridade</span>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high' | '')}
-              >
-                <option value="">Não definida</option>
-                <option value="low">Baixa</option>
-                <option value="medium">Média</option>
-                <option value="high">Alta</option>
-              </select>
-            </label>
-
-            <label className={styles.field}>
-              <span>Categoria</span>
-              <TextInput
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Ex: Trabalho"
-              />
-            </label>
-
-            <label className={styles.field}>
-              <span>Data</span>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-            </label>
-
-            <label className={styles.field}>
-              <span>Hora</span>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-            </label>
-          </div>
-        </div>
-      )}
-
-      <div className={styles.actions}>
-        {!isEditing ? (
-          <Button variant="ghost" onClick={() => setIsEditing(true)} disabled={isSubmitting}>
-            Editar
-          </Button>
-        ) : (
-          <>
-            <Button variant="ghost" onClick={handleCancelEdit} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-            <Button variant="secondary" onClick={handleSaveEdit} disabled={isSubmitting}>
-              Salvar
-            </Button>
-          </>
-        )}
-
-        <Button variant="destructive" onClick={handleReject} disabled={isSubmitting}>
-          Rejeitar
-        </Button>
-        <Button onClick={handleConfirm} disabled={isSubmitting}>
-          Confirmar
-        </Button>
+        <button
+          className={`${styles.actionBtn} ${styles.actionBtnConfirm}`}
+          onClick={handleConfirm}
+          disabled={isSubmitting}
+          aria-label="Confirmar tarefa"
+          title="Confirmar"
+          type="button"
+        >
+          <Check size={20} weight="regular" />
+        </button>
       </div>
     </article>
   );

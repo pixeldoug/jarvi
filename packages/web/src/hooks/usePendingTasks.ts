@@ -173,9 +173,10 @@ export const usePendingTasks = (): UsePendingTasksResult => {
       transports: ['websocket', 'polling'],
     });
 
-    socket.on('pending-task:created', (task: PendingTask) => {
-      setPendingTasks((prev) => [task, ...prev.filter((item) => item.id !== task.id)]);
-      toast.success('Nova tarefa sugerida via WhatsApp.');
+    socket.on('pending-task:created', (payload: { id: string; source?: string }) => {
+      const sourceLabel = payload.source === 'gmail' ? 'Gmail' : 'WhatsApp';
+      toast.success(`Nova tarefa sugerida via ${sourceLabel}.`);
+      void refresh();
     });
 
     socket.on('pending-task:updated', (payload: { id: string; status: string }) => {

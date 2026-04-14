@@ -19,8 +19,10 @@ import earlyAccessRoutes from './routes/earlyAccessRoutes';
 import whatsappRoutes from './routes/whatsappRoutes';
 import pendingTaskRoutes from './routes/pendingTaskRoutes';
 import aiRoutes from './routes/aiRoutes';
+import gmailRoutes from './routes/gmailRoutes';
 import { CollaborationService } from './services/collaborationService';
 import { initializeWhatsappWorker } from './queues/whatsappQueue';
+import { initializeGmailWorker } from './queues/gmailQueue';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -175,6 +177,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/early-access', earlyAccessRoutes);
 app.use('/api/pending-tasks', pendingTaskRoutes);
 app.use('/api/ai', aiLimiter, aiRoutes);
+app.use('/api/gmail', gmailRoutes);
 app.use('/api', noteShareRoutes);
 
 // Catch-all for unknown routes & central error handler
@@ -189,11 +192,13 @@ initializeDatabase()
     // Initialize collaboration service
     const collaborationService = new CollaborationService(server);
     initializeWhatsappWorker();
+    initializeGmailWorker();
     
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🤝 Collaboration service initialized`);
       console.log('📱 WhatsApp worker initialized');
+      console.log('📧 Gmail worker initialized');
     });
   })
   .catch((error) => {

@@ -11,6 +11,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 export interface Task {
   id: string;
   user_id: string;
+  source?: string | null;
   title: string;
   description?: string;
   original_whatsapp_content?: string | null;

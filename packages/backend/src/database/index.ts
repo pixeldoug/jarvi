@@ -867,6 +867,48 @@ const runMigrations = async (): Promise<void> => {
           // Column already exists, ignore
         }
       }
+
+      // Migration: Add Gmail OAuth token columns
+      const gmailUserMigrations = [
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_access_token TEXT',
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS google_refresh_token TEXT',
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_connected_at TIMESTAMP',
+      ];
+      for (const migration of gmailUserMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      // Migration: Create gmail_processed_emails table to avoid re-analyzing the same email
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS gmail_processed_emails (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          gmail_message_id TEXT NOT NULL,
+          processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(user_id, gmail_message_id),
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      // Migration: Add source column to tasks table
+      try {
+        await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'manual'`);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      // Migration: Add gmail_message_id to pending_tasks for deduplication
+      try {
+        await client.query(`ALTER TABLE pending_tasks ADD COLUMN IF NOT EXISTS gmail_message_id TEXT`);
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -1081,6 +1123,48 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+    }
+
+    // Migration: Add Gmail OAuth token columns for SQLite
+    const gmailUserMigrationsSqlite = [
+      'ALTER TABLE users ADD COLUMN google_access_token TEXT',
+      'ALTER TABLE users ADD COLUMN google_refresh_token TEXT',
+      'ALTER TABLE users ADD COLUMN gmail_connected_at DATETIME',
+    ];
+    for (const migration of gmailUserMigrationsSqlite) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    // Migration: Create gmail_processed_emails table for SQLite
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS gmail_processed_emails (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        gmail_message_id TEXT NOT NULL,
+        processed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, gmail_message_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Add source column to tasks table for SQLite
+    try {
+      await db.exec(`ALTER TABLE tasks ADD COLUMN source TEXT DEFAULT 'manual'`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add gmail_message_id to pending_tasks for deduplication (SQLite)
+    try {
+      await db.exec(`ALTER TABLE pending_tasks ADD COLUMN gmail_message_id TEXT`);
+    } catch (e) {
+      // Column already exists, ignore
     }
   }
 };
