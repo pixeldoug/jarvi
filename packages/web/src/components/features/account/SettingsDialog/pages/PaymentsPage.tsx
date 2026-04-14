@@ -44,9 +44,9 @@ const PLANS: PlanOption[] = [
     id: 'annual',
     title: 'Anual',
     chip: 'Economize 17%',
-    price: 'R$ 249,00',
-    suffix: '/ano',
-    description: 'Equivale a R$ 20,75/mês',
+    price: 'R$ 20,75',
+    suffix: '/mês',
+    description: 'Equivale a R$ 249,00/ano',
   },
   {
     id: 'lifetime',
