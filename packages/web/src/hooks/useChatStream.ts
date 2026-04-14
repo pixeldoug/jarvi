@@ -37,6 +37,7 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isWaiting, setIsWaiting] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(async (text: string) => {
@@ -55,6 +56,7 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
     let afterSeparator = false;
     setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '', contentAfter: '', toolCalls: [] }]);
     setIsStreaming(true);
+    setIsWaiting(true);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -100,6 +102,7 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
 
           switch (event.type) {
             case 'text':
+              setIsWaiting(false);
               if (afterSeparator) {
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -121,9 +124,11 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
 
             case 'separator':
               afterSeparator = true;
+              setIsWaiting(true);
               break;
 
             case 'tool_call':
+              setIsWaiting(true);
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === assistantId
@@ -168,15 +173,20 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
               );
               break;
 
-            case 'error':
+            case 'error': {
+              const errorText = event.message || 'Ocorreu um erro.';
               setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId && !m.content
-                    ? { ...m, content: event.message || 'Ocorreu um erro.' }
-                    : m,
-                ),
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m;
+                  if (!m.content) return { ...m, content: errorText };
+                  if (afterSeparator) {
+                    return { ...m, contentAfter: (m.contentAfter || '') + (m.contentAfter ? '\n\n' : '') + `⚠️ ${errorText}` };
+                  }
+                  return { ...m, content: m.content + `\n\n⚠️ ${errorText}` };
+                }),
               );
               break;
+            }
 
             case 'done':
               break;
@@ -195,6 +205,7 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
       }
     } finally {
       setIsStreaming(false);
+      setIsWaiting(false);
       abortRef.current = null;
     }
   }, [token, messages, isStreaming, mode, taskId]);
@@ -203,11 +214,12 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
     if (abortRef.current) abortRef.current.abort();
     setMessages([]);
     setIsStreaming(false);
+    setIsWaiting(false);
   }, []);
 
   const stop = useCallback(() => {
     if (abortRef.current) abortRef.current.abort();
   }, []);
 
-  return { messages, sendMessage, isStreaming, reset, stop };
+  return { messages, sendMessage, isStreaming, isWaiting, reset, stop };
 }

@@ -36,7 +36,7 @@ export function AIChatPanel({
   onCategoryCardClick,
 }: AIChatPanelProps) {
   const { user } = useAuth();
-  const { messages, sendMessage, isStreaming, reset } = useChatStream(mode, taskId);
+  const { messages, sendMessage, isStreaming, isWaiting, reset } = useChatStream(mode, taskId);
   const [input, setInput] = useState('');
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -168,7 +168,7 @@ export function AIChatPanel({
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} onTaskCardClick={onTaskCardClick} onListCardClick={onListCardClick} onCategoryCardClick={onCategoryCardClick} />
             ))}
-            {isStreaming && messages[messages.length - 1]?.content === '' && (
+            {isStreaming && isWaiting && (
               <div className={styles.typingIndicator}>
                 <span />
                 <span />
