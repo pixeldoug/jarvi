@@ -5,6 +5,7 @@ import {
   updateUserSubscription,
   getUserByStripeCustomerId,
   getUserByEmail,
+  getUserById,
 } from '../services/stripeService';
 import { handleSlackApprovalInteraction } from '../controllers/earlyAccessController';
 
@@ -106,6 +107,12 @@ router.post('/stripe', async (req: Request, res: Response) => {
  * Handle checkout.session.completed event
  * This is used for Stripe Payment Links / Checkout to link the Stripe customer/subscription
  * back to our user record.
+ *
+ * Lookup order:
+ *  1. session.client_reference_id  — set by frontend via ?client_reference_id=<userId>
+ *     This is the most reliable method since it uses the Jarvi user ID directly.
+ *  2. session.customer_details.email / session.customer_email — fallback for sessions
+ *     where the frontend did not pass client_reference_id (e.g. direct link visits).
  */
 async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session
@@ -117,21 +124,9 @@ async function handleCheckoutSessionCompleted(
       ? session.subscription
       : (session.subscription as any)?.id;
 
-  const email = session.customer_details?.email || session.customer_email || undefined;
-
-  if (!email) {
-    console.error('checkout.session.completed missing customer email', {
-      id: session.id,
-      customer: session.customer,
-      subscription: session.subscription,
-    });
-    return;
-  }
-
   if (!customerId) {
     console.error('checkout.session.completed missing customer id', {
       id: session.id,
-      email,
       subscription: session.subscription,
     });
     return;
@@ -140,19 +135,38 @@ async function handleCheckoutSessionCompleted(
   if (!subscriptionId) {
     console.error('checkout.session.completed missing subscription id', {
       id: session.id,
-      email,
       customer: session.customer,
     });
     return;
   }
 
-  const user = await getUserByEmail(email);
-  if (!user) {
-    console.error('User not found for checkout session email', { email, sessionId: session.id });
-    return;
-  }
+  // 1. Try client_reference_id (most reliable — Jarvi user ID passed via payment link URL)
+  let user: { id: string; email: string } | null = session.client_reference_id
+    ? await getUserById(session.client_reference_id)
+    : null;
 
-  console.log(`🔗 Linking Stripe customer/subscription for ${user.email}`);
+  if (user) {
+    console.log(`🔗 [client_reference_id] Linking Stripe subscription for ${user.email}`);
+  } else {
+    // 2. Fallback: look up by email from the checkout session
+    const email = session.customer_details?.email || session.customer_email || undefined;
+    if (!email) {
+      console.error('checkout.session.completed: no client_reference_id and no email', {
+        id: session.id,
+        customer: session.customer,
+      });
+      return;
+    }
+    user = await getUserByEmail(email);
+    if (!user) {
+      console.error('checkout.session.completed: user not found by email', {
+        email,
+        sessionId: session.id,
+      });
+      return;
+    }
+    console.log(`🔗 [email fallback] Linking Stripe subscription for ${user.email}`);
+  }
 
   await updateUserSubscription(user.id, {
     stripeCustomerId: customerId,

@@ -14,6 +14,7 @@
  */
 
 import { Lightning } from '@phosphor-icons/react';
+import { useAuth } from '../../../../../contexts/AuthContext';
 import { useSubscription, type PlanType } from '../../../../../contexts/SubscriptionContext';
 import { Button, Chip, Divider } from '../../../../ui';
 import styles from '../SettingsDialog.module.css';
@@ -84,7 +85,16 @@ export interface PaymentsPageProps {
 }
 
 export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
+  const { user } = useAuth();
   const { subscription, hasActiveSubscription } = useSubscription();
+
+  const buildPaymentUrl = (baseUrl: string) => {
+    if (!baseUrl) return baseUrl;
+    const url = new URL(baseUrl);
+    if (user?.id) url.searchParams.set('client_reference_id', user.id);
+    if (user?.email) url.searchParams.set('prefilled_email', user.email);
+    return url.toString();
+  };
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return null;
     return new Date(dateString).toLocaleDateString('pt-BR', {
@@ -195,7 +205,7 @@ export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
               icon={Lightning}
               iconPosition="left"
               fullWidth
-              onClick={() => window.open(PAYMENT_URLS[plan.id], '_blank', 'noopener,noreferrer')}
+              onClick={() => window.open(buildPaymentUrl(PAYMENT_URLS[plan.id]), '_blank', 'noopener,noreferrer')}
             >
               Assinar
             </Button>

@@ -355,7 +355,7 @@ interface UserWithStripeInfo {
 /**
  * Get user by ID
  */
-async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
+export async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
   if (isPostgreSQL()) {
     const pool = getPool();
     const client = await pool.connect();
