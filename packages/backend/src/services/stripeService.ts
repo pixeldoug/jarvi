@@ -134,6 +134,16 @@ export async function cancelSubscription(userId: string): Promise<void> {
   });
 }
 
+type PlanType = 'monthly' | 'annual' | 'lifetime' | null;
+
+function detectPlanType(priceId: string | undefined | null): PlanType {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_ID) return 'monthly';
+  if (process.env.STRIPE_PRICE_ID_ANNUAL && priceId === process.env.STRIPE_PRICE_ID_ANNUAL) return 'annual';
+  if (process.env.STRIPE_PRICE_ID_LIFETIME && priceId === process.env.STRIPE_PRICE_ID_LIFETIME) return 'lifetime';
+  return null;
+}
+
 /**
  * Get subscription status from Stripe
  */
@@ -141,6 +151,8 @@ export async function getSubscriptionStatus(userId: string): Promise<{
   status: string;
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
+  trialExtended: boolean;
+  planType: PlanType;
 }> {
   if (!stripe) {
     throw new Error('Stripe is not configured');
@@ -148,11 +160,28 @@ export async function getSubscriptionStatus(userId: string): Promise<{
 
   const user = await getUserById(userId);
   if (!user) {
-    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null };
+    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null, trialExtended: false, planType: null };
   }
+
+  const trialExtended = !!(user.trial_extended);
 
   // No Stripe subscription yet: fall back to internal trial (if any)
   if (!user.stripe_subscription_id) {
+    // Dev shortcut: allow simulating active/canceled/past_due without a real Stripe subscription.
+    // This is intentionally restricted to non-production environments.
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      ['active', 'canceled', 'past_due'].includes(user.subscription_status)
+    ) {
+      return {
+        status: user.subscription_status,
+        trialEndsAt: null,
+        currentPeriodEnd: null,
+        trialExtended,
+        planType: 'monthly',
+      };
+    }
+
     const trialEnd = user.trial_ends_at ? new Date(user.trial_ends_at) : null;
     const isTrialing =
       user.subscription_status === 'trialing' &&
@@ -165,6 +194,8 @@ export async function getSubscriptionStatus(userId: string): Promise<{
         status: 'trialing',
         trialEndsAt: trialEnd,
         currentPeriodEnd: trialEnd,
+        trialExtended,
+        planType: null,
       };
     }
 
@@ -173,7 +204,7 @@ export async function getSubscriptionStatus(userId: string): Promise<{
       await updateUserSubscription(userId, { subscriptionStatus: 'none' });
     }
 
-    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null };
+    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null, trialExtended, planType: null };
   }
 
   const subscription = await stripe.subscriptions.retrieve(
@@ -181,11 +212,12 @@ export async function getSubscriptionStatus(userId: string): Promise<{
     { expand: ['items.data'] }
   );
 
-  // Get current_period_end from the first subscription item
+  // Get current_period_end and price ID from the first subscription item
   const firstItem = subscription.items?.data?.[0];
   const currentPeriodEnd = firstItem?.current_period_end 
     ? new Date(firstItem.current_period_end * 1000)
     : null;
+  const planType = detectPlanType(firstItem?.price?.id);
 
   const trialEndsAt = subscription.trial_end
     ? new Date(subscription.trial_end * 1000)
@@ -203,7 +235,33 @@ export async function getSubscriptionStatus(userId: string): Promise<{
     status: subscription.status,
     trialEndsAt,
     currentPeriodEnd,
+    trialExtended: !!(user.trial_extended),
+    planType,
   };
+}
+
+/**
+ * Create a Stripe Billing Portal session for the user to manage their subscription.
+ */
+export async function createPortalSession(
+  userId: string,
+  returnUrl: string
+): Promise<{ url: string }> {
+  if (!stripe) {
+    throw new Error('Stripe is not configured');
+  }
+
+  const user = await getUserById(userId);
+  if (!user?.stripe_customer_id) {
+    throw new Error('User has no Stripe customer');
+  }
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: user.stripe_customer_id,
+    return_url: returnUrl,
+  });
+
+  return { url: session.url };
 }
 
 /**
@@ -291,6 +349,7 @@ interface UserWithStripeInfo {
   stripe_subscription_id: string | null;
   subscription_status: string;
   trial_ends_at: string | null;
+  trial_extended: boolean | number | null;
 }
 
 /**
@@ -302,7 +361,7 @@ async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at FROM users WHERE id = $1',
+        'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at, trial_extended FROM users WHERE id = $1',
         [userId]
       );
       return result.rows[0] || null;
@@ -312,7 +371,7 @@ async function getUserById(userId: string): Promise<UserWithStripeInfo | null> {
   } else {
     const db = getDatabase();
     const result = await db.get<UserWithStripeInfo>(
-      'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at FROM users WHERE id = ?',
+      'SELECT id, email, stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at, trial_extended FROM users WHERE id = ?',
       [userId]
     );
     return result ?? null;
@@ -377,6 +436,43 @@ export async function getUserByEmail(email: string): Promise<UserBasicInfo | nul
     );
     return result ?? null;
   }
+}
+
+/**
+ * Extend the user's trial by 1 day (allowed only once).
+ * Returns false if the user has already used the extension.
+ */
+export async function extendTrial(userId: string): Promise<{ extended: boolean }> {
+  const user = await getUserById(userId);
+  if (!user) throw new Error('User not found');
+
+  if ((user as any).trial_extended) {
+    return { extended: false };
+  }
+
+  const oneDayFromNow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const now = new Date().toISOString();
+
+  if (isPostgreSQL()) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE users SET subscription_status = 'trialing', trial_ends_at = $1, trial_extended = TRUE, updated_at = $2 WHERE id = $3`,
+        [oneDayFromNow.toISOString(), now, userId]
+      );
+    } finally {
+      client.release();
+    }
+  } else {
+    const db = getDatabase();
+    await db.run(
+      `UPDATE users SET subscription_status = 'trialing', trial_ends_at = ?, trial_extended = 1, updated_at = ? WHERE id = ?`,
+      [oneDayFromNow.toISOString(), now, userId]
+    );
+  }
+
+  return { extended: true };
 }
 
 /**

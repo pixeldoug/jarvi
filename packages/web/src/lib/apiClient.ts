@@ -37,6 +37,15 @@ async function request<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
+    // Notify the app when the backend rejects due to expired subscription
+    if (
+      response.status === 403 &&
+      typeof body === 'object' &&
+      body !== null &&
+      (body as Record<string, unknown>).error === 'subscription_required'
+    ) {
+      window.dispatchEvent(new CustomEvent('jarvi:subscription_required'));
+    }
     throw new ApiError(response.status, body);
   }
 

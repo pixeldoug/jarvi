@@ -13,6 +13,7 @@ import { Chip } from '../Chip';
 import { TaskDatePicker, PriorityPicker, CategoryPicker } from '../../features/tasks';
 import { useCategories, type Category } from '../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
+import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { toast } from '../Sonner';
 import styles from './ControlBar.module.css';
 
@@ -46,6 +47,7 @@ export function ControlBar({
 }: ControlBarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
+  const { trialExpired } = useSubscription();
 
   // 'prompt' = AI mode (default) | 'task' = manual task creation
   const [mode, setMode] = useState<'prompt' | 'task'>('prompt');
@@ -75,6 +77,7 @@ export function ControlBar({
   const priorityChipRef = useRef<HTMLDivElement>(null);
 
   const handleSwitchToTask = useCallback(() => {
+    if (trialExpired) return;
     setMode('task');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -142,6 +145,7 @@ export function ControlBar({
   // ── Prompt handlers ──────────────────────────────────────────────────────────
 
   const handlePromptSubmit = () => {
+    if (trialExpired) return;
     if (onSubmitPrompt && promptText.trim()) {
       onSubmitPrompt(promptText.trim());
     } else if (onOpenChat) {
@@ -160,7 +164,7 @@ export function ControlBar({
   // ── Task creation handlers ────────────────────────────────────────────────────
 
   const handleSubmitTask = async () => {
-    if (!title.trim()) return;
+    if (!title.trim() || trialExpired) return;
 
     let formattedDueDate: string | undefined;
     if (dueDate) {
@@ -248,7 +252,7 @@ export function ControlBar({
     }
   };
 
-  const isSubmitDisabled = !title.trim();
+  const isSubmitDisabled = !title.trim() || trialExpired;
 
   // ── Toggle group ─────────────────────────────────────────────────────────────
 
@@ -271,7 +275,7 @@ export function ControlBar({
         onClick={mode === 'prompt' ? handleSwitchToTask : undefined}
         aria-label="Criar tarefa"
         aria-pressed={mode === 'task'}
-        disabled={!onCreateTask}
+        disabled={!onCreateTask || trialExpired}
       >
         <PencilSimple weight={mode === 'task' ? 'fill' : 'regular'} size={18} />
       </button>
@@ -407,6 +411,7 @@ export function ControlBar({
               onKeyDown={handlePromptKeyDown}
               placeholder="Me diga o que você precisa fazer ou saber..."
               className={styles.promptInput}
+              disabled={trialExpired}
             />
 
             {toggleGroup}
@@ -416,6 +421,7 @@ export function ControlBar({
               className={styles.sendButton}
               onClick={handlePromptSubmit}
               aria-label="Enviar"
+              disabled={trialExpired}
             >
               <PaperPlaneTilt weight="fill" size={20} />
             </button>

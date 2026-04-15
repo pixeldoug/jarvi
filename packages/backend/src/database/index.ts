@@ -909,6 +909,13 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Add trial_extended flag to users
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_extended BOOLEAN DEFAULT FALSE');
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -1163,6 +1170,13 @@ const runMigrations = async (): Promise<void> => {
     // Migration: Add gmail_message_id to pending_tasks for deduplication (SQLite)
     try {
       await db.exec(`ALTER TABLE pending_tasks ADD COLUMN gmail_message_id TEXT`);
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add trial_extended flag to users (SQLite)
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN trial_extended BOOLEAN DEFAULT FALSE');
     } catch (e) {
       // Column already exists, ignore
     }

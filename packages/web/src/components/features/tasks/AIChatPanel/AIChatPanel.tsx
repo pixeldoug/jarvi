@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import { X, PaperPlaneRight, NotePencil, Sparkle } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useSubscription } from '../../../../contexts/SubscriptionContext';
 import { useChatStream, ToolCallData } from '../../../../hooks/useChatStream';
 import { Button } from '../../../ui';
 import { ChatMessage } from './ChatMessage';
@@ -36,6 +37,7 @@ export function AIChatPanel({
   onCategoryCardClick,
 }: AIChatPanelProps) {
   const { user } = useAuth();
+  const { trialExpired } = useSubscription();
   const { messages, sendMessage, isStreaming, isWaiting, reset } = useChatStream(mode, taskId);
   const [input, setInput] = useState('');
   const chatBodyRef = useRef<HTMLDivElement>(null);
@@ -87,7 +89,7 @@ export function AIChatPanel({
 
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text || isStreaming) return;
+    if (!text || isStreaming || trialExpired) return;
     setInput('');
     sendMessage(text);
     if (textareaRef.current) {
@@ -103,6 +105,7 @@ export function AIChatPanel({
   };
 
   const handleSkillSelect = (skill: string) => {
+    if (trialExpired) return;
     sendMessage(skill);
   };
 
@@ -190,12 +193,12 @@ export function AIChatPanel({
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
             rows={1}
-            disabled={isStreaming}
+            disabled={isStreaming || trialExpired}
           />
           <button
             className={styles.sendButton}
             onClick={handleSend}
-            disabled={!input.trim() || isStreaming}
+            disabled={!input.trim() || isStreaming || trialExpired}
             aria-label="Enviar"
           >
             <PaperPlaneRight size={20} weight="fill" />

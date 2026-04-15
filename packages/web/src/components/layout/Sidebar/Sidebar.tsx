@@ -208,7 +208,7 @@ export function Sidebar({
   const userAvatar = user?.avatar;
   const planLabel =
     subscription?.status === 'trialing' && daysLeftInTrial !== null && daysLeftInTrial > 0
-      ? `${daysLeftInTrial} dias para testar`
+      ? `${daysLeftInTrial} ${daysLeftInTrial === 1 ? 'dia' : 'dias'} para testar`
       : subscription?.status === 'active'
         ? 'Plano Pro'
         : 'Plano Gratuito';

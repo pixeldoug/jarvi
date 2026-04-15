@@ -1,16 +1,26 @@
 /**
  * PaymentsPage - SettingsDialog
  *
- * "Pagamentos" tab: current plan info + upgrade cards (Mensal / Anual / Vitalício).
+ * "Pagamentos" tab: current plan info + upgrade cards.
+ *
+ * States:
+ *  - Trial / None / Canceled: shows all 3 plan cards with "Assinar" CTA
+ *  - Active: shows current plan name + "Gerenciar Plano" button (Stripe portal).
+ *            Plan changes are handled entirely via the Stripe Billing Portal
+ *            to avoid creating duplicate subscriptions.
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
- * Node: 40001319-21233
+ * Node: 40001319-31767 (active/paid state)
  */
 
 import { Lightning } from '@phosphor-icons/react';
-import { useSubscription } from '../../../../../contexts/SubscriptionContext';
+import { useSubscription, type PlanType } from '../../../../../contexts/SubscriptionContext';
 import { Button, Chip, Divider } from '../../../../ui';
 import styles from '../SettingsDialog.module.css';
+
+const BILLING_PORTAL_URL =
+  import.meta.env.VITE_STRIPE_BILLING_PORTAL_URL ||
+  'https://billing.stripe.com/p/login/4gw8xg46U6RdaRO288?locale=pt-br';
 
 // ============================================================================
 // PLAN DATA
@@ -22,6 +32,12 @@ const PAYMENT_URLS = {
   lifetime: import.meta.env.VITE_STRIPE_PAYMENT_LINK_ONETIME_URL || '',
 } as const;
 
+const PLAN_DISPLAY_NAMES: Record<NonNullable<PlanType>, string> = {
+  monthly:  'Mensal',
+  annual:   'Anual',
+  lifetime: 'Vitalício',
+};
+
 interface PlanOption {
   id: keyof typeof PAYMENT_URLS;
   title: string;
@@ -31,7 +47,8 @@ interface PlanOption {
   description: string;
 }
 
-const PLANS: PlanOption[] = [
+/** Plans shown when the user has NO active subscription (trial / none). */
+const PLANS_UPSELL: PlanOption[] = [
   {
     id: 'monthly',
     title: 'Mensal',
@@ -67,8 +84,7 @@ export interface PaymentsPageProps {
 }
 
 export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
-  const { subscription } = useSubscription();
-
+  const { subscription, hasActiveSubscription } = useSubscription();
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return null;
     return new Date(dateString).toLocaleDateString('pt-BR', {
@@ -78,15 +94,44 @@ export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
     });
   };
 
+  const planType = subscription?.planType ?? null;
+  const planDisplayName = planType ? PLAN_DISPLAY_NAMES[planType] : null;
+
+  // ── Active subscription ────────────────────────────────────────────────────
+  if (hasActiveSubscription && subscription?.status === 'active') {
+    const nextBilling = formatDate(subscription.currentPeriodEnd);
+
+    return (
+      <div className={styles.section}>
+        <div>
+          <p className={styles.sectionLabel}>Seu Plano</p>
+          <p className={styles.planCurrentName} style={{ color: 'var(--semantic-content-info)' }}>
+            {planDisplayName ?? 'Pro'}
+          </p>
+        </div>
+
+        {nextBilling && (
+          <p className={styles.sectionDescription}>
+            Sua próxima cobrança acontecerá em {nextBilling}.
+          </p>
+        )}
+
+        <div>
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={() => window.open(BILLING_PORTAL_URL, '_blank', 'noopener,noreferrer')}
+          >
+            Gerenciar Plano
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Trial / None / Past Due / Canceled ─────────────────────────────────────
   const getPlanInfo = () => {
     switch (subscription?.status) {
-      case 'active':
-        return {
-          name: 'Jarvi Plus',
-          description: subscription?.currentPeriodEnd
-            ? `Seu plano renovará automaticamente em ${formatDate(subscription.currentPeriodEnd)}.`
-            : null,
-        };
       case 'trialing':
         return {
           name: 'Gratuito',
@@ -124,7 +169,7 @@ export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
       <p className={styles.upgradeTitle}>Mude para o plano pro</p>
 
       <div className={styles.plansGrid}>
-        {PLANS.map((plan) => (
+        {PLANS_UPSELL.map((plan) => (
           <div key={plan.id} className={styles.planCard}>
             <div className={styles.planCardInfo}>
               <div className={styles.planTitleRow}>

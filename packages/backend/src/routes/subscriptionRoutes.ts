@@ -4,6 +4,8 @@ import {
   createCustomerWithSubscription,
   cancelSubscription,
   getSubscriptionStatus,
+  extendTrial,
+  createPortalSession,
 } from '../services/stripeService';
 
 const router = Router();
@@ -102,11 +104,72 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
       trialEndsAt: status.trialEndsAt?.toISOString() || null,
       currentPeriodEnd: status.currentPeriodEnd?.toISOString() || null,
       isActive: ['trialing', 'active'].includes(status.status),
+      trialExtended: status.trialExtended,
+      planType: status.planType,
     });
   } catch (error) {
     console.error('Get subscription status error:', error);
     res.status(500).json({
       error: 'Failed to get subscription status',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/subscriptions/extend-trial
+ * Extend the user's trial by 1 day (only once per user).
+ */
+router.post('/extend-trial', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const result = await extendTrial(user.id);
+
+    if (!result.extended) {
+      res.status(409).json({
+        error: 'trial_already_extended',
+        message: 'Trial extension has already been used',
+      });
+      return;
+    }
+
+    res.json({ message: 'Trial extended by 1 day' });
+  } catch (error) {
+    console.error('Extend trial error:', error);
+    res.status(500).json({
+      error: 'Failed to extend trial',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/subscriptions/portal
+ * Create a Stripe Billing Portal session for the authenticated user.
+ */
+router.post('/portal', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const returnUrl = (req.body.returnUrl as string) || process.env.APP_URL || 'http://localhost:3000';
+    const { url } = await createPortalSession(user.id, returnUrl);
+
+    res.json({ url });
+  } catch (error) {
+    console.error('Create portal session error:', error);
+    res.status(500).json({
+      error: 'Failed to create portal session',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }

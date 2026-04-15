@@ -8,11 +8,13 @@ import {
   searchUsers 
 } from '../controllers/noteShareController';
 import { authenticateToken } from '../middleware/auth';
+import { requireActiveSubscription } from '../middleware/requireSubscription';
 
 const router = Router();
 
-// Aplicar middleware de autenticação em todas as rotas
+// Aplicar middleware de autenticação e assinatura ativa em todas as rotas
 router.use(authenticateToken);
+router.use(requireActiveSubscription);
 
 // Compartilhar uma nota
 router.post('/notes/:noteId/share', shareNote);

@@ -20,6 +20,7 @@ import { ToastProvider } from './components/ui';
 import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
+import { TrialExpiredGate } from './components/features/subscription/TrialExpiredGate/TrialExpiredGate';
 
 // Lazy load pages
 const VerifyPendingPage = lazy(() => import('./pages/VerifyPending'));
@@ -40,7 +41,12 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <TrialExpiredGate />
+    </>
+  );
 };
 
 // App Routes Component

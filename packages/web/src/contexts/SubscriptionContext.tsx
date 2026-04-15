@@ -9,11 +9,15 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 
+export type PlanType = 'monthly' | 'annual' | 'lifetime' | null;
+
 interface SubscriptionStatus {
   status: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled';
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   isActive: boolean;
+  trialExtended: boolean;
+  planType: PlanType;
 }
 
 interface SubscriptionContextType {
@@ -24,6 +28,8 @@ interface SubscriptionContextType {
   hasActiveSubscription: boolean;
   needsSubscription: boolean;
   daysLeftInTrial: number | null;
+  trialExtended: boolean;
+  trialExpired: boolean;
 }
 
 const defaultSubscription: SubscriptionStatus = {
@@ -31,6 +37,8 @@ const defaultSubscription: SubscriptionStatus = {
   trialEndsAt: null,
   currentPeriodEnd: null,
   isActive: false,
+  trialExtended: false,
+  planType: null,
 };
 
 const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
@@ -69,6 +77,17 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
 
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Unknown error') : null;
 
+  // Refresh when backend returns 403 subscription_required
+  useEffect(() => {
+    const handleSubscriptionRequired = () => {
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+    };
+    window.addEventListener('jarvi:subscription_required', handleSubscriptionRequired);
+    return () => {
+      window.removeEventListener('jarvi:subscription_required', handleSubscriptionRequired);
+    };
+  }, [queryClient]);
+
   // Refresh on tab focus / visibility change (with 5s throttle)
   useEffect(() => {
     const maybeRefresh = () => {
@@ -105,6 +124,11 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
 
   const hasActiveSubscription = subscription?.isActive ?? false;
   const needsSubscription = subscription?.status === 'none';
+  const trialExtended = subscription?.trialExtended ?? false;
+  const trialExpired =
+    !hasActiveSubscription &&
+    (subscription?.status === 'none' ||
+      (subscription?.status === 'trialing' && daysLeftInTrial === 0));
 
   const value: SubscriptionContextType = {
     subscription: subscription ?? null,
@@ -114,6 +138,8 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     hasActiveSubscription,
     needsSubscription,
     daysLeftInTrial,
+    trialExtended,
+    trialExpired,
   };
 
   return (

@@ -7,13 +7,14 @@ import {
   deleteSubTask,
 } from '../controllers/subTaskController';
 import { authenticateToken } from '../middleware/auth';
+import { requireActiveSubscription } from '../middleware/requireSubscription';
 
 const router = Router({ mergeParams: true });
 
-router.get('/', authenticateToken, getSubTasks);
-router.post('/', authenticateToken, createSubTask);
-router.put('/:id', authenticateToken, updateSubTask);
-router.patch('/:id/toggle', authenticateToken, toggleSubTask);
-router.delete('/:id', authenticateToken, deleteSubTask);
+router.get('/', authenticateToken, requireActiveSubscription, getSubTasks);
+router.post('/', authenticateToken, requireActiveSubscription, createSubTask);
+router.put('/:id', authenticateToken, requireActiveSubscription, updateSubTask);
+router.patch('/:id/toggle', authenticateToken, requireActiveSubscription, toggleSubTask);
+router.delete('/:id', authenticateToken, requireActiveSubscription, deleteSubTask);
 
 export default router;

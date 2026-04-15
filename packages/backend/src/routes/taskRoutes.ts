@@ -7,16 +7,17 @@ import {
   toggleTaskCompletion,
 } from '../controllers/taskController';
 import { authenticateToken } from '../middleware/auth';
+import { requireActiveSubscription } from '../middleware/requireSubscription';
 import subTaskRouter from './subTaskRoutes';
 
 const router = Router();
 
-// Task routes (all require authentication)
-router.post('/', authenticateToken, createTask);
-router.get('/', authenticateToken, getTasks);
-router.put('/:id', authenticateToken, updateTask);
-router.delete('/:id', authenticateToken, deleteTask);
-router.patch('/:id/toggle', authenticateToken, toggleTaskCompletion);
+// Task routes (all require authentication + active subscription)
+router.post('/', authenticateToken, requireActiveSubscription, createTask);
+router.get('/', authenticateToken, requireActiveSubscription, getTasks);
+router.put('/:id', authenticateToken, requireActiveSubscription, updateTask);
+router.delete('/:id', authenticateToken, requireActiveSubscription, deleteTask);
+router.patch('/:id/toggle', authenticateToken, requireActiveSubscription, toggleTaskCompletion);
 
 // Sub-task routes nested under tasks
 router.use('/:taskId/subtasks', subTaskRouter);
