@@ -19,6 +19,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Lightning } from '@phosphor-icons/react';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
 import { apiClient } from '../../../../lib/apiClient';
 import { Button, Chip } from '../../../ui';
@@ -75,8 +76,17 @@ const PLANS: PlanOption[] = [
 // ============================================================================
 
 export function TrialExpiredGate() {
+  const { user } = useAuth();
   const { trialExpired, trialExtended, refreshSubscription } = useSubscription();
   const [isExtending, setIsExtending] = useState(false);
+
+  const buildPaymentUrl = (baseUrl: string) => {
+    if (!baseUrl) return baseUrl;
+    const url = new URL(baseUrl);
+    if (user?.id) url.searchParams.set('client_reference_id', user.id);
+    if (user?.email) url.searchParams.set('prefilled_email', user.email);
+    return url.toString();
+  };
 
   if (!trialExpired) return null;
 
@@ -139,7 +149,7 @@ export function TrialExpiredGate() {
                 iconPosition="left"
                 fullWidth
                 onClick={() =>
-                  window.open(PAYMENT_URLS[plan.id], '_blank', 'noopener,noreferrer')
+                  window.open(buildPaymentUrl(PAYMENT_URLS[plan.id]), '_blank', 'noopener,noreferrer')
                 }
               >
                 Assinar
