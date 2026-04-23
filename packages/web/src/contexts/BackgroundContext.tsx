@@ -51,7 +51,7 @@ export const BACKGROUND_OPTIONS: BackgroundOption[] = [
 ];
 
 const BACKGROUND_STORAGE_KEY = 'jarvi-background-id';
-const DEFAULT_BACKGROUND: BackgroundId = 'bg-warm-clouds';
+const DEFAULT_BACKGROUND: BackgroundId = 'bg-canyon';
 
 interface BackgroundContextType {
   backgroundId: BackgroundId;
