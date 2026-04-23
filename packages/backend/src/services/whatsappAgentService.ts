@@ -694,7 +694,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     ``,
     `📋 [título exato] — criada.`,
     ``,
-    `Já deixei registrada no app. Abre o Jarvi no computador, na aba Integrações, pra ver os detalhes e confirmar.`,
+    `Já criei a tarefa no app.`,
     ``,
     `[Inclua a seção "Sugestão de ajuste:" APENAS se a tarefa foi registrada sem data OU sem prioridade. Liste só os campos faltantes:]`,
     `Sugestão de ajuste:`,
