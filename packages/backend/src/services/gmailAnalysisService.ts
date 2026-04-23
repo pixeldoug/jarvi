@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { GmailEmail } from './gmailService';
 
 // ---------------------------------------------------------------------------
@@ -15,20 +15,24 @@ export interface EmailTaskSuggestion {
 }
 
 // ---------------------------------------------------------------------------
-// Anthropic client
+// OpenAI client
 // ---------------------------------------------------------------------------
 
-let anthropicClient: Anthropic | null = null;
+let openaiClient: OpenAI | null = null;
 
-const getAnthropicClient = (): Anthropic => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is required');
+const getOpenAIClient = (): OpenAI => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is required');
   }
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  if (!openaiClient) {
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
-  return anthropicClient;
+  return openaiClient;
 };
+
+// Simple JSON extraction — gpt-4o-mini is ~6-8x cheaper than gpt-5.4-mini
+// and plenty reliable for this schema. Do NOT upgrade without cost analysis.
+const EMAIL_ANALYSIS_MODEL = 'gpt-4o-mini';
 
 // ---------------------------------------------------------------------------
 // System prompt
@@ -92,7 +96,7 @@ export const analyzeEmail = async (
   email: GmailEmail,
   today: string,
 ): Promise<EmailTaskSuggestion> => {
-  const client = getAnthropicClient();
+  const client = getOpenAIClient();
 
   const userMessage = `Data de hoje: ${today}
 
@@ -113,25 +117,21 @@ Responda com JSON no formato:
   "category": "categoria ou null"
 }`;
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
+  const response = await client.chat.completions.create({
+    model: EMAIL_ANALYSIS_MODEL,
     max_tokens: 512,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userMessage }],
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userMessage },
+    ],
   });
 
-  const content = response.content[0];
-  if (content.type !== 'text') {
-    return buildNonActionable();
-  }
+  const text = response.choices[0]?.message?.content?.trim();
+  if (!text) return buildNonActionable();
 
   try {
-    const jsonText = content.text.trim();
-    const cleaned = jsonText.startsWith('```')
-      ? jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-      : jsonText;
-
-    const parsed = JSON.parse(cleaned) as Partial<EmailTaskSuggestion>;
+    const parsed = JSON.parse(text) as Partial<EmailTaskSuggestion>;
 
     const result = {
       isActionable: Boolean(parsed.isActionable),
@@ -153,7 +153,7 @@ Responda com JSON no formato:
     console.log(`[gmailAnalysis] "${email.subject.slice(0, 60)}" → actionable=${result.isActionable} priority=${result.priority}`);
     return result;
   } catch (err) {
-    console.error('[gmailAnalysisService] Failed to parse AI response:', err, content.text);
+    console.error('[gmailAnalysisService] Failed to parse AI response:', err, text);
     return buildNonActionable();
   }
 };

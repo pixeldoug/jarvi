@@ -1,5 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionToolMessageParam,
+} from 'openai/resources/chat/completions';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { hasIO, getIO } from '../utils/ioManager';
@@ -12,23 +16,7 @@ interface RedisLike {
 }
 
 // ---------------------------------------------------------------------------
-// Anthropic client
-// ---------------------------------------------------------------------------
-
-let anthropicClient: Anthropic | null = null;
-
-const getAnthropicClient = (): Anthropic => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is required');
-  }
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return anthropicClient;
-};
-
-// ---------------------------------------------------------------------------
-// OpenAI client (used for post-response memory extraction)
+// OpenAI client
 // ---------------------------------------------------------------------------
 
 let openaiClient: OpenAI | null = null;
@@ -42,6 +30,11 @@ const getOpenAIClient = (): OpenAI => {
   }
   return openaiClient;
 };
+
+// Primary model for the WhatsApp agent (conversational + tool calling)
+const AGENT_MODEL = 'gpt-5.4-mini';
+// Cheaper model used only for post-response memory extraction
+const MEMORY_MODEL = 'gpt-4o-mini';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -212,78 +205,97 @@ async function getTaskById(taskId: string, userId: string): Promise<TaskRow | nu
 }
 
 // ---------------------------------------------------------------------------
-// Tool definitions (Anthropic format)
+// Tool definitions (OpenAI format)
 // ---------------------------------------------------------------------------
 
-const WHATSAPP_TOOLS: Anthropic.Tool[] = [
+const WHATSAPP_TOOLS: ChatCompletionTool[] = [
   {
-    name: 'create_task',
-    description: 'Cria uma nova tarefa para o usuário diretamente na lista de tarefas.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        title: { type: 'string', description: 'Título da tarefa (conciso e descritivo)' },
-        description: { type: 'string', description: 'Descrição ou detalhes adicionais' },
-        priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Prioridade' },
-        due_date: { type: 'string', description: 'Data de vencimento no formato YYYY-MM-DD' },
-        time: { type: 'string', description: 'Horário no formato HH:MM' },
-        category: { type: 'string', description: 'Categoria da tarefa' },
-      },
-      required: ['title'],
-    },
-  },
-  {
-    name: 'update_task',
-    description: 'Atualiza campos de uma tarefa existente.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        task_id: { type: 'string', description: 'ID da tarefa a atualizar' },
-        title: { type: 'string' },
-        description: { type: 'string' },
-        priority: { type: 'string', enum: ['low', 'medium', 'high'] },
-        due_date: { type: 'string', description: 'YYYY-MM-DD' },
-        time: { type: 'string', description: 'HH:MM' },
-        category: { type: 'string' },
-      },
-      required: ['task_id'],
-    },
-  },
-  {
-    name: 'complete_task',
-    description: 'Marca uma tarefa como concluída.',
-    input_schema: {
-      type: 'object' as const,
-      properties: { task_id: { type: 'string' } },
-      required: ['task_id'],
-    },
-  },
-  {
-    name: 'delete_task',
-    description: 'Exclui permanentemente uma tarefa.',
-    input_schema: {
-      type: 'object' as const,
-      properties: { task_id: { type: 'string' } },
-      required: ['task_id'],
-    },
-  },
-  {
-    name: 'update_memory',
-    description:
-      'Atualiza o perfil de memória do usuário. O campo summary deve conter TODO o conhecimento acumulado — mescle sempre com a memória anterior, nunca descarte.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        summary: {
-          type: 'string',
-          description:
-            'Perfil completo e acumulado do usuário: relacionamentos, preferências, hábitos, contexto pessoal e profissional. Em terceira pessoa, em português.',
+    type: 'function',
+    function: {
+      name: 'create_task',
+      description: 'Cria uma nova tarefa para o usuário diretamente na lista de tarefas.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título da tarefa (conciso e descritivo)' },
+          description: { type: 'string', description: 'Descrição ou detalhes adicionais' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Prioridade' },
+          due_date: { type: 'string', description: 'Data de vencimento no formato YYYY-MM-DD' },
+          time: { type: 'string', description: 'Horário no formato HH:MM' },
+          category: { type: 'string', description: 'Categoria da tarefa' },
         },
+        required: ['title'],
       },
-      required: ['summary'],
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_task',
+      description: 'Atualiza campos de uma tarefa existente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          task_id: { type: 'string', description: 'ID da tarefa a atualizar' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+          due_date: { type: 'string', description: 'YYYY-MM-DD' },
+          time: { type: 'string', description: 'HH:MM' },
+          category: { type: 'string' },
+        },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_task',
+      description: 'Marca uma tarefa como concluída.',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'string' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_task',
+      description: 'Exclui permanentemente uma tarefa.',
+      parameters: {
+        type: 'object',
+        properties: { task_id: { type: 'string' } },
+        required: ['task_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_memory',
+      description:
+        'Atualiza o perfil de memória do usuário. O campo summary deve conter TODO o conhecimento acumulado — mescle sempre com a memória anterior, nunca descarte.',
+      parameters: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'string',
+            description:
+              'Perfil completo e acumulado do usuário: relacionamentos, preferências, hábitos, contexto pessoal e profissional. Em terceira pessoa, em português.',
+          },
+        },
+        required: ['summary'],
+      },
     },
   },
 ];
+
+// Tool names that create/mutate tasks; used by the anti-hallucination guardrail
+// to decide when a response claiming action without any tool call is invalid.
+const CREATION_TOOL_NAMES = new Set(['create_task']);
 
 // ---------------------------------------------------------------------------
 // Tool executor
@@ -645,7 +657,7 @@ async function extractMemoryPostResponse(
 
   const openai = getOpenAIClient();
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: MEMORY_MODEL,
     messages: [
       {
         role: 'user',
@@ -698,13 +710,113 @@ async function extractMemoryPostResponse(
 // Main agent runner
 // ---------------------------------------------------------------------------
 
+// Heuristic to detect when the assistant text claims a task was created.
+// Used by the anti-hallucination guardrail: if the model "confirms" creation
+// without ever calling create_task, we force a retry with tool_choice: 'required'.
+const CREATION_CLAIM_REGEX = /(^|\s)(➕|criada\b|criei\b|anotei\b|agendei\b|registrei\b)/i;
+
+interface AgentRunOptions {
+  forceToolChoice?: boolean;
+}
+
+interface AgentRunResult {
+  responseText: string;
+  toolCallNames: string[];
+}
+
+async function runAgentLoop(
+  userId: string,
+  userMessage: string,
+  systemPrompt: string,
+  initialMessages: ChatCompletionMessageParam[],
+  options: AgentRunOptions = {},
+): Promise<AgentRunResult> {
+  const openai = getOpenAIClient();
+  const MAX_ITERATIONS = 5;
+
+  let responseText = '';
+  let currentMessages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...initialMessages,
+  ];
+  const toolCallNames: string[] = [];
+
+  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    const response = await openai.chat.completions.create({
+      model: AGENT_MODEL,
+      messages: currentMessages,
+      tools: WHATSAPP_TOOLS,
+      // On the first iteration, honor the guardrail's request to force a tool call.
+      // After the first iteration, let the model decide (so it can speak the final text).
+      tool_choice: options.forceToolChoice && iteration === 0 ? 'required' : 'auto',
+      max_tokens: 1024,
+    });
+
+    const choice = response.choices[0];
+    const message = choice?.message;
+    const allToolCalls = message?.tool_calls ?? [];
+    // Narrow the union — we only use function tool calls, not custom ones.
+    const functionToolCalls = allToolCalls.filter(
+      (tc): tc is Extract<typeof tc, { type: 'function' }> => tc.type === 'function',
+    );
+
+    console.log('[WhatsApp Agent] iteration=%d finish_reason=%s tools=%s userId=%s',
+      iteration,
+      choice?.finish_reason,
+      functionToolCalls
+        .map((tc) => `${tc.function.name}(${tc.function.arguments})`)
+        .join(', ') || 'none',
+      userId,
+    );
+
+    const textContent = message?.content?.trim();
+    if (textContent) responseText = textContent;
+
+    if (!functionToolCalls.length) break;
+
+    // Push the assistant message (with tool_calls) onto the conversation.
+    currentMessages = [
+      ...currentMessages,
+      {
+        role: 'assistant',
+        content: message?.content ?? null,
+        tool_calls: functionToolCalls,
+      },
+    ];
+
+    // Execute each tool call and append the results as 'tool' messages.
+    const toolResultMessages: ChatCompletionToolMessageParam[] = await Promise.all(
+      functionToolCalls.map(async (tc) => {
+        let parsedArgs: Record<string, unknown> = {};
+        try {
+          parsedArgs = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+        } catch {
+          parsedArgs = {};
+        }
+
+        const result = await executeTool(tc.function.name, parsedArgs, userId, userMessage);
+        console.log('[WhatsApp Agent] tool=%s result=%s', tc.function.name, result);
+        toolCallNames.push(tc.function.name);
+
+        return {
+          role: 'tool' as const,
+          tool_call_id: tc.id,
+          content: result,
+        };
+      }),
+    );
+
+    currentMessages = [...currentMessages, ...toolResultMessages];
+  }
+
+  return { responseText, toolCallNames };
+}
+
 export const runWhatsappAgent = async (
   userId: string,
   userMessage: string,
   redis: RedisLike,
 ): Promise<string> => {
-  const anthropic = getAnthropicClient();
-
   const [{ memory, timezone }, tasks] = await Promise.all([
     getUserMemoryAndTimezone(userId),
     getUserTasks(userId),
@@ -721,7 +833,7 @@ export const runWhatsappAgent = async (
 
   // Inject a date-correction anchor at the end of history so the model always
   // sees the authoritative current date as the most recent context.
-  const dateCorrectionPair: Anthropic.MessageParam[] =
+  const dateCorrectionPair: ChatCompletionMessageParam[] =
     history.length > 0
       ? [
           { role: 'user', content: `[SISTEMA] Qual é a data de hoje?` },
@@ -729,69 +841,38 @@ export const runWhatsappAgent = async (
         ]
       : [];
 
-  const conversationMessages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({ role: m.role, content: m.content } as Anthropic.MessageParam)),
+  const initialMessages: ChatCompletionMessageParam[] = [
+    ...history.map(
+      (m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam),
+    ),
     ...dateCorrectionPair,
     { role: 'user', content: userMessage },
   ];
 
-  let responseText = '';
-  let currentMessages = conversationMessages;
-  const MAX_ITERATIONS = 5;
+  let { responseText, toolCallNames } = await runAgentLoop(
+    userId,
+    userMessage,
+    systemPrompt,
+    initialMessages,
+  );
 
-  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      system: systemPrompt,
-      messages: currentMessages,
-      tools: WHATSAPP_TOOLS,
-      max_tokens: 1024,
-    });
+  // --- Anti-hallucination guardrail ------------------------------------------
+  // If the response claims a task was created but we never called any
+  // creation tool in this turn, retry forcing tool_choice='required' on the
+  // first round so the model is compelled to actually call a tool.
+  const claimedCreation = CREATION_CLAIM_REGEX.test(responseText);
+  const actuallyCalledCreationTool = toolCallNames.some((name) => CREATION_TOOL_NAMES.has(name));
 
-    const toolUses = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-    );
-
-    console.log('[WhatsApp Agent] iteration=%d stop_reason=%s tools=%s userId=%s', 
-      iteration,
-      response.stop_reason,
-      toolUses.map((t) => `${t.name}(${JSON.stringify(t.input)})`).join(', ') || 'none',
+  if (claimedCreation && !actuallyCalledCreationTool) {
+    console.warn(
+      '[WhatsApp Agent] Hallucination guardrail triggered — retrying with tool_choice=required userId=%s',
       userId,
     );
-
-    // Collect any text from this turn
-    const textBlocks = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text.trim())
-      .filter(Boolean);
-
-    if (textBlocks.length) {
-      responseText = textBlocks.join('\n');
-    }
-
-    if (response.stop_reason !== 'tool_use') break;
-
-    currentMessages = [
-      ...currentMessages,
-      { role: 'assistant', content: response.content },
-    ];
-
-    const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
-      toolUses.map(async (tu) => {
-        const result = await executeTool(tu.name, tu.input as Record<string, unknown>, userId, userMessage);
-        console.log('[WhatsApp Agent] tool=%s result=%s', tu.name, result);
-        return {
-          type: 'tool_result' as const,
-          tool_use_id: tu.id,
-          content: result,
-        };
-      }),
-    );
-
-    currentMessages = [
-      ...currentMessages,
-      { role: 'user', content: toolResults },
-    ];
+    const retry = await runAgentLoop(userId, userMessage, systemPrompt, initialMessages, {
+      forceToolChoice: true,
+    });
+    responseText = retry.responseText || responseText;
+    toolCallNames = [...toolCallNames, ...retry.toolCallNames];
   }
 
   const finalResponse = responseText || 'Entendido! Como posso te ajudar?';

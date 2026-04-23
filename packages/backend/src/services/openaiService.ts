@@ -336,7 +336,7 @@ export const extractTaskFromImage = async (
     : '';
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-4o-mini',
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: `${TASK_SYSTEM_PROMPT}${memorySection}\nData/hora atual: ${now}` },
@@ -366,7 +366,7 @@ export const analyzeImageForChat = async (
   const base64Image = imageBuffer.toString('base64');
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-4o-mini',
     messages: [
       {
         role: 'user',

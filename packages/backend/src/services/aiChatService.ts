@@ -1,6 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { ChatCompletionTool } from 'openai/resources/chat/completions';
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionTool,
+  ChatCompletionToolMessageParam,
+} from 'openai/resources/chat/completions';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import { getGmailTokens, fetchRecentEmails, markEmailsAsProcessed } from './gmailService';
@@ -8,20 +11,8 @@ import { analyzeEmails } from './gmailAnalysisService';
 import { hasIO, getIO } from '../utils/ioManager';
 
 // ---------------------------------------------------------------------------
-// Provider clients
+// Provider client
 // ---------------------------------------------------------------------------
-
-let anthropicClient: Anthropic | null = null;
-
-const getAnthropicClient = (): Anthropic => {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY environment variable is required');
-  }
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return anthropicClient;
-};
 
 let openaiClient: OpenAI | null = null;
 
@@ -34,6 +25,11 @@ const getOpenAIClient = (): OpenAI => {
   }
   return openaiClient;
 };
+
+// Primary model for the streaming chat agent (conversational + tool calling)
+const CHAT_MODEL = 'gpt-5.4-mini';
+// Cheaper model used for memory reconciliation and extraction
+const MEMORY_MODEL = 'gpt-4o-mini';
 
 
 // ---------------------------------------------------------------------------
@@ -333,19 +329,6 @@ const AI_TOOLS: ChatCompletionTool[] = [
     },
   },
 ];
-
-// Converts AI_TOOLS (OpenAI format) to Anthropic tool format
-function toAnthropicTools(tools: ChatCompletionTool[]): Anthropic.Tool[] {
-  return tools
-    .filter((t): t is Extract<ChatCompletionTool, { type: 'function'; function: object }> =>
-      t.type === 'function' && 'function' in t,
-    )
-    .map((t) => ({
-      name: t.function.name,
-      description: t.function.description ?? '',
-      input_schema: t.function.parameters as Anthropic.Tool['input_schema'],
-    }));
-}
 
 // ---------------------------------------------------------------------------
 // DB helpers
@@ -1094,7 +1077,7 @@ Regras:
 
   try {
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: MEMORY_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 800,
     });
@@ -1120,7 +1103,7 @@ async function extractMemoryPostResponse(
 
   const openai = getOpenAIClient();
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
+    model: MEMORY_MODEL,
     messages: [
       {
         role: 'user',
@@ -1272,7 +1255,7 @@ export async function streamChat(
   taskId: string | undefined,
   onEvent: (event: SSEEvent) => void,
 ): Promise<void> {
-  const anthropic = getAnthropicClient();
+  const openai = getOpenAIClient();
 
   const [rawMemory, timezone] = await Promise.all([
     getUserMemory(userId),
@@ -1312,119 +1295,113 @@ export async function streamChat(
     systemPrompt = buildGeneralModeSystemPrompt(tasks, memory, timezone, lists, categories);
   }
 
-  // Anthropic uses a separate system param; messages must not contain system role
-  const anthropicMessages: Anthropic.MessageParam[] = messages
-    .filter((m) => m.role !== 'system')
-    .map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+  // OpenAI takes the system as the first message (no separate param).
+  // Filter out any system messages from the client payload — we own that slot.
+  const initialMessages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...messages
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
+  ];
 
-  const anthropicTools = toAnthropicTools(AI_TOOLS);
-
-  // Recursive streaming function using Anthropic format
-  const processStreamAnthropic = async (msgs: Anthropic.MessageParam[]): Promise<void> => {
-    // Accumulate tool inputs across streaming deltas
-    const pendingToolUses: Map<number, { id: string; name: string; inputJson: string }> = new Map();
+  // Recursive streaming function. Accumulates text deltas and tool-call deltas,
+  // and when the model finishes with finish_reason='tool_calls', executes all
+  // tools and loops until the model returns a plain assistant message.
+  const processStreamOpenAI = async (msgs: ChatCompletionMessageParam[]): Promise<void> => {
+    const pendingToolCalls = new Map<number, { id: string; name: string; args: string }>();
     let textContent = '';
+    let finishReason: string | null = null;
 
-    const stream = anthropic.messages.stream({
-      model: 'claude-haiku-4-5',
-      system: systemPrompt,
+    const stream = await openai.chat.completions.create({
+      model: CHAT_MODEL,
       messages: msgs,
-      tools: anthropicTools,
+      tools: AI_TOOLS,
+      stream: true,
       max_tokens: 4096,
     });
 
-    for await (const event of stream) {
-      switch (event.type) {
-        case 'content_block_start':
-          if (event.content_block.type === 'tool_use') {
-            pendingToolUses.set(event.index, {
-              id: event.content_block.id,
-              name: event.content_block.name,
-              inputJson: '',
-            });
+    for await (const chunk of stream) {
+      const choice = chunk.choices[0];
+      if (!choice) continue;
+
+      const delta = choice.delta;
+      if (delta?.content) {
+        textContent += delta.content;
+        onEvent({ type: 'text', content: delta.content });
+      }
+
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const idx = tc.index;
+          let existing = pendingToolCalls.get(idx);
+          if (!existing) {
+            existing = { id: '', name: '', args: '' };
+            pendingToolCalls.set(idx, existing);
           }
-          break;
+          if (tc.id) existing.id = tc.id;
+          if (tc.function?.name) existing.name = tc.function.name;
+          if (tc.function?.arguments) existing.args += tc.function.arguments;
+        }
+      }
 
-        case 'content_block_delta':
-          if (event.delta.type === 'text_delta') {
-            textContent += event.delta.text;
-            onEvent({ type: 'text', content: event.delta.text });
-          } else if (event.delta.type === 'input_json_delta') {
-            const existing = pendingToolUses.get(event.index);
-            if (existing) existing.inputJson += event.delta.partial_json;
-          }
-          break;
-
-        case 'message_delta':
-          if (event.delta.stop_reason === 'tool_use') {
-            // Build the assistant message with all content blocks
-            const contentBlocks: Anthropic.ContentBlock[] = [];
-
-            if (textContent) {
-              contentBlocks.push({ type: 'text', text: textContent } as unknown as Anthropic.ContentBlock);
-            }
-
-            for (const tu of pendingToolUses.values()) {
-              let input: Record<string, unknown> = {};
-              try {
-                input = JSON.parse(tu.inputJson || '{}');
-              } catch {
-                input = {};
-              }
-              contentBlocks.push({
-                type: 'tool_use',
-                id: tu.id,
-                name: tu.name,
-                input,
-              } as unknown as Anthropic.ContentBlock);
-            }
-
-            msgs.push({ role: 'assistant', content: contentBlocks });
-
-            // Execute each tool and collect results
-            const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-            for (const tu of pendingToolUses.values()) {
-              let args: Record<string, unknown> = {};
-              try {
-                args = JSON.parse(tu.inputJson || '{}');
-              } catch {
-                args = {};
-              }
-
-              onEvent({ type: 'tool_call', toolName: tu.name, toolArgs: args });
-
-              const result = await executeToolCall(tu.name, args, userId);
-              onEvent({
-                type: 'tool_result',
-                toolName: tu.name,
-                success: result.success,
-                data: result.data,
-              });
-
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: tu.id,
-                content: JSON.stringify(result),
-              });
-            }
-
-            // Tool results go back as a user message in Anthropic
-            msgs.push({ role: 'user', content: toolResults });
-
-            onEvent({ type: 'separator' });
-            await processStreamAnthropic(msgs);
-          }
-          break;
+      if (choice.finish_reason) {
+        finishReason = choice.finish_reason;
       }
     }
+
+    if (finishReason !== 'tool_calls' || pendingToolCalls.size === 0) return;
+
+    const toolCallsArray = Array.from(pendingToolCalls.values()).filter((tc) => tc.id && tc.name);
+
+    // Push the assistant message with the accumulated tool calls
+    msgs.push({
+      role: 'assistant',
+      content: textContent || null,
+      tool_calls: toolCallsArray.map((tc) => ({
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.name, arguments: tc.args || '{}' },
+      })),
+    });
+
+    // Execute each tool and append the results as 'tool' messages
+    const toolResultMessages: ChatCompletionToolMessageParam[] = [];
+    for (const tc of toolCallsArray) {
+      let args: Record<string, unknown> = {};
+      try {
+        args = tc.args ? JSON.parse(tc.args) : {};
+      } catch {
+        args = {};
+      }
+
+      onEvent({ type: 'tool_call', toolName: tc.name, toolArgs: args });
+
+      const result = await executeToolCall(tc.name, args, userId);
+      onEvent({
+        type: 'tool_result',
+        toolName: tc.name,
+        success: result.success,
+        data: result.data,
+      });
+
+      toolResultMessages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(result),
+      });
+    }
+
+    msgs.push(...toolResultMessages);
+
+    onEvent({ type: 'separator' });
+    await processStreamOpenAI(msgs);
   };
 
   try {
-    await processStreamAnthropic(anthropicMessages);
+    await processStreamOpenAI(initialMessages);
     onEvent({ type: 'done' });
   } catch (err: any) {
     console.error('AI Chat stream error:', err);
