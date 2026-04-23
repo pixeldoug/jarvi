@@ -1,0 +1,112 @@
+/**
+ * DisconnectGoogleDialog Styles
+ *
+ * Multi-step layout compartilhado entre as etapas do fluxo de desvinculação.
+ */
+
+.dialogContent {
+  gap: 0 !important;
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+.iconBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-button-icon-radius);
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-primary);
+  flex-shrink: 0;
+}
+
+.iconBadge[data-variant='warning'] {
+  background: var(--semantic-surface-warning-subtle, rgba(245, 158, 11, 0.12));
+  color: var(--semantic-content-warning, #B45309);
+}
+
+.iconBadge[data-variant='info'] {
+  background: var(--semantic-surface-accent-subtle, rgba(99, 102, 241, 0.12));
+  color: var(--semantic-content-info, #4F46E5);
+}
+
+.iconBadge[data-variant='success'] {
+  background: var(--semantic-surface-positive-subtle, rgba(16, 185, 129, 0.12));
+  color: var(--semantic-content-positive, #047857);
+}
+
+.textBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.title {
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.description {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  margin: 0;
+}
+
+.description strong {
+  color: var(--semantic-content-primary);
+  font-weight: 600;
+}
+
+.descriptionMuted {
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-tertiary);
+  margin: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.errorMessage {
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-error, #DC2626);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  margin-top: var(--sizes-2);
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

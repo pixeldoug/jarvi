@@ -1219,6 +1219,18 @@ export const addPasswordToGoogleAccount = async (
   }
 };
 
+/**
+ * Desvincula o login Google da conta SEM deletar dados.
+ *
+ * Pré-requisito: o usuário precisa ter senha local (`has_password = true`),
+ * caso contrário ficaria sem nenhum método de login. O frontend deve chamar
+ * `addPasswordToGoogleAccount` antes de chegar aqui.
+ *
+ * Resposta:
+ *  - 200: vínculo desfeito, `auth_provider = 'email'`.
+ *  - 400 `{ code: 'PASSWORD_REQUIRED' }`: user ainda não tem senha.
+ *  - 400 `{ code: 'NOT_CONNECTED' }`: conta não está ligada ao Google.
+ */
 export const disconnectGoogle = async (
   req: Request,
   res: Response
@@ -1231,6 +1243,7 @@ export const disconnectGoogle = async (
       return;
     }
 
+    const now = new Date().toISOString();
     let user;
 
     if (isPostgreSQL()) {
@@ -1245,14 +1258,30 @@ export const disconnectGoogle = async (
           return;
         }
 
-        // Verify user is Google-authenticated
-        if (user.auth_provider !== 'google' && user.password !== 'google-auth') {
-          res.status(400).json({ error: 'This account is not connected with Google' });
+        const isGoogleLinked = user.auth_provider === 'google' || user.password === 'google-auth';
+        if (!isGoogleLinked) {
+          res.status(400).json({
+            error: 'Esta conta não está vinculada ao Google.',
+            code: 'NOT_CONNECTED',
+          });
           return;
         }
 
-        // Delete the user account
-        await client.query('DELETE FROM users WHERE id = $1', [userId]);
+        const hasRealPassword = !!user.has_password && user.password && user.password !== 'google-auth';
+        if (!hasRealPassword) {
+          res.status(400).json({
+            error: 'Crie uma senha antes de desvincular o Google.',
+            code: 'PASSWORD_REQUIRED',
+          });
+          return;
+        }
+
+        await client.query(
+          `UPDATE users
+           SET auth_provider = $1, updated_at = $2
+           WHERE id = $3`,
+          ['email', now, userId]
+        );
       } finally {
         client.release();
       }
@@ -1265,19 +1294,37 @@ export const disconnectGoogle = async (
         return;
       }
 
-      // Verify user is Google-authenticated
-      if (user.auth_provider !== 'google' && user.password !== 'google-auth') {
-        res.status(400).json({ error: 'This account is not connected with Google' });
+      const isGoogleLinked = user.auth_provider === 'google' || user.password === 'google-auth';
+      if (!isGoogleLinked) {
+        res.status(400).json({
+          error: 'Esta conta não está vinculada ao Google.',
+          code: 'NOT_CONNECTED',
+        });
         return;
       }
 
-      // Delete the user account
-      await db.run('DELETE FROM users WHERE id = ?', [userId]);
+      const hasRealPassword = !!user.has_password && user.password && user.password !== 'google-auth';
+      if (!hasRealPassword) {
+        res.status(400).json({
+          error: 'Crie uma senha antes de desvincular o Google.',
+          code: 'PASSWORD_REQUIRED',
+        });
+        return;
+      }
+
+      await db.run(
+        `UPDATE users
+         SET auth_provider = ?, updated_at = ?
+         WHERE id = ?`,
+        ['email', now, userId]
+      );
     }
 
-    res.json({ 
-      success: true, 
-      message: 'Conta Google desconectada e dados deletados com sucesso' 
+    res.json({
+      success: true,
+      message: 'Google desvinculado com sucesso. Faça login com email e senha na próxima vez.',
+      authProvider: 'email',
+      hasPassword: true,
     });
   } catch (error) {
     console.error('Disconnect Google error:', {
@@ -1286,5 +1333,135 @@ export const disconnectGoogle = async (
       ip: req.ip
     });
     res.status(500).json({ error: 'Failed to disconnect Google account' });
+  }
+};
+
+/**
+ * Vincula o Google a uma conta existente de email/senha.
+ *
+ * Recebe um `idToken` do Google Identity Services, valida-o e, se o email
+ * bater com o usuário autenticado, atualiza `auth_provider = 'google'`.
+ *
+ * Respostas:
+ *  - 200: vinculado.
+ *  - 400 `{ code: 'EMAIL_MISMATCH' }`: o idToken pertence a outro email.
+ *  - 400 `{ code: 'ALREADY_LINKED' }`: conta já é Google.
+ */
+export const linkGoogleAccount = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { idToken } = req.body;
+    if (!idToken) {
+      res.status(400).json({ error: 'ID token is required' });
+      return;
+    }
+
+    // Verify the Google ID token
+    let ticket;
+    for (const clientId of supportedClientIds) {
+      try {
+        const googleClient = new OAuth2Client(clientId);
+        ticket = await googleClient.verifyIdToken({ idToken, audience: clientId });
+        break;
+      } catch {
+        continue;
+      }
+    }
+
+    if (!ticket) {
+      res.status(400).json({ error: 'Invalid Google ID token' });
+      return;
+    }
+
+    const payload = ticket.getPayload();
+    if (!payload?.email) {
+      res.status(400).json({ error: 'Could not read email from Google token' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let user;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = result.rows[0];
+
+        if (!user) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+
+        if (user.auth_provider === 'google') {
+          res.status(400).json({ error: 'Conta já está vinculada ao Google.', code: 'ALREADY_LINKED' });
+          return;
+        }
+
+        if (user.email.toLowerCase() !== payload.email.toLowerCase()) {
+          res.status(400).json({
+            error: `A conta Google (${payload.email}) não corresponde ao email da sua conta (${user.email}).`,
+            code: 'EMAIL_MISMATCH',
+          });
+          return;
+        }
+
+        await client.query(
+          `UPDATE users SET auth_provider = $1, email_verified = $2, updated_at = $3 WHERE id = $4`,
+          ['google', true, now, userId]
+        );
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      if (user.auth_provider === 'google') {
+        res.status(400).json({ error: 'Conta já está vinculada ao Google.', code: 'ALREADY_LINKED' });
+        return;
+      }
+
+      if (user.email.toLowerCase() !== payload.email.toLowerCase()) {
+        res.status(400).json({
+          error: `A conta Google (${payload.email}) não corresponde ao email da sua conta (${user.email}).`,
+          code: 'EMAIL_MISMATCH',
+        });
+        return;
+      }
+
+      await db.run(
+        `UPDATE users SET auth_provider = ?, email_verified = ?, updated_at = ? WHERE id = ?`,
+        ['google', 1, now, userId]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Google vinculado com sucesso.',
+      authProvider: 'google',
+    });
+  } catch (error) {
+    console.error('Link Google error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+      ip: req.ip
+    });
+    res.status(500).json({ error: 'Failed to link Google account' });
   }
 };

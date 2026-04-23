@@ -30,6 +30,9 @@ interface AuthContextType {
   register: (email: string, name: string, password: string) => Promise<RegisterResult>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
+  addPasswordToGoogleAccount: (password: string) => Promise<void>;
+  disconnectGoogle: () => Promise<void>;
+  linkGoogleAccount: (idToken: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -255,6 +258,90 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     });
   };
 
+  const addPasswordToGoogleAccount = async (password: string) => {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/google/add-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ password }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Não foi possível criar a senha.');
+    }
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            authProvider: (data.authProvider as User['authProvider']) || 'email',
+            hasPassword: data.hasPassword ?? true,
+          }
+        : prev
+    );
+  };
+
+  const disconnectGoogle = async () => {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/google/disconnect`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data.error || 'Não foi possível desvincular o Google.') as Error & {
+        code?: string;
+      };
+      error.code = data.code;
+      throw error;
+    }
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            authProvider: (data.authProvider as User['authProvider']) || 'email',
+            hasPassword: data.hasPassword ?? true,
+          }
+        : prev
+    );
+  };
+
+  const linkGoogleAccount = async (idToken: string) => {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/google/link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ idToken }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data.error || 'Não foi possível vincular o Google.') as Error & {
+        code?: string;
+      };
+      error.code = data.code;
+      throw error;
+    }
+    setUser((prev) =>
+      prev
+        ? { ...prev, authProvider: (data.authProvider as User['authProvider']) || 'google' }
+        : prev
+    );
+  };
+
   const value: AuthContextType = {
     user,
     token,
@@ -264,6 +351,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     updateUser,
+    addPasswordToGoogleAccount,
+    disconnectGoogle,
+    linkGoogleAccount,
   };
 
   return (

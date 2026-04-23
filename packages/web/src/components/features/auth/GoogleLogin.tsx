@@ -5,7 +5,7 @@
  * using Google Identity Services with full account chooser
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import googleLogo from '../../../assets/google-logo.svg';
 import styles from './GoogleLogin.module.css';
@@ -21,13 +21,16 @@ interface GoogleLoginProps {
   onError?: (error: string) => void;
   buttonText?: string;
   onClick?: () => void | Promise<void>;
+  /** When provided, the raw Google credential is passed here instead of calling loginWithGoogle */
+  onCredential?: (idToken: string) => void | Promise<void>;
 }
 
 export const GoogleLogin: React.FC<GoogleLoginProps> = ({ 
   onSuccess, 
   onError,
   buttonText = 'Entrar com Google',
-  onClick
+  onClick,
+  onCredential,
 }) => {
   const { loginWithGoogle } = useAuth();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -35,6 +38,40 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
+
+  // Keep refs always pointing to the latest prop values so the Google
+  // callback (registered once) never holds stale closures.
+  const onCredentialRef = useRef(onCredential);
+  const loginWithGoogleRef = useRef(loginWithGoogle);
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => { onCredentialRef.current = onCredential; }, [onCredential]);
+  useEffect(() => { loginWithGoogleRef.current = loginWithGoogle; }, [loginWithGoogle]);
+  useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+
+  // Stable callback registered with Google — reads from refs at call time.
+  const handleCredentialResponse = useCallback(async (response: any) => {
+    try {
+      setIsLoading(true);
+      if (response.credential) {
+        if (onCredentialRef.current) {
+          await onCredentialRef.current(response.credential);
+        } else {
+          await loginWithGoogleRef.current(response.credential);
+        }
+        onSuccessRef.current?.();
+      } else {
+        throw new Error('No credential received from Google');
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      onErrorRef.current?.(error instanceof Error ? error.message : 'Google login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []); // empty deps — intentional, reads from refs
 
   useEffect(() => {
     if (!clientId) {
@@ -90,25 +127,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
 
     // Inicia a verificação
     initializeGoogle();
-  }, [clientId]);
-
-  const handleCredentialResponse = async (response: any) => {
-    try {
-      setIsLoading(true);
-      if (response.credential) {
-        await loginWithGoogle(response.credential);
-        onSuccess?.();
-      } else {
-        throw new Error('No credential received from Google');
-      }
-    } catch (error) {
-      console.error('Google login error:', error);
-      onError?.(error instanceof Error ? error.message : 'Google login failed');
-      setHasError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [clientId, handleCredentialResponse]);
 
   const handleClick = async () => {
     // If custom onClick is provided, use it instead of default Google login flow

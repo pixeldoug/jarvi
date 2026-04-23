@@ -17,6 +17,8 @@ import {
 } from '../../../../ui';
 import { GoogleLogin } from '../../../auth';
 import type { SelectOption } from '../../../../ui';
+import { DisconnectGoogleDialog } from '../DisconnectGoogleDialog';
+import { ChangePasswordDialog } from '../ChangePasswordDialog';
 import styles from '../SettingsDialog.module.css';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
@@ -57,7 +59,7 @@ const TIMEZONES: SelectOption[] = [
 ];
 
 export function ProfilePage() {
-  const { user, updateUser, token, logout } = useAuth();
+  const { user, updateUser, token, linkGoogleAccount } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(user?.name || '');
@@ -68,9 +70,11 @@ export function ProfilePage() {
   const [timezone, setTimezone] = useState('America/Sao_Paulo');
   const [timezoneSaving, setTimezoneSaving] = useState(false);
 
-  const [disconnectError, setDisconnectError] = useState('');
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   const isGoogleUser = user?.authProvider === 'google';
+  const isEmailUser = user?.authProvider === 'email';
   const userName = user?.name || 'Usuário';
   const userEmail = user?.email || '';
   const userAvatar = user?.avatar;
@@ -213,26 +217,12 @@ export function ProfilePage() {
     }
   };
 
-  // Google disconnect
-  const handleDisconnectGoogle = async () => {
-    const confirmed = window.confirm(
-      'Tem certeza que deseja desconectar sua conta do Google? Isso excluirá permanentemente sua conta e todos os seus dados.'
-    );
-    if (!confirmed) return;
-    setDisconnectError('');
+  const handleLinkGoogle = async (idToken: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/google/disconnect`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro ao desconectar conta Google');
-      logout();
-    } catch (error) {
-      setDisconnectError(error instanceof Error ? error.message : 'Erro ao desconectar conta Google');
+      await linkGoogleAccount(idToken);
+      toast.success('Google vinculado com sucesso!');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao vincular Google.');
     }
   };
 
@@ -322,15 +312,55 @@ export function ProfilePage() {
                 Você pode fazer login no Jarvi com sua conta do Google {userEmail}
               </p>
             </div>
-            {disconnectError && (
-              <p className={styles.sectionDescription} style={{ color: 'var(--semantic-content-error)' }}>
-                {disconnectError}
-              </p>
-            )}
             <div className={styles.googleButtonWrapper}>
               <GoogleLogin
                 buttonText="Desconectar Google"
-                onClick={handleDisconnectGoogle}
+                onClick={() => setDisconnectDialogOpen(true)}
+              />
+            </div>
+          </div>
+          <DisconnectGoogleDialog
+            isOpen={disconnectDialogOpen}
+            onClose={() => setDisconnectDialogOpen(false)}
+          />
+        </>
+      )}
+
+      {/* Password + Link Google — email users only */}
+      {isEmailUser && (
+        <>
+          <Divider />
+          <div className={styles.section}>
+            <div className={styles.emailDetails}>
+              <p className={styles.sectionLabel}>Senha</p>
+              <p className={styles.sectionDescription}>
+                Altere sua senha de acesso ao Jarvi.
+              </p>
+            </div>
+            <div>
+              <Button variant="secondary" onClick={() => setChangePasswordOpen(true)}>
+                Alterar senha
+              </Button>
+            </div>
+          </div>
+          <ChangePasswordDialog
+            isOpen={changePasswordOpen}
+            onClose={() => setChangePasswordOpen(false)}
+          />
+
+          <Divider />
+          <div className={styles.section}>
+            <div className={styles.emailDetails}>
+              <p className={styles.sectionLabel}>Vincular Google</p>
+              <p className={styles.sectionDescription}>
+                Habilite o login com Google para entrar no Jarvi sem precisar de senha.
+                A conta Google precisa ter o mesmo email ({userEmail}).
+              </p>
+            </div>
+            <div className={styles.googleButtonWrapper}>
+              <GoogleLogin
+                buttonText="Vincular Google"
+                onCredential={handleLinkGoogle}
               />
             </div>
           </div>

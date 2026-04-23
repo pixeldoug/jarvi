@@ -112,7 +112,7 @@ export function Dialog({
   const contentClasses = [styles.content, contentClassName].filter(Boolean).join(' ');
 
   return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true" data-theme={forceTheme}>
+    <div className={styles.overlay} role="dialog" aria-modal="true" data-theme={forceTheme} data-dialog-outside-click-ignore="true">
       <div ref={dialogRef} className={dialogClasses}>
         {/* Close Button */}
         {showCloseButton && (

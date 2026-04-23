@@ -10,7 +10,8 @@ import {
   forgotPassword,
   resetPassword,
   disconnectGoogle,
-  addPasswordToGoogleAccount
+  addPasswordToGoogleAccount,
+  linkGoogleAccount,
 } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
 
@@ -33,6 +34,7 @@ router.post('/reset-password', resetPassword);
 // Protected routes
 router.get('/profile', authenticateToken, getProfile);
 router.post('/google/add-password', authenticateToken, addPasswordToGoogleAccount);
+router.post('/google/link', authenticateToken, linkGoogleAccount);
 router.delete('/google/disconnect', authenticateToken, disconnectGoogle);
 
 export default router;
