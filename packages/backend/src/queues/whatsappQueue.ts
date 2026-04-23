@@ -308,7 +308,7 @@ const processAggregatedInboxPayload = async (
   from: string,
   aggregatedInbox: AggregatedInboxPayload,
 ): Promise<void> => {
-  const { content, mediaItems } = aggregatedInbox;
+  const { content, mediaItems, messageSid } = aggregatedInbox;
 
   try {
     const user = await findUserByWhatsappPhone(from);
@@ -362,7 +362,10 @@ const processAggregatedInboxPayload = async (
     }
 
     const userMessage = textParts.join('\n\n');
-    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis);
+    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis, {
+      whatsappPhone: from,
+      whatsappMessageSid: messageSid ?? undefined,
+    });
     await sendTextMessage(from, agentResponse);
   } catch (error) {
     console.error('Failed to process WhatsApp message:', {

@@ -301,16 +301,27 @@ const CREATION_TOOL_NAMES = new Set(['create_task']);
 // Tool executor
 // ---------------------------------------------------------------------------
 
+interface ExecuteToolContext {
+  userId: string;
+  originalWhatsappContent?: string;
+  whatsappPhone?: string;
+  whatsappMessageSid?: string;
+}
+
 async function executeTool(
   name: string,
   args: Record<string, unknown>,
-  userId: string,
-  originalWhatsappContent?: string,
+  ctx: ExecuteToolContext,
 ): Promise<string> {
   const now = new Date().toISOString();
+  const { userId, originalWhatsappContent, whatsappPhone, whatsappMessageSid } = ctx;
 
   switch (name) {
     case 'create_task': {
+      // WhatsApp-created tasks go through the same approval flow as Gmail:
+      // they're written to `pending_tasks` (not `tasks`) with status
+      // 'awaiting_confirmation'. The user approves/rejects via the
+      // "Integrações" section in the web UI.
       const title = String(args.title || '').trim();
       const description = args.description ? String(args.description) : null;
       const priority = args.priority ? String(args.priority) : null;
@@ -320,31 +331,37 @@ async function executeTool(
 
       const whatsappContent = originalWhatsappContent || null;
 
-      // Idempotency guard — if an identical-titled task was created within the
-      // last 2 minutes for this user, return that one instead of inserting a
-      // duplicate. Catches both model double-calls and ambiguous follow-ups
-      // like "pode ser", "ok", "sim" that re-trigger create_task.
+      // Idempotency guard — if an identical-titled pending task was suggested
+      // within the last 2 minutes for this user, return that one instead of
+      // inserting a duplicate. Catches both model double-calls and ambiguous
+      // follow-ups like "pode ser", "ok", "sim" that re-trigger create_task.
       const DEDUP_WINDOW_SECONDS = 120;
       const cutoff = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
       const existingDuplicate = isPostgreSQL()
         ? (
             await getPool().query<{ id: string }>(
-              `SELECT id FROM tasks
-               WHERE user_id = $1 AND LOWER(title) = LOWER($2) AND created_at >= $3
+              `SELECT id FROM pending_tasks
+               WHERE user_id = $1
+                 AND status = 'awaiting_confirmation'
+                 AND LOWER(suggested_title) = LOWER($2)
+                 AND created_at >= $3
                ORDER BY created_at DESC LIMIT 1`,
               [userId, title, cutoff],
             )
           ).rows[0]
         : await getDatabase().get<{ id: string }>(
-            `SELECT id FROM tasks
-             WHERE user_id = ? AND LOWER(title) = LOWER(?) AND created_at >= ?
+            `SELECT id FROM pending_tasks
+             WHERE user_id = ?
+               AND status = 'awaiting_confirmation'
+               AND LOWER(suggested_title) = LOWER(?)
+               AND created_at >= ?
              ORDER BY created_at DESC LIMIT 1`,
             [userId, title, cutoff],
           );
 
       if (existingDuplicate?.id) {
         console.warn(
-          '[WhatsApp Agent] Dedup guard — skipping duplicate create_task title="%s" userId=%s existingId=%s',
+          '[WhatsApp Agent] Dedup guard — skipping duplicate pending create_task title="%s" userId=%s existingId=%s',
           title,
           userId,
           existingDuplicate.id,
@@ -353,44 +370,84 @@ async function executeTool(
           success: true,
           id: existingDuplicate.id,
           title,
+          pending: true,
           duplicate: true,
         });
       }
 
-      const taskId = uuidv4();
+      const pendingId = uuidv4();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
       if (isPostgreSQL()) {
         await getPool().query(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, original_whatsapp_content, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-          [taskId, userId, title, description, priority, category, dueDate, time, whatsappContent, now, now],
+          `INSERT INTO pending_tasks (
+             id, user_id, source, raw_content, original_whatsapp_content,
+             suggested_title, suggested_description, suggested_priority,
+             suggested_due_date, suggested_time, suggested_category,
+             status, whatsapp_phone, whatsapp_message_sid, expires_at,
+             created_at, updated_at
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+          [
+            pendingId,
+            userId,
+            'whatsapp',
+            whatsappContent,
+            whatsappContent,
+            title,
+            description,
+            priority,
+            dueDate,
+            time,
+            category,
+            'awaiting_confirmation',
+            whatsappPhone ?? null,
+            whatsappMessageSid ?? null,
+            expiresAt,
+            now,
+            now,
+          ],
         );
       } else {
         await getDatabase().run(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, original_whatsapp_content, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [taskId, userId, title, description, priority, category, dueDate, time, whatsappContent, now, now],
+          `INSERT INTO pending_tasks (
+             id, user_id, source, raw_content, original_whatsapp_content,
+             suggested_title, suggested_description, suggested_priority,
+             suggested_due_date, suggested_time, suggested_category,
+             status, whatsapp_phone, whatsapp_message_sid, expires_at,
+             created_at, updated_at
+           )
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            pendingId,
+            userId,
+            'whatsapp',
+            whatsappContent,
+            whatsappContent,
+            title,
+            description,
+            priority,
+            dueDate,
+            time,
+            category,
+            'awaiting_confirmation',
+            whatsappPhone ?? null,
+            whatsappMessageSid ?? null,
+            expiresAt,
+            now,
+            now,
+          ],
         );
       }
 
       if (hasIO()) {
-        getIO().to(`user:${userId}`).emit('task:created', {
-          id: taskId,
-          user_id: userId,
-          title,
-          description,
-          priority,
-          category,
-          due_date: dueDate,
-          time,
-          original_whatsapp_content: whatsappContent,
-          completed: false,
-          created_at: now,
-          updated_at: now,
+        getIO().to(`user:${userId}`).emit('pending-task:created', {
+          id: pendingId,
+          source: 'whatsapp',
         });
       }
 
-      return JSON.stringify({ success: true, id: taskId, title });
+      return JSON.stringify({ success: true, id: pendingId, title, pending: true });
     }
 
     case 'update_task': {
@@ -622,45 +679,48 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     ``,
     `REGRAS DE COMPORTAMENTO:`,
     ``,
-    `⚠️ REGRA CRÍTICA — CRIAÇÃO DE TAREFAS:`,
+    `⚠️ IMPORTANTE — COMO A CRIAÇÃO FUNCIONA:`,
+    `Tarefas criadas pelo WhatsApp vão primeiro para a seção "Integrações" no app, onde o usuário aprova antes de virarem tarefas ativas. Ou seja: quando você chama create_task, o que você está gerando é uma SUGESTÃO pendente de aprovação, não uma tarefa ativa.`,
+    ``,
+    `⚠️ REGRA CRÍTICA — CRIAÇÃO DE SUGESTÕES:`,
     `Quando o usuário expressar intenção de fazer algo ("preciso", "quero", "tenho que", "agenda", "marca", "compra", "faz", "lembrar"):`,
     `1. Chame create_task IMEDIATAMENTE — sem pedir confirmação, sem fazer perguntas antes`,
     `2. Só após a ferramenta retornar sucesso, escreva a confirmação abaixo`,
-    `3. NUNCA escreva "criada" ou use o template de confirmação sem ter chamado create_task antes`,
-    `4. Se o usuário fizer uma pergunta sobre como criar a tarefa (ex: "agendar pra essa semana ou deixar em aberto?"), crie com os dados disponíveis AGORA e ofereça ajustar depois — não espere a resposta`,
+    `3. NUNCA escreva "sugerida" ou "criada" sem ter chamado create_task antes`,
+    `4. Se o usuário fizer uma pergunta sobre como registrar (ex: "agendar pra essa semana ou deixar em aberto?"), registre com os dados disponíveis AGORA e ofereça ajustar depois — não espere a resposta`,
     ``,
-    `- Ao concluir tarefa, responda em 1 linha: "✅ [título] concluída!"`,
-    `- Ao criar tarefa, use EXATAMENTE este formato (sem markdown, sem **):`,
+    `- Ao concluir tarefa (de tarefas ATIVAS da lista acima), responda em 1 linha: "✅ [título] concluída!"`,
+    `- Ao criar sugestão, use EXATAMENTE este formato (sem markdown, sem **):`,
     ``,
-    `➕ [título exato] criada.`,
+    `📋 [título exato] — sugerida.`,
     ``,
-    `[1 frase curta que apenas valida a tarefa, SEM oferecer ações extras ou fazer perguntas proativas — ex: "Anotado." ou "Deixei registrado." ou "Feito."]`,
+    `[1 frase curta que valida a sugestão, SEM oferecer ações extras ou fazer perguntas proativas — ex: "Aprove na aba Integrações pra entrar na sua lista." ou "Só aprovar pela web que entra na lista."]`,
     ``,
-    `[Inclua a seção "Sugestão:" APENAS se a tarefa foi criada sem data OU sem prioridade. Liste só os campos faltantes:]`,
-    `Sugestão:`,
-    `• [data sugerida — ex: "Hoje", "Amanhã", "Esta semana" — com base no contexto da tarefa]`,
+    `[Inclua a seção "Sugestão de ajuste:" APENAS se a tarefa foi registrada sem data OU sem prioridade. Liste só os campos faltantes:]`,
+    `Sugestão de ajuste:`,
+    `• [data sugerida — ex: "Hoje", "Amanhã", "Esta semana" — com base no contexto]`,
     `• [prioridade sugerida — ex: "Prioridade média" ou "Prioridade alta"]`,
     ``,
-    `Quer mudar algo ou seguimos assim?`,
+    `Quer ajustar algo antes de aprovar?`,
     ``,
     `Regras da criação:`,
-    `- Se a tarefa já foi criada COM data e prioridade, omita a seção "Sugestão:" inteira`,
-    `- A frase de validação deve ser curta e neutra, nunca propositiva`,
+    `- Se a sugestão já foi registrada COM data e prioridade, omita a seção "Sugestão de ajuste:" inteira`,
+    `- A frase de validação deve ser curta e neutra, nunca propositiva (só lembra do fluxo de aprovação)`,
     `- Nunca repita o título na frase de validação`,
     `- Nunca use **, ##, --- ou qualquer markdown`,
-    `- Ao listar tarefas, use o formato com emojis acima, sem IDs visíveis para o usuário`,
-    `- Responda perguntas sobre tarefas, datas e prioridades usando a lista acima`,
+    `- Ao listar tarefas ATIVAS, use o formato com emojis acima, sem IDs visíveis para o usuário`,
+    `- A lista acima mostra APENAS tarefas ativas (já aprovadas). Sugestões pendentes não aparecem — se o usuário perguntar "cadê a tarefa que acabei de criar?", explique que ela está na aba Integrações aguardando aprovação`,
     `- MEMÓRIA: Se a mensagem contiver informação pessoal nova (nomes, relacionamentos, localização, preferências, hábitos, datas importantes), chame update_memory mesclando com o que já existia — nunca descarte informações antigas`,
     `- Data/hora atual: ${dateFormatted} (${timezone})`,
     ``,
     `⛔ ESCOPO DE FUNCIONALIDADES:`,
-    `Você só sabe criar, editar, concluir e excluir tarefas INDIVIDUAIS. NÃO ofereça dividir em subtarefas, criar listas/projetos, lembretes recorrentes ou qualquer coisa fora das suas tools. Se o usuário pedir algo fora do escopo (ex: "divide isso em partes", "cria uma lista X"), responda que por enquanto trabalha só com tarefas individuais e sugira registrar como uma só.`,
+    `Você só sabe criar sugestões, editar, concluir e excluir tarefas INDIVIDUAIS. NÃO ofereça dividir em subtarefas, criar listas/projetos, lembretes recorrentes ou qualquer coisa fora das suas tools. Se o usuário pedir algo fora do escopo (ex: "divide isso em partes", "cria uma lista X"), responda que por enquanto trabalha só com tarefas individuais e sugira registrar como uma só.`,
     ``,
     `⛔ ANTI-DUPLICATA:`,
-    `Antes de chamar create_task, olhe a lista de tarefas ATIVAS acima. Se já existir tarefa com título idêntico ou muito semelhante criada recentemente, NÃO chame create_task — responda confirmando que a tarefa já está registrada.`,
+    `Antes de chamar create_task, olhe a lista de tarefas ATIVAS acima E o histórico da conversa. Se você já sugeriu uma tarefa com título idêntico ou muito semelhante nesta mesma conversa, NÃO chame create_task de novo — apenas lembre o usuário que a sugestão já está aguardando aprovação.`,
     ``,
     `⛔ ACKNOWLEDGMENTS AMBÍGUOS ("pode ser", "ok", "sim", "tá bom", "beleza"):`,
-    `Quando a mensagem do usuário for apenas uma confirmação genérica a algo que VOCÊ ofereceu antes, releia sua última resposta. Se você não ofereceu nada concreto dentro do escopo (criar/editar/concluir/excluir tarefa), apenas confirme brevemente — NUNCA chame create_task, update_task ou qualquer tool apenas porque o usuário concordou vagamente. "pode ser" sozinho não é pedido de nova tarefa.`,
+    `Quando a mensagem do usuário for apenas uma confirmação genérica a algo que VOCÊ ofereceu antes, releia sua última resposta. Se você não ofereceu nada concreto dentro do escopo (criar/editar/concluir/excluir tarefa), apenas confirme brevemente — NUNCA chame create_task, update_task ou qualquer tool apenas porque o usuário concordou vagamente. "pode ser" sozinho não é pedido de nova sugestão.`,
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
@@ -757,10 +817,12 @@ async function extractMemoryPostResponse(
 // Main agent runner
 // ---------------------------------------------------------------------------
 
-// Heuristic to detect when the assistant text claims a task was created.
-// Used by the anti-hallucination guardrail: if the model "confirms" creation
-// without ever calling create_task, we force a retry with tool_choice: 'required'.
-const CREATION_CLAIM_REGEX = /(^|\s)(➕|criada\b|criei\b|anotei\b|agendei\b|registrei\b)/i;
+// Heuristic to detect when the assistant text claims a task was created or
+// suggested. Used by the anti-hallucination guardrail: if the model "confirms"
+// creation without ever calling create_task, we force a retry with
+// tool_choice: 'required'.
+const CREATION_CLAIM_REGEX =
+  /(^|\s)(➕|📋|sugerida\b|sugeri\b|criada\b|criei\b|anotei\b|agendei\b|registrei\b)/i;
 
 interface AgentRunOptions {
   forceToolChoice?: boolean;
@@ -773,9 +835,9 @@ interface AgentRunResult {
 
 async function runAgentLoop(
   userId: string,
-  userMessage: string,
   systemPrompt: string,
   initialMessages: ChatCompletionMessageParam[],
+  toolContext: ExecuteToolContext,
   options: AgentRunOptions = {},
 ): Promise<AgentRunResult> {
   const openai = getOpenAIClient();
@@ -841,7 +903,7 @@ async function runAgentLoop(
           parsedArgs = {};
         }
 
-        const result = await executeTool(tc.function.name, parsedArgs, userId, userMessage);
+        const result = await executeTool(tc.function.name, parsedArgs, toolContext);
         console.log('[WhatsApp Agent] tool=%s result=%s', tc.function.name, result);
         toolCallNames.push(tc.function.name);
 
@@ -859,10 +921,16 @@ async function runAgentLoop(
   return { responseText, toolCallNames };
 }
 
+export interface RunWhatsappAgentOptions {
+  whatsappPhone?: string;
+  whatsappMessageSid?: string;
+}
+
 export const runWhatsappAgent = async (
   userId: string,
   userMessage: string,
   redis: RedisLike,
+  options: RunWhatsappAgentOptions = {},
 ): Promise<string> => {
   const [{ memory, timezone }, tasks] = await Promise.all([
     getUserMemoryAndTimezone(userId),
@@ -896,11 +964,18 @@ export const runWhatsappAgent = async (
     { role: 'user', content: userMessage },
   ];
 
+  const toolContext: ExecuteToolContext = {
+    userId,
+    originalWhatsappContent: userMessage,
+    whatsappPhone: options.whatsappPhone,
+    whatsappMessageSid: options.whatsappMessageSid,
+  };
+
   let { responseText, toolCallNames } = await runAgentLoop(
     userId,
-    userMessage,
     systemPrompt,
     initialMessages,
+    toolContext,
   );
 
   // --- Anti-hallucination guardrail ------------------------------------------
@@ -915,7 +990,7 @@ export const runWhatsappAgent = async (
       '[WhatsApp Agent] Hallucination guardrail triggered — retrying with tool_choice=required userId=%s',
       userId,
     );
-    const retry = await runAgentLoop(userId, userMessage, systemPrompt, initialMessages, {
+    const retry = await runAgentLoop(userId, systemPrompt, initialMessages, toolContext, {
       forceToolChoice: true,
     });
     responseText = retry.responseText || responseText;
