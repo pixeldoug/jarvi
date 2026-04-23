@@ -749,7 +749,7 @@ async function runAgentLoop(
       // On the first iteration, honor the guardrail's request to force a tool call.
       // After the first iteration, let the model decide (so it can speak the final text).
       tool_choice: options.forceToolChoice && iteration === 0 ? 'required' : 'auto',
-      max_tokens: 1024,
+      max_completion_tokens: 1024,
     });
 
     const choice = response.choices[0];

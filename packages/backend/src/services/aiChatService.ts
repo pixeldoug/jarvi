@@ -1320,7 +1320,7 @@ export async function streamChat(
       messages: msgs,
       tools: AI_TOOLS,
       stream: true,
-      max_tokens: 4096,
+      max_completion_tokens: 4096,
     });
 
     for await (const chunk of stream) {
