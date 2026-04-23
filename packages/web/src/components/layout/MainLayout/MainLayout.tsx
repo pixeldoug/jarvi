@@ -42,6 +42,8 @@ export interface MainLayoutProps {
   hideHeader?: boolean;
   /** Ref forwarded to the scrollable main body div — used for scroll-spy roots. */
   mainBodyRef?: RefObject<HTMLDivElement>;
+  /** Default category pre-filled in the ControlBar task creation mode */
+  defaultTaskCategory?: string;
 }
 
 export function MainLayout({
@@ -60,6 +62,7 @@ export function MainLayout({
   hideControlBar = false,
   hideHeader = false,
   mainBodyRef,
+  defaultTaskCategory,
 }: MainLayoutProps) {
   const { backgroundSrc } = useBackground();
   const mainTitleClasses = [
@@ -138,6 +141,7 @@ export function MainLayout({
           onOpenChat={onOpenChat}
           onSubmitPrompt={onSubmitPrompt}
           hidden={hideControlBar}
+          defaultCategory={defaultTaskCategory}
         />
       </div>
     </div>

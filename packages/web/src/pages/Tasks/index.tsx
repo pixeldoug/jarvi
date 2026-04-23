@@ -973,6 +973,14 @@ export function Tasks() {
   const selectedCustomList = selectedCustomListId
     ? customLists.find((l) => l.id === selectedCustomListId) || null
     : null;
+
+  // When a category or single-category custom list is active, pre-fill that
+  // category in the ControlBar task creation form.
+  const contextTaskCategory: string | undefined = useMemo(() => {
+    if (selectedCategoryName) return selectedCategoryName;
+    if (selectedCustomList?.category_names?.length === 1) return selectedCustomList.category_names[0];
+    return undefined;
+  }, [selectedCategoryName, selectedCustomList]);
   const isCustomListView = Boolean(selectedCustomList);
   const pageDescription = selectedCustomList?.description?.trim() || undefined;
   const toggleSectionsLabel = allSectionsExpanded ? 'Colapsar tudo' : 'Expandir tudo';
@@ -1533,6 +1541,7 @@ export function Tasks() {
         hideControlBar={isChatOpen}
         hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
       >
         {showTaskInCenter ? taskDetailsInCenter : <div className={styles.loading}>Carregando tarefas...</div>}
       </MainLayout>
@@ -1554,6 +1563,7 @@ export function Tasks() {
         hideControlBar={isChatOpen}
         hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
       >
         {showTaskInCenter ? taskDetailsInCenter : <div className={styles.error}>Erro: {error}</div>}
       </MainLayout>
@@ -1576,6 +1586,7 @@ export function Tasks() {
         hideControlBar={isChatOpen}
         hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
       >
         {showTaskInCenter ? taskDetailsInCenter : (
           <div className={styles.content}>
@@ -1673,6 +1684,7 @@ export function Tasks() {
         hideControlBar={isChatOpen}
         hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
       >
         {showTaskInCenter ? taskDetailsInCenter : (
           <div className={styles.content}>
@@ -1744,6 +1756,7 @@ export function Tasks() {
         hideControlBar={isChatOpen}
         hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
       >
         {showTaskInCenter ? taskDetailsInCenter : <div className={styles.content}>
           <div className={styles.sectionContent}>
@@ -1824,6 +1837,7 @@ export function Tasks() {
         hideControlBar={isChatOpen}
         hideHeader={showTaskInCenter}
         mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
       >
       {showTaskInCenter ? taskDetailsInCenter : <DndContext
         sensors={sensors}

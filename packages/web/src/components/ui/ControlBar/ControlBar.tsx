@@ -36,6 +36,8 @@ export interface ControlBarProps {
   onSubmitPrompt?: (text: string) => void;
   /** When true, slides and fades the bar out of view */
   hidden?: boolean;
+  /** Default category pre-filled when entering task creation mode */
+  defaultCategory?: string;
 }
 
 export function ControlBar({
@@ -44,6 +46,7 @@ export function ControlBar({
   onOpenChat,
   onSubmitPrompt,
   hidden = false,
+  defaultCategory,
 }: ControlBarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -83,7 +86,8 @@ export function ControlBar({
     today.setHours(0, 0, 0, 0);
     setDueDate(today);
     setIsDefaultDate(true);
-  }, []);
+    if (defaultCategory) setCategory(defaultCategory);
+  }, [defaultCategory]);
 
   const handleSwitchToPrompt = useCallback(() => {
     setMode('prompt');
@@ -106,6 +110,13 @@ export function ControlBar({
       return () => clearTimeout(id);
     }
   }, [mode]);
+
+  // Sync defaultCategory into category state whenever it changes while in task mode
+  useEffect(() => {
+    if (mode === 'task') {
+      setCategory(defaultCategory || '');
+    }
+  }, [defaultCategory]);
 
   // Global Cmd+/ shortcut → switch to task mode
   useEffect(() => {
