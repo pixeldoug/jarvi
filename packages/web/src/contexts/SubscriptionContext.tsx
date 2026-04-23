@@ -7,7 +7,12 @@ import {
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+
+function invalidateSubscription(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ['subscription'] });
+}
 
 export type PlanType = 'monthly' | 'annual' | 'lifetime' | null;
 
@@ -52,6 +57,17 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   const lastRefreshAt = useRef(0);
 
   const hasToken = !!localStorage.getItem('jarvi_token');
+
+  // When hasToken transitions false → true (SPA login without a full page reload),
+  // force an immediate fresh fetch so a stale 'none' or expired-trial result from
+  // the previous session cache never briefly shows the paywall.
+  const prevHasToken = useRef(hasToken);
+  useEffect(() => {
+    if (!prevHasToken.current && hasToken) {
+      invalidateSubscription(queryClient);
+    }
+    prevHasToken.current = hasToken;
+  }, [hasToken, queryClient]);
 
   const {
     data: subscription,
