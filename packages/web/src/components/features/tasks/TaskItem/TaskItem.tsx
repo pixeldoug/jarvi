@@ -120,7 +120,10 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   // already makes it clear it's today, so repeating the date is redundant.
   const dateLabel = (() => {
     if (!task.due_date) return 'Definir';
-    if (isToday(task.due_date)) return task.time ?? null;
+    if (isToday(task.due_date)) {
+      const t = task.time && task.time !== 'null' && task.time.trim() !== '' ? task.time : null;
+      return t;
+    }
     if (showDayOfWeek) {
       return formatTaskDateWeekday(task.due_date, task.time) || formatTaskDate(task.due_date, task.time) || 'Definir';
     }

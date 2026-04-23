@@ -25,18 +25,24 @@ export function parseDateString(dateString?: string): Date | null {
  * @param time - Optional time string (e.g., "10:00")
  * @returns Formatted string like "09:00, 7 Jan" (with time) or "7 Jan" (without time), or null if invalid
  */
+function normalizeTime(time?: string | null): string | undefined {
+  if (!time || time === 'null' || time === 'undefined' || time.trim() === '') return undefined;
+  return time;
+}
+
 export function formatTaskDate(dueDate?: string, time?: string): string | null {
   const date = parseDateString(dueDate);
   if (!date) return null;
   
   try {
+    const t = normalizeTime(time);
     const dayNum = date.getDate();
     const monthStr = date.toLocaleDateString('pt-BR', { month: 'short' })
       .replace('.', '')
       .replace(/^./, str => str.toUpperCase());
     
     // Format: "09:00, 7 Jan" when time exists, otherwise "7 Jan"
-    return time ? `${time}, ${dayNum} ${monthStr}` : `${dayNum} ${monthStr}`;
+    return t ? `${t}, ${dayNum} ${monthStr}` : `${dayNum} ${monthStr}`;
   } catch {
     return null;
   }
@@ -69,8 +75,9 @@ export function formatTaskDateWeekday(dueDate?: string, time?: string): string |
   if (!date) return null;
 
   try {
+    const t = normalizeTime(time);
     const weekday = WEEKDAY_NAMES_PT[date.getDay()];
-    return time ? `${time}, ${weekday}` : weekday;
+    return t ? `${t}, ${weekday}` : weekday;
   } catch {
     return null;
   }
