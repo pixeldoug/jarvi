@@ -154,7 +154,7 @@ router.delete('/avatar', authenticateToken, async (req: Request, res: Response) 
 
 /**
  * PUT /api/users/profile
- * Update user profile (name)
+ * Update user profile (name, preferred_name)
  */
 router.put('/profile', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -164,33 +164,54 @@ router.put('/profile', authenticateToken, async (req: Request, res: Response) =>
       return;
     }
 
-    const { name } = req.body;
+    const { name, preferred_name } = req.body;
 
-    if (!name || name.trim().length === 0) {
+    if (name !== undefined && name.trim().length === 0) {
       res.status(400).json({ error: 'Nome é obrigatório' });
       return;
     }
 
     const now = new Date().toISOString();
+    const updates: Record<string, string> = { updated_at: now };
+    if (name !== undefined) updates.name = name.trim();
+    if (preferred_name !== undefined) updates.preferred_name = preferred_name.trim() || null as unknown as string;
 
     if (isPostgreSQL()) {
       const pool = getPool();
+      const setClauses = Object.keys(updates)
+        .filter((k) => k !== 'updated_at')
+        .map((k, i) => `${k} = $${i + 1}`)
+        .concat(`updated_at = $${Object.keys(updates).length}`)
+        .join(', ');
+      const values = [
+        ...Object.entries(updates).filter(([k]) => k !== 'updated_at').map(([, v]) => v),
+        now,
+        userId,
+      ];
       await pool.query(
-        'UPDATE users SET name = $1, updated_at = $2 WHERE id = $3',
-        [name.trim(), now, userId]
+        `UPDATE users SET ${setClauses} WHERE id = $${values.length}`,
+        values,
       );
     } else {
       const db = getDatabase();
-      await db.run(
-        'UPDATE users SET name = ?, updated_at = ? WHERE id = ?',
-        [name.trim(), now, userId]
-      );
+      const setClauses = Object.keys(updates)
+        .filter((k) => k !== 'updated_at')
+        .map((k) => `${k} = ?`)
+        .concat('updated_at = ?')
+        .join(', ');
+      const values = [
+        ...Object.entries(updates).filter(([k]) => k !== 'updated_at').map(([, v]) => v),
+        now,
+        userId,
+      ];
+      await db.run(`UPDATE users SET ${setClauses} WHERE id = ?`, values);
     }
 
     res.json({ 
       success: true, 
       message: 'Perfil atualizado com sucesso',
-      name: name.trim()
+      ...(name !== undefined && { name: name.trim() }),
+      ...(preferred_name !== undefined && { preferred_name: preferred_name.trim() || null }),
     });
   } catch (error) {
     console.error('Error updating profile:', error);

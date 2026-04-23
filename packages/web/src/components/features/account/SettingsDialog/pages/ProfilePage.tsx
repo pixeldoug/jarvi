@@ -63,9 +63,11 @@ export function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(user?.name || '');
+  const [preferredName, setPreferredName] = useState(user?.preferred_name || '');
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [isSavingPreferredName, setIsSavingPreferredName] = useState(false);
 
   const [timezone, setTimezone] = useState('America/Sao_Paulo');
   const [timezoneSaving, setTimezoneSaving] = useState(false);
@@ -191,6 +193,34 @@ export function ProfilePage() {
     }
   };
 
+  // Preferred name handler
+  const handlePreferredNameBlur = async () => {
+    const trimmed = preferredName.trim();
+    if (trimmed === (user?.preferred_name || '')) return;
+    try {
+      setIsSavingPreferredName(true);
+      const response = await fetch(`${API_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ preferred_name: trimmed }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Erro ao atualizar apelido');
+      }
+      updateUser({ preferred_name: trimmed || undefined });
+      toast.success('Apelido atualizado com sucesso!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao atualizar apelido');
+      setPreferredName(user?.preferred_name || '');
+    } finally {
+      setIsSavingPreferredName(false);
+    }
+  };
+
   // Timezone handler — auto-save on change
   const handleTimezoneChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newTz = e.target.value;
@@ -275,6 +305,19 @@ export function ProfilePage() {
             onBlur={handleNameBlur}
             placeholder="Seu nome"
             disabled={isSavingName}
+          />
+        </div>
+
+        <div className={styles.fieldGroup}>
+          <TextInput
+            id="settings-preferred-name"
+            label="Como prefere ser chamado?"
+            value={preferredName}
+            onChange={(e) => setPreferredName(e.target.value)}
+            onBlur={handlePreferredNameBlur}
+            placeholder="Ex: Doug, Duda, Henrique..."
+            disabled={isSavingPreferredName}
+            helperText="É assim que a Jarvi vai se referir a você em todos os serviços do app."
           />
         </div>
 

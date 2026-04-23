@@ -71,6 +71,7 @@ const createTables = async (): Promise<void> => {
       whatsapp_link_code TEXT,
       whatsapp_link_code_expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       avatar_explicitly_removed ${booleanType} DEFAULT FALSE,
+      preferred_name TEXT,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -937,6 +938,13 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Add preferred_name column to users
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_name TEXT');
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -1216,6 +1224,13 @@ const runMigrations = async (): Promise<void> => {
     // Migration: Add avatar_explicitly_removed flag to users (SQLite)
     try {
       await db.exec('ALTER TABLE users ADD COLUMN avatar_explicitly_removed BOOLEAN DEFAULT FALSE');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add preferred_name column to users (SQLite)
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN preferred_name TEXT');
     } catch (e) {
       // Column already exists, ignore
     }

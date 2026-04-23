@@ -204,7 +204,7 @@ export function Sidebar({
     selectedList === itemId && !selectedCategory && !selectedCustomListId;
 
   // ── User info ───────────────────────────────────────────────────────────────
-  const userName = user?.name || 'Usuário';
+  const userName = user?.preferred_name || user?.name || 'Usuário';
   const userAvatar = user?.avatar;
   const planLabel =
     subscription?.status === 'trialing' && daysLeftInTrial !== null && daysLeftInTrial > 0

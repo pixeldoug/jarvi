@@ -585,7 +585,7 @@ export const getProfile = async (
       const client = await pool.connect();
       try {
         const result = await client.query(
-          'SELECT id, email, name, avatar, auth_provider, has_password, created_at FROM users WHERE id = $1',
+          'SELECT id, email, name, preferred_name, avatar, auth_provider, has_password, created_at FROM users WHERE id = $1',
           [userId]
         );
         user = result.rows[0];
@@ -595,7 +595,7 @@ export const getProfile = async (
     } else {
       // SQLite
       const db = getDatabase();
-      user = await db.get('SELECT id, email, name, avatar, auth_provider, has_password, created_at FROM users WHERE id = ?', [userId]);
+      user = await db.get('SELECT id, email, name, preferred_name, avatar, auth_provider, has_password, created_at FROM users WHERE id = ?', [userId]);
     }
 
     if (!user) {

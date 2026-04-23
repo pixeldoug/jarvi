@@ -127,7 +127,7 @@ async function appendHistory(
 
 async function getUserMemoryAndTimezone(
   userId: string,
-): Promise<{ memory: string; timezone: string }> {
+): Promise<{ memory: string; timezone: string; preferredName: string }> {
   try {
     if (isPostgreSQL()) {
       const [memRes, tzRes] = await Promise.all([
@@ -135,12 +135,14 @@ async function getUserMemoryAndTimezone(
           'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = $1',
           [userId],
         ),
-        getPool().query('SELECT timezone FROM users WHERE id = $1', [userId]),
+        getPool().query('SELECT timezone, preferred_name, name FROM users WHERE id = $1', [userId]),
       ]);
       const memRow = memRes.rows[0];
       const memory =
         memRow && memRow.consent_ai_memory !== false ? (memRow.memory_text || '') : '';
-      return { memory, timezone: tzRes.rows[0]?.timezone || 'America/Sao_Paulo' };
+      const userRow = tzRes.rows[0];
+      const preferredName = userRow?.preferred_name || userRow?.name?.split(' ')[0] || '';
+      return { memory, timezone: userRow?.timezone || 'America/Sao_Paulo', preferredName };
     }
     const db = getDatabase();
     const [memRow, tzRow] = await Promise.all([
@@ -148,12 +150,16 @@ async function getUserMemoryAndTimezone(
         'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = ?',
         [userId],
       ),
-      db.get<{ timezone?: string }>('SELECT timezone FROM users WHERE id = ?', [userId]),
+      db.get<{ timezone?: string; preferred_name?: string; name?: string }>(
+        'SELECT timezone, preferred_name, name FROM users WHERE id = ?',
+        [userId],
+      ),
     ]);
     const memory = memRow && memRow.consent_ai_memory ? (memRow.memory_text || '') : '';
-    return { memory, timezone: tzRow?.timezone || 'America/Sao_Paulo' };
+    const preferredName = tzRow?.preferred_name || tzRow?.name?.split(' ')[0] || '';
+    return { memory, timezone: tzRow?.timezone || 'America/Sao_Paulo', preferredName };
   } catch {
-    return { memory: '', timezone: 'America/Sao_Paulo' };
+    return { memory: '', timezone: 'America/Sao_Paulo', preferredName: '' };
   }
 }
 
@@ -627,7 +633,7 @@ function buildWeekCalendar(todayIso: string): string {
   }).join('\n');
 }
 
-function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): string {
+function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string, preferredName: string): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
   const { formatted: dateFormatted, isoDate: todayIso, weekday: todayWeekday } = getDateTimeForTimezone(timezone);
@@ -724,7 +730,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
-    `${greeting}, [nome]! Hoje é ${todayWeekday} ${todayIso.split('-').reverse().slice(0, 2).join('/')}.`,
+    `${greeting}${preferredName ? `, ${preferredName}` : ''}! Hoje é ${todayWeekday} ${todayIso.split('-').reverse().slice(0, 2).join('/')}.`,
     ``,
     `🔥 Prioridades`,
     `— [tarefa high priority 1]`,
@@ -932,12 +938,12 @@ export const runWhatsappAgent = async (
   redis: RedisLike,
   options: RunWhatsappAgentOptions = {},
 ): Promise<string> => {
-  const [{ memory, timezone }, tasks] = await Promise.all([
+  const [{ memory, timezone, preferredName }, tasks] = await Promise.all([
     getUserMemoryAndTimezone(userId),
     getUserTasks(userId),
   ]);
 
-  const systemPrompt = buildSystemPrompt(tasks, memory, timezone);
+  const systemPrompt = buildSystemPrompt(tasks, memory, timezone, preferredName);
 
   // Compute today's date once and share across history load + message injection
   const { isoDate: todayIso, weekday: todayWeekday } = getDateTimeForTimezone(timezone);

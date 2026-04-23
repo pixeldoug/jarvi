@@ -985,6 +985,25 @@ async function getUserTimezone(userId: string): Promise<string> {
   }
 }
 
+async function getUserPreferredName(userId: string): Promise<string> {
+  try {
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query('SELECT preferred_name, name FROM users WHERE id = $1', [userId]);
+      const row = result.rows[0];
+      return row?.preferred_name || row?.name?.split(' ')[0] || '';
+    }
+    const db = getDatabase();
+    const row = await db.get<{ preferred_name?: string; name?: string }>(
+      'SELECT preferred_name, name FROM users WHERE id = ?',
+      [userId],
+    );
+    return row?.preferred_name || row?.name?.split(' ')[0] || '';
+  } catch {
+    return '';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Memory reconciliation
 // ---------------------------------------------------------------------------
@@ -1134,10 +1153,11 @@ async function extractMemoryPostResponse(
 // System prompt builders
 // ---------------------------------------------------------------------------
 
-function buildTaskModeSystemPrompt(task: TaskRow, memory: string, timezone: string): string {
+function buildTaskModeSystemPrompt(task: TaskRow, memory: string, timezone: string, preferredName: string): string {
   const parts = [
     `Você é o Jarvi, assistente pessoal de produtividade em português brasileiro.`,
     `Personalidade: você age como um amigo próximo que realmente entende o problema do usuário — direto, empático, prático. Não é um bot que só executa comandos: você raciocina sobre a situação, oferece orientação útil quando faz sentido, e só então organiza as ações. Use a memória do usuário ativamente para personalizar cada resposta.`,
+    preferredName ? `Chame o usuário de "${preferredName}" quando se referir a ele diretamente.` : null,
     ``,
     `Você está ajudando com uma tarefa específica:`,
     `- Título: "${task.title}"`,
@@ -1170,6 +1190,7 @@ function buildGeneralModeSystemPrompt(
   timezone: string,
   lists: ListRow[] = [],
   categories: CategoryRow[] = [],
+  preferredName = '',
 ): string {
   const activeTasks = tasks.filter((t) => !t.completed);
   const completedCount = tasks.length - activeTasks.length;
@@ -1208,6 +1229,7 @@ function buildGeneralModeSystemPrompt(
   const lines = [
     `Você é o Jarvi, assistente pessoal de produtividade em português brasileiro.`,
     `Personalidade: você age como um amigo próximo que realmente entende o problema do usuário — direto, empático, prático. Não é um bot que só cria tarefas: você raciocina sobre a situação, oferece orientação útil quando faz sentido, e só então organiza as ações necessárias. Use a memória do usuário ativamente para personalizar cada resposta.`,
+    preferredName ? `Chame o usuário de "${preferredName}" quando se referir a ele diretamente.` : null,
     ``,
     `Contexto da conta do usuário:`,
     `- ${activeTasks.length} tarefas ativas, ${completedCount} concluídas`,
@@ -1257,9 +1279,10 @@ export async function streamChat(
 ): Promise<void> {
   const openai = getOpenAIClient();
 
-  const [rawMemory, timezone] = await Promise.all([
+  const [rawMemory, timezone, preferredName] = await Promise.all([
     getUserMemory(userId),
     getUserTimezone(userId),
+    getUserPreferredName(userId),
   ]);
 
   // Reconcile memory once per day: update stale/transient info based on current task state
@@ -1285,14 +1308,14 @@ export async function streamChat(
       onEvent({ type: 'done' });
       return;
     }
-    systemPrompt = buildTaskModeSystemPrompt(task, memory, timezone);
+    systemPrompt = buildTaskModeSystemPrompt(task, memory, timezone, preferredName);
   } else {
     const [tasks, lists, categories] = await Promise.all([
       getUserTasks(userId),
       getUserLists(userId),
       getUserCategories(userId),
     ]);
-    systemPrompt = buildGeneralModeSystemPrompt(tasks, memory, timezone, lists, categories);
+    systemPrompt = buildGeneralModeSystemPrompt(tasks, memory, timezone, lists, categories, preferredName);
   }
 
   // OpenAI takes the system as the first message (no separate param).
