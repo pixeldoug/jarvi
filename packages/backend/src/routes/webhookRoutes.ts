@@ -6,8 +6,85 @@ import {
   getUserByStripeCustomerId,
   getUserByEmail,
   getUserById,
+  syncSubscriptionFromStripe,
 } from '../services/stripeService';
+import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { handleSlackApprovalInteraction } from '../controllers/earlyAccessController';
+
+/**
+ * Record a Stripe webhook `event.id` so we don't double-apply side-effects when
+ * Stripe retries the same event. Returns true on first-seen, false on duplicate.
+ */
+async function recordWebhookEvent(
+  eventId: string,
+  eventType: string
+): Promise<boolean> {
+  if (isPostgreSQL()) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        `INSERT INTO processed_webhook_events (event_id, event_type)
+         VALUES ($1, $2)
+         ON CONFLICT (event_id) DO NOTHING
+         RETURNING event_id`,
+        [eventId, eventType]
+      );
+      return result.rowCount ? result.rowCount > 0 : false;
+    } finally {
+      client.release();
+    }
+  }
+
+  const db = getDatabase();
+  try {
+    await db.run(
+      `INSERT INTO processed_webhook_events (event_id, event_type) VALUES (?, ?)`,
+      [eventId, eventType]
+    );
+    return true;
+  } catch {
+    // UNIQUE constraint violation = already processed.
+    return false;
+  }
+}
+
+/**
+ * Remove an event_id marker so Stripe's retry will actually re-run the handler.
+ * Used when a handler fails with a retryable error (e.g. user not linked yet).
+ */
+async function forgetWebhookEvent(eventId: string): Promise<void> {
+  try {
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query('DELETE FROM processed_webhook_events WHERE event_id = $1', [eventId]);
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      await db.run('DELETE FROM processed_webhook_events WHERE event_id = ?', [eventId]);
+    }
+  } catch (error) {
+    console.error('Failed to forget webhook event id:', eventId, error);
+  }
+}
+
+/**
+ * Thrown when a webhook cannot link a Stripe event to a Jarvi user yet.
+ *
+ * We surface this as a 500 to Stripe so the event is retried — otherwise Stripe
+ * marks it as delivered and stale DB state persists forever (happens when
+ * `invoice.payment_succeeded` races ahead of `checkout.session.completed`).
+ */
+class WebhookRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WebhookRetryableError';
+  }
+}
 
 const router = Router();
 
@@ -43,7 +120,27 @@ router.post('/stripe', async (req: Request, res: Response) => {
     return;
   }
 
-  console.log(`📩 Received Stripe webhook: ${event.type}`);
+  console.log(`📩 Received Stripe webhook: ${event.type} (id=${event.id})`);
+
+  // Idempotency guard: if we've already processed this exact event_id, ack and skip.
+  // We record BEFORE running handlers so concurrent deliveries can't both run. Retries
+  // after an error still re-run because `WebhookRetryableError` returns 500 and we
+  // delete the marker below; other errors also bubble up as 500.
+  let firstDelivery = false;
+  try {
+    firstDelivery = await recordWebhookEvent(event.id, event.type);
+  } catch (error) {
+    console.error('Failed to record webhook event id:', error);
+    // Fail-open: still process the event so we don't stall if the idempotency table
+    // has issues. Worst case is a duplicate apply, which handlers should tolerate.
+    firstDelivery = true;
+  }
+
+  if (!firstDelivery) {
+    console.log(`↩️ Duplicate webhook ${event.id} (${event.type}) – skipping`);
+    res.json({ received: true, duplicate: true });
+    return;
+  }
 
   try {
     switch (event.type) {
@@ -51,6 +148,14 @@ router.post('/stripe', async (req: Request, res: Response) => {
         // Payment Link / Checkout completed - map Stripe customer/subscription to user
         const session = event.data.object as Stripe.Checkout.Session;
         await handleCheckoutSessionCompleted(session);
+        break;
+      }
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        // Subscription created/updated - link and sync status
+        const subscription = event.data.object as Stripe.Subscription;
+        await handleSubscriptionUpserted(subscription);
         break;
       }
 
@@ -75,13 +180,6 @@ router.post('/stripe', async (req: Request, res: Response) => {
         break;
       }
 
-      case 'customer.subscription.updated': {
-        // Subscription updated - sync status
-        const subscription = event.data.object as Stripe.Subscription;
-        await handleSubscriptionUpdated(subscription);
-        break;
-      }
-
       case 'customer.subscription.deleted': {
         // Subscription cancelled/deleted
         const subscription = event.data.object as Stripe.Subscription;
@@ -95,6 +193,19 @@ router.post('/stripe', async (req: Request, res: Response) => {
 
     res.json({ received: true });
   } catch (error) {
+    // On failure, drop the idempotency marker so Stripe's retry will actually re-run.
+    await forgetWebhookEvent(event.id);
+
+    if (error instanceof WebhookRetryableError) {
+      // Return 500 so Stripe retries (up to ~3 days). Happens when an event for
+      // a user arrives before the linking event (e.g. checkout.session.completed).
+      console.warn(`🔁 Webhook ${event.type} will be retried: ${error.message}`);
+      res.status(500).json({
+        error: 'Webhook not ready to be processed, will retry',
+        message: error.message,
+      });
+      return;
+    }
     console.error('Error processing webhook:', error);
     res.status(500).json({
       error: 'Error processing webhook',
@@ -172,6 +283,60 @@ async function handleCheckoutSessionCompleted(
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscriptionId,
   });
+
+  // Pull the current subscription state from Stripe so `subscription_status` in DB is
+  // accurate immediately — otherwise the `requireActiveSubscription` middleware (which
+  // reads only from DB) will return 403 until another event updates the row.
+  await syncSubscriptionFromStripe(user.id, subscriptionId);
+}
+
+/**
+ * Handle customer.subscription.created / customer.subscription.updated events.
+ *
+ * Keeps DB `subscription_status` in sync with Stripe. Also acts as a safety net if
+ * `checkout.session.completed` is delayed — if we can find the user via subscription
+ * metadata or an already-linked customer, we link the subscription ID here too.
+ */
+async function handleSubscriptionUpserted(
+  subscription: Stripe.Subscription
+): Promise<void> {
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer.id;
+
+  // 1. metadata.userId — set by our direct API flow (`createCustomerWithSubscription`).
+  const metadataUserId = subscription.metadata?.userId;
+  let user: { id: string; email: string } | null = metadataUserId
+    ? await getUserById(metadataUserId)
+    : null;
+
+  // 2. Already-linked customer (most common path for Payment Link after checkout.session.completed).
+  if (!user) {
+    user = await getUserByStripeCustomerId(customerId);
+  }
+
+  if (!user) {
+    // Linking event hasn't landed yet — ask Stripe to retry.
+    throw new WebhookRetryableError(
+      `customer.subscription.${subscription.id} received before user was linked to ${customerId}`
+    );
+  }
+
+  const trialEndsAt = subscription.trial_end
+    ? new Date(subscription.trial_end * 1000)
+    : undefined;
+
+  console.log(
+    `🔄 Subscription sync for ${user.email}: status=${subscription.status}`
+  );
+
+  await updateUserSubscription(user.id, {
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscription.id,
+    subscriptionStatus: subscription.status,
+    trialEndsAt,
+  });
 }
 
 /**
@@ -182,8 +347,9 @@ async function handleTrialWillEnd(subscription: Stripe.Subscription): Promise<vo
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    console.error('User not found for customer:', customerId);
-    return;
+    throw new WebhookRetryableError(
+      `trial_will_end received before customer ${customerId} was linked`
+    );
   }
 
   console.log(`⏰ Trial ending soon for user ${user.email}`);
@@ -211,8 +377,9 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    console.error('User not found for customer:', customerId);
-    return;
+    throw new WebhookRetryableError(
+      `invoice.payment_succeeded received before customer ${customerId} was linked`
+    );
   }
 
   console.log(`💰 Payment succeeded for user ${user.email}`);
@@ -234,8 +401,9 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    console.error('User not found for customer:', customerId);
-    return;
+    throw new WebhookRetryableError(
+      `invoice.payment_failed received before customer ${customerId} was linked`
+    );
   }
 
   console.log(`❌ Payment failed for user ${user.email}`);
@@ -250,29 +418,6 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 }
 
 /**
- * Handle subscription updated event
- */
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-  const customerId = subscription.customer as string;
-  const user = await getUserByStripeCustomerId(customerId);
-
-  if (!user) {
-    console.error('User not found for customer:', customerId);
-    return;
-  }
-
-  console.log(`🔄 Subscription updated for user ${user.email}: ${subscription.status}`);
-
-  // Sync subscription status
-  await updateUserSubscription(user.id, {
-    subscriptionStatus: subscription.status,
-    trialEndsAt: subscription.trial_end
-      ? new Date(subscription.trial_end * 1000)
-      : undefined,
-  });
-}
-
-/**
  * Handle subscription deleted event
  */
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
@@ -280,8 +425,9 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    console.error('User not found for customer:', customerId);
-    return;
+    throw new WebhookRetryableError(
+      `customer.subscription.deleted received before customer ${customerId} was linked`
+    );
   }
 
   console.log(`🗑️ Subscription cancelled for user ${user.email}`);

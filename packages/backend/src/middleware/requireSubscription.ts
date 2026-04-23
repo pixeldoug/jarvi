@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+import { syncSubscriptionFromStripe } from '../services/stripeService';
 
 interface UserWithSubscription {
   id: string;
   subscription_status: string;
   trial_ends_at: string | null;
+  stripe_subscription_id: string | null;
 }
+
+const ACTIVE_STATUSES = new Set(['active', 'trialing']);
 
 function isTrialStillActive(trialEndsAtIso: string | null): boolean {
   if (!trialEndsAtIso) return false;
@@ -31,23 +35,36 @@ export async function requireActiveSubscription(
       return;
     }
 
-    const user = await getUserSubscriptionStatus(userId);
+    let user = await getUserSubscriptionStatus(userId);
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    const isActive =
-      user.subscription_status === 'active' ||
-      (user.subscription_status === 'trialing' &&
-        isTrialStillActive(user.trial_ends_at));
+    let isActive = computeIsActive(user);
+
+    // Auto-heal: if DB says not-active but we have a Stripe subscription ID, our DB
+    // may be stale (e.g. webhooks arrived out of order or an invoice event was missed).
+    // Pull live state from Stripe and re-check before rejecting the request.
+    if (!isActive && user.stripe_subscription_id) {
+      const syncedStatus = await syncSubscriptionFromStripe(
+        userId,
+        user.stripe_subscription_id
+      );
+      if (syncedStatus && ACTIVE_STATUSES.has(syncedStatus)) {
+        user = await getUserSubscriptionStatus(userId);
+        if (user) {
+          isActive = computeIsActive(user);
+        }
+      }
+    }
 
     if (!isActive) {
       res.status(403).json({
         error: 'subscription_required',
         message: 'An active subscription is required to access this resource',
-        subscriptionStatus: user.subscription_status,
+        subscriptionStatus: user?.subscription_status,
       });
       return;
     }
@@ -57,6 +74,14 @@ export async function requireActiveSubscription(
     console.error('Subscription check error:', error);
     res.status(500).json({ error: 'Failed to verify subscription status' });
   }
+}
+
+function computeIsActive(user: UserWithSubscription): boolean {
+  return (
+    user.subscription_status === 'active' ||
+    (user.subscription_status === 'trialing' &&
+      isTrialStillActive(user.trial_ends_at))
+  );
 }
 
 /**
@@ -76,26 +101,34 @@ export async function requireSubscription(
       return;
     }
 
-    const user = await getUserSubscriptionStatus(userId);
+    let user = await getUserSubscriptionStatus(userId);
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    const hasValidTrial =
-      user.subscription_status === 'trialing' &&
-      isTrialStillActive(user.trial_ends_at);
+    let hasSubscription = computeHasSubscription(user);
 
-    const hasSubscription =
-      user.subscription_status !== 'none' &&
-      (user.subscription_status !== 'trialing' || hasValidTrial);
+    // Same auto-heal path as requireActiveSubscription (see rationale there).
+    if (!hasSubscription && user.stripe_subscription_id) {
+      const syncedStatus = await syncSubscriptionFromStripe(
+        userId,
+        user.stripe_subscription_id
+      );
+      if (syncedStatus) {
+        user = await getUserSubscriptionStatus(userId);
+        if (user) {
+          hasSubscription = computeHasSubscription(user);
+        }
+      }
+    }
 
     if (!hasSubscription) {
       res.status(403).json({
         error: 'subscription_required',
         message: 'A subscription is required to access this resource',
-        subscriptionStatus: user.subscription_status,
+        subscriptionStatus: user?.subscription_status,
       });
       return;
     }
@@ -105,6 +138,17 @@ export async function requireSubscription(
     console.error('Subscription check error:', error);
     res.status(500).json({ error: 'Failed to verify subscription status' });
   }
+}
+
+function computeHasSubscription(user: UserWithSubscription): boolean {
+  const hasValidTrial =
+    user.subscription_status === 'trialing' &&
+    isTrialStillActive(user.trial_ends_at);
+
+  return (
+    user.subscription_status !== 'none' &&
+    (user.subscription_status !== 'trialing' || hasValidTrial)
+  );
 }
 
 /**
@@ -118,7 +162,7 @@ async function getUserSubscriptionStatus(
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT id, subscription_status, trial_ends_at FROM users WHERE id = $1',
+        'SELECT id, subscription_status, trial_ends_at, stripe_subscription_id FROM users WHERE id = $1',
         [userId]
       );
       return result.rows[0] || null;
@@ -128,7 +172,7 @@ async function getUserSubscriptionStatus(
   } else {
     const db = getDatabase();
     const result = await db.get<UserWithSubscription>(
-      'SELECT id, subscription_status, trial_ends_at FROM users WHERE id = ?',
+      'SELECT id, subscription_status, trial_ends_at, stripe_subscription_id FROM users WHERE id = ?',
       [userId]
     );
     return result ?? null;

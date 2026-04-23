@@ -241,6 +241,46 @@ export async function getSubscriptionStatus(userId: string): Promise<{
 }
 
 /**
+ * Sync a user's subscription status in our DB by pulling the live state from Stripe.
+ *
+ * Used by webhooks (after linking IDs) and by the `requireActiveSubscription` middleware
+ * as an auto-heal path when the DB row is stale (e.g., webhook events arrived out of order
+ * or a zero-value invoice didn't trigger `invoice.payment_succeeded`).
+ *
+ * Returns the Stripe subscription status, or `null` if syncing was not possible.
+ */
+export async function syncSubscriptionFromStripe(
+  userId: string,
+  subscriptionId: string
+): Promise<string | null> {
+  if (!stripe) return null;
+
+  try {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+      expand: ['items.data'],
+    });
+
+    const trialEndsAt = subscription.trial_end
+      ? new Date(subscription.trial_end * 1000)
+      : null;
+
+    await updateUserSubscription(userId, {
+      subscriptionStatus: subscription.status,
+      trialEndsAt: trialEndsAt ?? undefined,
+    });
+
+    return subscription.status;
+  } catch (error) {
+    console.error('Failed to sync subscription from Stripe:', {
+      userId,
+      subscriptionId,
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+    return null;
+  }
+}
+
+/**
  * Create a Stripe Billing Portal session for the user to manage their subscription.
  */
 export async function createPortalSession(
