@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { usePostHog } from 'posthog-js/react';
 
 interface User {
@@ -52,7 +51,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const posthog = usePostHog();
-  const queryClient = useQueryClient();
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -247,9 +245,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('jarvi_token');
-    // Clear the React Query cache so stale subscription/user data from this
-    // session is never served to the next session after re-login.
-    queryClient.clear();
     window.location.href = '/login';
   };
 
