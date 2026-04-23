@@ -311,8 +311,7 @@ async function executeTool(
 
   switch (name) {
     case 'create_task': {
-      const taskId = uuidv4();
-      const title = String(args.title || '');
+      const title = String(args.title || '').trim();
       const description = args.description ? String(args.description) : null;
       const priority = args.priority ? String(args.priority) : null;
       const dueDate = args.due_date ? String(args.due_date) : null;
@@ -320,6 +319,45 @@ async function executeTool(
       const category = args.category ? String(args.category) : null;
 
       const whatsappContent = originalWhatsappContent || null;
+
+      // Idempotency guard — if an identical-titled task was created within the
+      // last 2 minutes for this user, return that one instead of inserting a
+      // duplicate. Catches both model double-calls and ambiguous follow-ups
+      // like "pode ser", "ok", "sim" that re-trigger create_task.
+      const DEDUP_WINDOW_SECONDS = 120;
+      const cutoff = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
+      const existingDuplicate = isPostgreSQL()
+        ? (
+            await getPool().query<{ id: string }>(
+              `SELECT id FROM tasks
+               WHERE user_id = $1 AND LOWER(title) = LOWER($2) AND created_at >= $3
+               ORDER BY created_at DESC LIMIT 1`,
+              [userId, title, cutoff],
+            )
+          ).rows[0]
+        : await getDatabase().get<{ id: string }>(
+            `SELECT id FROM tasks
+             WHERE user_id = ? AND LOWER(title) = LOWER(?) AND created_at >= ?
+             ORDER BY created_at DESC LIMIT 1`,
+            [userId, title, cutoff],
+          );
+
+      if (existingDuplicate?.id) {
+        console.warn(
+          '[WhatsApp Agent] Dedup guard — skipping duplicate create_task title="%s" userId=%s existingId=%s',
+          title,
+          userId,
+          existingDuplicate.id,
+        );
+        return JSON.stringify({
+          success: true,
+          id: existingDuplicate.id,
+          title,
+          duplicate: true,
+        });
+      }
+
+      const taskId = uuidv4();
 
       if (isPostgreSQL()) {
         await getPool().query(
@@ -569,7 +607,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     `==============================================`,
     ``,
     `Você é o Jarvi, assistente pessoal de produtividade no WhatsApp, em português brasileiro.`,
-    `Personalidade: amigo próximo, direto, empático, prático. Não é um bot que só cria tarefas — você conversa, orienta, responde perguntas e organiza a vida do usuário.`,
+    `Personalidade: direto, empático, prático. Não é um bot que só cria tarefas — você conversa, orienta, responde perguntas e organiza a vida do usuário.`,
     ``,
     `Tarefas do usuário — ${activeTasks.length} ativas, ${completedCount} concluídas:`,
     taskList,
@@ -596,7 +634,7 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     ``,
     `➕ [título exato] criada.`,
     ``,
-    `[1 frase empática e curta sobre a tarefa — ex: "Isso parece algo rápido e importante no dia a dia." ou "Boa ideia deixar isso registrado."]`,
+    `[1 frase curta que apenas valida a tarefa, SEM oferecer ações extras ou fazer perguntas proativas — ex: "Anotado." ou "Deixei registrado." ou "Feito."]`,
     ``,
     `[Inclua a seção "Sugestão:" APENAS se a tarefa foi criada sem data OU sem prioridade. Liste só os campos faltantes:]`,
     `Sugestão:`,
@@ -607,13 +645,22 @@ function buildSystemPrompt(tasks: TaskRow[], memory: string, timezone: string): 
     ``,
     `Regras da criação:`,
     `- Se a tarefa já foi criada COM data e prioridade, omita a seção "Sugestão:" inteira`,
-    `- A frase empática deve ser específica ao tipo de tarefa, nunca genérica`,
-    `- Nunca repita o título na frase empática`,
+    `- A frase de validação deve ser curta e neutra, nunca propositiva`,
+    `- Nunca repita o título na frase de validação`,
     `- Nunca use **, ##, --- ou qualquer markdown`,
     `- Ao listar tarefas, use o formato com emojis acima, sem IDs visíveis para o usuário`,
     `- Responda perguntas sobre tarefas, datas e prioridades usando a lista acima`,
     `- MEMÓRIA: Se a mensagem contiver informação pessoal nova (nomes, relacionamentos, localização, preferências, hábitos, datas importantes), chame update_memory mesclando com o que já existia — nunca descarte informações antigas`,
     `- Data/hora atual: ${dateFormatted} (${timezone})`,
+    ``,
+    `⛔ ESCOPO DE FUNCIONALIDADES:`,
+    `Você só sabe criar, editar, concluir e excluir tarefas INDIVIDUAIS. NÃO ofereça dividir em subtarefas, criar listas/projetos, lembretes recorrentes ou qualquer coisa fora das suas tools. Se o usuário pedir algo fora do escopo (ex: "divide isso em partes", "cria uma lista X"), responda que por enquanto trabalha só com tarefas individuais e sugira registrar como uma só.`,
+    ``,
+    `⛔ ANTI-DUPLICATA:`,
+    `Antes de chamar create_task, olhe a lista de tarefas ATIVAS acima. Se já existir tarefa com título idêntico ou muito semelhante criada recentemente, NÃO chame create_task — responda confirmando que a tarefa já está registrada.`,
+    ``,
+    `⛔ ACKNOWLEDGMENTS AMBÍGUOS ("pode ser", "ok", "sim", "tá bom", "beleza"):`,
+    `Quando a mensagem do usuário for apenas uma confirmação genérica a algo que VOCÊ ofereceu antes, releia sua última resposta. Se você não ofereceu nada concreto dentro do escopo (criar/editar/concluir/excluir tarefa), apenas confirme brevemente — NUNCA chame create_task, update_task ou qualquer tool apenas porque o usuário concordou vagamente. "pode ser" sozinho não é pedido de nova tarefa.`,
     ``,
     `BRIEFING DIÁRIO — use este formato EXATO quando o usuário perguntar sobre o dia ("como está meu dia", "o que tenho hoje", "o que tenho amanhã", "resumo do dia", "meu dia", "minhas tarefas de hoje/amanhã", saudações como "oi", "olá", "bom dia", "boa tarde", "boa noite" sem outra intenção clara):`,
     ``,
