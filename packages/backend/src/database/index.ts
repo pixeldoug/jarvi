@@ -70,6 +70,7 @@ const createTables = async (): Promise<void> => {
       whatsapp_verified ${booleanType} DEFAULT FALSE,
       whatsapp_link_code TEXT,
       whatsapp_link_code_expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      avatar_explicitly_removed ${booleanType} DEFAULT FALSE,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -916,6 +917,26 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Create processed_webhook_events table for Stripe webhook idempotency.
+      // Stripe may deliver the same event_id multiple times (e.g. after retries); we
+      // record each one so handlers don't double-apply state changes.
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS processed_webhook_events (
+          event_id TEXT PRIMARY KEY,
+          event_type TEXT NOT NULL,
+          processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      // Migration: Add avatar_explicitly_removed flag to users
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_explicitly_removed BOOLEAN DEFAULT FALSE');
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -1177,6 +1198,24 @@ const runMigrations = async (): Promise<void> => {
     // Migration: Add trial_extended flag to users (SQLite)
     try {
       await db.exec('ALTER TABLE users ADD COLUMN trial_extended BOOLEAN DEFAULT FALSE');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Create processed_webhook_events table for Stripe webhook idempotency (SQLite).
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS processed_webhook_events (
+        event_id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        processed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Add avatar_explicitly_removed flag to users (SQLite)
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN avatar_explicitly_removed BOOLEAN DEFAULT FALSE');
     } catch (e) {
       // Column already exists, ignore
     }

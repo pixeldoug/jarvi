@@ -215,26 +215,45 @@ export const googleAuth = async (
           user = newUserResult.rows[0];
         } else {
           user = result.rows[0];
-          // Update existing user - DON'T change auth_provider if user has password
+          // Existing user: preserve user-customized name/avatar.
+          // Only auto-fill avatar from Google when the user has no avatar and never explicitly removed it.
           const shouldUpdateAuthProvider = user.password === 'google-auth';
-          
+          const shouldBackfillAvatar = !user.avatar && !user.avatar_explicitly_removed && !!picture;
+
           if (shouldUpdateAuthProvider) {
-            await client.query(
-              `UPDATE users 
-               SET name = $1, avatar = $2, auth_provider = $3, email_verified = $4, updated_at = $5
-               WHERE email = $6`,
-              [name || user.name, picture || user.avatar, 'google', true, now, email]
-            );
+            if (shouldBackfillAvatar) {
+              await client.query(
+                `UPDATE users
+                 SET avatar = $1, auth_provider = $2, email_verified = $3, updated_at = $4
+                 WHERE email = $5`,
+                [picture, 'google', true, now, email]
+              );
+            } else {
+              await client.query(
+                `UPDATE users
+                 SET auth_provider = $1, email_verified = $2, updated_at = $3
+                 WHERE email = $4`,
+                ['google', true, now, email]
+              );
+            }
           } else {
-            // User has password, just update name/avatar, keep auth_provider as is
-            await client.query(
-              `UPDATE users 
-               SET name = $1, avatar = $2, email_verified = $3, updated_at = $4
-               WHERE email = $5`,
-              [name || user.name, picture || user.avatar, true, now, email]
-            );
+            if (shouldBackfillAvatar) {
+              await client.query(
+                `UPDATE users
+                 SET avatar = $1, email_verified = $2, updated_at = $3
+                 WHERE email = $4`,
+                [picture, true, now, email]
+              );
+            } else {
+              await client.query(
+                `UPDATE users
+                 SET email_verified = $1, updated_at = $2
+                 WHERE email = $3`,
+                [true, now, email]
+              );
+            }
           }
-          
+
           // Re-fetch updated user
           const updatedResult = await client.query('SELECT * FROM users WHERE email = $1', [email]);
           user = updatedResult.rows[0];
@@ -273,26 +292,45 @@ export const googleAuth = async (
 
         user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
       } else {
-        // Update existing user - DON'T change auth_provider if user has password
+        // Existing user: preserve user-customized name/avatar.
+        // Only auto-fill avatar from Google when the user has no avatar and never explicitly removed it.
         const shouldUpdateAuthProvider = user.password === 'google-auth';
-        
+        const shouldBackfillAvatar = !user.avatar && !user.avatar_explicitly_removed && !!picture;
+
         if (shouldUpdateAuthProvider) {
-          await db.run(
-            `UPDATE users 
-             SET name = ?, avatar = ?, auth_provider = ?, email_verified = ?, updated_at = ?
-             WHERE email = ?`,
-            [name || user.name, picture || user.avatar, 'google', true, now, email]
-          );
+          if (shouldBackfillAvatar) {
+            await db.run(
+              `UPDATE users
+               SET avatar = ?, auth_provider = ?, email_verified = ?, updated_at = ?
+               WHERE email = ?`,
+              [picture, 'google', true, now, email]
+            );
+          } else {
+            await db.run(
+              `UPDATE users
+               SET auth_provider = ?, email_verified = ?, updated_at = ?
+               WHERE email = ?`,
+              ['google', true, now, email]
+            );
+          }
         } else {
-          // User has password, just update name/avatar, keep auth_provider as is
-          await db.run(
-            `UPDATE users 
-             SET name = ?, avatar = ?, email_verified = ?, updated_at = ?
-             WHERE email = ?`,
-            [name || user.name, picture || user.avatar, true, now, email]
-          );
+          if (shouldBackfillAvatar) {
+            await db.run(
+              `UPDATE users
+               SET avatar = ?, email_verified = ?, updated_at = ?
+               WHERE email = ?`,
+              [picture, true, now, email]
+            );
+          } else {
+            await db.run(
+              `UPDATE users
+               SET email_verified = ?, updated_at = ?
+               WHERE email = ?`,
+              [true, now, email]
+            );
+          }
         }
-        
+
         // Re-fetch updated user
         user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
       }

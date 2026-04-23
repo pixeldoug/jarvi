@@ -92,13 +92,13 @@ router.post('/avatar', authenticateToken, async (req: Request, res: Response) =>
     if (isPostgreSQL()) {
       const pool = getPool();
       await pool.query(
-        'UPDATE users SET avatar = $1, updated_at = $2 WHERE id = $3',
+        'UPDATE users SET avatar = $1, avatar_explicitly_removed = FALSE, updated_at = $2 WHERE id = $3',
         [avatar, now, userId]
       );
     } else {
       const db = getDatabase();
       await db.run(
-        'UPDATE users SET avatar = ?, updated_at = ? WHERE id = ?',
+        'UPDATE users SET avatar = ?, avatar_explicitly_removed = 0, updated_at = ? WHERE id = ?',
         [avatar, now, userId]
       );
     }
@@ -131,13 +131,13 @@ router.delete('/avatar', authenticateToken, async (req: Request, res: Response) 
     if (isPostgreSQL()) {
       const pool = getPool();
       await pool.query(
-        'UPDATE users SET avatar = NULL, updated_at = $1 WHERE id = $2',
+        'UPDATE users SET avatar = NULL, avatar_explicitly_removed = TRUE, updated_at = $1 WHERE id = $2',
         [now, userId]
       );
     } else {
       const db = getDatabase();
       await db.run(
-        'UPDATE users SET avatar = NULL, updated_at = ? WHERE id = ?',
+        'UPDATE users SET avatar = NULL, avatar_explicitly_removed = 1, updated_at = ? WHERE id = ?',
         [now, userId]
       );
     }
