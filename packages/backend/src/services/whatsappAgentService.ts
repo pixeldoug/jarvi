@@ -7,6 +7,7 @@ import type {
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { hasIO, getIO } from '../utils/ioManager';
+import { sanitizeTimeString } from '../utils/taskTime';
 
 // Duck-typed interface covering the Redis methods we actually use,
 // compatible with both ioredis `Redis` and `Cluster` instances.
@@ -332,7 +333,7 @@ async function executeTool(
       const description = args.description ? String(args.description) : null;
       const priority = args.priority ? String(args.priority) : null;
       const dueDate = args.due_date ? String(args.due_date) : null;
-      const time = args.time ? String(args.time) : null;
+      const time = sanitizeTimeString(args.time);
       const category = args.category ? String(args.category) : null;
 
       const whatsappContent = originalWhatsappContent || null;
@@ -469,7 +470,9 @@ async function executeTool(
       for (const key of ['title', 'description', 'priority', 'due_date', 'time', 'category'] as const) {
         if (args[key] !== undefined) {
           fields.push(`${key} = ${ph()}`);
-          values.push(args[key]);
+          // Normaliza `time` para tratar "null"/"NULL"/"undefined" (strings enviadas
+          // por alguns modelos) como SQL NULL em vez de literais de texto.
+          values.push(key === 'time' ? sanitizeTimeString(args[key]) : args[key]);
         }
       }
       if (!fields.length) return JSON.stringify({ success: true, id: taskId });

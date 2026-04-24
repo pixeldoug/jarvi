@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
+import { sanitizeTimeString } from '../utils/taskTime';
 
 export const createTask = async (
   req: Request,
@@ -25,6 +26,7 @@ export const createTask = async (
 
     const taskId = uuidv4();
     const now = new Date().toISOString();
+    const sanitizedTime = sanitizeTimeString(time);
     let newTask;
 
     if (isPostgreSQL()) {
@@ -44,7 +46,7 @@ export const createTask = async (
             priority || null,
             category || null,
             important || false,
-            time || null,
+            sanitizedTime,
             dueDate || null,
             recurrence_type || 'none',
             recurrence_config || null,
@@ -72,7 +74,7 @@ export const createTask = async (
           priority || null,
           category || null,
           important || false,
-          time || null,
+          sanitizedTime,
           dueDate || null,
           recurrence_type || 'none',
           recurrence_config || null,
@@ -194,8 +196,9 @@ export const updateTask = async (
         // Tentar atualizar com coluna time, se falhar, atualizar sem ela
         try {
           console.log('Attempting to update with time column');
-          // Converter strings vazias para null para campos de timestamp
-          const timeValue = time !== undefined ? (time === '' ? null : time) : existingTask.time;
+          // Converter strings vazias e valores pseudo-nulos ("null", "NULL", "undefined")
+          // para SQL NULL, evitando que esses literais vazem para a UI.
+          const timeValue = time !== undefined ? sanitizeTimeString(time) : existingTask.time;
           const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
           
           await client.query(
@@ -268,8 +271,9 @@ export const updateTask = async (
 
       console.log('Found existing task:', existingTask);
 
-      // Converter strings vazias para null para campos de timestamp
-      const timeValue = time !== undefined ? (time === '' ? null : time) : existingTask.time;
+      // Converter strings vazias e valores pseudo-nulos ("null", "NULL", "undefined")
+      // para SQL NULL, evitando que esses literais vazem para a UI.
+      const timeValue = time !== undefined ? sanitizeTimeString(time) : existingTask.time;
       const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
 
       await db.run(

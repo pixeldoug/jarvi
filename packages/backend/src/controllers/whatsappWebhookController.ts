@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import twilio from 'twilio';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+import { sanitizeTimeString } from '../utils/taskTime';
 import { ExtractedTask, updateTaskFromFollowUp } from '../services/openaiService';
 import { formatTaskConfirmation, sendTextMessage } from '../services/whatsappService';
 import {
@@ -297,7 +298,7 @@ const updatePendingTaskFromFollowUp = async (
         updatedTask.description,
         updatedTask.priority,
         updatedTask.due_date,
-        updatedTask.time,
+        sanitizeTimeString(updatedTask.time),
         updatedTask.category,
         mergedOriginalContext,
         mergedRawContent,
@@ -324,7 +325,7 @@ const updatePendingTaskFromFollowUp = async (
         updatedTask.description,
         updatedTask.priority,
         updatedTask.due_date,
-        updatedTask.time,
+        sanitizeTimeString(updatedTask.time),
         updatedTask.category,
         mergedOriginalContext,
         mergedRawContent,
@@ -343,6 +344,7 @@ const createTaskFromPendingTask = async (pendingTask: PendingTaskRecord): Promis
   const context = pendingTask.original_whatsapp_content?.trim() || 'Sem texto original.';
   const aiSummary = pendingTask.suggested_description?.trim() || 'Resumo não informado pela IA.';
   const finalDescription = `${aiSummary}\n\n---\nContexto original (WhatsApp):\n${context}`;
+  const sanitizedTime = sanitizeTimeString(pendingTask.suggested_time);
 
   if (isPostgreSQL()) {
     const pool = getPool();
@@ -365,7 +367,7 @@ const createTaskFromPendingTask = async (pendingTask: PendingTaskRecord): Promis
         pendingTask.suggested_priority,
         pendingTask.suggested_category,
         false,
-        pendingTask.suggested_time,
+        sanitizedTime,
         pendingTask.suggested_due_date,
         'none',
         null,
@@ -398,7 +400,7 @@ const createTaskFromPendingTask = async (pendingTask: PendingTaskRecord): Promis
       pendingTask.suggested_priority,
       pendingTask.suggested_category,
       false,
-      pendingTask.suggested_time,
+      sanitizedTime,
       pendingTask.suggested_due_date,
       'none',
       null,

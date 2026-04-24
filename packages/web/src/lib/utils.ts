@@ -26,8 +26,12 @@ export function parseDateString(dateString?: string): Date | null {
  * @returns Formatted string like "09:00, 7 Jan" (with time) or "7 Jan" (without time), or null if invalid
  */
 function normalizeTime(time?: string | null): string | undefined {
-  if (!time || time === 'null' || time === 'undefined' || time.trim() === '') return undefined;
-  return time;
+  if (!time) return undefined;
+  const trimmed = time.trim();
+  if (trimmed === '') return undefined;
+  const lower = trimmed.toLowerCase();
+  if (lower === 'null' || lower === 'undefined') return undefined;
+  return trimmed;
 }
 
 export function formatTaskDate(dueDate?: string, time?: string): string | null {

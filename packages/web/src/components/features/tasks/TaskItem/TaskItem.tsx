@@ -121,8 +121,11 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   const dateLabel = (() => {
     if (!task.due_date) return 'Definir';
     if (isToday(task.due_date)) {
-      const t = task.time && task.time !== 'null' && task.time.trim() !== '' ? task.time : null;
-      return t;
+      if (!task.time) return null;
+      const trimmed = task.time.trim();
+      const lower = trimmed.toLowerCase();
+      if (!trimmed || lower === 'null' || lower === 'undefined') return null;
+      return trimmed;
     }
     if (showDayOfWeek) {
       return formatTaskDateWeekday(task.due_date, task.time) || formatTaskDate(task.due_date, task.time) || 'Definir';
