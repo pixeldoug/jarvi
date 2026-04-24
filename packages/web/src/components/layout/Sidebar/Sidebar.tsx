@@ -234,6 +234,11 @@ export function Sidebar({
     setIsSettingsOpen(true);
   };
 
+  const handleAddFilter = () => {
+    setSettingsInitialPage('filters');
+    setIsSettingsOpen(true);
+  };
+
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
     navigate('/tasks', { replace: true });
@@ -450,6 +455,8 @@ export function Sidebar({
                 label="Filtros"
                 isExpanded={isFiltersExpanded}
                 onToggle={() => setIsFiltersExpanded((v) => !v)}
+                showAddButton
+                onAdd={handleAddFilter}
               />
             </div>
             {isFiltersExpanded && (
@@ -468,6 +475,7 @@ export function Sidebar({
                   <SidebarEmptyState
                     description="Use filtros para organizar tarefas com critérios personalizados."
                     buttonLabel="Criar filtro"
+                    onButtonClick={handleAddFilter}
                   />
                 )}
               </div>

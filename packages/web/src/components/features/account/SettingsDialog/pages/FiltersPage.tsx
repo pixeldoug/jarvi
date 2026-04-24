@@ -2,8 +2,7 @@
  * FiltersPage - SettingsDialog
  *
  * Manage saved filters (custom lists) that appear in the sidebar.
- * New filters are created via "Salvar como..." in the FilterPopover.
- * Here users can rename and delete existing saved filters.
+ * Features: create (via CreateListPopover), rename (inline), delete, drag-to-reorder.
  */
 
 import { useState, useCallback } from 'react';
@@ -22,9 +21,12 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable';
+import { FunnelSimple } from '@phosphor-icons/react';
 import { useLists } from '../../../../../contexts/ListContext';
 import { CategoryRow } from '../../../../ui/CategoryRow';
+import { PrimaryButton } from '../../../../ui';
 import { toast } from '../../../../ui/Sonner';
+import { CreateListPopover } from '../../../tasks/CreateListPopover/CreateListPopover';
 import styles from './FiltersPage.module.css';
 
 // ============================================================================
@@ -40,6 +42,9 @@ export function FiltersPage() {
   // Inline editing
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  // Create dialog
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // Derive final sorted list using local order
   const sortedLists = orderedIds.length
@@ -116,11 +121,16 @@ export function FiltersPage() {
   return (
     <div className={styles.page}>
       {/* Page header */}
-      <div className={styles.headerText}>
-        <h1 className={styles.title}>Filtros</h1>
-        <p className={styles.subtitle}>
-          Gerencie os filtros salvos que aparecem na sua barra lateral.
-        </p>
+      <div className={styles.header}>
+        <div className={styles.headerText}>
+          <h1 className={styles.title}>Filtros</h1>
+          <p className={styles.subtitle}>
+            Gerencie os filtros salvos que aparecem na sua barra lateral.
+          </p>
+        </div>
+        <PrimaryButton onClick={() => setIsCreateOpen(true)}>
+          Novo Filtro
+        </PrimaryButton>
       </div>
 
       {/* List */}
@@ -129,7 +139,7 @@ export function FiltersPage() {
           <p className={styles.emptyText}>Carregando…</p>
         ) : sortedLists.length === 0 ? (
           <p className={styles.emptyText}>
-            Nenhum filtro salvo ainda. Use o botão "Filtrar" na página de tarefas e clique em "Salvar como..." para criar um.
+            Nenhum filtro ainda. Clique em "Novo Filtro" para começar.
           </p>
         ) : (
           <DndContext
@@ -146,6 +156,7 @@ export function FiltersPage() {
                   key={list.id}
                   id={list.id}
                   label={list.name}
+                  icon={FunnelSimple}
                   showVisibility={false}
                   editLabel="Editar Filtro"
                   editing={editingId === list.id}
@@ -161,6 +172,12 @@ export function FiltersPage() {
           </DndContext>
         )}
       </div>
+
+      {/* Create dialog */}
+      <CreateListPopover
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+      />
     </div>
   );
 }

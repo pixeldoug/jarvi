@@ -14,10 +14,19 @@
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 
+.header {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sizes-5);
+  width: 100%;
+}
+
 .headerText {
   display: flex;
   flex-direction: column;
   gap: var(--sizes-4);
+  flex: 1;
+  min-width: 0;
 }
 
 .title {

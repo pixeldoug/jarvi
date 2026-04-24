@@ -11,13 +11,15 @@
 import { useEffect, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { DotsSixVertical, Hash, PencilSimple, Trash, Eye, EyeSlash } from '@phosphor-icons/react';
+import { DotsSixVertical, Hash, PencilSimple, Trash, Eye, EyeSlash, type Icon } from '@phosphor-icons/react';
 import { Tooltip } from '../Tooltip';
 import styles from './CategoryRow.module.css';
 
 export interface CategoryRowProps {
   id: string;
   label: string;
+  /** Icon rendered before the label (defaults to Hash) */
+  icon?: Icon;
   visible?: boolean;
   draggable?: boolean;
   /** Whether to render the visibility toggle button (default: true) */
@@ -38,6 +40,7 @@ export interface CategoryRowProps {
 export function CategoryRow({
   id,
   label,
+  icon: RowIcon = Hash,
   visible = true,
   draggable = true,
   showVisibility = true,
@@ -80,9 +83,9 @@ export function CategoryRow({
         </div>
       )}
 
-      {/* Hash icon */}
+      {/* Row icon */}
       <span className={styles.hashIcon}>
-        <Hash size={16} weight="regular" />
+        <RowIcon size={16} weight="regular" />
       </span>
 
       {/* Label or inline input */}

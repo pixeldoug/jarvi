@@ -136,6 +136,7 @@ const PT_DAY_ABBREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as cons
 
 /** Default open/collapsed state for every section in the all-view. */
 const ALL_SECTIONS_OPEN: Record<string, boolean> = {
+  integracoes: true,
   vencidas: true,
   hoje: true,
   amanha: true,
@@ -1854,41 +1855,38 @@ export function Tasks() {
             />
           )}
           {(isPendingTasksLoading || pendingTasksError || pendingTasks.length > 0) && (
-            <section className={styles.pendingSection}>
-              <div className={styles.pendingSectionHeader}>
-                <h2 className={styles.pendingSectionTitle}>
-                  Integrações
-                  {pendingTasks.length > 0 && (
-                    <span className={styles.pendingSectionCount}>({pendingTasks.length})</span>
-                  )}
-                </h2>
-                <div className={styles.pendingSectionDivider} />
+            <Collapsible
+              label={pendingTasks.length > 0 ? `Integrações (${pendingTasks.length})` : 'Integrações'}
+              defaultOpen={true}
+              isOpen={openSections.integracoes}
+              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, integracoes: isOpen }))}
+            >
+              <div className={styles.sectionContent}>
+                {isPendingTasksLoading && (
+                  <p className={styles.pendingSectionMessage}>Carregando sugestões...</p>
+                )}
+
+                {pendingTasksError && (
+                  <p className={styles.pendingSectionError}>{pendingTasksError}</p>
+                )}
+
+                {pendingTasks.length > 0 && (
+                  <div className={styles.pendingTaskList}>
+                    {pendingTasks.map((pendingTask) => (
+                      <PendingTaskCard
+                        key={pendingTask.id}
+                        task={pendingTask}
+                        onConfirm={handleConfirmPendingTask}
+                        onReject={handleRejectPendingTask}
+                        onUpdate={handleUpdatePendingTask}
+                        onClick={handlePendingTaskClick}
+                        isActive={selectedPendingTask?.id === pendingTask.id}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {isPendingTasksLoading && (
-                <p className={styles.pendingSectionMessage}>Carregando sugestões...</p>
-              )}
-
-              {pendingTasksError && (
-                <p className={styles.pendingSectionError}>{pendingTasksError}</p>
-              )}
-
-              {pendingTasks.length > 0 && (
-                <div className={styles.pendingTaskList}>
-                  {pendingTasks.map((pendingTask) => (
-                    <PendingTaskCard
-                      key={pendingTask.id}
-                      task={pendingTask}
-                      onConfirm={handleConfirmPendingTask}
-                      onReject={handleRejectPendingTask}
-                      onUpdate={handleUpdatePendingTask}
-                      onClick={handlePendingTaskClick}
-                      isActive={selectedPendingTask?.id === pendingTask.id}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
+            </Collapsible>
           )}
 
           {/* ── Section anchors: only rendered when there are tasks to show ── */}

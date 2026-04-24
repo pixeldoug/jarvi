@@ -65,7 +65,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 ];
 
 // Pages that render their own full header (title + extras)
-const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['apps', 'categories']);
+const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['apps', 'categories', 'filters']);
 
 // ============================================================================
 // COMPONENT
