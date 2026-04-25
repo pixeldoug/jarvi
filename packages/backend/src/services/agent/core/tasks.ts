@@ -106,6 +106,12 @@ export function bucketTasksByDate(tasks: TaskRow[], todayIso: string): TaskBucke
   return buckets;
 }
 
+function truncateForPrompt(value: string, maxLength = 220): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1)}…`;
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -255,6 +261,7 @@ export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): str
   if (timeStr) parts.push(`às ${timeStr}`);
   if (t.priority) parts.push(`prioridade ${t.priority}`);
   if (t.category) parts.push(`cat: ${t.category}`);
+  if (t.description?.trim()) parts.push(`desc: ${truncateForPrompt(t.description)}`);
 
   if (dueDateStr && dueDateStr < todayIso) {
     parts.push('VENCIDA');

@@ -257,7 +257,10 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
     '• [demais tarefas do período]',
     '• ...',
     '',
-    'Quer que eu te mostre o jeito mais fácil de começar?',
+    'Posso te ajudar com:',
+    '1. detalhes de uma tarefa',
+    '2. próximas tarefas',
+    '3. tarefas vencidas',
     '',
     '[Opcional, só quando ajudar e sempre separado do dia atual:]',
     'No radar',
@@ -277,6 +280,13 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
     '- Se o usuário só mandou uma saudação sem data específica, foque exclusivamente no dia atual',
     '- Nunca mostre IDs para o usuário',
     isoDate ? `- Hoje (${isoDate}) — use o calendário acima para todas as datas` : null,
+    '',
+    'REGRAS PARA CONTINUAÇÃO DO BRIEFING:',
+    '- Se a última resposta foi um briefing com opções e o usuário responder apenas "sim", NÃO responda só "Beleza". Peça uma escolha clara: "Claro. Quer ver 1. detalhes de uma tarefa, 2. próximas tarefas ou 3. tarefas vencidas?"',
+    '- Se o usuário responder "1", "detalhes" ou "detalhes [tarefa]", mostre os detalhes da tarefa mais provável: título, data/horário, prioridade, categoria e descrição/contexto (`desc`). Se houver ambiguidade, pergunte qual tarefa.',
+    '- Se o usuário responder "2", "próximas", "radar" ou "o que vem depois", responda usando somente PRÓXIMAS TAREFAS / NO RADAR. Não misture tarefas de hoje.',
+    '- Se o usuário responder "3", "vencidas" ou "atrasadas", responda usando somente TAREFAS VENCIDAS e ofereça um próximo passo simples: reagendar, concluir ou descartar.',
+    '- Mantenha a voz Jarvi: clareza acima de tudo, frases curtas, sem pressão, sempre reduzindo esforço mental.',
   ]);
 }
 
