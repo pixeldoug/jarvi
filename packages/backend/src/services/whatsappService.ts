@@ -43,8 +43,19 @@ const getTwilioWhatsappNumber = (): string => {
   return toWhatsappAddress(twilioNumber);
 };
 
-const formatDueDateForPtBr = (rawDueDate: string): string | null => {
-  const trimmed = rawDueDate.trim();
+const formatDueDateForPtBr = (rawDueDate: unknown): string | null => {
+  if (rawDueDate == null) return null;
+
+  // PostgreSQL driver returns DATE columns as Date objects; normalize to ISO date string.
+  if (rawDueDate instanceof Date) {
+    if (Number.isNaN(rawDueDate.getTime())) return null;
+    const year = rawDueDate.getFullYear();
+    const month = String(rawDueDate.getMonth() + 1).padStart(2, '0');
+    const day = String(rawDueDate.getDate()).padStart(2, '0');
+    return `${day}/${month}/${year}`;
+  }
+
+  const trimmed = String(rawDueDate).trim();
   if (!trimmed) return null;
 
   const isoDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -56,6 +67,14 @@ const formatDueDateForPtBr = (rawDueDate: string): string | null => {
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toLocaleDateString('pt-BR');
+};
+
+const formatTimeForDisplay = (rawTime: unknown): string | null => {
+  if (rawTime == null) return null;
+  const str = String(rawTime).trim();
+  if (!str) return null;
+  // PG TIME columns may come back as 'HH:MM:SS' — keep just HH:MM.
+  return str.length >= 5 ? str.substring(0, 5) : str;
 };
 
 export const sendTextMessage = async (to: string, text: string): Promise<void> => {
@@ -119,7 +138,10 @@ export const formatTaskConfirmation = (task: TaskConfirmationData): string => {
   }
 
   if (task.time) {
-    lines.push(`⏰ ${task.time}`);
+    const formattedTime = formatTimeForDisplay(task.time);
+    if (formattedTime) {
+      lines.push(`⏰ ${formattedTime}`);
+    }
   }
 
   if (task.priority && priorityEmoji[task.priority]) {

@@ -458,13 +458,40 @@ Data/hora atual: ${now}`,
   const parsed = normalizeExtractedTask(safeJsonParse(response.choices[0]?.message?.content));
   const explicitDueDate = extractExplicitDueDateFromText(followUpMessage);
 
+  // PostgreSQL DATE columns come back as Date objects. Coerce to YYYY-MM-DD
+  // before propagating, otherwise downstream string operations crash.
+  const fallbackDueDate = coerceDueDateToIsoString(currentTask.due_date);
+  const fallbackTime = coerceTimeToHmString(currentTask.time);
+
   return {
     title: parsed.title || currentTask.title,
     description: parsed.description ?? currentTask.description,
     priority: parsed.priority ?? currentTask.priority,
-    due_date: explicitDueDate || parsed.due_date || currentTask.due_date,
-    time: parsed.time ?? currentTask.time,
+    due_date: explicitDueDate || parsed.due_date || fallbackDueDate,
+    time: parsed.time ?? fallbackTime,
     category: parsed.category ?? currentTask.category,
     is_task: true,
   };
+};
+
+const coerceDueDateToIsoString = (value: unknown): string | null => {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const str = String(value).trim();
+  if (!str) return null;
+  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  return isoMatch ? isoMatch[1] : str;
+};
+
+const coerceTimeToHmString = (value: unknown): string | null => {
+  if (value == null) return null;
+  const str = String(value).trim();
+  if (!str) return null;
+  return str.length >= 5 ? str.substring(0, 5) : str;
 };
