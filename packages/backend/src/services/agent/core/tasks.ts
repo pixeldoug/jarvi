@@ -24,6 +24,88 @@ const ACTIVE_TASK_ORDERING = `
 const TASK_COLUMNS =
   'id, user_id, title, description, completed, priority, category, due_date, time, created_at';
 
+export interface TaskBuckets {
+  overdue: TaskRow[];
+  today: TaskRow[];
+  tomorrow: TaskRow[];
+  upcoming: TaskRow[];
+  unscheduled: TaskRow[];
+}
+
+// ---------------------------------------------------------------------------
+// Date/time normalization
+// ---------------------------------------------------------------------------
+
+export function normalizeTaskDueDate(value: unknown): string | null {
+  if (value == null) return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(0, 10);
+  }
+
+  const str = String(value).trim();
+  if (!str) return null;
+
+  const isoDateMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDateMatch) return isoDateMatch[1];
+
+  const parsed = new Date(str);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function normalizeTaskTime(value: unknown): string | null {
+  if (value == null) return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return value.toISOString().slice(11, 16);
+  }
+
+  const str = String(value).trim();
+  if (!str) return null;
+
+  const timeMatch = str.match(/(\d{2}):(\d{2})/);
+  return timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : str.substring(0, 5);
+}
+
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function bucketTasksByDate(tasks: TaskRow[], todayIso: string): TaskBuckets {
+  const tomorrowIso = addDaysToIsoDate(todayIso, 1);
+  const buckets: TaskBuckets = {
+    overdue: [],
+    today: [],
+    tomorrow: [],
+    upcoming: [],
+    unscheduled: [],
+  };
+
+  for (const task of tasks) {
+    const dueDate = normalizeTaskDueDate(task.due_date);
+
+    if (!dueDate) {
+      buckets.unscheduled.push(task);
+    } else if (dueDate < todayIso) {
+      buckets.overdue.push(task);
+    } else if (dueDate === todayIso) {
+      buckets.today.push(task);
+    } else if (dueDate === tomorrowIso) {
+      buckets.tomorrow.push(task);
+    } else {
+      buckets.upcoming.push(task);
+    }
+  }
+
+  return buckets;
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -165,9 +247,8 @@ export function safeParseCategoryNames(raw: unknown): string[] {
  * model never re-recommends as priority a task whose time has already passed.
  */
 export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): string {
-  // PostgreSQL driver returns DATE/TIMESTAMP columns as Date objects, not strings.
-  const dueDateStr = t.due_date ? String(t.due_date).split('T')[0] : null;
-  const timeStr = t.time ? String(t.time).substring(0, 5) : null;
+  const dueDateStr = normalizeTaskDueDate(t.due_date);
+  const timeStr = normalizeTaskTime(t.time);
 
   const parts: string[] = [`"${t.title}"`];
   if (dueDateStr) parts.push(`vence ${dueDateStr}`);

@@ -21,9 +21,12 @@ import {
   getDynamicGreeting,
 } from './time';
 import {
+  bucketTasksByDate,
   formatCategoryLine,
   formatListLine,
   formatTaskLine,
+  normalizeTaskDueDate,
+  normalizeTaskTime,
 } from './tasks';
 import type { AgentContext, ChannelProfile, TaskRow } from './types';
 
@@ -57,15 +60,30 @@ function buildTemporalContext(ctx: AgentContext): string {
 
 function buildTaskListSection(ctx: AgentContext): string {
   const { isoDate, hourMinute } = getDateTimeForTimezone(ctx.timezone);
+  const buckets = bucketTasksByDate(ctx.activeTasks, isoDate);
 
-  const taskList =
-    ctx.activeTasks.length > 0
-      ? ctx.activeTasks.map((t) => formatTaskLine(t, isoDate, hourMinute)).join('\n')
-      : '  (nenhuma tarefa ativa)';
+  const formatGroup = (tasks: TaskRow[], emptyLabel: string): string =>
+    tasks.length > 0
+      ? tasks.map((t) => formatTaskLine(t, isoDate, hourMinute)).join('\n')
+      : `  (${emptyLabel})`;
 
   return joinNonEmpty([
     `Tarefas do usuário — ${ctx.activeTasks.length} ativas, ${ctx.completedTaskCount} concluídas:`,
-    taskList,
+    '',
+    'TAREFAS DE HOJE (use SOMENTE esta seção para "como está meu dia?", "hoje", saudações genéricas e briefing do dia atual):',
+    formatGroup(buckets.today, 'nenhuma tarefa para hoje'),
+    '',
+    'TAREFAS DE AMANHÃ (use SOMENTE quando o usuário pedir explicitamente amanhã):',
+    formatGroup(buckets.tomorrow, 'nenhuma tarefa para amanhã'),
+    '',
+    'PRÓXIMAS TAREFAS / NO RADAR (não misture com o briefing de hoje; só cite em seção separada se for útil):',
+    formatGroup(buckets.upcoming, 'nenhuma próxima tarefa com data'),
+    '',
+    'TAREFAS SEM DATA (não entram no briefing de hoje; cite separadamente só se o usuário pedir visão geral):',
+    formatGroup(buckets.unscheduled, 'nenhuma tarefa sem data'),
+    '',
+    'TAREFAS VENCIDAS (não entram em prioridades; ofereça reagendar/concluir/descartar):',
+    formatGroup(buckets.overdue, 'nenhuma tarefa vencida'),
   ]);
 }
 
@@ -241,14 +259,22 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
     '',
     'Quer que eu te mostre o jeito mais fácil de começar?',
     '',
+    '[Opcional, só quando ajudar e sempre separado do dia atual:]',
+    'No radar',
+    '• [tarefas futuras relevantes — nunca misturar com Hoje]',
+    '',
     'Regras do briefing:',
     `- Use a saudação correta para o horário atual: "${greeting}"`,
     '- Use o primeiro nome do usuário (da memória, se disponível)',
-    '- "Prioridades" = tarefas com priority=high do período relevante (hoje, amanhã, ou próximas se não houver)',
-    '- "Outras tarefas" = demais tarefas do mesmo período',
+    '- Se o usuário pedir "meu dia", "hoje" ou mandar saudação genérica, use SOMENTE a seção TAREFAS DE HOJE. Não use tarefas de amanhã, próximas, sem data ou vencidas como se fossem de hoje.',
+    '- Se o usuário pedir explicitamente "amanhã", use SOMENTE a seção TAREFAS DE AMANHÃ.',
+    '- "Prioridades" = tarefas com priority=high do período solicitado (hoje OU amanhã, nunca misture períodos)',
+    '- "Outras tarefas" = demais tarefas do mesmo período solicitado',
     '- Se não houver tarefas high, omita a seção "🔥 Prioridades" e liste tudo em "Outras tarefas"',
+    '- Se não houver tarefas no período solicitado, diga claramente: "não encontrei tarefas para hoje/amanhã".',
+    '- Tarefas futuras podem aparecer apenas em "No radar", separadas do briefing do dia, e só quando isso for útil para orientar o usuário.',
     '- Tarefas marcadas com VENCIDA ou HORÁRIO JÁ PASSOU NÃO entram nas prioridades — ofereça reagendar/concluir se forem importantes',
-    '- Se o usuário só mandou uma saudação sem data específica, foque no dia atual ou no próximo período com tarefas',
+    '- Se o usuário só mandou uma saudação sem data específica, foque exclusivamente no dia atual',
     '- Nunca mostre IDs para o usuário',
     isoDate ? `- Hoje (${isoDate}) — use o calendário acima para todas as datas` : null,
   ]);
@@ -334,8 +360,8 @@ export function buildTaskFocusedPrompt(
     `- Título: "${task.title}"`,
     task.description ? `- Descrição: "${task.description}"` : null,
     task.priority ? `- Prioridade: ${task.priority}` : null,
-    task.due_date ? `- Data de vencimento: ${String(task.due_date).split('T')[0]}` : null,
-    task.time ? `- Horário: ${String(task.time).substring(0, 5)}` : null,
+    task.due_date ? `- Data de vencimento: ${normalizeTaskDueDate(task.due_date)}` : null,
+    task.time ? `- Horário: ${normalizeTaskTime(task.time)}` : null,
     task.category ? `- Categoria: ${task.category}` : null,
     `- ID da tarefa: ${task.id}`,
     `- Concluída: ${task.completed ? 'Sim' : 'Não'}`,

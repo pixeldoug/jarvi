@@ -20,9 +20,9 @@ export interface TaskRow {
   completed: boolean;
   priority?: string | null;
   category?: string | null;
-  due_date?: string | null;
-  time?: string | null;
-  created_at: string;
+  due_date?: string | Date | null;
+  time?: string | Date | null;
+  created_at: string | Date;
 }
 
 export interface ListRow {
