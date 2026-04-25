@@ -11,15 +11,6 @@ export interface ExtractedTask {
   is_task: boolean;
 }
 
-export interface PendingTaskContext {
-  title: string;
-  description: string | null;
-  priority: 'low' | 'medium' | 'high' | null;
-  due_date: string | null;
-  time: string | null;
-  category: string | null;
-}
-
 const TASK_SYSTEM_PROMPT = `Você é um assistente que extrai tarefas em português.
 Retorne sempre JSON válido com os campos:
 {
@@ -421,77 +412,7 @@ export const updateMemoryFromWhatsappText = async (
   return null;
 };
 
-export const updateTaskFromFollowUp = async (
-  currentTask: PendingTaskContext,
-  followUpMessage: string,
-  extraContext?: string | null
-): Promise<ExtractedTask> => {
-  const openai = getOpenAIClient();
-  const now = new Date().toISOString();
-
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content: `Você atualiza uma tarefa pendente com base em mensagens de continuação do usuário.
-Retorne APENAS JSON no mesmo schema solicitado anteriormente.
-Regras:
-- Considere que o usuário está falando da MESMA tarefa por padrão.
-- Mantenha os campos atuais quando a nova mensagem não trouxer mudança explícita.
-- Use due_date em ISO 8601 (ou null) e time em HH:MM (ou null).
-- Retorne is_task=true quando houver título válido.
-Data/hora atual: ${now}`,
-      },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          current_task: currentTask,
-          follow_up_message: followUpMessage,
-          extra_context: extraContext || null,
-        }),
-      },
-    ],
-  });
-
-  const parsed = normalizeExtractedTask(safeJsonParse(response.choices[0]?.message?.content));
-  const explicitDueDate = extractExplicitDueDateFromText(followUpMessage);
-
-  // PostgreSQL DATE columns come back as Date objects. Coerce to YYYY-MM-DD
-  // before propagating, otherwise downstream string operations crash.
-  const fallbackDueDate = coerceDueDateToIsoString(currentTask.due_date);
-  const fallbackTime = coerceTimeToHmString(currentTask.time);
-
-  return {
-    title: parsed.title || currentTask.title,
-    description: parsed.description ?? currentTask.description,
-    priority: parsed.priority ?? currentTask.priority,
-    due_date: explicitDueDate || parsed.due_date || fallbackDueDate,
-    time: parsed.time ?? fallbackTime,
-    category: parsed.category ?? currentTask.category,
-    is_task: true,
-  };
-};
-
-const coerceDueDateToIsoString = (value: unknown): string | null => {
-  if (value == null) return null;
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-  const str = String(value).trim();
-  if (!str) return null;
-  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
-  return isoMatch ? isoMatch[1] : str;
-};
-
-const coerceTimeToHmString = (value: unknown): string | null => {
-  if (value == null) return null;
-  const str = String(value).trim();
-  if (!str) return null;
-  return str.length >= 5 ? str.substring(0, 5) : str;
-};
+// `updateTaskFromFollowUp` was removed — the unified WhatsApp agent now
+// handles pending-task updates via the `update_pending_task` tool call,
+// using the live LLM context instead of a separate follow-up extraction step.
+// See packages/backend/src/services/agent/core/tools.ts.

@@ -69,6 +69,63 @@ function buildTaskListSection(ctx: AgentContext): string {
   ]);
 }
 
+function formatRelativeAge(createdAt: string | null | undefined): string | null {
+  if (!createdAt) return null;
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return null;
+  const diffMs = Date.now() - created.getTime();
+  if (diffMs < 0) return 'agora';
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return 'agora';
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `há ${diffHours}h`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `há ${diffDays}d`;
+}
+
+function formatPendingTaskLine(pending: AgentContext['pendingTasks'][number]): string {
+  const parts: string[] = [`id:${pending.id}`, `"${pending.suggested_title}"`];
+
+  const dueDate = pending.suggested_due_date
+    ? String(pending.suggested_due_date).split('T')[0]
+    : null;
+  const time = pending.suggested_time
+    ? String(pending.suggested_time).substring(0, 5)
+    : null;
+
+  if (dueDate) parts.push(`vence ${dueDate}`);
+  if (time) parts.push(`às ${time}`);
+  if (pending.suggested_priority) parts.push(`prioridade ${pending.suggested_priority}`);
+  if (pending.suggested_category) parts.push(`cat: ${pending.suggested_category}`);
+
+  const age = formatRelativeAge(pending.created_at);
+  if (age) parts.push(`criada ${age}`);
+
+  if (pending.source) parts.push(`origem: ${pending.source}`);
+
+  return `  - ${parts.join(' | ')}`;
+}
+
+function buildPendingTasksSection(ctx: AgentContext): string | null {
+  if (ctx.pendingTasks.length === 0) return null;
+
+  const lines = ctx.pendingTasks.map(formatPendingTaskLine).join('\n');
+
+  return joinNonEmpty([
+    'SUGESTÕES PENDENTES AGUARDANDO APROVAÇÃO (criadas via WhatsApp/Gmail, ainda não viraram tarefa ativa):',
+    lines,
+    '',
+    'REGRAS PARA SUGESTÕES PENDENTES:',
+    '- Se o usuário CONFIRMAR (sim, ok, confirma, beleza, vamo, pode ser, criar, fechou, blz), chame `confirm_pending_task` com o pending_task_id correspondente. Se houver mais de uma pendente e for ambíguo qual confirmar, pergunte qual antes de chamar a tool.',
+    '- Se o usuário REJEITAR (não, cancelar, deixa pra lá, esquece, não quero), chame `reject_pending_task` com o id correspondente.',
+    '- Se o usuário trouxer AJUSTES sobre uma pendente ("muda pra amanhã", "alta prioridade", "categoria saúde", "às 14h"), chame `update_pending_task` com os campos novos — a sugestão CONTINUA aguardando confirmação.',
+    '- Se a mensagem for sobre OUTRA coisa (pergunta sobre o dia, briefing, novo pedido sem relação com a pendente, dúvida geral), IGNORE a pendente e responda normalmente. Não force confirmação.',
+    '- NUNCA invente um pending_task_id — use exatamente o id mostrado acima.',
+    '- NUNCA chame `create_task` para "salvar" o que já está como pendente. Use `confirm_pending_task` para promover, ou `update_pending_task` para editar.',
+  ]);
+}
+
 function buildListsAndCategoriesSection(ctx: AgentContext): string | null {
   if (ctx.lists.length === 0 && ctx.categories.length === 0) return null;
 
@@ -230,12 +287,16 @@ export function buildSystemPrompt(
     ? profile.systemPromptExtras(ctx)
     : null;
 
+  const pendingSection = buildPendingTasksSection(ctx);
+
   const sections: Array<string | null> = [
     buildTemporalContext(ctx),
     '',
     personalityHeader,
     '',
     buildTaskListSection(ctx),
+    pendingSection ? '' : null,
+    pendingSection,
     '',
     buildListsAndCategoriesSection(ctx),
     ctx.memory ? '' : null,

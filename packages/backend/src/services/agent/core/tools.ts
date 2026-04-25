@@ -25,6 +25,12 @@ import {
   getTaskById,
   safeParseCategoryNames,
 } from './tasks';
+import {
+  confirmPending,
+  getPendingTaskById,
+  rejectPending,
+  updatePendingTaskFields,
+} from '../../pendingTaskService';
 import type {
   AgentContext,
   ChannelProfile,
@@ -306,6 +312,66 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
         type: 'object',
         properties: {},
         required: [],
+      },
+    },
+  },
+  confirm_pending_task: {
+    type: 'function',
+    function: {
+      name: 'confirm_pending_task',
+      description:
+        'Confirma uma sugestão pendente: move ela do estado "awaiting_confirmation" para a lista de tarefas ativas. Use quando o usuário aceitar a sugestão (sim, ok, confirmar, beleza, vamo, pode ser, criar). pending_task_id deve ser exatamente o id mostrado na seção "Sugestões pendentes" do contexto.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pending_task_id: {
+            type: 'string',
+            description: 'ID da pending_task a confirmar (copiar do contexto).',
+          },
+        },
+        required: ['pending_task_id'],
+      },
+    },
+  },
+  reject_pending_task: {
+    type: 'function',
+    function: {
+      name: 'reject_pending_task',
+      description:
+        'Rejeita uma sugestão pendente sem criar tarefa. Use quando o usuário recusar a sugestão (não, cancelar, deixa pra lá, esquece).',
+      parameters: {
+        type: 'object',
+        properties: {
+          pending_task_id: {
+            type: 'string',
+            description: 'ID da pending_task a rejeitar (copiar do contexto).',
+          },
+        },
+        required: ['pending_task_id'],
+      },
+    },
+  },
+  update_pending_task: {
+    type: 'function',
+    function: {
+      name: 'update_pending_task',
+      description:
+        'Atualiza campos de uma sugestão pendente sem confirmá-la. Use quando o usuário trouxer ajustes ("muda pra amanhã", "alta prioridade", "categoria saúde") sobre uma pendente. Após chamar isso, a sugestão segue aguardando confirmação — não cria tarefa.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pending_task_id: {
+            type: 'string',
+            description: 'ID da pending_task a atualizar (copiar do contexto).',
+          },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+          due_date: { type: 'string', description: 'YYYY-MM-DD' },
+          time: { type: 'string', description: 'HH:MM' },
+          category: { type: 'string' },
+        },
+        required: ['pending_task_id'],
       },
     },
   },
@@ -1179,6 +1245,144 @@ async function executeScanGmail(
 }
 
 // ---------------------------------------------------------------------------
+// Pending task executors
+// ---------------------------------------------------------------------------
+
+async function executeConfirmPendingTask(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const pendingTaskId = String(args.pending_task_id || '').trim();
+  if (!pendingTaskId) {
+    return { success: false, message: 'pending_task_id é obrigatório' };
+  }
+
+  const pending = await getPendingTaskById(pendingTaskId, ctx.userId);
+  if (!pending) {
+    return { success: false, message: 'Sugestão pendente não encontrada' };
+  }
+  if (pending.status !== 'awaiting_confirmation') {
+    return {
+      success: false,
+      message: `Sugestão já está com status "${pending.status}" — não pode mais ser confirmada.`,
+    };
+  }
+
+  try {
+    const task = await confirmPending(pending);
+    return {
+      success: true,
+      data: {
+        pending_task_id: pendingTaskId,
+        task_id: task.id,
+        title: task.title,
+        status: 'confirmed',
+      },
+    };
+  } catch (error) {
+    console.error('[Agent] confirm_pending_task failed', {
+      pendingTaskId,
+      userId: ctx.userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, message: 'Falha ao confirmar sugestão pendente.' };
+  }
+}
+
+async function executeRejectPendingTask(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const pendingTaskId = String(args.pending_task_id || '').trim();
+  if (!pendingTaskId) {
+    return { success: false, message: 'pending_task_id é obrigatório' };
+  }
+
+  const pending = await getPendingTaskById(pendingTaskId, ctx.userId);
+  if (!pending) {
+    return { success: false, message: 'Sugestão pendente não encontrada' };
+  }
+
+  try {
+    await rejectPending(pending);
+    return {
+      success: true,
+      data: {
+        pending_task_id: pendingTaskId,
+        title: pending.suggested_title,
+        status: 'rejected',
+      },
+    };
+  } catch (error) {
+    console.error('[Agent] reject_pending_task failed', {
+      pendingTaskId,
+      userId: ctx.userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, message: 'Falha ao rejeitar sugestão pendente.' };
+  }
+}
+
+async function executeUpdatePendingTask(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const pendingTaskId = String(args.pending_task_id || '').trim();
+  if (!pendingTaskId) {
+    return { success: false, message: 'pending_task_id é obrigatório' };
+  }
+
+  const pending = await getPendingTaskById(pendingTaskId, ctx.userId);
+  if (!pending) {
+    return { success: false, message: 'Sugestão pendente não encontrada' };
+  }
+  if (pending.status !== 'awaiting_confirmation') {
+    return {
+      success: false,
+      message: `Sugestão está com status "${pending.status}" — não pode mais ser editada.`,
+    };
+  }
+
+  const updates: Parameters<typeof updatePendingTaskFields>[2] = {};
+  if (typeof args.title === 'string') updates.title = args.title.trim();
+  if (typeof args.description === 'string') updates.description = args.description;
+  if (typeof args.priority === 'string') updates.priority = args.priority;
+  if (typeof args.due_date === 'string') updates.due_date = args.due_date;
+  if (typeof args.time === 'string') updates.time = args.time;
+  if (typeof args.category === 'string') updates.category = args.category;
+
+  if (Object.keys(updates).length === 0) {
+    return { success: false, message: 'Nenhum campo informado para atualização.' };
+  }
+
+  try {
+    const updated = await updatePendingTaskFields(pendingTaskId, ctx.userId, updates);
+    if (!updated) {
+      return { success: false, message: 'Sugestão não pôde ser atualizada.' };
+    }
+    return {
+      success: true,
+      data: {
+        pending_task_id: pendingTaskId,
+        title: updated.suggested_title,
+        priority: updated.suggested_priority,
+        due_date: updated.suggested_due_date,
+        time: updated.suggested_time,
+        category: updated.suggested_category,
+        status: updated.status,
+      },
+    };
+  } catch (error) {
+    console.error('[Agent] update_pending_task failed', {
+      pendingTaskId,
+      userId: ctx.userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { success: false, message: 'Falha ao atualizar sugestão pendente.' };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public dispatcher
 // ---------------------------------------------------------------------------
 
@@ -1217,6 +1421,12 @@ export async function executeToolCall(
       return executeShowCategory(args, ctx);
     case 'scan_gmail':
       return executeScanGmail(args, ctx);
+    case 'confirm_pending_task':
+      return executeConfirmPendingTask(args, ctx);
+    case 'reject_pending_task':
+      return executeRejectPendingTask(args, ctx);
+    case 'update_pending_task':
+      return executeUpdatePendingTask(args, ctx);
     default:
       return { success: false, message: `Tool desconhecida: ${toolName}` };
   }

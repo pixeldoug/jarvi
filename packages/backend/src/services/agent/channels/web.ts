@@ -129,6 +129,7 @@ export async function streamChat(
         completedTaskCount: 0,
         lists: [],
         categories: [],
+        pendingTasks: [],
         mode: 'task',
         focusedTask: task,
       };
@@ -155,6 +156,7 @@ export async function streamChat(
         completedTaskCount,
         lists,
         categories,
+        pendingTasks: [],
         mode: 'general',
         originalUserMessage: lastUserMessage,
       };

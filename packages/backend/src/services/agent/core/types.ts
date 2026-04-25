@@ -47,6 +47,21 @@ export interface CategoryRow {
   position?: number | null;
 }
 
+export interface PendingTaskRow {
+  id: string;
+  user_id: string;
+  source: string | null;
+  suggested_title: string;
+  suggested_description: string | null;
+  suggested_priority: string | null;
+  suggested_due_date: string | null;
+  suggested_time: string | null;
+  suggested_category: string | null;
+  status: string;
+  expires_at?: string | null;
+  created_at?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Conversation / messaging
 // ---------------------------------------------------------------------------
@@ -85,7 +100,10 @@ export type ToolName =
   | 'update_category'
   | 'delete_category'
   | 'show_category'
-  | 'scan_gmail';
+  | 'scan_gmail'
+  | 'confirm_pending_task'
+  | 'reject_pending_task'
+  | 'update_pending_task';
 
 export interface ToolExecutionResult {
   success: boolean;
@@ -140,6 +158,8 @@ export interface AgentContext {
   lists: ListRow[];
   /** User's categories (web only — empty for WhatsApp). */
   categories: CategoryRow[];
+  /** Active pending suggestions awaiting user approval (WhatsApp only — empty for web). */
+  pendingTasks: PendingTaskRow[];
   /** Mode for web: 'task' = chat scoped to a single task, 'general' = default. */
   mode: 'general' | 'task';
   /** When mode === 'task', the focused task. */
