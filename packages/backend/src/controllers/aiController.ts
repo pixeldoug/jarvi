@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { streamChat, ChatMessage } from '../services/aiChatService';
+import { streamChat, ChatMessage } from '../services/agent';
 
 export const handleChat = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user?.id;

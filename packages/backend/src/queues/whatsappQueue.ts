@@ -2,7 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { extractTextFromPdfBuffer } from '../services/documentService';
 import { analyzeImageForChat, transcribeAudio } from '../services/openaiService';
 import { downloadMedia, sendTextMessage } from '../services/whatsappService';
-import { runWhatsappAgent } from '../services/whatsappAgentService';
+import { runWhatsappAgent } from '../services/agent';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 
 interface WhatsappMessageJob {
