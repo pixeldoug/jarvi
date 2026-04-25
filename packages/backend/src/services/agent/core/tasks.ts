@@ -165,16 +165,19 @@ export function safeParseCategoryNames(raw: unknown): string[] {
  * model never re-recommends as priority a task whose time has already passed.
  */
 export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): string {
+  // PostgreSQL driver returns DATE/TIMESTAMP columns as Date objects, not strings.
+  const dueDateStr = t.due_date ? String(t.due_date).split('T')[0] : null;
+  const timeStr = t.time ? String(t.time).substring(0, 5) : null;
+
   const parts: string[] = [`"${t.title}"`];
-  if (t.due_date) parts.push(`vence ${t.due_date}`);
-  if (t.time) parts.push(`às ${t.time}`);
+  if (dueDateStr) parts.push(`vence ${dueDateStr}`);
+  if (timeStr) parts.push(`às ${timeStr}`);
   if (t.priority) parts.push(`prioridade ${t.priority}`);
   if (t.category) parts.push(`cat: ${t.category}`);
 
-  const dueDateOnly = t.due_date ? t.due_date.split('T')[0] : null;
-  if (dueDateOnly && dueDateOnly < todayIso) {
+  if (dueDateStr && dueDateStr < todayIso) {
     parts.push('VENCIDA');
-  } else if (dueDateOnly === todayIso && t.time && t.time < nowHM) {
+  } else if (dueDateStr === todayIso && timeStr && timeStr < nowHM) {
     parts.push('HORÁRIO JÁ PASSOU');
   }
 
