@@ -89,6 +89,11 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
         }),
     ).values(),
   );
+  const updateTaskToolCalls = taskToolCalls.filter((tc) => tc.toolName === 'update_task');
+  const shouldSummarizeTaskUpdates = updateTaskToolCalls.length > 2;
+  const visibleTaskToolCalls = shouldSummarizeTaskUpdates
+    ? taskToolCalls.filter((tc) => tc.toolName !== 'update_task')
+    : taskToolCalls;
 
   const listToolCalls = (message.toolCalls || []).filter(
     (tc) => tc.result?.success && tc.toolName === 'show_list',
@@ -108,9 +113,19 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
         )}
       </div>
 
-      {taskToolCalls.map((tc, i) => (
+      {visibleTaskToolCalls.map((tc, i) => (
         <TaskCardMessage key={`${message.id}-tc-${i}`} toolCall={tc} onTaskClick={onTaskCardClick} />
       ))}
+
+      {shouldSummarizeTaskUpdates && (
+        <div className={styles.taskCard}>
+          <div className={styles.taskCardHeader}>
+            <span className={styles.taskCardTitle}>
+              {updateTaskToolCalls.length} tarefas atualizadas
+            </span>
+          </div>
+        </div>
+      )}
 
       {listToolCalls.map((tc, i) => (
         <ListCardMessage key={`${message.id}-lc-${i}`} toolCall={tc} onListClick={onListCardClick} />
