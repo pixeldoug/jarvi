@@ -27,6 +27,8 @@ export interface EvalScenario {
     preferredName?: string;
     activeTasks?: ReturnType<typeof makeTask>[];
     pendingTasks?: ReturnType<typeof makePendingTask>[];
+    focusedTask?: ReturnType<typeof makeTask>;
+    mode?: 'general' | 'task';
   };
   /** Strings that MUST appear in the response (case-insensitive). */
   mustContain?: string[];
@@ -158,6 +160,26 @@ export const SCENARIOS: EvalScenario[] = [
     idealOutput:
       'Perfeito — deixei para amanhã. Ela continua na aba Integrações para você aprovar.',
     tags: ['pending-task', 'date-update', 'tool-calling'],
+  },
+  {
+    name: 'web-task/update-focused-task-due-date',
+    input: 'o presente tem que ser comprado até amanhã no fim do dia',
+    contextOverrides: {
+      mode: 'task',
+      focusedTask: makeTask({
+        id: 'task-present-mothers-day',
+        title: 'Comprar presente da AU para o Dia das Mães',
+        description: 'O presente do dia das mães tem que ser comprado até amanhã',
+        due_date: null,
+        priority: 'medium',
+      }),
+    },
+    mustContain: ['amanhã'],
+    mustNotContain: ['sem data', 'não consegui'],
+    mustCallTool: ['update_task'],
+    idealOutput:
+      'Atualizei o prazo para amanhã no fim do dia.',
+    tags: ['web', 'task-mode', 'date-update', 'tool-calling'],
   },
 
   // ── Overdue handling ─────────────────────────────────────────────────────────

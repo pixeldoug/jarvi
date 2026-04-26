@@ -1,14 +1,14 @@
 /**
  * Cross-channel safety nets:
  *
- * - Anti-hallucination: detect "I created the task" claims that weren't
- *   backed by an actual create_task tool call, and force a retry.
+ * - Anti-hallucination: detect "I created/updated the task" claims that
+ *   weren't backed by an actual tool call, and force a retry.
  * - Dedup: short-window check that prevents identical-titled task suggestions
  *   from being inserted twice (e.g. when the model double-fires create_task).
  */
 
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
-import { CREATION_TOOL_NAMES } from './tools';
+import { CREATION_TOOL_NAMES, UPDATE_TOOL_NAMES } from './tools';
 import type { ChannelProfile, ToolName } from './types';
 
 const DEDUP_WINDOW_SECONDS = 120;
@@ -20,15 +20,22 @@ const DEDUP_WINDOW_SECONDS = 120;
 export const CREATION_CLAIM_REGEX =
   /(^|\s)(➕|📋|sugerida\b|sugeri\b|criada\b|criei\b|anotei\b|agendei\b|registrei\b)/i;
 
+export const UPDATE_CLAIM_REGEX =
+  /\b(atualizei|alterei|ajustei|corrigi|mudei|deixei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei)\b/i;
+
 export function shouldRetryWithForcedTool(
   responseText: string,
   toolCallNames: string[],
 ): boolean {
   const claimedCreation = CREATION_CLAIM_REGEX.test(responseText);
-  const actuallyCalled = toolCallNames.some((name) =>
+  const calledCreationTool = toolCallNames.some((name) =>
     CREATION_TOOL_NAMES.has(name as ToolName),
   );
-  return claimedCreation && !actuallyCalled;
+  const claimedUpdate = UPDATE_CLAIM_REGEX.test(responseText);
+  const calledUpdateTool = toolCallNames.some((name) =>
+    UPDATE_TOOL_NAMES.has(name as ToolName),
+  );
+  return (claimedCreation && !calledCreationTool) || (claimedUpdate && !calledUpdateTool);
 }
 
 /**

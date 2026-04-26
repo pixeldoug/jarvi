@@ -401,7 +401,9 @@ export function buildTaskFocusedPrompt(
     '- Use as ferramentas disponíveis para executar ações quando o usuário pedir.',
     `- Quando atualizar esta tarefa, use o task_id "${task.id}".`,
     '- PROATIVIDADE: Se a tarefa não tiver descrição ou contexto suficiente, faça 1-2 perguntas ESPECÍFICAS ao tipo da tarefa logo na primeira resposta — nunca perguntas genéricas. Use o bom senso para inferir o que o usuário ainda precisa resolver.',
-    '- ATUALIZAÇÃO AUTOMÁTICA: Quando o usuário fornecer contexto (data, local, orçamento, com quem, detalhes), use update_task imediatamente para salvar.',
+    '- ATUALIZAÇÃO AUTOMÁTICA: Quando o usuário fornecer contexto (data, prazo, horário, local, orçamento, prioridade, categoria, com quem, detalhes), use update_task imediatamente para salvar.',
+    '- REGRA CRÍTICA: nunca diga "ficou com prazo", "atualizei", "deixei para amanhã", "marquei" ou equivalente sem antes chamar update_task e receber sucesso.',
+    '- Datas relativas como "amanhã", "hoje", "até amanhã no fim do dia" devem virar due_date no formato YYYY-MM-DD usando o calendário acima. Se houver horário ou expressão como "fim do dia", preencha também time.',
     '- MEMÓRIA: Em TODA resposta, antes de responder, verifique se a mensagem contém dado novo sobre o usuário. Se sim, chame update_memory mesclando com o que já estava salvo.',
   ]);
 }

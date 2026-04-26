@@ -173,6 +173,39 @@ export async function seedPendingTasksForEval(
   }
 }
 
+export async function seedTasksForEval(tasks: TaskRow[]): Promise<void> {
+  if (tasks.length === 0) return;
+
+  const { getDatabase } = await import('../src/database');
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  for (const task of tasks) {
+    await db.run(
+      `INSERT OR REPLACE INTO tasks (
+         id, user_id, title, description, completed, priority, category, important,
+         time, due_date, recurrence_type, recurrence_config, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        task.id,
+        task.user_id,
+        task.title,
+        task.description ?? null,
+        task.completed ? 1 : 0,
+        task.priority ?? null,
+        task.category ?? null,
+        0,
+        task.time ?? null,
+        task.due_date ?? null,
+        'none',
+        null,
+        task.created_at ?? now,
+        now,
+      ],
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Context builder
 // ---------------------------------------------------------------------------
@@ -183,6 +216,8 @@ export interface ContextOptions {
   preferredName?: string;
   activeTasks?: TaskRow[];
   pendingTasks?: PendingTaskRow[];
+  focusedTask?: TaskRow;
+  mode?: 'general' | 'task';
 }
 
 export function buildContext(opts: ContextOptions = {}): AgentContext {
@@ -196,7 +231,8 @@ export function buildContext(opts: ContextOptions = {}): AgentContext {
     lists: [],
     categories: [],
     pendingTasks: opts.pendingTasks ?? [],
-    mode: 'general',
+    mode: opts.mode ?? (opts.focusedTask ? 'task' : 'general'),
+    focusedTask: opts.focusedTask,
     originalUserMessage: '',
   };
 }

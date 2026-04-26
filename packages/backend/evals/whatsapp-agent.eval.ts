@@ -19,6 +19,7 @@ import {
   setupEvalDatabase,
   buildContext,
   seedPendingTasksForEval,
+  seedTasksForEval,
 } from './helpers';
 import { SCENARIOS } from './datasets/whatsapp-scenarios';
 import type { ChannelProfile, ToolName } from '../src/services/agent/core/types';
@@ -51,6 +52,20 @@ const EVAL_WHATSAPP_PROFILE: ChannelProfile = {
   systemPromptExtras: undefined,
 };
 
+const EVAL_WEB_TASK_PROFILE: ChannelProfile = {
+  id: 'web',
+  taskCreationTarget: 'tasks',
+  toolsAvailable: ['update_task', 'update_memory'] as ToolName[],
+  outputFormat: 'markdown',
+  transport: 'single',
+  enableBriefing: false,
+  enableMemoryReconciliation: false,
+  enableDedup: false,
+  enableAntiHallucinationRetry: true,
+  supportsTaskMode: true,
+  systemPromptExtras: undefined,
+};
+
 // ---------------------------------------------------------------------------
 // Task function
 // ---------------------------------------------------------------------------
@@ -66,7 +81,7 @@ async function runScenario(scenario: {
   contextOverrides?: Record<string, unknown>;
 }): Promise<string> {
   // Lazy-import services so they resolve AFTER setupEvalDatabase() ran
-  const { buildSystemPrompt, buildWhatsappExtras } = await import(
+  const { buildSystemPrompt, buildTaskFocusedPrompt, buildWhatsappExtras } = await import(
     '../src/services/agent/core/prompt'
   );
   const { runAgent } = await import('../src/services/agent/core/runAgent');
@@ -79,15 +94,24 @@ async function runScenario(scenario: {
   );
   ctx.originalUserMessage = scenario.input;
   await seedPendingTasksForEval(ctx.pendingTasks);
+  await seedTasksForEval([
+    ...(ctx.activeTasks ?? []),
+    ...(ctx.focusedTask ? [ctx.focusedTask] : []),
+  ]);
 
-  const systemPrompt = buildSystemPrompt(ctx, EVAL_WHATSAPP_PROFILE);
+  const profile =
+    ctx.mode === 'task' && ctx.focusedTask ? EVAL_WEB_TASK_PROFILE : EVAL_WHATSAPP_PROFILE;
+  const systemPrompt =
+    ctx.mode === 'task' && ctx.focusedTask
+      ? buildTaskFocusedPrompt(ctx.focusedTask, ctx, profile)
+      : buildSystemPrompt(ctx, profile);
 
   const messages = [{ role: 'user' as const, content: scenario.input }];
 
   const toolCallNames: string[] = [];
 
   const { text, toolCallNames: finalToolCallNames } = await runAgent(
-    EVAL_WHATSAPP_PROFILE,
+    profile,
     ctx,
     systemPrompt,
     messages,

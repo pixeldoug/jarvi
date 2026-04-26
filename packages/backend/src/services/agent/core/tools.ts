@@ -385,6 +385,12 @@ export function getToolsForChannel(profile: ChannelProfile): ChatCompletionTool[
 // guardrail to detect "I created the task" claims that weren't backed by an
 // actual tool call.
 export const CREATION_TOOL_NAMES = new Set<ToolName>(['create_task']);
+export const UPDATE_TOOL_NAMES = new Set<ToolName>([
+  'update_task',
+  'complete_task',
+  'update_pending_task',
+  'confirm_pending_task',
+]);
 
 // ---------------------------------------------------------------------------
 // Executor
