@@ -23,7 +23,7 @@ export function parseDateString(dateString?: string): Date | null {
  * Format task date for display
  * @param dueDate - ISO date string (e.g., "2024-01-03" or "2024-01-03T10:00:00")
  * @param time - Optional time string (e.g., "10:00")
- * @returns Formatted string like "09:00, 7 Jan" (with time) or "7 Jan" (without time), or null if invalid
+ * @returns Formatted string like "7 Jan, 09:00" (with time) or "7 Jan" (without time), or null if invalid
  */
 function normalizeTime(time?: string | null): string | undefined {
   if (!time) return undefined;
@@ -45,8 +45,8 @@ export function formatTaskDate(dueDate?: string, time?: string): string | null {
       .replace('.', '')
       .replace(/^./, str => str.toUpperCase());
     
-    // Format: "09:00, 7 Jan" when time exists, otherwise "7 Jan"
-    return t ? `${t}, ${dayNum} ${monthStr}` : `${dayNum} ${monthStr}`;
+    // Format: "7 Jan, 09:00" when time exists, otherwise "7 Jan"
+    return t ? `${dayNum} ${monthStr}, ${t}` : `${dayNum} ${monthStr}`;
   } catch {
     return null;
   }
@@ -72,7 +72,7 @@ const WEEKDAY_NAMES_PT = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'S
  * Format task date as weekday name (for "esta semana" section)
  * @param dueDate - ISO date string
  * @param time - Optional time string (e.g., "10:00")
- * @returns Formatted string like "Sexta" or "09:00, Sexta", or null if invalid
+ * @returns Formatted string like "Sexta" or "Sexta, 09:00", or null if invalid
  */
 export function formatTaskDateWeekday(dueDate?: string, time?: string): string | null {
   const date = parseDateString(dueDate);
@@ -81,7 +81,7 @@ export function formatTaskDateWeekday(dueDate?: string, time?: string): string |
   try {
     const t = normalizeTime(time);
     const weekday = WEEKDAY_NAMES_PT[date.getDay()];
-    return t ? `${t}, ${weekday}` : weekday;
+    return t ? `${weekday}, ${t}` : weekday;
   } catch {
     return null;
   }
