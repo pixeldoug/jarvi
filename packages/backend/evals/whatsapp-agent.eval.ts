@@ -15,7 +15,11 @@ import 'dotenv/config';
 import { Eval } from 'braintrust';
 import { Factuality } from 'autoevals';
 import OpenAI from 'openai';
-import { setupEvalDatabase, buildContext } from './helpers';
+import {
+  setupEvalDatabase,
+  buildContext,
+  seedPendingTasksForEval,
+} from './helpers';
 import { SCENARIOS } from './datasets/whatsapp-scenarios';
 import type { ChannelProfile, ToolName } from '../src/services/agent/core/types';
 
@@ -51,6 +55,12 @@ const EVAL_WHATSAPP_PROFILE: ChannelProfile = {
 // Task function
 // ---------------------------------------------------------------------------
 
+const toolCallsByScenario = new Map<string, string[]>();
+
+function scenarioKey(input: Record<string, unknown>): string {
+  return JSON.stringify(input);
+}
+
 async function runScenario(scenario: {
   input: string;
   contextOverrides?: Record<string, unknown>;
@@ -67,16 +77,30 @@ async function runScenario(scenario: {
   const ctx = buildContext(
     scenario.contextOverrides as Parameters<typeof buildContext>[0],
   );
+  ctx.originalUserMessage = scenario.input;
+  await seedPendingTasksForEval(ctx.pendingTasks);
+
   const systemPrompt = buildSystemPrompt(ctx, EVAL_WHATSAPP_PROFILE);
 
   const messages = [{ role: 'user' as const, content: scenario.input }];
 
-  const { text } = await runAgent(
+  const toolCallNames: string[] = [];
+
+  const { text, toolCallNames: finalToolCallNames } = await runAgent(
     EVAL_WHATSAPP_PROFILE,
     ctx,
     systemPrompt,
     messages,
-    {},
+    {
+      onToolCall: (name) => {
+        toolCallNames.push(name);
+      },
+    },
+  );
+
+  toolCallsByScenario.set(
+    scenarioKey(scenario as unknown as Record<string, unknown>),
+    finalToolCallNames.length ? finalToolCallNames : toolCallNames,
   );
 
   return text || '(sem resposta)';
@@ -87,19 +111,27 @@ async function runScenario(scenario: {
 // ---------------------------------------------------------------------------
 
 function RuleChecker({
+  input,
   output,
   expected,
 }: {
+  input: Record<string, unknown>;
   output: string;
   expected: string;
 }): { name: string; score: number; metadata?: Record<string, unknown> } {
-  let rules: { mustContain?: string[]; mustNotContain?: string[] } = {};
+  let rules: {
+    mustContain?: string[];
+    mustNotContain?: string[];
+    mustCallTool?: string[];
+    mustNotCallTool?: string[];
+  } = {};
   try {
     rules = JSON.parse(expected);
   } catch {
     return { name: 'RuleChecker', score: 1 };
   }
 
+  const toolCallNames = toolCallsByScenario.get(scenarioKey(input)) ?? [];
   const lower = output.toLowerCase();
   const failures: string[] = [];
 
@@ -111,6 +143,16 @@ function RuleChecker({
   for (const mustNot of rules.mustNotContain ?? []) {
     if (lower.includes(mustNot.toLowerCase())) {
       failures.push(`UNEXPECTED: "${mustNot}"`);
+    }
+  }
+  for (const tool of rules.mustCallTool ?? []) {
+    if (!toolCallNames.includes(tool)) {
+      failures.push(`MISSING_TOOL: "${tool}"`);
+    }
+  }
+  for (const tool of rules.mustNotCallTool ?? []) {
+    if (toolCallNames.includes(tool)) {
+      failures.push(`UNEXPECTED_TOOL: "${tool}"`);
     }
   }
 
@@ -135,6 +177,8 @@ async function main() {
         expected: JSON.stringify({
           mustContain: s.mustContain,
           mustNotContain: s.mustNotContain,
+          mustCallTool: s.mustCallTool,
+          mustNotCallTool: s.mustNotCallTool,
           idealOutput: s.idealOutput,
         }),
         metadata: { name: s.name, tags: s.tags },

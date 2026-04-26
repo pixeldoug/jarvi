@@ -8,7 +8,7 @@
  *  - tags:     categories for filtering / grouping in Braintrust UI
  */
 
-import { addDays, makeTask, todayIso } from '../helpers';
+import { addDays, makePendingTask, makeTask, todayIso } from '../helpers';
 
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
@@ -26,11 +26,16 @@ export interface EvalScenario {
     memory?: string;
     preferredName?: string;
     activeTasks?: ReturnType<typeof makeTask>[];
+    pendingTasks?: ReturnType<typeof makePendingTask>[];
   };
   /** Strings that MUST appear in the response (case-insensitive). */
   mustContain?: string[];
   /** Strings that must NOT appear in the response (case-insensitive). */
   mustNotContain?: string[];
+  /** Tools that MUST be called during the scenario. */
+  mustCallTool?: string[];
+  /** Tools that must NOT be called during the scenario. */
+  mustNotCallTool?: string[];
   /** Free-form gold standard used by the LLM-based scorer. */
   idealOutput?: string;
   tags: string[];
@@ -133,6 +138,26 @@ export const SCENARIOS: EvalScenario[] = [
     mustContain: ['relatório'],
     idealOutput: 'Tarefa criada: Entregar relatório para o cliente — hoje, prioridade alta.',
     tags: ['task-creation', 'priority'],
+  },
+  {
+    name: 'pending-task/add-date-before-confirming',
+    input: 'vamos fazer amanhã',
+    contextOverrides: {
+      pendingTasks: [
+        makePendingTask({
+          id: 'pending-vpn-no-date',
+          suggested_title: 'Configurar VPN no tablet e note da au',
+          suggested_due_date: null,
+        }),
+      ],
+    },
+    mustContain: ['amanhã'],
+    mustNotContain: ['confirmada', 'sem data'],
+    mustCallTool: ['update_pending_task'],
+    mustNotCallTool: ['confirm_pending_task'],
+    idealOutput:
+      'Perfeito — deixei para amanhã. Ela continua na aba Integrações para você aprovar.',
+    tags: ['pending-task', 'date-update', 'tool-calling'],
   },
 
   // ── Overdue handling ─────────────────────────────────────────────────────────

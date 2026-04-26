@@ -320,7 +320,7 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
     function: {
       name: 'confirm_pending_task',
       description:
-        'Confirma uma sugestão pendente: move ela do estado "awaiting_confirmation" para a lista de tarefas ativas. Use quando o usuário aceitar a sugestão (sim, ok, confirmar, beleza, vamo, pode ser, criar). pending_task_id deve ser exatamente o id mostrado na seção "Sugestões pendentes" do contexto.',
+        'Confirma uma sugestão pendente: move ela do estado "awaiting_confirmation" para a lista de tarefas ativas. Use SOMENTE quando o usuário aceitar a sugestão sem trazer nenhum ajuste novo (sim, ok, confirmar, beleza, pode ser, criar). Se a mensagem trouxer data, horário, prioridade, categoria ou mudança de texto, use update_pending_task em vez de confirmar. pending_task_id deve ser exatamente o id mostrado na seção "Sugestões pendentes" do contexto.',
       parameters: {
         type: 'object',
         properties: {
@@ -356,7 +356,7 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
     function: {
       name: 'update_pending_task',
       description:
-        'Atualiza campos de uma sugestão pendente sem confirmá-la. Use quando o usuário trouxer ajustes ("muda pra amanhã", "alta prioridade", "categoria saúde") sobre uma pendente. Após chamar isso, a sugestão segue aguardando confirmação — não cria tarefa.',
+        'Atualiza campos de uma sugestão pendente sem confirmá-la. Use quando o usuário trouxer ajustes ("vamos fazer amanhã", "muda pra amanhã", "alta prioridade", "categoria saúde", "às 14h") sobre uma pendente. Após chamar isso, a sugestão segue aguardando confirmação — não cria tarefa.',
       parameters: {
         type: 'object',
         properties: {
