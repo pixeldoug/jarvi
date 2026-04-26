@@ -78,11 +78,29 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
         properties: {
           task_id: { type: 'string', description: 'ID da tarefa a atualizar' },
           title: { type: 'string' },
-          description: { type: 'string' },
-          priority: { type: 'string', enum: ['low', 'medium', 'high'] },
-          due_date: { type: 'string', description: 'YYYY-MM-DD' },
-          time: { type: 'string', description: 'HH:MM' },
-          category: { type: 'string' },
+          description: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            description: 'Descrição, ou null para limpar',
+          },
+          priority: {
+            anyOf: [
+              { type: 'string', enum: ['low', 'medium', 'high'] },
+              { type: 'null' },
+            ],
+            description: 'Prioridade, ou null para limpar',
+          },
+          due_date: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            description: 'Data de vencimento no formato YYYY-MM-DD, ou null para remover a data',
+          },
+          time: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            description: 'Horário no formato HH:MM, ou null para remover o horário',
+          },
+          category: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            description: 'Categoria, ou null para limpar',
+          },
         },
         required: ['task_id'],
       },
@@ -570,6 +588,13 @@ async function executeUpdateTask(
   const values: unknown[] = [];
   let paramIdx = 1;
   const ph = () => (isPostgreSQL() ? `$${paramIdx++}` : '?');
+  const normalizeNullableField = (value: unknown): unknown => {
+    if (value === null) return null;
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    if (!trimmed || ['null', 'undefined'].includes(trimmed.toLowerCase())) return null;
+    return trimmed;
+  };
 
   for (const key of [
     'title',
@@ -581,7 +606,11 @@ async function executeUpdateTask(
   ] as const) {
     if (args[key] !== undefined) {
       fields.push(`${key} = ${ph()}`);
-      values.push(key === 'time' ? sanitizeTimeString(args[key]) : args[key]);
+      if (key === 'time') {
+        values.push(sanitizeTimeString(args[key]));
+      } else {
+        values.push(normalizeNullableField(args[key]));
+      }
     }
   }
 

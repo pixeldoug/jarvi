@@ -66,6 +66,20 @@ const EVAL_WEB_TASK_PROFILE: ChannelProfile = {
   systemPromptExtras: undefined,
 };
 
+const EVAL_WEB_PROFILE: ChannelProfile = {
+  id: 'web',
+  taskCreationTarget: 'tasks',
+  toolsAvailable: ['create_task', 'update_task', 'complete_task', 'delete_task', 'update_memory'] as ToolName[],
+  outputFormat: 'markdown',
+  transport: 'single',
+  enableBriefing: false,
+  enableMemoryReconciliation: false,
+  enableDedup: false,
+  enableAntiHallucinationRetry: true,
+  supportsTaskMode: true,
+  systemPromptExtras: undefined,
+};
+
 // ---------------------------------------------------------------------------
 // Task function
 // ---------------------------------------------------------------------------
@@ -78,6 +92,7 @@ function scenarioKey(input: Record<string, unknown>): string {
 
 async function runScenario(scenario: {
   input: string;
+  channel?: 'whatsapp' | 'web';
   contextOverrides?: Record<string, unknown>;
 }): Promise<string> {
   // Lazy-import services so they resolve AFTER setupEvalDatabase() ran
@@ -100,7 +115,11 @@ async function runScenario(scenario: {
   ]);
 
   const profile =
-    ctx.mode === 'task' && ctx.focusedTask ? EVAL_WEB_TASK_PROFILE : EVAL_WHATSAPP_PROFILE;
+    ctx.mode === 'task' && ctx.focusedTask
+      ? EVAL_WEB_TASK_PROFILE
+      : scenario.channel === 'web'
+        ? EVAL_WEB_PROFILE
+        : EVAL_WHATSAPP_PROFILE;
   const systemPrompt =
     ctx.mode === 'task' && ctx.focusedTask
       ? buildTaskFocusedPrompt(ctx.focusedTask, ctx, profile)
@@ -148,6 +167,7 @@ function RuleChecker({
     mustNotContain?: string[];
     mustCallTool?: string[];
     mustNotCallTool?: string[];
+    mustCallToolCount?: Record<string, number>;
   } = {};
   try {
     rules = JSON.parse(expected);
@@ -179,6 +199,12 @@ function RuleChecker({
       failures.push(`UNEXPECTED_TOOL: "${tool}"`);
     }
   }
+  for (const [tool, expectedCount] of Object.entries(rules.mustCallToolCount ?? {})) {
+    const actualCount = toolCallNames.filter((name) => name === tool).length;
+    if (actualCount !== expectedCount) {
+      failures.push(`TOOL_COUNT: "${tool}" expected ${expectedCount}, got ${actualCount}`);
+    }
+  }
 
   return {
     name: 'RuleChecker',
@@ -197,12 +223,13 @@ async function main() {
   await Eval('jarvi-whatsapp-agent', {
     data: () =>
       SCENARIOS.map((s) => ({
-        input: { input: s.input, contextOverrides: s.contextOverrides },
+        input: { input: s.input, channel: s.channel, contextOverrides: s.contextOverrides },
         expected: JSON.stringify({
           mustContain: s.mustContain,
           mustNotContain: s.mustNotContain,
           mustCallTool: s.mustCallTool,
           mustNotCallTool: s.mustNotCallTool,
+          mustCallToolCount: s.mustCallToolCount,
           idealOutput: s.idealOutput,
         }),
         metadata: { name: s.name, tags: s.tags },

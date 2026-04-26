@@ -22,6 +22,7 @@ const YESTERDAY = addDays(TODAY, -1);
 export interface EvalScenario {
   name: string;
   input: string;
+  channel?: 'whatsapp' | 'web';
   contextOverrides?: {
     memory?: string;
     preferredName?: string;
@@ -38,6 +39,8 @@ export interface EvalScenario {
   mustCallTool?: string[];
   /** Tools that must NOT be called during the scenario. */
   mustNotCallTool?: string[];
+  /** Exact number of times a tool must be called. */
+  mustCallToolCount?: Record<string, number>;
   /** Free-form gold standard used by the LLM-based scorer. */
   idealOutput?: string;
   tags: string[];
@@ -163,6 +166,7 @@ export const SCENARIOS: EvalScenario[] = [
   },
   {
     name: 'web-task/update-focused-task-due-date',
+    channel: 'web',
     input: 'o presente tem que ser comprado até amanhã no fim do dia',
     contextOverrides: {
       mode: 'task',
@@ -180,6 +184,38 @@ export const SCENARIOS: EvalScenario[] = [
     idealOutput:
       'Atualizei o prazo para amanhã no fim do dia.',
     tags: ['web', 'task-mode', 'date-update', 'tool-calling'],
+  },
+  {
+    name: 'web/multi-edit-clear-jarvi-due-dates',
+    channel: 'web',
+    input: 'pode retirar as datas das tasks da categoria Jarvi?',
+    contextOverrides: {
+      activeTasks: [
+        makeTask({
+          id: 'task-jarvi-p1',
+          title: 'P1 Botão Conectar no Apps muda quando está conectado',
+          category: 'Jarvi',
+          due_date: YESTERDAY,
+        }),
+        makeTask({
+          id: 'task-jarvi-p2',
+          title: 'P2 Tag do Whatsapp Conectado aparece ser custom',
+          category: 'Jarvi',
+          due_date: YESTERDAY,
+        }),
+        makeTask({
+          id: 'task-personal-present',
+          title: 'Comprar presente da AU para Dia das Mães',
+          category: 'Pessoal',
+          due_date: YESTERDAY,
+        }),
+      ],
+    },
+    mustContain: ['datas'],
+    mustCallTool: ['update_task'],
+    mustCallToolCount: { update_task: 2 },
+    idealOutput: 'Pronto, tirei as datas das duas tarefas da categoria Jarvi.',
+    tags: ['web', 'multi-edit', 'clear-date', 'tool-calling'],
   },
 
   // ── Overdue handling ─────────────────────────────────────────────────────────
