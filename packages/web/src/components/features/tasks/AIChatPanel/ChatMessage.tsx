@@ -74,10 +74,20 @@ interface ChatMessageProps {
 export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCategoryCardClick }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
-  const taskToolCalls = (message.toolCalls || []).filter(
-    (tc) =>
-      tc.result?.success &&
-      ['create_task', 'update_task', 'complete_task'].includes(tc.toolName),
+  const taskToolCalls = Array.from(
+    new Map(
+      (message.toolCalls || [])
+        .filter(
+          (tc) =>
+            tc.result?.success &&
+            ['create_task', 'update_task', 'complete_task'].includes(tc.toolName),
+        )
+        .map((tc) => {
+          const taskId = String(tc.result?.data?.id || '');
+          const fallbackKey = JSON.stringify(tc.toolArgs || {});
+          return [`${tc.toolName}:${taskId || fallbackKey}`, tc] as const;
+        }),
+    ).values(),
   );
 
   const listToolCalls = (message.toolCalls || []).filter(
