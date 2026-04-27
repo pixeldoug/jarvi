@@ -84,7 +84,13 @@ const EVAL_WEB_PROFILE: ChannelProfile = {
 // Task function
 // ---------------------------------------------------------------------------
 
+interface CapturedToolCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
 const toolCallsByScenario = new Map<string, string[]>();
+const toolCallDetailsByScenario = new Map<string, CapturedToolCall[]>();
 
 function scenarioKey(input: Record<string, unknown>): string {
   return JSON.stringify(input);
@@ -128,6 +134,7 @@ async function runScenario(scenario: {
   const messages = [{ role: 'user' as const, content: scenario.input }];
 
   const toolCallNames: string[] = [];
+  const toolCallDetails: CapturedToolCall[] = [];
 
   const { text, toolCallNames: finalToolCallNames } = await runAgent(
     profile,
@@ -135,8 +142,9 @@ async function runScenario(scenario: {
     systemPrompt,
     messages,
     {
-      onToolCall: (name) => {
+      onToolCall: (name, args) => {
         toolCallNames.push(name);
+        toolCallDetails.push({ name, args });
       },
     },
   );
@@ -144,6 +152,10 @@ async function runScenario(scenario: {
   toolCallsByScenario.set(
     scenarioKey(scenario as unknown as Record<string, unknown>),
     finalToolCallNames.length ? finalToolCallNames : toolCallNames,
+  );
+  toolCallDetailsByScenario.set(
+    scenarioKey(scenario as unknown as Record<string, unknown>),
+    toolCallDetails,
   );
 
   return text || '(sem resposta)';
@@ -168,6 +180,8 @@ function RuleChecker({
     mustCallTool?: string[];
     mustNotCallTool?: string[];
     mustCallToolCount?: Record<string, number>;
+    mustUpdateTaskIds?: string[];
+    mustNotUpdateTaskIds?: string[];
   } = {};
   try {
     rules = JSON.parse(expected);
@@ -176,6 +190,11 @@ function RuleChecker({
   }
 
   const toolCallNames = toolCallsByScenario.get(scenarioKey(input)) ?? [];
+  const toolCallDetails = toolCallDetailsByScenario.get(scenarioKey(input)) ?? [];
+  const updatedTaskIds = toolCallDetails
+    .filter((tc) => tc.name === 'update_task')
+    .map((tc) => String(tc.args.task_id ?? ''))
+    .filter(Boolean);
   const lower = output.toLowerCase();
   const failures: string[] = [];
 
@@ -205,6 +224,16 @@ function RuleChecker({
       failures.push(`TOOL_COUNT: "${tool}" expected ${expectedCount}, got ${actualCount}`);
     }
   }
+  for (const taskId of rules.mustUpdateTaskIds ?? []) {
+    if (!updatedTaskIds.includes(taskId)) {
+      failures.push(`MISSING_UPDATE_TASK_ID: "${taskId}"`);
+    }
+  }
+  for (const taskId of rules.mustNotUpdateTaskIds ?? []) {
+    if (updatedTaskIds.includes(taskId)) {
+      failures.push(`UNEXPECTED_UPDATE_TASK_ID: "${taskId}"`);
+    }
+  }
 
   return {
     name: 'RuleChecker',
@@ -230,6 +259,8 @@ async function main() {
           mustCallTool: s.mustCallTool,
           mustNotCallTool: s.mustNotCallTool,
           mustCallToolCount: s.mustCallToolCount,
+          mustUpdateTaskIds: s.mustUpdateTaskIds,
+          mustNotUpdateTaskIds: s.mustNotUpdateTaskIds,
           idealOutput: s.idealOutput,
         }),
         metadata: { name: s.name, tags: s.tags },

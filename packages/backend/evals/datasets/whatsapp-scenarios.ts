@@ -41,6 +41,10 @@ export interface EvalScenario {
   mustNotCallTool?: string[];
   /** Exact number of times a tool must be called. */
   mustCallToolCount?: Record<string, number>;
+  /** Task IDs that must be updated via update_task. */
+  mustUpdateTaskIds?: string[];
+  /** Task IDs that must not be updated via update_task. */
+  mustNotUpdateTaskIds?: string[];
   /** Free-form gold standard used by the LLM-based scorer. */
   idealOutput?: string;
   tags: string[];
@@ -209,11 +213,20 @@ export const SCENARIOS: EvalScenario[] = [
           category: 'Pessoal',
           due_date: YESTERDAY,
         }),
+        makeTask({
+          id: 'task-jarvi-future',
+          title: 'Verificar disponibilidade jarvi.ai',
+          category: 'Jarvi',
+          due_date: TOMORROW,
+        }),
       ],
     },
     mustContain: ['datas'],
+    mustNotContain: ['P1/P2/P3/P4', 'limpar os títulos'],
     mustCallTool: ['update_task'],
     mustCallToolCount: { update_task: 2 },
+    mustUpdateTaskIds: ['task-jarvi-p1', 'task-jarvi-p2'],
+    mustNotUpdateTaskIds: ['task-personal-present', 'task-jarvi-future'],
     idealOutput: 'Pronto, tirei as datas das duas tarefas da categoria Jarvi.',
     tags: ['web', 'multi-edit', 'clear-date', 'tool-calling'],
   },

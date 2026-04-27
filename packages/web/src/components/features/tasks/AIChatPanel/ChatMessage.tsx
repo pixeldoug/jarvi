@@ -90,7 +90,7 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
     ).values(),
   );
   const updateTaskToolCalls = taskToolCalls.filter((tc) => tc.toolName === 'update_task');
-  const shouldSummarizeTaskUpdates = updateTaskToolCalls.length > 2;
+  const shouldSummarizeTaskUpdates = updateTaskToolCalls.length > 1;
   const visibleTaskToolCalls = shouldSummarizeTaskUpdates
     ? taskToolCalls.filter((tc) => tc.toolName !== 'update_task')
     : taskToolCalls;
