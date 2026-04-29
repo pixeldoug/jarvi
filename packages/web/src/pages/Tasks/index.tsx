@@ -11,14 +11,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
 import { useLists } from '../../contexts/ListContext';
-import { PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
+import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
 import type { PendingTask } from '../../hooks/usePendingTasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, ListType } from '../../components/layout/Sidebar';
 import type { SettingsPage } from '../../components/layout/Sidebar';
-import { Button, TaskCreationData, Collapsible, Tooltip, CalendarListItem } from '../../components/ui';
-import { WeekNavigator } from '../../components/ui/WeekNavigator/WeekNavigator';
+import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { FilterPopover, DEFAULT_FILTER_STATE } from '../../components/features/tasks/FilterPopover/FilterPopover';
@@ -131,20 +130,26 @@ function getCurrentWeekDays(today: Date): Date[] {
 
 const PT_DAY_ABBREV = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 
+function getLocalDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
 // ── Module-level constants (stable, never recreated) ─────────────────────────
 
 /** Default open/collapsed state for every section in the all-view. */
 const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   integracoes: true,
-  vencidas: true,
+  vencidas: false,
   hoje: true,
-  amanha: true,
-  'esta-semana': true,
-  'semana-que-vem': true,
-  'sem-data': true,
-  'eventos-futuros': true,
-  'algum-dia': true,
+  amanha: false,
+  'esta-semana': false,
+  'eventos-futuros': false,
+  'algum-dia': false,
+  'sem-data': false,
   completadas: false,
 };
 
@@ -177,8 +182,8 @@ export function Tasks() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
   const filterAnchorRef = useRef<HTMLDivElement>(null);
-  const [futureViewWeekStart, setFutureViewWeekStart] = useState<string | null>(null);
-  const [selectedFutureDay, setSelectedFutureDay] = useState<string | null>(null);
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>('week');
+  const [calendarAnchorDate, setCalendarAnchorDate] = useState(() => getLocalDateKey(new Date()));
 
   const isCompactHeader = useMediaQuery('(max-width: 824px)');
   const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
@@ -597,12 +602,12 @@ export function Tasks() {
   // Get list name for header
   const getListName = (listType: ListType): string => {
     const listNames: Record<ListType, string> = {
-      all: 'Todas as tarefas',
+      all: 'Lista de tarefas',
       important: 'Prioridades',
       today: 'Hoje',
       tomorrow: 'Amanhã',
       week: 'Esta semana',
-      later: 'Futuro',
+      later: 'Calendário',
       noDate: 'Sem data',
       overdue: 'Vencidas',
       completed: 'Concluídas',
@@ -674,8 +679,6 @@ export function Tasks() {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    const { start: nextWeekStartStr } = getNextWeekBounds(today);
-
     return visibleTasks.filter(task => {
       switch (selectedList) {
         case 'important':
@@ -700,9 +703,7 @@ export function Tasks() {
           return task.due_date.split('T')[0] >= weekStart && task.due_date.split('T')[0] < weekEnd;
         }
         case 'later':
-          // "Mais pra frente" = next week and beyond
-          if (!task.due_date || task.completed) return false;
-          return task.due_date.split('T')[0] >= nextWeekStartStr;
+          return !!task.due_date;
         case 'noDate':
           return !task.due_date && !task.completed;
         case 'completed':
@@ -713,39 +714,15 @@ export function Tasks() {
     });
   }, [visibleTasks, selectedList]);
 
-  // Futuro view: compute next Monday (start of first future week)
-  const nextMondayStr = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return getNextWeekBounds(today).start;
-  }, []);
+  const calendarDatedTasks = useMemo(
+    () => visibleTasks.filter((task) => !!task.due_date),
+    [visibleTasks],
+  );
 
-  // The Monday of the week currently being browsed in Futuro
-  const activeFutureWeekStart = futureViewWeekStart ?? nextMondayStr;
-
-  // Futuro view: 7 daily tabs for the active week, with per-day task counts
-  const futureDayTabs = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const day = new Date(`${activeFutureWeekStart}T00:00:00`);
-      day.setDate(day.getDate() + i);
-      const dateStr = day.toISOString().split('T')[0];
-      const abbrev = PT_DAY_ABBREV[day.getDay()];
-      const count = filteredTasks.filter(
-        (t) => t.due_date && t.due_date.split('T')[0] === dateStr,
-      ).length;
-      return { dateStr, label: `${abbrev} ${day.getDate()}`, count };
-    });
-  }, [activeFutureWeekStart, filteredTasks]);
-
-  // Futuro view: tasks for the selected day
-  const futureWeekTasks = useMemo(() => {
-    const firstDayWithTasks = futureDayTabs.find((d) => d.count > 0)?.dateStr ?? futureDayTabs[0]?.dateStr;
-    const activeDay = selectedFutureDay ?? firstDayWithTasks ?? null;
-    if (!activeDay) return [];
-    return filteredTasks.filter(
-      (t) => t.due_date && t.due_date.split('T')[0] === activeDay,
-    );
-  }, [filteredTasks, selectedFutureDay, futureDayTabs]);
+  const calendarUndatedTasks = useMemo(
+    () => visibleTasks.filter((task) => !task.due_date && !task.completed),
+    [visibleTasks],
+  );
 
   // Week view: tasks grouped by each day (Mon–Sun) of the current week
   const weekViewData = useMemo(() => {
@@ -777,7 +754,7 @@ export function Tasks() {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
+    const { start: nextWeekStartStr } = getNextWeekBounds(today);
     const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
 
     const categories = {
@@ -785,7 +762,6 @@ export function Tasks() {
       hoje: [] as Task[],
       amanha: [] as Task[],
       estaSemana: [] as Task[],
-      semanaQueVem: [] as Task[],
       semData: [] as Task[],
       eventosFuturos: [] as Task[],
       algumDia: [] as Task[],
@@ -830,9 +806,7 @@ export function Tasks() {
         categories.amanha.push(task);
       } else if (taskDateStr >= currentWeekStartStr && taskDateStr < currentWeekEndStr) {
         categories.estaSemana.push(task);
-      } else if (taskDateStr >= nextWeekStartStr && taskDateStr < nextWeekEndStr) {
-        categories.semanaQueVem.push(task);
-      } else {
+      } else if (taskDateStr >= nextWeekStartStr) {
         categories.eventosFuturos.push(task);
       }
     });
@@ -854,7 +828,6 @@ export function Tasks() {
           'hoje': 'hoje',
           'amanha': 'amanha',
           'esta-semana': 'estaSemana',
-          'semana-que-vem': 'semanaQueVem',
           'sem-data': 'semData',
           'eventos-futuros': 'eventosFuturos',
           'algum-dia': 'algumDia',
@@ -941,6 +914,8 @@ export function Tasks() {
   };
 
   const handleCustomListSelect = (listId: string) => {
+    const isDeselecting = selectedCustomListId === listId;
+    if (isDeselecting) setOpenSections(ALL_SECTIONS_OPEN);
     setSelectedList('all');
     setSelectedCategoryName(null);
     setSelectedCustomListId((prev) => (prev === listId ? null : listId));
@@ -948,6 +923,8 @@ export function Tasks() {
   };
 
   const handleCategorySelect = (categoryName: string) => {
+    const isDeselecting = selectedCategoryName === categoryName;
+    if (isDeselecting) setOpenSections(ALL_SECTIONS_OPEN);
     setSelectedList('all');
     setSelectedCustomListId(null);
     setSelectedCategoryName((prev) => (prev === categoryName ? null : categoryName));
@@ -1222,7 +1199,7 @@ export function Tasks() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
+    const { start: nextWeekStartStr } = getNextWeekBounds(today);
     const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
     
     let newDueDate: string | undefined;
@@ -1248,16 +1225,11 @@ export function Tasks() {
         // Use the first available day after tomorrow still inside current week
         newDueDate = currentWeekStartStr < currentWeekEndStr ? currentWeekStartStr : tomorrowStr;
         break;
-      case 'semana-que-vem':
-        // Set to start of next week
-        newDueDate = nextWeekStartStr;
-        break;
       case 'sem-data':
         newDueDate = undefined;
         break;
       case 'eventos-futuros':
-        // Set to 15 days from today
-        newDueDate = nextWeekEndStr;
+        newDueDate = nextWeekStartStr;
         break;
       default:
         return;
@@ -1426,6 +1398,7 @@ export function Tasks() {
         isOpen={controlledIsOpen}
         onOpenChange={onOpenChange}
         disabled={sectionTasks.length === 0}
+        count={sectionTasks.length}
       >
         {content}
       </Collapsible>
@@ -1540,7 +1513,7 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={showTaskInCenter}
+        hideHeader
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
@@ -1562,7 +1535,7 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={showTaskInCenter}
+        hideHeader={true}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
@@ -1632,100 +1605,44 @@ export function Tasks() {
     );
   }
 
-  // "Futuro" view: tasks from next week onward, with daily tabs per week
+  // "Calendário" view: dated tasks across week/month, plus undated tasks in week view.
   if (selectedList === 'later' && !selectedCustomListId) {
-    const firstDayWithTasks = futureDayTabs.find((d) => d.count > 0)?.dateStr ?? futureDayTabs[0]?.dateStr;
-    const activeDay = selectedFutureDay ?? firstDayWithTasks ?? null;
-
-    const handlePrevWeek = () => {
-      const prev = new Date(`${activeFutureWeekStart}T00:00:00`);
-      prev.setDate(prev.getDate() - 7);
-      const prevStr = prev.toISOString().split('T')[0];
-      // Don't go before next Monday from today
-      if (prevStr >= nextMondayStr) {
-        setFutureViewWeekStart(prevStr);
-        setSelectedFutureDay(null);
-      }
-    };
-
-    const handleNextWeek = () => {
-      const next = new Date(`${activeFutureWeekStart}T00:00:00`);
-      next.setDate(next.getDate() + 7);
-      setFutureViewWeekStart(next.toISOString().split('T')[0]);
-      setSelectedFutureDay(null);
-    };
-
-    const handleTodayWeek = () => {
-      setFutureViewWeekStart(null);
-      setSelectedFutureDay(null);
-    };
-
-    const weekNavigator = (
-      <WeekNavigator
-        weekStart={activeFutureWeekStart}
-        onPrev={handlePrevWeek}
-        onNext={handleNextWeek}
-        onToday={handleTodayWeek}
-        isCurrentWeek={activeFutureWeekStart === nextMondayStr}
-      />
-    );
-
     return (
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
         titleVariant="heading"
         titleDescription={pageDescription}
-        titleSuffix={weekNavigator}
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={showTaskInCenter}
+        hideHeader={true}
+        fullHeightContent
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
         {showTaskInCenter ? taskDetailsInCenter : (
-          <div className={styles.content}>
-            <nav className={styles.futureWeekNav} aria-label="Dias da semana">
-              {futureDayTabs.map(({ dateStr, label, count }) => (
-                <CalendarListItem
-                  key={dateStr}
-                  label={label}
-                  count={count}
-                  state={dateStr === activeDay ? 'active' : 'default'}
-                  onClick={() => setSelectedFutureDay(dateStr)}
-                />
-              ))}
-            </nav>
-
-            <div className={styles.sectionContent}>
-              {futureWeekTasks.length > 0 ? (
-                futureWeekTasks.map((task) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    section="later"
-                    onToggleCompletion={handleToggleCompletion}
-                    onEdit={handleEdit}
-                    onDelete={handleDeleteTask}
-                    onUpdateTask={handleUpdateTask}
-                    onOpenDatePicker={handleOpenDatePicker}
-                    onClick={handleTaskClick}
-                    showInsertionLine={false}
-                    isActive={selectedTask?.id === task.id}
-                    hideCategoryChip={!!selectedTask}
-                  />
-                ))
-              ) : (
-                <TaskEmptyState
-                  title="Nada por aqui ainda"
-                  description="Nenhuma tarefa para este dia"
-                />
-              )}
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <CalendarView
+              tasks={calendarDatedTasks}
+              undatedTasks={calendarUndatedTasks}
+              view={calendarView}
+              anchorDate={calendarAnchorDate}
+              selectedTaskId={selectedTask?.id}
+              onViewChange={setCalendarView}
+            onAnchorDateChange={setCalendarAnchorDate}
+            onTaskClick={handleTaskClick}
+            onToggleCompletion={handleToggleCompletion}
+            onUpdateTask={handleUpdateTask}
+            onCreateTask={async (title, dueDate) => {
+              await handleControlBarCreateTask({ title, description: '', dueDate });
+            }}
+            onDeleteTask={handleDeleteTask}
+            onAppsClick={() => openSettingsRef.current?.('apps')}
+          />
           </div>
         )}
       </MainLayout>
@@ -1977,15 +1894,15 @@ export function Tasks() {
             showDayOfWeek={true}
           />
 
-          {/* Semana que vem */}
+          {/* Futuro (semana que vem + além) */}
           <DroppableSection
-            title="Semana que vem"
-            tasks={categorizedTasks.semanaQueVem}
-            emptyMessage="Nenhuma tarefa para a semana que vem"
-            sectionId="semana-que-vem"
-            defaultOpen={true}
-            isOpen={openSections['semana-que-vem']}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'semana-que-vem': isOpen }))}
+            title="Futuro"
+            tasks={categorizedTasks.eventosFuturos}
+            emptyMessage="Nenhuma tarefa futura com data"
+            sectionId="eventos-futuros"
+            defaultOpen={false}
+            isOpen={openSections['eventos-futuros']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
             onEdit={handleEdit}
             onDelete={handleDeleteTask}
@@ -1997,29 +1914,6 @@ export function Tasks() {
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
-
-          {/* Mais pra Frente */}
-          {categorizedTasks.eventosFuturos.length > 0 && (
-            <DroppableSection
-              title="Futuro"
-              tasks={categorizedTasks.eventosFuturos}
-              emptyMessage="Nenhum evento futuro"
-              sectionId="eventos-futuros"
-              defaultOpen={true}
-              isOpen={openSections['eventos-futuros']}
-              onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
-              onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
-              onUpdateTask={handleUpdateTask}
-              onOpenDatePicker={handleOpenDatePicker}
-              onClick={handleTaskClick}
-              insertionIndicator={insertionIndicator}
-              movingTask={movingTask}
-              selectedTaskId={selectedTask?.id}
-              hideCategoryChip={!!selectedTask}
-            />
-          )}
 
           {/* Sem data */}
           <DroppableSection

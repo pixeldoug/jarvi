@@ -97,8 +97,8 @@
 /* Label */
 .label {
   font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-heading-sm-font-size);
-  font-weight: var(--typography-heading-sm-font-weight);
+  font-size: 18px;
+  font-weight: 600;
   line-height: var(--typography-heading-sm-line-height);
   color: var(--semantic-content-primary);
   white-space: nowrap;
@@ -151,4 +151,10 @@
 /* Past day label — visually muted but section remains toggleable */
 .labelPast {
   color: var(--semantic-content-secondary);
+}
+
+/* Inline count shown when section is collapsed — matches "Integrações (N)" style */
+.countInline {
+  color: var(--semantic-content-secondary);
+  font-weight: var(--typography-heading-sm-font-weight);
 }

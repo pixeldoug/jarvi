@@ -22,6 +22,9 @@ export type { CategoryPickerProps, Category } from './CategoryPicker';
 export { PendingTaskCard } from './PendingTasks/PendingTaskCard';
 export { PendingTaskDetailsSidebar } from './PendingTasks/PendingTaskDetailsSidebar';
 
+export { CalendarView } from './CalendarView';
+export type { CalendarViewProps } from './CalendarView';
+
 export { AIChatPanel } from './AIChatPanel';
 export type { AIChatPanelProps } from './AIChatPanel';
 

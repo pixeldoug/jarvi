@@ -26,6 +26,8 @@ export interface CollapsibleProps {
   disabled?: boolean;
   /** Visually mutes the label to indicate the section belongs to a past day */
   isPast?: boolean;
+  /** Task count shown as a badge when the section is collapsed */
+  count?: number;
 }
 
 export function Collapsible({
@@ -37,6 +39,7 @@ export function Collapsible({
   className = '',
   disabled = false,
   isPast = false,
+  count,
 }: CollapsibleProps) {
   const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(defaultOpen);
   const [isStuck, setIsStuck] = useState(false);
@@ -117,7 +120,12 @@ export function Collapsible({
               <CaretDown weight="bold" />
             </span>
           </button>
-          <h3 className={labelClasses}>{label}</h3>
+          <h3 className={labelClasses}>
+            {label}
+            {!isOpen && !disabled && count != null && count > 0 && (
+              <span className={styles.countInline}> ({count})</span>
+            )}
+          </h3>
         </div>
         <hr className={styles.divider} />
       </div>

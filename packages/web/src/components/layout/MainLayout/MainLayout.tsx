@@ -40,6 +40,8 @@ export interface MainLayoutProps {
   hideControlBar?: boolean;
   /** When true, hides the page title/header (e.g. when task details fill the center column) */
   hideHeader?: boolean;
+  /** When true, removes scroll and padding from mainBody so child can manage its own scroll */
+  fullHeightContent?: boolean;
   /** Ref forwarded to the scrollable main body div — used for scroll-spy roots. */
   mainBodyRef?: RefObject<HTMLDivElement>;
   /** Default category pre-filled in the ControlBar task creation mode */
@@ -61,6 +63,7 @@ export function MainLayout({
   onSubmitPrompt,
   hideControlBar = false,
   hideHeader = false,
+  fullHeightContent = false,
   mainBodyRef,
   defaultTaskCategory,
 }: MainLayoutProps) {
@@ -114,7 +117,10 @@ export function MainLayout({
             </header>
           )}
           
-          <div className={styles.mainBody} ref={mainBodyRef}>
+          <div
+            className={`${styles.mainBody} ${fullHeightContent ? styles.mainBodyNoScroll : ''}`}
+            ref={mainBodyRef}
+          >
             {children}
           </div>
         </main>
