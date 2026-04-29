@@ -164,6 +164,12 @@
   padding-bottom: var(--sizes-24);
 }
 
+.mainBodyNoScroll {
+  overflow-y: hidden;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
 /* Scrollbar customizada para a área de tasks */
 .mainBody::-webkit-scrollbar {
   width: 6px;

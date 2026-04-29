@@ -15,8 +15,6 @@
 import { useState, useRef, useEffect, type RefObject, type MutableRefObject } from 'react';
 import {
   Checks,
-  SunHorizon,
-  Couch,
   CalendarDots,
   Tray,
   HourglassLow,
@@ -120,10 +118,8 @@ export interface SidebarProps {
 // ── Nav items ─────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: Array<{ id: ListType; label: string; icon: typeof Checks }> = [
-  { id: 'all', label: 'Todas as tarefas', icon: Checks },
-  { id: 'today', label: 'Hoje', icon: SunHorizon },
-  { id: 'week', label: 'Esta semana', icon: Couch },
-  { id: 'later', label: 'Futuro', icon: CalendarDots },
+  { id: 'all', label: 'Lista de tarefas', icon: Checks },
+  { id: 'later', label: 'Calendário', icon: CalendarDots },
   { id: 'noDate', label: 'Sem data', icon: Tray },
   { id: 'overdue', label: 'Vencidas', icon: HourglassLow },
 ];

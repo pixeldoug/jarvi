@@ -1,0 +1,497 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-4);
+  padding-bottom: var(--sizes-6);
+  background: var(--semantic-surface-primary);
+  z-index: 10;
+}
+
+.periodControls,
+.navControls,
+.toolbarActions,
+.viewSwitch {
+  display: flex;
+  align-items: center;
+}
+
+.periodControls {
+  gap: var(--sizes-4);
+  min-width: 0;
+}
+
+.navControls {
+  gap: var(--sizes-2);
+}
+
+.toolbarActions {
+  gap: var(--sizes-4);
+  flex-shrink: 0;
+}
+
+.viewSwitch {
+  gap: 2px;
+  height: 44px;
+  padding: 4px 2px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 18px;
+  background: transparent;
+  overflow: hidden;
+}
+
+.title {
+  margin: 0;
+  min-width: 148px;
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+.navButton {
+  width: var(--sizes-12);
+  height: var(--sizes-12);
+}
+
+.todayButton {
+  height: var(--sizes-10);
+}
+
+.appsButton {
+  height: var(--sizes-12);
+  color: var(--semantic-content-secondary);
+}
+
+.viewSwitchButton {
+  height: var(--sizes-10);
+  min-width: 70px;
+  box-shadow: none;
+}
+
+.weekSurface {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: transparent;
+}
+
+.monthSurface {
+  overflow: hidden;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--semantic-surface-primary);
+}
+
+.weekGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(136px, 1fr));
+  gap: var(--sizes-4);
+  min-height: 320px;
+  overflow-x: auto;
+}
+
+.weekColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  min-width: 136px;
+  min-height: 320px;
+  border-right: none;
+}
+
+.todayColumn {
+  background-color: transparent;
+}
+
+.weekColumnCompact {
+  min-height: 136px;
+}
+
+.weekendColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-10, 40px);
+  min-width: 136px;
+}
+
+.weekDayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sizes-2);
+  padding: 0 0 18px;
+  border-bottom: 0.5px solid var(--semantic-content-primary);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
+.weekDayHeaderActive {
+  border-bottom-color: var(--semantic-control-border-active);
+  color: var(--component-list-item-content-active);
+}
+
+.weekDayName {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: inherit;
+}
+
+.monthWeekdays {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: inherit;
+}
+
+.weekDayNumber {
+  font-family: var(--font-font-family-font-ui);
+  font-size: 18px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.weekDayTasks {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.taskPill {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  min-height: 48px;
+  width: 100%;
+  padding: 0 var(--sizes-2);
+  border: none;
+  border-bottom: 1px solid var(--semantic-border-primary);
+  border-radius: 0;
+  background: transparent;
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.taskPill:hover {
+  background: var(--semantic-surface-secondary);
+  border-color: var(--semantic-border-primary);
+}
+
+.taskPillSelected {
+  color: var(--component-list-item-content-active);
+  box-shadow: inset 0 -1px 0 var(--semantic-control-border-active);
+}
+
+.taskPillCompleted {
+  color: var(--semantic-content-disabled);
+}
+
+.taskPillDragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.taskPillCompact {
+  min-height: 48px;
+  padding: 0 var(--sizes-2);
+}
+
+.emptySlot {
+  height: 48px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--semantic-border-primary);
+  cursor: default;
+}
+
+.emptySlotHovered {
+  background: var(--semantic-surface-secondary);
+  cursor: pointer;
+}
+
+.emptySlotHint {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  height: 100%;
+  padding: 0 var(--sizes-2);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  color: var(--semantic-content-secondary);
+}
+
+.inlineCreate {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0 var(--sizes-2);
+  border-bottom: 1px solid var(--semantic-border-primary);
+  background: var(--semantic-surface-secondary);
+}
+
+.inlineCreateIcon {
+  flex-shrink: 0;
+  color: var(--semantic-content-secondary);
+}
+
+.inlineCreateInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  color: var(--semantic-content-primary);
+}
+
+.calendarCheckbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border-width: 1.25px;
+}
+
+.priorityIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--semantic-content-negative);
+}
+
+.whatsappIcon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #25D366;
+}
+
+.priorityIconDisabled {
+  color: var(--semantic-content-disabled);
+}
+
+.taskTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-font-family-font-ui);
+  font-size: 13px;
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+}
+
+.taskPillCompleted .taskTitle {
+  text-decoration: line-through;
+}
+
+.taskTimeChip {
+  flex-shrink: 0;
+}
+
+.taskActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  flex-shrink: 0;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.15s ease, width 0.15s ease;
+}
+
+.taskPill:hover .taskActions {
+  opacity: 1;
+  width: auto;
+}
+
+.taskActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--component-button-secondary-bg-default);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-icon-radius);
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.taskActionBtn:hover {
+  background: var(--component-button-secondary-bg-hover);
+  color: var(--semantic-content-primary);
+}
+
+.somedayRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  margin-top: var(--sizes-10, 40px);
+  padding: 0;
+  border-top: none;
+  background: transparent;
+}
+
+.somedayHeader {
+  padding-bottom: 18px;
+  border-bottom: 0.5px solid var(--semantic-content-primary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.somedayTasks {
+  display: flex;
+  gap: 16px;
+}
+
+.somedayColumn {
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.monthWeekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  border-bottom: 1px solid var(--semantic-border-primary);
+  color: var(--semantic-content-secondary);
+}
+
+.monthWeekdays span {
+  padding: var(--sizes-3);
+  text-align: center;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  overflow-x: auto;
+}
+
+.monthCell {
+  min-height: 132px;
+  padding: var(--sizes-2);
+  border-right: 1px solid var(--semantic-border-primary);
+  border-bottom: 1px solid var(--semantic-border-primary);
+  background: var(--semantic-surface-primary);
+}
+
+.monthCell:nth-child(7n) {
+  border-right: none;
+}
+
+.monthCellMuted {
+  background: var(--semantic-surface-secondary);
+}
+
+.monthCellMuted .monthDayNumber {
+  color: var(--semantic-content-disabled);
+}
+
+.monthCellToday {
+  box-shadow: inset 0 0 0 1px var(--semantic-control-border-active);
+}
+
+.dropTarget {
+  background-color: var(--semantic-surface-secondary);
+  box-shadow: inset 0 0 0 1px var(--semantic-control-border-active);
+}
+
+.monthCellHeader {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--sizes-2);
+}
+
+.monthDayNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  color: var(--semantic-content-primary);
+}
+
+.monthCellToday .monthDayNumber {
+  background: var(--semantic-control-border-active);
+  color: var(--semantic-content-on-primary);
+}
+
+.monthTasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.moreButton {
+  width: fit-content;
+  padding: 0 var(--sizes-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  cursor: pointer;
+}
+
+.moreButton:hover {
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-primary);
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .weekGrid {
+    grid-template-columns: repeat(6, minmax(128px, 1fr));
+  }
+
+  .monthGrid,
+  .monthWeekdays {
+    grid-template-columns: repeat(7, minmax(128px, 1fr));
+  }
+
+  .somedayTasks {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+}
