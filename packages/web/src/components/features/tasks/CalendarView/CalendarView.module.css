@@ -4,7 +4,8 @@
   flex: 1;
   min-height: 0;
   height: 100%;
-  overflow: hidden;
+  overflow-x: visible;
+  overflow-y: hidden;
 }
 
 .toolbar {
@@ -20,6 +21,7 @@
 
 .periodControls,
 .navControls,
+.todayTitleGroup,
 .toolbarActions,
 .viewSwitch {
   display: flex;
@@ -27,12 +29,16 @@
 }
 
 .periodControls {
-  gap: var(--sizes-4);
+  gap: var(--sizes-2);
   min-width: 0;
 }
 
 .navControls {
   gap: var(--sizes-2);
+}
+
+.todayTitleGroup {
+  gap: var(--sizes-4);
 }
 
 .toolbarActions {
@@ -62,18 +68,8 @@
   white-space: nowrap;
 }
 
-.navButton {
-  width: var(--sizes-12);
-  height: var(--sizes-12);
-}
-
 .todayButton {
   height: var(--sizes-10);
-}
-
-.appsButton {
-  height: var(--sizes-12);
-  color: var(--semantic-content-secondary);
 }
 
 .viewSwitchButton {
@@ -87,31 +83,86 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: auto;
+  scrollbar-gutter: stable;
+  background: transparent;
+  margin-bottom: 48px;
+}
+
+.weekSurfaceInner {
+  min-width: calc(5 * 192px + 4 * var(--sizes-4, 16px));
+}
+
+.weekSurface::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.weekSurface::-webkit-scrollbar-track {
+  background: var(--semantic-surface-secondary);
+  border-radius: var(--radius-round);
+}
+
+.weekSurface::-webkit-scrollbar-thumb {
+  background: var(--semantic-border-primary);
+  border-radius: var(--radius-round);
+}
+
+.weekSurface::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-border-primary);
+}
+
+.weekSurface::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 .monthSurface {
-  overflow: hidden;
-  border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-lg);
-  background: var(--semantic-surface-primary);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: transparent;
+  scrollbar-gutter: stable;
+  padding-bottom: 48px;
+}
+
+.monthSurface::-webkit-scrollbar {
+  width: 6px;
+}
+
+.monthSurface::-webkit-scrollbar-track {
+  background: var(--semantic-surface-secondary);
+  border-radius: var(--radius-round);
+}
+
+.monthSurface::-webkit-scrollbar-thumb {
+  background: var(--semantic-border-primary);
+  border-radius: var(--radius-round);
+}
+
+.monthSurface::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .weekGrid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(136px, 1fr));
+  grid-template-columns: repeat(5, minmax(192px, 1fr));
   gap: var(--sizes-4);
-  min-height: 320px;
-  overflow-x: auto;
+}
+
+.bottomGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(192px, 1fr));
+  gap: var(--sizes-4);
+  margin-top: var(--sizes-10, 40px);
 }
 
 .weekColumn {
   display: flex;
   flex-direction: column;
   gap: var(--sizes-2);
-  min-width: 136px;
-  min-height: 320px;
-  border-right: none;
+  min-width: 192px;
 }
 
 .todayColumn {
@@ -154,13 +205,6 @@
   color: inherit;
 }
 
-.monthWeekdays {
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-label-sm-font-size);
-  font-weight: var(--typography-label-sm-font-weight);
-  line-height: var(--typography-label-sm-line-height);
-  color: inherit;
-}
 
 .weekDayNumber {
   font-family: var(--font-font-family-font-ui);
@@ -215,6 +259,14 @@
 .taskPillCompact {
   min-height: 48px;
   padding: 0 var(--sizes-2);
+}
+
+.taskPillCard {
+  min-height: 36px;
+  padding: 0px 4px 0px 8px;
+  border: 0.5px solid var(--semantic-border-primary);
+  border-radius: 14px;
+  background: var(--semantic-surface-tertiary);
 }
 
 .emptySlot {
@@ -351,15 +403,22 @@
 }
 
 .somedayRow {
+  display: contents;
+}
+
+.somedaySection {
+  grid-column: span 2;
   display: flex;
   flex-direction: column;
   gap: var(--sizes-2);
-  margin-top: var(--sizes-10, 40px);
-  padding: 0;
-  border-top: none;
-  background: transparent;
+  min-width: 0;
 }
 
+.somedayInnerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sizes-4);
+}
 .somedayHeader {
   padding-bottom: 18px;
   border-bottom: 0.5px solid var(--semantic-content-primary);
@@ -371,41 +430,56 @@
 }
 
 .somedayTasks {
-  display: flex;
-  gap: 16px;
+  display: contents;
 }
 
 .somedayColumn {
-  flex: 1 0 0;
-  min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--sizes-2);
+  min-width: 0;
 }
 
 .monthWeekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(120px, 1fr));
-  border-bottom: 1px solid var(--semantic-border-primary);
-  color: var(--semantic-content-secondary);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--semantic-surface-primary);
 }
 
 .monthWeekdays span {
-  padding: var(--sizes-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sizes-3) var(--sizes-2) 18px;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  border-bottom: 0.5px solid var(--semantic-content-primary);
   text-align: center;
 }
 
 .monthGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(120px, 1fr));
-  overflow-x: auto;
+  flex: 1;
 }
 
 .monthCell {
-  min-height: 132px;
-  padding: var(--sizes-2);
+  position: relative;
+  min-height: 154px;
+  padding: 8px 8px 28px 8px;
   border-right: 1px solid var(--semantic-border-primary);
   border-bottom: 1px solid var(--semantic-border-primary);
   background: var(--semantic-surface-primary);
+  overflow: hidden;
+  transition: background-color 0.12s ease;
 }
 
 .monthCell:nth-child(7n) {
@@ -421,26 +495,29 @@
 }
 
 .monthCellToday {
-  box-shadow: inset 0 0 0 1px var(--semantic-control-border-active);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--semantic-control-border-active);
 }
 
 .dropTarget {
   background-color: var(--semantic-surface-secondary);
-  box-shadow: inset 0 0 0 1px var(--semantic-control-border-active);
+  box-shadow: inset 0 0 0 1.5px var(--semantic-control-border-active);
 }
 
 .monthCellHeader {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--sizes-2);
+  display: none;
 }
 
 .monthDayNumber {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 2px;
   border-radius: 999px;
   font-family: var(--font-font-family-font-ui);
   font-size: var(--typography-label-sm-font-size);
@@ -449,8 +526,9 @@
 }
 
 .monthCellToday .monthDayNumber {
-  background: var(--semantic-control-border-active);
-  color: var(--semantic-content-on-primary);
+  background: transparent;
+  color: var(--semantic-content-info, var(--semantic-control-border-active));
+  font-weight: 600;
 }
 
 .monthTasks {
@@ -459,9 +537,61 @@
   gap: var(--sizes-1);
 }
 
+.monthAddBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 24px;
+  padding: 5px;
+  background: var(--semantic-surface-secondary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 8px;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.monthAddBtn:hover {
+  color: var(--semantic-content-primary);
+  background: var(--semantic-surface-secondary);
+  border-color: var(--semantic-control-border-active);
+}
+
+.monthAddBtnIdle {
+  opacity: 0.4;
+}
+
+.monthInlineCreate {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  width: 100%;
+  min-height: 26px;
+  padding: 5px;
+  background: var(--semantic-surface-secondary);
+  border: 1px solid var(--semantic-control-border-active);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.monthInlineCreateInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  color: var(--semantic-content-primary);
+}
+
 .moreButton {
-  width: fit-content;
-  padding: 0 var(--sizes-2);
+  position: absolute;
+  bottom: 6px;
+  left: 8px;
+  padding: 0 var(--sizes-1);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -469,11 +599,47 @@
   font-family: var(--font-font-family-font-ui);
   font-size: var(--typography-label-sm-font-size);
   cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s ease;
 }
 
 .moreButton:hover {
-  background: var(--semantic-surface-secondary);
   color: var(--semantic-content-primary);
+}
+
+.moreButtonActive {
+  color: var(--semantic-content-primary);
+  font-weight: var(--typography-label-sm-font-weight);
+}
+
+.overflowPopover {
+  position: fixed;
+  z-index: 1000;
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0px 0px 1px rgba(9, 9, 11, 0.2),
+    0px 4px 18px rgba(9, 9, 11, 0.1),
+    0px 6px 8px rgba(9, 9, 11, 0.05);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  animation: popoverIn 0.12s ease;
+}
+
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 900px) {

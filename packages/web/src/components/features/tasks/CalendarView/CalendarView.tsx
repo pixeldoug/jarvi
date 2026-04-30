@@ -1,5 +1,6 @@
-import { useMemo, useState, useRef, type DragEvent } from 'react';
-import { CaretLeft, CaretRight, CirclesFour, FireSimple, PencilSimple, Plus, Trash, WhatsappLogo } from '@phosphor-icons/react';
+import { useMemo, useState, useRef, useEffect, type DragEvent } from 'react';
+import { createPortal } from 'react-dom';
+import { CaretLeft, CaretRight, FireSimple, PencilSimple, Plus, Trash, WhatsappLogo } from '@phosphor-icons/react';
 import type { Task } from '../../../../contexts/TaskContext';
 import { Button, Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
@@ -20,7 +21,6 @@ export interface CalendarViewProps {
   onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onCreateTask?: (title: string, dueDate?: string) => Promise<void>;
   onDeleteTask?: (taskId: string) => void;
-  onAppsClick?: () => void;
 }
 
 const PT_MONTH_NAMES = [
@@ -82,7 +82,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 function formatMonthYear(date: Date): string {
-  return PT_MONTH_NAMES[date.getMonth()];
+  return `${PT_MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 function formatDayTitle(date: Date): string {
@@ -92,7 +92,7 @@ function formatDayTitle(date: Date): string {
 function formatWeekTitle(days: Date[]): string {
   const first = days[0];
 
-  return PT_MONTH_NAMES[first.getMonth()];
+  return `${PT_MONTH_NAMES[first.getMonth()]} ${first.getFullYear()}`;
 }
 
 function buildMonthDays(anchorDate: Date): Date[] {
@@ -204,10 +204,52 @@ function CalendarEmptySlot({
   );
 }
 
+function MonthCellCreate({
+  dateKey,
+  onCreateTask,
+  onDeactivate,
+}: {
+  dateKey: string;
+  onCreateTask?: (title: string, dueDate?: string) => Promise<void>;
+  onDeactivate: () => void;
+}) {
+  const [title, setTitle] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !onCreateTask) { onDeactivate(); return; }
+    await onCreateTask(title.trim(), dateKey);
+    setTitle('');
+    onDeactivate();
+  };
+
+  return (
+    <form className={styles.monthInlineCreate} onSubmit={(e) => void handleSubmit(e)}>
+      <Plus size={12} className={styles.inlineCreateIcon} aria-hidden />
+      <input
+        autoFocus
+        className={styles.monthInlineCreateInput}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') { setTitle(''); onDeactivate(); } }}
+        onBlur={async () => {
+          if (title.trim() && onCreateTask) {
+            await onCreateTask(title.trim(), dateKey);
+          }
+          setTitle('');
+          onDeactivate();
+        }}
+        placeholder="Nova tarefa..."
+      />
+    </form>
+  );
+}
+
 function CalendarTaskPill({
   task,
   selected,
   compact = false,
+  card = false,
   isDragging = false,
   onTaskClick,
   onToggleCompletion,
@@ -218,6 +260,7 @@ function CalendarTaskPill({
   task: Task;
   selected: boolean;
   compact?: boolean;
+  card?: boolean;
   isDragging?: boolean;
   onTaskClick: (task: Task) => void;
   onToggleCompletion: (taskId: string) => void;
@@ -228,6 +271,7 @@ function CalendarTaskPill({
   const classes = [
     styles.taskPill,
     compact && styles.taskPillCompact,
+    card && styles.taskPillCard,
     selected && styles.taskPillSelected,
     task.completed && styles.taskPillCompleted,
     isDragging && styles.taskPillDragging,
@@ -311,12 +355,14 @@ export function CalendarView({
   onUpdateTask,
   onCreateTask,
   onDeleteTask,
-  onAppsClick,
 }: CalendarViewProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const [activeSlotKey, setActiveSlotKey] = useState<string | null>(null);
   const [hoveredSlotKey, setHoveredSlotKey] = useState<string | null>(null);
+  const [overflowPopoverKey, setOverflowPopoverKey] = useState<string | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<DOMRect | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
@@ -366,9 +412,35 @@ export function CalendarView({
     onAnchorDateChange(toDateKey(today));
   };
 
-  const handleOverflowClick = (date: Date) => {
-    onAnchorDateChange(toDateKey(date));
-    onViewChange('week');
+  useEffect(() => {
+    if (!overflowPopoverKey) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOverflowPopoverKey(null);
+        setPopoverAnchor(null);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setOverflowPopoverKey(null); setPopoverAnchor(null); }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [overflowPopoverKey]);
+
+  const handleOverflowClick = (e: React.MouseEvent, dateKey: string) => {
+    e.stopPropagation();
+    if (overflowPopoverKey === dateKey) {
+      setOverflowPopoverKey(null);
+      setPopoverAnchor(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setOverflowPopoverKey(dateKey);
+    setPopoverAnchor(rect);
   };
 
   const allCalendarTasks = useMemo(() => [...tasks, ...undatedTasks], [tasks, undatedTasks]);
@@ -417,21 +489,10 @@ export function CalendarView({
     setDropTargetKey(null);
   };
 
-  const renderWeekDayColumn = (day: Date, weekdayLabel: string, compact = false) => {
+  const renderWeekDayColumn = (day: Date, weekdayLabel: string, totalSlots: number) => {
     const dateKey = toDateKey(day);
     const dayTasks = tasksByDate.get(dateKey) ?? [];
     const isToday = isSameDay(day, today);
-
-    let totalSlots: number;
-    if (compact) {
-      totalSlots = Math.max(3, dayTasks.length + 1);
-    } else {
-      const maxWeekdayTasks = Math.max(
-        ...weekDays.slice(0, 5).map((d) => (tasksByDate.get(toDateKey(d)) ?? []).length),
-      );
-      totalSlots = Math.max(8, maxWeekdayTasks + 1);
-    }
-
     const emptySlots = Math.max(0, totalSlots - dayTasks.length);
 
     return (
@@ -439,7 +500,6 @@ export function CalendarView({
         key={dateKey}
         className={[
           styles.weekColumn,
-          compact && styles.weekColumnCompact,
           isToday && styles.todayColumn,
           dropTargetKey === `date-${dateKey}` && styles.dropTarget,
         ].filter(Boolean).join(' ')}
@@ -497,48 +557,37 @@ export function CalendarView({
             <Button
               type="button"
               variant="ghost"
-              size="medium"
+              size="small"
               icon={CaretLeft}
               iconPosition="icon-only"
-              className={styles.navButton}
               aria-label={view === 'week' ? 'Semana anterior' : 'Mês anterior'}
               onClick={handlePrevious}
             />
             <Button
               type="button"
               variant="ghost"
-              size="medium"
+              size="small"
               icon={CaretRight}
               iconPosition="icon-only"
-              className={styles.navButton}
               aria-label={view === 'week' ? 'Próxima semana' : 'Próximo mês'}
               onClick={handleNext}
             />
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="small"
-            className={styles.todayButton}
-            onClick={handleToday}
-          >
-            Hoje
-          </Button>
-          <h2 className={styles.title}>{activeTitle}</h2>
+          <div className={styles.todayTitleGroup}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="small"
+              className={styles.todayButton}
+              onClick={handleToday}
+            >
+              Hoje
+            </Button>
+            <h2 className={styles.title}>{activeTitle}</h2>
+          </div>
         </div>
 
         <div className={styles.toolbarActions}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="medium"
-            icon={CirclesFour}
-            iconPosition="left"
-            className={styles.appsButton}
-            onClick={onAppsClick}
-          >
-            Apps
-          </Button>
           <div className={styles.viewSwitch} aria-label="Alternar visualização">
             <Button
               type="button"
@@ -566,32 +615,38 @@ export function CalendarView({
 
       {view === 'week' ? (
         <div className={styles.weekSurface}>
+          <div className={styles.weekSurfaceInner}>
+          {/* Section 1: Monday – Friday */}
           <div className={styles.weekGrid}>
-            {weekDays.slice(0, 5).map((day, index) => renderWeekDayColumn(day, PT_WEEKDAY_LONG[index]))}
-            <div className={styles.weekendColumn}>
-              {renderWeekDayColumn(weekDays[5], PT_WEEKDAY_LONG[5], true)}
-              {renderWeekDayColumn(weekDays[6], PT_WEEKDAY_LONG[6], true)}
-            </div>
+            {(() => {
+              const weekdayTaskCounts = weekDays.slice(0, 5).map(
+                (d) => (tasksByDate.get(toDateKey(d)) ?? []).length,
+              );
+              const weekdaySlots = Math.max(5, Math.max(...weekdayTaskCounts) + 1);
+              return weekDays.slice(0, 5).map((day, index) =>
+                renderWeekDayColumn(day, PT_WEEKDAY_LONG[index], weekdaySlots),
+              );
+            })()}
           </div>
 
-          <div
-            className={`${styles.somedayRow} ${dropTargetKey === 'undated' ? styles.dropTarget : ''}`}
-            onDragEnter={() => setDropTargetKey('undated')}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
-              setDropTargetKey('undated');
-            }}
-            onDragLeave={() => setDropTargetKey(null)}
-            onDrop={(event) => void handleDropOnUndated(event)}
-          >
-            <div className={styles.somedayHeader}>Sem data</div>
-            <div className={styles.somedayTasks}>
-              {Array.from({ length: 4 }).map((_, colIndex) => {
-                const colTasks = undatedTasks.slice(colIndex * 4, colIndex * 4 + 4);
-                const emptyCount = Math.max(0, 4 - colTasks.length);
-                return (
-                  <div key={`someday-col-${colIndex}`} className={styles.somedayColumn}>
+          {/* Section 2: Saturday | Sunday | Sem data ×2 */}
+          {(() => {
+            const satTasks = tasksByDate.get(toDateKey(weekDays[5])) ?? [];
+            const sunTasks = tasksByDate.get(toDateKey(weekDays[6])) ?? [];
+            const undatedSlots = Math.ceil((undatedTasks.length + 1) / 2);
+            const bottomSlots = Math.max(
+              5,
+              satTasks.length + 1,
+              sunTasks.length + 1,
+              undatedSlots,
+            );
+            const undatedCol0 = undatedTasks.slice(0, bottomSlots);
+            const undatedCol1 = undatedTasks.slice(bottomSlots, bottomSlots * 2);
+            const renderSomedayCol = (colTasks: typeof undatedTasks, colIndex: number) => {
+              const emptyCount = Math.max(0, bottomSlots - colTasks.length);
+              return (
+                <div key={`someday-col-${colIndex}`} className={styles.somedayColumn}>
+                  <div className={styles.weekDayTasks}>
                     {colTasks.map((task) => (
                       <CalendarTaskPill
                         key={task.id}
@@ -621,13 +676,42 @@ export function CalendarView({
                       />
                     ))}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            };
+            return (
+              <div
+                className={`${styles.bottomGrid} ${dropTargetKey === 'undated' ? styles.dropTarget : ''}`}
+                onDragEnter={() => setDropTargetKey('undated')}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropTargetKey('undated');
+                }}
+                onDragLeave={() => setDropTargetKey(null)}
+                onDrop={(event) => void handleDropOnUndated(event)}
+              >
+                {renderWeekDayColumn(weekDays[5], PT_WEEKDAY_LONG[5], bottomSlots)}
+                {renderWeekDayColumn(weekDays[6], PT_WEEKDAY_LONG[6], bottomSlots)}
+                <div className={styles.somedaySection}>
+                  <div className={styles.weekDayHeader}>
+                    <span className={styles.weekDayNumber}>Sem data</span>
+                  </div>
+                  <div className={styles.somedayInnerGrid}>
+                    {renderSomedayCol(undatedCol0, 0)}
+                    {renderSomedayCol(undatedCol1, 1)}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           </div>
         </div>
       ) : (
-        <div className={styles.monthSurface}>
+        <div
+          className={styles.monthSurface}
+          onScroll={() => { setOverflowPopoverKey(null); setPopoverAnchor(null); }}
+        >
           <div className={styles.monthWeekdays}>
             {PT_WEEKDAY_SHORT.map((weekday) => (
               <span key={weekday}>{weekday}</span>
@@ -642,6 +726,9 @@ export function CalendarView({
               const hiddenCount = dayTasks.length - visibleTasks.length;
               const isCurrentMonth = day.getMonth() === parsedAnchorDate.getMonth();
               const isToday = isSameDay(day, today);
+              const cellSlotKey = `month-${dateKey}`;
+              const isCellHovered = hoveredSlotKey === cellSlotKey;
+              const isCellEditing = activeSlotKey === cellSlotKey;
 
               return (
                 <div
@@ -652,6 +739,8 @@ export function CalendarView({
                     isToday && styles.monthCellToday,
                     dropTargetKey === `date-${dateKey}` && styles.dropTarget,
                   ].filter(Boolean).join(' ')}
+                  onMouseEnter={() => setHoveredSlotKey(cellSlotKey)}
+                  onMouseLeave={() => setHoveredSlotKey(null)}
                   onDragEnter={() => setDropTargetKey(`date-${dateKey}`)}
                   onDragOver={(event) => {
                     event.preventDefault();
@@ -661,17 +750,30 @@ export function CalendarView({
                   onDragLeave={() => setDropTargetKey(null)}
                   onDrop={(event) => void handleDropOnDate(event, dateKey)}
                 >
-                  <div className={styles.monthCellHeader}>
-                    <span className={styles.monthDayNumber}>{day.getDate()}</span>
-                  </div>
-
                   <div className={styles.monthTasks}>
+                    {isCellEditing ? (
+                      <MonthCellCreate
+                        dateKey={dateKey}
+                        onCreateTask={onCreateTask}
+                        onDeactivate={() => setActiveSlotKey(null)}
+                      />
+                    ) : onCreateTask ? (
+                      <button
+                        type="button"
+                        className={`${styles.monthAddBtn} ${!isCellHovered ? styles.monthAddBtnIdle : ''}`}
+                        onClick={() => setActiveSlotKey(cellSlotKey)}
+                      >
+                        <Plus size={12} aria-hidden />
+                      </button>
+                    ) : null}
+
                     {visibleTasks.map((task) => (
                       <CalendarTaskPill
                         key={task.id}
                         task={task}
                         selected={selectedTaskId === task.id}
                         compact
+                        card
                         isDragging={draggedTaskId === task.id}
                         onTaskClick={onTaskClick}
                         onToggleCompletion={onToggleCompletion}
@@ -680,21 +782,53 @@ export function CalendarView({
                         onDragEnd={handleDragEnd}
                       />
                     ))}
-                    {hiddenCount > 0 && (
-                      <button
-                        type="button"
-                        className={styles.moreButton}
-                        onClick={() => handleOverflowClick(day)}
-                      >
-                        +{hiddenCount}
-                      </button>
-                    )}
                   </div>
+
+                  {hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      className={`${styles.moreButton} ${overflowPopoverKey === dateKey ? styles.moreButtonActive : ''}`}
+                      onClick={(e) => handleOverflowClick(e, dateKey)}
+                    >
+                      +{hiddenCount} tarefas
+                    </button>
+                  )}
+
+                  <span className={styles.monthDayNumber}>{day.getDate()}</span>
                 </div>
               );
             })}
           </div>
         </div>
+      )}
+
+      {overflowPopoverKey && popoverAnchor && createPortal(
+        <div
+          ref={popoverRef}
+          className={styles.overflowPopover}
+          style={{
+            top: popoverAnchor.bottom + 6,
+            left: popoverAnchor.left,
+            minWidth: Math.max(220, popoverAnchor.width + 60),
+          }}
+        >
+          {(tasksByDate.get(overflowPopoverKey) ?? []).map((task) => (
+            <CalendarTaskPill
+              key={task.id}
+              task={task}
+              selected={selectedTaskId === task.id}
+              compact
+              card
+              isDragging={draggedTaskId === task.id}
+              onTaskClick={(t) => { onTaskClick(t); setOverflowPopoverKey(null); }}
+              onToggleCompletion={onToggleCompletion}
+              onDelete={onDeleteTask}
+              onDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
+              onDragEnd={handleDragEnd}
+            />
+          ))}
+        </div>,
+        document.body,
       )}
     </section>
   );
