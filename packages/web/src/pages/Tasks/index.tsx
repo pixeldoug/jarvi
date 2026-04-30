@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { Gear, CirclesFour, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
+import { Gear, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData } from '../../hooks/useChatStream';
@@ -992,19 +992,6 @@ export function Tasks() {
 
   const tableControls = (
     <>
-      <Tooltip label="Apps" position="bottom" disabled={!isCompactHeader}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="medium"
-          icon={CirclesFour}
-          iconPosition={isCompactHeader ? 'icon-only' : 'left'}
-          aria-label={isCompactHeader ? 'Apps' : undefined}
-          onClick={() => openSettingsRef.current?.('apps')}
-        >
-          {!isCompactHeader && 'Apps'}
-        </Button>
-      </Tooltip>
       <Tooltip label={toggleSectionsLabel} position="bottom">
         <Button
           type="button"
@@ -1641,7 +1628,6 @@ export function Tasks() {
               await handleControlBarCreateTask({ title, description: '', dueDate });
             }}
             onDeleteTask={handleDeleteTask}
-            onAppsClick={() => openSettingsRef.current?.('apps')}
           />
           </div>
         )}
