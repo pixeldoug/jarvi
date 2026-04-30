@@ -189,6 +189,24 @@
   background: var(--semantic-content-secondary);
 }
 
+.main::-webkit-scrollbar {
+  width: 6px;
+}
+
+.main::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-round);
+}
+
+.main::-webkit-scrollbar-thumb {
+  background: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-round);
+}
+
+.main::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
 
 
 /* Responsive adjustments for smaller screens */
