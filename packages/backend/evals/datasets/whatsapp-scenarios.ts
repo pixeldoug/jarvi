@@ -13,6 +13,7 @@ import { addDays, makePendingTask, makeTask, todayIso } from '../helpers';
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
 const NEXT_WEEK = addDays(TODAY, 7);
+const IN_SEVEN_DAYS = addDays(TODAY, 7);
 const YESTERDAY = addDays(TODAY, -1);
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,8 @@ export interface EvalScenario {
   mustNotCallTool?: string[];
   /** Exact number of times a tool must be called. */
   mustCallToolCount?: Record<string, number>;
+  /** Tool argument expectations. At least one call to tool must include arg === value. */
+  mustCallToolArgs?: Array<{ tool: string; arg: string; value: string | null }>;
   /** Task IDs that must be updated via update_task. */
   mustUpdateTaskIds?: string[];
   /** Task IDs that must not be updated via update_task. */
@@ -147,6 +150,20 @@ export const SCENARIOS: EvalScenario[] = [
     mustContain: ['relatório'],
     idealOutput: 'Tarefa criada: Entregar relatório para o cliente — hoje, prioridade alta.',
     tags: ['task-creation', 'priority'],
+  },
+  {
+    name: 'create-task/relative-deadline-before-seven-days',
+    channel: 'web',
+    input: 'cancelar o jogo draw do iPad ANTES de 7 dias',
+    mustContain: ['Draw', 'iPad'],
+    mustNotContain: ['sem data', 'algum prazo', 'prazo específico'],
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: IN_SEVEN_DAYS },
+    ],
+    idealOutput:
+      'Anotei Cancelar jogo Draw do iPad com prazo em até 7 dias.',
+    tags: ['task-creation', 'relative-date', 'tool-calling'],
   },
   {
     name: 'pending-task/add-date-before-confirming',

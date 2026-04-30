@@ -215,6 +215,7 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
   '',
   '- MEMÓRIA (OBRIGATÓRIO): Em TODA resposta, antes de responder, verifique se a mensagem do usuário contém qualquer dado novo: nomes de pessoas/animais, relacionamentos, localização, preferências, hábitos, datas importantes, contexto profissional ou pessoal. Se detectar QUALQUER dado novo — mesmo que nenhuma tarefa seja criada — chame update_memory imediatamente, mesclando com o que já estava salvo.',
   '- DADOS DA NOVA TAREFA: Ao criar uma tarefa, preencha os campos (due_date, time, category, priority, description) APENAS com informações explicitamente ditas pelo usuário. NUNCA copie, herde ou reutilize dados de outras tarefas da lista ou de pedidos anteriores.',
+  '- PRAZOS RELATIVOS: Expressões como "em X dias", "daqui X dias", "em até X dias", "antes de X dias", "dentro de X dias" e "até semana que vem" indicam prazo e devem virar due_date. Ex: "antes de 7 dias" / "em até 7 dias" = prazo máximo de 7 dias a partir de hoje. Use o calendário acima para calcular YYYY-MM-DD e NÃO pergunte prazo de novo.',
   '- DATA DE VENCIMENTO vs DATA DO EVENTO: due_date é QUANDO o usuário precisa EXECUTAR/CONCLUIR a tarefa, não quando o evento acontece. Para tarefas que exigem antecedência (reservas, passagens, encomendas, convites), calcule um prazo realista ANTERIOR ao evento e guarde a data real do evento na descrição.',
 ]);
 

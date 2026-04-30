@@ -180,6 +180,7 @@ function RuleChecker({
     mustCallTool?: string[];
     mustNotCallTool?: string[];
     mustCallToolCount?: Record<string, number>;
+    mustCallToolArgs?: Array<{ tool: string; arg: string; value: string | null }>;
     mustUpdateTaskIds?: string[];
     mustNotUpdateTaskIds?: string[];
   } = {};
@@ -224,6 +225,19 @@ function RuleChecker({
       failures.push(`TOOL_COUNT: "${tool}" expected ${expectedCount}, got ${actualCount}`);
     }
   }
+  for (const expectation of rules.mustCallToolArgs ?? []) {
+    const matched = toolCallDetails.some((tc) => {
+      if (tc.name !== expectation.tool) return false;
+      const actualValue = tc.args[expectation.arg];
+      if (expectation.value === null) return actualValue === null;
+      return String(actualValue ?? '') === expectation.value;
+    });
+    if (!matched) {
+      failures.push(
+        `MISSING_TOOL_ARG: "${expectation.tool}.${expectation.arg}" expected "${expectation.value}"`,
+      );
+    }
+  }
   for (const taskId of rules.mustUpdateTaskIds ?? []) {
     if (!updatedTaskIds.includes(taskId)) {
       failures.push(`MISSING_UPDATE_TASK_ID: "${taskId}"`);
@@ -259,6 +273,7 @@ async function main() {
           mustCallTool: s.mustCallTool,
           mustNotCallTool: s.mustNotCallTool,
           mustCallToolCount: s.mustCallToolCount,
+          mustCallToolArgs: s.mustCallToolArgs,
           mustUpdateTaskIds: s.mustUpdateTaskIds,
           mustNotUpdateTaskIds: s.mustNotUpdateTaskIds,
           idealOutput: s.idealOutput,

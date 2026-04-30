@@ -60,7 +60,11 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
             enum: ['low', 'medium', 'high'],
             description: 'Prioridade',
           },
-          due_date: { type: 'string', description: 'Data de vencimento no formato YYYY-MM-DD' },
+          due_date: {
+            type: 'string',
+            description:
+              'Data de vencimento no formato YYYY-MM-DD. Converta prazos relativos como "amanhã", "em até 7 dias", "antes de 7 dias" usando o calendário atual.',
+          },
           time: { type: 'string', description: 'Horário no formato HH:MM' },
           category: { type: 'string', description: 'Categoria da tarefa' },
         },
