@@ -15,6 +15,9 @@ const TOMORROW = addDays(TODAY, 1);
 const NEXT_WEEK = addDays(TODAY, 7);
 const IN_SEVEN_DAYS = addDays(TODAY, 7);
 const YESTERDAY = addDays(TODAY, -1);
+// Move-out date used in implicit-deadline scenario (25 days out)
+const MOVE_OUT_DATE = addDays(TODAY, 25);
+const MOVE_OUT_DATE_DISPLAY = MOVE_OUT_DATE.split('-').slice(1).reverse().join('/'); // DD/MM
 
 // ---------------------------------------------------------------------------
 // Scenario shape
@@ -44,6 +47,8 @@ export interface EvalScenario {
   mustCallToolCount?: Record<string, number>;
   /** Tool argument expectations. At least one call to tool must include arg === value. */
   mustCallToolArgs?: Array<{ tool: string; arg: string; value: string | null }>;
+  /** Tool argument exclusions. No call to tool must include arg === value. */
+  mustNotCallToolArgs?: Array<{ tool: string; arg: string; value: string | null }>;
   /** Task IDs that must be updated via update_task. */
   mustUpdateTaskIds?: string[];
   /** Task IDs that must not be updated via update_task. */
@@ -164,6 +169,17 @@ export const SCENARIOS: EvalScenario[] = [
     idealOutput:
       'Anotei Cancelar jogo Draw do iPad com prazo em até 7 dias.',
     tags: ['task-creation', 'relative-date', 'tool-calling'],
+  },
+  {
+    name: 'create-task/implicit-deadline-before-event-date',
+    input: `preciso ver o portão da casa nova para os gatos. minha saída da casa atual é dia ${MOVE_OUT_DATE_DISPLAY} e preciso ter isso resolvido antes`,
+    mustCallTool: ['create_task'],
+    // The due_date must NOT be the move-out date itself — the task must be done before that day
+    mustNotCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: MOVE_OUT_DATE },
+    ],
+    idealOutput: `Ver portão da casa nova para os gatos — sugestão criada. Deixei o prazo para antes de ${MOVE_OUT_DATE_DISPLAY}, já que nesse dia você precisa sair. Ela está na aba Integrações para você aprovar.`,
+    tags: ['task-creation', 'temporal-reasoning', 'implicit-deadline'],
   },
   {
     name: 'pending-task/add-date-before-confirming',
