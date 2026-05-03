@@ -205,7 +205,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
     socket.on('task:created', () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Nova tarefa criada via WhatsApp! ✅');
+      toast.success('Nova tarefa criada via WhatsApp.');
     });
 
     socket.on('connect_error', (err) => {

@@ -147,7 +147,8 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   hoje: true,
   amanha: false,
   'esta-semana': false,
-  'eventos-futuros': false,
+  'proxima-semana': false,
+  'mais-tarde': false,
   'algum-dia': false,
   'sem-data': false,
   completadas: false,
@@ -754,7 +755,7 @@ export function Tasks() {
     tomorrow.setDate(today.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-    const { start: nextWeekStartStr } = getNextWeekBounds(today);
+    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
     const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
 
     const categories = {
@@ -763,7 +764,8 @@ export function Tasks() {
       amanha: [] as Task[],
       estaSemana: [] as Task[],
       semData: [] as Task[],
-      eventosFuturos: [] as Task[],
+      proximaSemana: [] as Task[],
+      maisTarde: [] as Task[],
       algumDia: [] as Task[],
       completadas: [] as Task[],
     };
@@ -806,8 +808,10 @@ export function Tasks() {
         categories.amanha.push(task);
       } else if (taskDateStr >= currentWeekStartStr && taskDateStr < currentWeekEndStr) {
         categories.estaSemana.push(task);
-      } else if (taskDateStr >= nextWeekStartStr) {
-        categories.eventosFuturos.push(task);
+      } else if (taskDateStr >= nextWeekStartStr && taskDateStr < nextWeekEndStr) {
+        categories.proximaSemana.push(task);
+      } else if (taskDateStr >= nextWeekEndStr) {
+        categories.maisTarde.push(task);
       }
     });
 
@@ -829,7 +833,8 @@ export function Tasks() {
           'amanha': 'amanha',
           'esta-semana': 'estaSemana',
           'sem-data': 'semData',
-          'eventos-futuros': 'eventosFuturos',
+          'proxima-semana': 'proximaSemana',
+          'mais-tarde': 'maisTarde',
           'algum-dia': 'algumDia',
           'completadas': 'completadas',
         };
@@ -1186,7 +1191,7 @@ export function Tasks() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
-    const { start: nextWeekStartStr } = getNextWeekBounds(today);
+    const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
     const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
     
     let newDueDate: string | undefined;
@@ -1215,8 +1220,11 @@ export function Tasks() {
       case 'sem-data':
         newDueDate = undefined;
         break;
-      case 'eventos-futuros':
+      case 'proxima-semana':
         newDueDate = nextWeekStartStr;
+        break;
+      case 'mais-tarde':
+        newDueDate = nextWeekEndStr;
         break;
       default:
         return;
@@ -1795,7 +1803,8 @@ export function Tasks() {
           {/* ── Section anchors: only rendered when there are tasks to show ── */}
           {visibleTasks.length > 0 && <>
 
-          {/* Vencidas */}
+          {/* Vencidas — oculta quando vazia */}
+          {categorizedTasks.vencidas.length > 0 && (
           <DroppableSection
             title="Vencidas"
             tasks={categorizedTasks.vencidas}
@@ -1815,8 +1824,9 @@ export function Tasks() {
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
+          )}
 
-          {/* Hoje */}
+          {/* Hoje — sempre visível */}
           <DroppableSection
             title="Hoje"
             tasks={categorizedTasks.hoje}
@@ -1837,7 +1847,8 @@ export function Tasks() {
             hideCategoryChip={!!selectedTask}
           />
 
-          {/* Amanhã */}
+          {/* Amanhã — oculta quando vazia */}
+          {categorizedTasks.amanha.length > 0 && (
           <DroppableSection
             title="Amanhã"
             tasks={categorizedTasks.amanha}
@@ -1857,10 +1868,12 @@ export function Tasks() {
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
+          )}
 
-          {/* Esta semana (restante) */}
+          {/* Esta semana (restante) — oculta quando vazia */}
+          {categorizedTasks.estaSemana.length > 0 && (
           <DroppableSection
-            title="Ainda esta semana"
+            title="Esta semana"
             tasks={categorizedTasks.estaSemana}
             emptyMessage="Nenhuma tarefa para esta semana"
             sectionId="esta-semana"
@@ -1879,16 +1892,18 @@ export function Tasks() {
             hideCategoryChip={!!selectedTask}
             showDayOfWeek={true}
           />
+          )}
 
-          {/* Futuro (semana que vem + além) */}
+          {/* Próxima semana — oculta quando vazia */}
+          {categorizedTasks.proximaSemana.length > 0 && (
           <DroppableSection
-            title="Futuro"
-            tasks={categorizedTasks.eventosFuturos}
-            emptyMessage="Nenhuma tarefa futura com data"
-            sectionId="eventos-futuros"
+            title="Próxima semana"
+            tasks={categorizedTasks.proximaSemana}
+            emptyMessage="Nenhuma tarefa para a próxima semana"
+            sectionId="proxima-semana"
             defaultOpen={false}
-            isOpen={openSections['eventos-futuros']}
-            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'eventos-futuros': isOpen }))}
+            isOpen={openSections['proxima-semana']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'proxima-semana': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
             onEdit={handleEdit}
             onDelete={handleDeleteTask}
@@ -1900,10 +1915,35 @@ export function Tasks() {
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
+          )}
 
-          {/* Sem data */}
+          {/* Mais tarde (após próxima semana) — oculta quando vazia */}
+          {categorizedTasks.maisTarde.length > 0 && (
           <DroppableSection
-            title="Sem data ainda"
+            title="Mais tarde"
+            tasks={categorizedTasks.maisTarde}
+            emptyMessage="Nenhuma tarefa futura com data"
+            sectionId="mais-tarde"
+            defaultOpen={false}
+            isOpen={openSections['mais-tarde']}
+            onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'mais-tarde': isOpen }))}
+            onToggleCompletion={handleToggleCompletion}
+            onEdit={handleEdit}
+            onDelete={handleDeleteTask}
+            onUpdateTask={handleUpdateTask}
+            onOpenDatePicker={handleOpenDatePicker}
+            onClick={handleTaskClick}
+            insertionIndicator={insertionIndicator}
+            movingTask={movingTask}
+            selectedTaskId={selectedTask?.id}
+            hideCategoryChip={!!selectedTask}
+          />
+          )}
+
+          {/* Sem data — oculta quando vazia */}
+          {categorizedTasks.semData.length > 0 && (
+          <DroppableSection
+            title="Sem data"
             tasks={categorizedTasks.semData}
             emptyMessage="Nenhuma tarefa sem data"
             sectionId="sem-data"
@@ -1921,11 +1961,12 @@ export function Tasks() {
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
+          )}
 
-          {/* Tarefas Concluídas */}
+          {/* Concluídas */}
           {categorizedTasks.completadas.length > 0 && (
             <DroppableSection
-              title="Tarefas Concluídas"
+              title="Concluídas"
               tasks={categorizedTasks.completadas}
               emptyMessage="Nenhuma tarefa concluída"
               sectionId="completadas"

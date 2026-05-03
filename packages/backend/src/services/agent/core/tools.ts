@@ -4,9 +4,9 @@
  * filtered down by `profile.toolsAvailable`, so the WhatsApp adapter can
  * advertise just the task/memory subset while web sees the full surface.
  *
- * `create_task` is the only executor whose persistence layer changes per
- * channel: WhatsApp routes new tasks through `pending_tasks` (awaiting
- * approval in the Integrações UI) while web inserts into `tasks` directly.
+ * `create_task` writes directly to `tasks` for both channels.
+ * WhatsApp tasks carry `source='whatsapp'` and `original_whatsapp_content`
+ * so the WhatsApp chip is rendered in the UI.
  */
 
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
@@ -435,15 +435,11 @@ async function executeCreateTask(
   const time = sanitizeTimeString(args.time);
   const category = args.category ? String(args.category) : null;
 
-  if (profile.taskCreationTarget === 'pending_tasks') {
-    return executeCreateTaskAsPending(
-      { title, description, priority, dueDate, time, category, now },
-      ctx,
-    );
-  }
+  const source = profile.id === 'whatsapp' ? 'whatsapp' : 'manual';
+  const originalContent = profile.id === 'whatsapp' ? (ctx.originalUserMessage ?? null) : null;
 
   return executeCreateTaskAsActive(
-    { title, description, priority, dueDate, time, category, now },
+    { title, description, priority, dueDate, time, category, now, source, originalContent },
     ctx,
   );
 }
@@ -456,6 +452,8 @@ interface CreateTaskInput {
   time: string | null;
   category: string | null;
   now: string;
+  source?: string;
+  originalContent?: string | null;
 }
 
 async function executeCreateTaskAsActive(
@@ -464,19 +462,25 @@ async function executeCreateTaskAsActive(
 ): Promise<ToolExecutionResult> {
   const taskId = uuidv4();
   const { title, description, priority, dueDate, time, category, now } = input;
+  const source = input.source ?? 'manual';
+  const originalContent = input.originalContent ?? null;
 
   if (isPostgreSQL()) {
     await getPool().query(
-      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [taskId, ctx.userId, title, description, priority, category, dueDate, time, now, now],
+      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, now, now],
     );
   } else {
     await getDatabase().run(
-      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, ctx.userId, title, description, priority, category, dueDate, time, now, now],
+      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, now, now],
     );
+  }
+
+  if (source === 'whatsapp' && hasIO()) {
+    getIO().to(`user:${ctx.userId}`).emit('task:created', { id: taskId, source });
   }
 
   return {

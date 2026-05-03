@@ -2,8 +2,8 @@
  * WhatsApp channel adapter.
  *
  * Public API: `runWhatsappAgent` — single-string response, persists
- * conversation history to Redis, applies anti-hallucination retry, and
- * routes new tasks through `pending_tasks` for in-app approval.
+ * conversation history to Redis, applies anti-hallucination retry.
+ * Tasks are created directly as active tasks (no approval step).
  */
 
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
@@ -16,12 +16,10 @@ import {
 } from '../core/tasks';
 import { getDateTimeForTimezone } from '../core/time';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
-import { getActivePendingTasksForUser } from '../../pendingTaskService';
 import type {
   AgentContext,
   ChannelProfile,
   ConversationMessage,
-  PendingTaskRow,
   RedisLike,
 } from '../core/types';
 
@@ -91,16 +89,13 @@ async function appendHistory(
 
 const WHATSAPP_PROFILE: ChannelProfile = {
   id: 'whatsapp',
-  taskCreationTarget: 'pending_tasks',
+  taskCreationTarget: 'tasks',
   toolsAvailable: [
     'create_task',
     'update_task',
     'complete_task',
     'delete_task',
     'update_memory',
-    'confirm_pending_task',
-    'reject_pending_task',
-    'update_pending_task',
   ],
   outputFormat: 'plain',
   transport: 'single',
@@ -131,31 +126,11 @@ export const runWhatsappAgent = async (
     { memory, timezone, preferredName },
     activeTasks,
     completedTaskCount,
-    activePendingTasks,
   ] = await Promise.all([
     getUserProfile(userId),
     getUserActiveTasks(userId),
     getCompletedTaskCount(userId),
-    getActivePendingTasksForUser(userId).catch((err) => {
-      console.error('[WhatsApp Agent] failed to load pending tasks', err);
-      return [];
-    }),
   ]);
-
-  const pendingTasks: PendingTaskRow[] = activePendingTasks.map((row) => ({
-    id: row.id,
-    user_id: row.user_id,
-    source: row.source,
-    suggested_title: row.suggested_title,
-    suggested_description: row.suggested_description,
-    suggested_priority: row.suggested_priority,
-    suggested_due_date: row.suggested_due_date,
-    suggested_time: row.suggested_time,
-    suggested_category: row.suggested_category,
-    status: row.status,
-    expires_at: row.expires_at ?? null,
-    created_at: row.created_at ?? null,
-  }));
 
   const ctx: AgentContext = {
     userId,
@@ -166,7 +141,7 @@ export const runWhatsappAgent = async (
     completedTaskCount,
     lists: [],
     categories: [],
-    pendingTasks,
+    pendingTasks: [],
     mode: 'general',
     originalUserMessage: userMessage,
     whatsappPhone: options.whatsappPhone,
