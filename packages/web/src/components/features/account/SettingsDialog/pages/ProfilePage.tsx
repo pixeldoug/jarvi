@@ -19,6 +19,7 @@ import { GoogleLogin } from '../../../auth';
 import type { SelectOption } from '../../../../ui';
 import { DisconnectGoogleDialog } from '../DisconnectGoogleDialog';
 import { ChangePasswordDialog } from '../ChangePasswordDialog';
+import { DeleteAccountDialog } from '../DeleteAccountDialog';
 import styles from '../SettingsDialog.module.css';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
@@ -59,7 +60,7 @@ const TIMEZONES: SelectOption[] = [
 ];
 
 export function ProfilePage() {
-  const { user, updateUser, token, linkGoogleAccount } = useAuth();
+  const { user, updateUser, token, linkGoogleAccount, logout } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(user?.name || '');
@@ -74,6 +75,7 @@ export function ProfilePage() {
 
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const isGoogleUser = user?.authProvider === 'google';
   const isEmailUser = user?.authProvider === 'email';
@@ -257,7 +259,12 @@ export function ProfilePage() {
   };
 
   const handleDeleteAccount = () => {
-    toast.info('Em breve: Deletar conta');
+    setDeleteAccountOpen(true);
+  };
+
+  const handleAccountDeleted = () => {
+    setDeleteAccountOpen(false);
+    logout();
   };
 
   return (
@@ -424,6 +431,12 @@ export function ProfilePage() {
           </p>
         </div>
       </div>
+
+      <DeleteAccountDialog
+        isOpen={deleteAccountOpen}
+        onClose={() => setDeleteAccountOpen(false)}
+        onDeleted={handleAccountDeleted}
+      />
     </>
   );
 }

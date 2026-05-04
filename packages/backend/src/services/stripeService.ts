@@ -134,6 +134,28 @@ export async function cancelSubscription(userId: string): Promise<void> {
   });
 }
 
+/**
+ * Cancel a user's Stripe subscription as part of account deletion.
+ * Unlike `cancelSubscription`, this is a no-op when there is no subscription
+ * and does NOT update the DB (the user row is about to be deleted anyway).
+ * Throws only on unexpected Stripe errors.
+ */
+export async function cancelSubscriptionForDeletion(userId: string): Promise<void> {
+  if (!stripe) return; // Stripe not configured — skip silently
+
+  const user = await getUserById(userId);
+  if (!user?.stripe_subscription_id) return; // Nothing to cancel
+
+  try {
+    await stripe.subscriptions.cancel(user.stripe_subscription_id);
+    console.log(`✅ Stripe subscription ${user.stripe_subscription_id} cancelled for account deletion (user ${userId})`);
+  } catch (err: any) {
+    // If Stripe says the subscription is already cancelled/doesn't exist, that's fine.
+    if (err?.statusCode === 404 || err?.code === 'resource_missing') return;
+    throw err;
+  }
+}
+
 type PlanType = 'monthly' | 'annual' | 'lifetime' | null;
 
 function detectPlanType(priceId: string | undefined | null): PlanType {

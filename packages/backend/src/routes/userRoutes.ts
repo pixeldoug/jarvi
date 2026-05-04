@@ -7,6 +7,7 @@ import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sendEmailChangeConfirmation } from '../services/emailService';
 import { sendVerificationCode } from '../services/whatsappService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
+import { cancelSubscriptionForDeletion } from '../services/stripeService';
 
 // Helper to generate secure token
 const generateSecureToken = (): string => {
@@ -962,6 +963,103 @@ router.put('/timezone', authenticateToken, async (req: Request, res: Response) =
   } catch (error) {
     console.error('Error updating timezone:', error);
     res.status(500).json({ error: 'Erro ao atualizar fuso horário' });
+  }
+});
+
+/**
+ * DELETE /api/users/me
+ * Hard-delete the authenticated user account.
+ *
+ * Order of operations:
+ *  1. Cancel active Stripe subscription (if any) — keeps audit trail on Stripe side.
+ *  2. Delete all user data from the app tables.
+ *  3. Delete the users row itself.
+ */
+router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    // 1. Cancel Stripe subscription if the user has one (best-effort — don't fail the deletion).
+    try {
+      await cancelSubscriptionForDeletion(userId);
+    } catch (stripeErr) {
+      // Log but continue — the account must still be deleted even if Stripe call fails.
+      console.error('Delete account: failed to cancel Stripe subscription (continuing):', stripeErr);
+    }
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // Delete subtasks first (FK child of tasks)
+        await client.query('DELETE FROM task_subtasks WHERE task_id IN (SELECT id FROM tasks WHERE user_id = $1)', [userId]);
+
+        // Delete pending_tasks
+        await client.query('DELETE FROM pending_tasks WHERE user_id = $1', [userId]);
+
+        // Delete tasks
+        await client.query('DELETE FROM tasks WHERE user_id = $1', [userId]);
+
+        // Delete note_shares where user is owner or shared target
+        await client.query(
+          'DELETE FROM note_shares WHERE note_id IN (SELECT id FROM notes WHERE user_id = $1) OR shared_with_user_id = $1',
+          [userId]
+        );
+
+        // Delete notes owned by user
+        await client.query('DELETE FROM notes WHERE user_id = $1', [userId]);
+
+        // Delete categories
+        await client.query('DELETE FROM categories WHERE user_id = $1', [userId]);
+
+        // Delete lists
+        await client.query('DELETE FROM lists WHERE user_id = $1', [userId]);
+
+        // Delete AI memory profile
+        await client.query('DELETE FROM user_memory_profiles WHERE user_id = $1', [userId]);
+
+        // Delete Gmail processed emails
+        await client.query('DELETE FROM gmail_processed_emails WHERE user_id = $1', [userId]);
+
+        // Delete the user row itself (also clears WhatsApp + Gmail OAuth fields)
+        await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+
+      await db.run('DELETE FROM task_subtasks WHERE task_id IN (SELECT id FROM tasks WHERE user_id = ?)', [userId]);
+      await db.run('DELETE FROM pending_tasks WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM tasks WHERE user_id = ?', [userId]);
+      await db.run(
+        'DELETE FROM note_shares WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?) OR shared_with_user_id = ?',
+        [userId, userId]
+      );
+      await db.run('DELETE FROM notes WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM categories WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM lists WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM user_memory_profiles WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM gmail_processed_emails WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM users WHERE id = ?', [userId]);
+    }
+
+    console.log(`🗑️ Account deleted for user ${userId}`);
+    res.json({ success: true, message: 'Conta deletada com sucesso' });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({ error: 'Erro ao deletar conta' });
   }
 });
 

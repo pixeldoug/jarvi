@@ -377,9 +377,16 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice): Promise<void> {
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    throw new WebhookRetryableError(
-      `invoice.payment_succeeded received before customer ${customerId} was linked`
-    );
+    // If invoice has a subscription ID it may race checkout.session.completed — retry.
+    // If there is no subscription reference, the user was likely deleted — skip.
+    const hasSubscription = !!(invoice as any).subscription;
+    if (hasSubscription) {
+      throw new WebhookRetryableError(
+        `invoice.payment_succeeded received before customer ${customerId} was linked`
+      );
+    }
+    console.log(`ℹ️ invoice.payment_succeeded for ${customerId}: user not found (already deleted?), skipping.`);
+    return;
   }
 
   console.log(`💰 Payment succeeded for user ${user.email}`);
@@ -401,9 +408,8 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    throw new WebhookRetryableError(
-      `invoice.payment_failed received before customer ${customerId} was linked`
-    );
+    console.log(`ℹ️ invoice.payment_failed for ${customerId}: user not found (already deleted?), skipping.`);
+    return;
   }
 
   console.log(`❌ Payment failed for user ${user.email}`);
@@ -419,15 +425,19 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 
 /**
  * Handle subscription deleted event
+ *
+ * If the user is not found (e.g. account was already hard-deleted), we log and
+ * return silently instead of throwing `WebhookRetryableError`.  There is nothing
+ * to update in the DB and retrying forever would only waste Stripe retries.
  */
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
   const customerId = subscription.customer as string;
   const user = await getUserByStripeCustomerId(customerId);
 
   if (!user) {
-    throw new WebhookRetryableError(
-      `customer.subscription.deleted received before customer ${customerId} was linked`
-    );
+    // User was likely deleted before this event arrived — nothing to do.
+    console.log(`ℹ️ customer.subscription.deleted for ${customerId}: user not found (already deleted?), skipping.`);
+    return;
   }
 
   console.log(`🗑️ Subscription cancelled for user ${user.email}`);
