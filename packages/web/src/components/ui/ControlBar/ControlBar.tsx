@@ -21,6 +21,7 @@ export interface TaskCreationData {
   title: string;
   description: string;
   dueDate?: string;
+  time?: string;
   category?: string;
   priority?: 'low' | 'medium' | 'high';
 }
@@ -180,13 +181,13 @@ export function ControlBar({
     let formattedDueDate: string | undefined;
     if (dueDate) {
       formattedDueDate = dueDate.toISOString().split('T')[0];
-      if (dueTime) formattedDueDate = `${formattedDueDate}T${dueTime}:00`;
     }
 
     const taskData: TaskCreationData = {
       title: title.trim(),
       description: description.trim(),
       dueDate: formattedDueDate,
+      time: dueTime || undefined,
       category: category || undefined,
       priority,
     };

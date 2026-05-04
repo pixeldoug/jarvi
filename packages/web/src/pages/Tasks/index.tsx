@@ -533,7 +533,7 @@ export function Tasks() {
         category: taskData.category || '',
         dueDate: taskData.dueDate || '',
         important: false,
-        time: '',
+        time: taskData.time || '',
       });
       return createdTask;
     } catch (error) {

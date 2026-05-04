@@ -111,6 +111,8 @@ function buildMonthDays(anchorDate: Date): Date[] {
 
 function sortCalendarTasks(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
+    if (a.completed && !b.completed) return 1;
+    if (!a.completed && b.completed) return -1;
     const aHasTime = !!a.time;
     const bHasTime = !!b.time;
     if (aHasTime && !bHasTime) return -1;
