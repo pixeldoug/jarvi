@@ -12,6 +12,8 @@
 // service module loads.
 import 'dotenv/config';
 
+import fs from 'fs';
+import path from 'path';
 import { Eval } from 'braintrust';
 import { Factuality } from 'autoevals';
 import OpenAI from 'openai';
@@ -22,7 +24,10 @@ import {
   seedTasksForEval,
 } from './helpers';
 import { SCENARIOS } from './datasets/whatsapp-scenarios';
+import { WEB_SCENARIOS } from './datasets/web-scenarios';
 import type { ChannelProfile, ToolName } from '../src/services/agent/core/types';
+
+const ALL_SCENARIOS = [...SCENARIOS, ...WEB_SCENARIOS];
 
 // ---------------------------------------------------------------------------
 // Channel profile — full production tool set, safe against in-memory SQLite
@@ -271,15 +276,21 @@ function RuleChecker({
 }
 
 // ---------------------------------------------------------------------------
-// Entry point — wraps everything in async so DB can be awaited before Eval
+// Satisfaction threshold — default 80%, override with EVAL_MIN_SATISFACTION
+// ---------------------------------------------------------------------------
+
+const SATISFACTION_THRESHOLD = parseFloat(process.env.EVAL_MIN_SATISFACTION ?? '0.80');
+
+// ---------------------------------------------------------------------------
+// Entry point
 // ---------------------------------------------------------------------------
 
 async function main() {
   await setupEvalDatabase();
 
-  await Eval('jarvi-whatsapp-agent', {
+  const result = await Eval('jarvi-whatsapp-agent', {
     data: () =>
-      SCENARIOS.map((s) => ({
+      ALL_SCENARIOS.map((s) => ({
         input: { input: s.input, channel: s.channel, contextOverrides: s.contextOverrides },
         expected: JSON.stringify({
           mustContain: s.mustContain,
@@ -330,6 +341,83 @@ async function main() {
       environment: process.env.NODE_ENV ?? 'development',
     },
   });
+
+  // ── Compute satisfaction from aggregated scorer averages ─────────────────
+  const summaryScores = (result as unknown as {
+    summary?: { scores?: Record<string, { score: number | null }> };
+  }).summary?.scores ?? {};
+
+  const scoreEntries = Object.entries(summaryScores);
+  const satisfaction =
+    scoreEntries.length > 0
+      ? scoreEntries.reduce((sum, [, v]) => sum + (v.score ?? 0), 0) / scoreEntries.length
+      : 0;
+
+  // ── Collect per-case failures ─────────────────────────────────────────────
+  type EvalResultItem = {
+    input: unknown;
+    scores: Record<string, { score: number | null; metadata?: unknown } | null>;
+    metadata?: unknown;
+  };
+
+  const caseResults = (result as unknown as { results?: EvalResultItem[] }).results ?? [];
+
+  const failures: Array<{ scenario: string; scorer: string; reason: string }> = [];
+  for (const r of caseResults) {
+    const scenarioName =
+      (r.metadata as { name?: string } | undefined)?.name ??
+      String((r.input as { input?: string } | undefined)?.input ?? 'unknown').slice(0, 60);
+
+    for (const [scorerName, score] of Object.entries(r.scores ?? {})) {
+      if (score && (score.score ?? 1) < 1) {
+        const reasons = ((score.metadata as { failures?: string[] } | undefined)?.failures) ?? [];
+        failures.push({
+          scenario: scenarioName,
+          scorer: scorerName,
+          reason: reasons.length > 0 ? reasons.join('; ') : `score: ${score.score}`,
+        });
+      }
+    }
+  }
+
+  // ── Write eval-result.json ────────────────────────────────────────────────
+  const summary = {
+    satisfaction: Math.round(satisfaction * 100) / 100,
+    scores: Object.fromEntries(
+      scoreEntries.map(([k, v]) => [k, Math.round((v.score ?? 0) * 100) / 100]),
+    ),
+    total: ALL_SCENARIOS.length,
+    failures,
+  };
+
+  const resultPath = path.resolve(__dirname, '..', 'eval-result.json');
+  fs.writeFileSync(resultPath, JSON.stringify(summary, null, 2));
+
+  // ── Console summary ───────────────────────────────────────────────────────
+  const pct = Math.round(satisfaction * 100);
+  const scoresDisplay = Object.entries(summary.scores)
+    .map(([k, v]) => `${k}: ${Math.round(v * 100)}%`)
+    .join(' | ');
+
+  console.log(`\n[eval] satisfaction: ${pct}% (${scoresDisplay})`);
+  console.log(`[eval] ${ALL_SCENARIOS.length} scenarios — ${failures.length} failure(s)`);
+
+  if (failures.length > 0) {
+    console.log('[eval] failures:');
+    for (const f of failures) {
+      console.log(`  - ${f.scenario} [${f.scorer}]: ${f.reason}`);
+    }
+  }
+
+  // ── Gate: fail CI if below threshold ─────────────────────────────────────
+  if (satisfaction < SATISFACTION_THRESHOLD) {
+    console.error(
+      `\n[eval] FAILED — satisfaction ${pct}% is below threshold ${Math.round(SATISFACTION_THRESHOLD * 100)}%`,
+    );
+    process.exit(1);
+  }
+
+  console.log(`\n[eval] PASSED — satisfaction ${pct}% >= threshold ${Math.round(SATISFACTION_THRESHOLD * 100)}%`);
 }
 
 main().catch((err) => {

@@ -1,0 +1,107 @@
+name: Agent Eval
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/backend/src/services/agent/**'
+      - 'packages/backend/evals/**'
+      - 'packages/backend/src/services/openaiService.ts'
+  pull_request:
+    paths:
+      - 'packages/backend/src/services/agent/**'
+      - 'packages/backend/evals/**'
+      - 'packages/backend/src/services/openaiService.ts'
+
+jobs:
+  eval:
+    name: Agent Satisfaction Score
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build shared package
+        run: npm run build:shared
+
+      - name: Run agent evals
+        run: npm run eval
+        working-directory: packages/backend
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          EVAL_MIN_SATISFACTION: '0.80'
+          NODE_ENV: ci
+
+      - name: Post eval results to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const resultPath = path.join(process.env.GITHUB_WORKSPACE, 'packages/backend/eval-result.json');
+
+            let body;
+            if (!fs.existsSync(resultPath)) {
+              body = '**Agent Eval** — `eval-result.json` not found. Check the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).';
+            } else {
+              const result = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+              const pct = Math.round(result.satisfaction * 100);
+              const passed = pct >= 80;
+              const status = passed ? '✅' : '❌';
+
+              const scoresDisplay = Object.entries(result.scores)
+                .map(([k, v]) => `${k}: ${Math.round(v * 100)}%`)
+                .join(' | ');
+
+              let failureSection = '';
+              if (result.failures && result.failures.length > 0) {
+                const listed = result.failures.slice(0, 10)
+                  .map(f => `- \`${f.scenario}\` [${f.scorer}]: ${f.reason}`)
+                  .join('\n');
+                const extra = result.failures.length > 10
+                  ? `\n_...and ${result.failures.length - 10} more — see [logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_`
+                  : '';
+                failureSection = `\n\n**Failures:**\n${listed}${extra}`;
+              }
+
+              body = `**Agent Eval** ${status} — satisfaction: **${pct}%** (${scoresDisplay})\n${result.total} scenarios — ${result.failures.length} failure(s)${failureSection}`;
+            }
+
+            // Upsert comment — update existing if present, else create
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body && c.body.startsWith('**Agent Eval**'));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
