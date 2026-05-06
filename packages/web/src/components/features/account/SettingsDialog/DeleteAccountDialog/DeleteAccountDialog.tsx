@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Warning, Trash } from '@phosphor-icons/react';
+import { Trash } from '@phosphor-icons/react';
 import { Button, Dialog, TextInput, toast } from '../../../../ui';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import styles from './DeleteAccountDialog.module.css';
