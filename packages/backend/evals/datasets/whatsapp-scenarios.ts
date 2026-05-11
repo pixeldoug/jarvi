@@ -13,6 +13,8 @@ import { addDays, makePendingTask, makeTask, todayIso } from '../helpers';
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
 const NEXT_WEEK = addDays(TODAY, 7);
+const IN_TWO_DAYS = addDays(TODAY, 2);
+const IN_FOUR_DAYS = addDays(TODAY, 4);
 const IN_SEVEN_DAYS = addDays(TODAY, 7);
 const YESTERDAY = addDays(TODAY, -1);
 // Move-out date used in implicit-deadline scenario (25 days out)
@@ -111,9 +113,8 @@ export const SCENARIOS: EvalScenario[] = [
         makeTask({ title: 'Task na próxima semana', due_date: NEXT_WEEK }),
       ],
     },
-    mustContain: ['dia'],
+    mustContain: ['hoje'],
     mustNotContain: ['undefined', 'null', 'NaN'],
-    idealOutput: 'Sua agenda está livre hoje! Mas você tem tarefas para os próximos dias.',
     tags: ['briefing', 'empty-state'],
   },
 
@@ -121,39 +122,32 @@ export const SCENARIOS: EvalScenario[] = [
   {
     name: 'create-task/simple',
     input: 'preciso ligar para o João amanhã às 10h',
-    mustContain: ['João', 'amanhã', '10'],
-    mustNotContain: [
-      'Já criei a tarefa no app',
-      'Quer ajustar algo antes',
-      'Sugestão de ajuste',
-      'sem data',
-      '📋',
-      '🗓️',
-      '✅',
+    mustContain: ['João'],
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: TOMORROW },
+      { tool: 'create_task', arg: 'time', value: '10:00' },
     ],
-    idealOutput: 'Ligar para o João — sugestão criada. Ela está na aba Integrações para você aprovar.',
-    tags: ['task-creation', 'pending'],
+    mustNotContain: ['sem data', '📋', '🗓️', '✅'],
+    tags: ['task-creation'],
   },
   {
     name: 'create-task/no-date',
     input: 'lembrar de renovar o passaporte',
     mustContain: ['passaporte', 'sem data'],
-    mustNotContain: [
-      'Esta semana',
-      'Prioridade média',
-      'Já criei a tarefa no app',
-      '📋',
-      '🗓️',
-      '✅',
-    ],
-    idealOutput: 'Renovar o passaporte — sugestão criada. Sem data por enquanto. Quer adicionar um prazo?',
+    mustCallTool: ['create_task'],
+    mustNotContain: ['Esta semana', 'Prioridade média', '📋', '🗓️', '✅'],
     tags: ['task-creation', 'no-date'],
   },
   {
     name: 'create-task/with-priority',
     input: 'tarefa urgente: entregar relatório para o cliente até hoje',
     mustContain: ['relatório'],
-    idealOutput: 'Tarefa criada: Entregar relatório para o cliente — hoje, prioridade alta.',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'priority', value: 'high' },
+      { tool: 'create_task', arg: 'due_date', value: TODAY },
+    ],
     tags: ['task-creation', 'priority'],
   },
   {
@@ -171,6 +165,107 @@ export const SCENARIOS: EvalScenario[] = [
     tags: ['task-creation', 'relative-date', 'tool-calling'],
   },
   {
+    name: 'create-task/appointment-block-no-intent-verb',
+    input: 'consulta Otorrino sexta, 16h00 Dr Rodrigo Reis 420reais. Clinica CentralMed dia 15',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'time', value: '16:00' },
+      { tool: 'create_task', arg: 'due_date', value: IN_FOUR_DAYS },
+    ],
+    mustNotContain: ['anotado', 'vou anotar', 'registrado', 'me manda de novo'],
+    idealOutput:
+      'Consulta com otorrino Dr Rodrigo Reis — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'appointment'],
+  },
+  // ── Substantivo + data (sem verbo de intenção) ───────────────────────────────
+  {
+    name: 'create-task/noun-plus-date-dentista',
+    input: 'dentista amanhã às 10h',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: TOMORROW },
+      { tool: 'create_task', arg: 'time', value: '10:00' },
+    ],
+    mustNotContain: ['anotado', 'vou anotar', 'qual dentista', 'mais detalhes'],
+    idealOutput: 'Dentista — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'noun-date'],
+  },
+  {
+    name: 'create-task/noun-plus-date-academia',
+    input: 'academia quarta 7h',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: IN_TWO_DAYS },
+      { tool: 'create_task', arg: 'time', value: '07:00' },
+    ],
+    mustNotContain: ['anotado', 'vou anotar'],
+    idealOutput: 'Academia — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'noun-date'],
+  },
+
+  // ── Forma passiva / "tenho" ───────────────────────────────────────────────────
+  {
+    name: 'create-task/passive-tenho-reuniao',
+    input: 'tenho reunião amanhã às 9h com o CEO',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: TOMORROW },
+      { tool: 'create_task', arg: 'time', value: '09:00' },
+    ],
+    mustNotContain: ['anotado', 'vou anotar', 'quer que eu crie'],
+    idealOutput: 'Reunião com o CEO — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'passive-form'],
+  },
+  {
+    name: 'create-task/passive-tenho-consulta',
+    input: 'tenho consulta sexta às 14h',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: IN_FOUR_DAYS },
+      { tool: 'create_task', arg: 'time', value: '14:00' },
+    ],
+    mustNotContain: ['anotado', 'vou anotar', 'quer que eu crie'],
+    idealOutput: 'Consulta — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'passive-form'],
+  },
+
+  // ── Áudio transcrito / fragmento sem verbo ───────────────────────────────────
+  {
+    name: 'create-task/audio-fragment-farmacia',
+    input: 'farmácia hoje à tarde',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: TODAY },
+    ],
+    mustNotContain: ['anotado', 'vou anotar', 'o que você precisa na farmácia'],
+    idealOutput: 'Farmácia — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'audio-fragment'],
+  },
+  {
+    name: 'create-task/audio-fragment-liga-carlos',
+    input: 'liga pro Carlos amanhã cedo',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: TOMORROW },
+    ],
+    mustNotContain: ['anotado', 'vou anotar', 'quem é Carlos'],
+    idealOutput: 'Ligar para o Carlos — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'audio-fragment'],
+  },
+  {
+    name: 'create-task/audio-fragment-reuniao-board',
+    input: 'reunião board semana que vem 14h',
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'due_date', value: NEXT_WEEK },
+      { tool: 'create_task', arg: 'time', value: '14:00' },
+    ],
+    mustNotContain: ['anotado', 'vou anotar'],
+    idealOutput: 'Reunião com o board — tarefa criada.',
+    tags: ['task-creation', 'implicit-intent', 'audio-fragment'],
+  },
+
+  {
     name: 'create-task/implicit-deadline-before-event-date',
     input: `preciso ver o portão da casa nova para os gatos. minha saída da casa atual é dia ${MOVE_OUT_DATE_DISPLAY} e preciso ter isso resolvido antes`,
     mustCallTool: ['create_task'],
@@ -178,7 +273,8 @@ export const SCENARIOS: EvalScenario[] = [
     mustNotCallToolArgs: [
       { tool: 'create_task', arg: 'due_date', value: MOVE_OUT_DATE },
     ],
-    idealOutput: `Ver portão da casa nova para os gatos — sugestão criada. Deixei o prazo para antes de ${MOVE_OUT_DATE_DISPLAY}, já que nesse dia você precisa sair. Ela está na aba Integrações para você aprovar.`,
+    // idealOutput omitted — the key behavior is the due_date being before the move-out date,
+    // which is already validated by mustCallTool + mustNotCallToolArgs above.
     tags: ['task-creation', 'temporal-reasoning', 'implicit-deadline'],
   },
   {
@@ -197,6 +293,7 @@ export const SCENARIOS: EvalScenario[] = [
     mustNotContain: ['confirmada', 'sem data'],
     mustCallTool: ['update_pending_task'],
     mustNotCallTool: ['confirm_pending_task'],
+    // "aba Integrações" is still correct here — pending tasks (AI-initiated) still live there
     idealOutput:
       'Perfeito — deixei para amanhã. Ela continua na aba Integrações para você aprovar.',
     tags: ['pending-task', 'date-update', 'tool-calling'],
@@ -225,7 +322,7 @@ export const SCENARIOS: EvalScenario[] = [
   {
     name: 'web/multi-edit-clear-jarvi-due-dates',
     channel: 'web',
-    input: 'pode retirar as datas das tasks da categoria Jarvi?',
+    input: 'pode retirar as datas das tasks vencidas da categoria Jarvi?',
     contextOverrides: {
       activeTasks: [
         makeTask({
@@ -285,7 +382,6 @@ export const SCENARIOS: EvalScenario[] = [
       '✚',
       '✅',
     ],
-    idealOutput: 'Priorize Enviar contrato, que é para hoje. A Reunião com Mendes já passou; posso te ajudar a reagendar ou concluir.',
     tags: ['overdue', 'priority', 'time-aware'],
   },
 
@@ -339,7 +435,7 @@ export const SCENARIOS: EvalScenario[] = [
       activeTasks: [],
     },
     mustNotContain: ['undefined', 'null', 'error'],
-    idealOutput: 'Você não tem tarefas ativas no momento. Quer criar uma?',
+    mustNotCallTool: ['create_task', 'update_task', 'delete_task', 'complete_task'],
     tags: ['edge', 'empty-state'],
   },
   {
@@ -347,7 +443,6 @@ export const SCENARIOS: EvalScenario[] = [
     input: 'qual a capital do brasil?',
     mustContain: ['Brasília'],
     mustNotContain: ['erro', 'error', 'não consigo'],
-    idealOutput: 'A capital do Brasil é Brasília.',
     tags: ['edge', 'off-topic'],
   },
 ];
