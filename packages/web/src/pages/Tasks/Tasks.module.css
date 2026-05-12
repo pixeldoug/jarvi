@@ -387,3 +387,20 @@
 .futureWeekNav::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Unified view switcher (Programação | Semana | Mês) ─────────────────────── */
+
+.viewSwitch {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  padding: var(--sizes-1);
+  background: var(--semantic-surface-secondary);
+  border-radius: var(--radius-md);
+}
+
+.viewSwitchButton {
+  border-radius: calc(var(--radius-md) - var(--sizes-1));
+  font-size: var(--typography-label-sm-font-size);
+  padding: var(--sizes-1) var(--sizes-3);
+}

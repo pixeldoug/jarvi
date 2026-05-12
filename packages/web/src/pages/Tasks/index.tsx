@@ -183,11 +183,19 @@ export function Tasks() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
   const filterAnchorRef = useRef<HTMLDivElement>(null);
-  const [calendarView, setCalendarView] = useState<'week' | 'month'>('week');
   const [calendarAnchorDate, setCalendarAnchorDate] = useState(() => getLocalDateKey(new Date()));
+  const [taskView, setTaskView] = useState<'schedule' | 'week' | 'month'>('schedule');
 
   const isCompactHeader = useMediaQuery('(max-width: 824px)');
   const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
+
+  // Redirect legacy 'later' list to unified view in week mode
+  useEffect(() => {
+    if (selectedList === 'later') {
+      setSelectedList('all');
+      setTaskView('week');
+    }
+  }, [selectedList]);
 
 
   const queryClient = useQueryClient();
@@ -603,12 +611,12 @@ export function Tasks() {
   // Get list name for header
   const getListName = (listType: ListType): string => {
     const listNames: Record<ListType, string> = {
-      all: 'Lista de tarefas',
+      all: 'Tarefas',
       important: 'Prioridades',
       today: 'Hoje',
       tomorrow: 'Amanhã',
       week: 'Esta semana',
-      later: 'Calendário',
+      later: 'Tarefas',
       noDate: 'Sem data',
       overdue: 'Vencidas',
       completed: 'Concluídas',
@@ -911,6 +919,10 @@ export function Tasks() {
     // Returning to the all-view: restore every section to its default open state
     if (listType === 'all') {
       setOpenSections(ALL_SECTIONS_OPEN);
+      // Keep existing taskView when re-selecting 'all'
+    } else {
+      // Reset task view when navigating to a different list
+      setTaskView('schedule');
     }
     setSelectedList(listType);
     setSelectedCustomListId(null);
@@ -1012,6 +1024,53 @@ export function Tasks() {
     </>
   );
 
+  const isUnifiedView = selectedList === 'all' && !selectedCustomListId && !selectedCategoryName;
+
+  const handleTaskViewChange = (view: 'schedule' | 'week' | 'month') => {
+    setTaskView(view);
+  };
+
+  const viewSwitchTabs = isUnifiedView ? (
+    <div className={styles.viewSwitch} role="tablist" aria-label="Visualização">
+      <Button
+        type="button"
+        variant="ghost"
+        size="small"
+        className={styles.viewSwitchButton}
+        active={taskView === 'schedule'}
+        role="tab"
+        aria-selected={taskView === 'schedule'}
+        onClick={() => handleTaskViewChange('schedule')}
+      >
+        Programação
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="small"
+        className={styles.viewSwitchButton}
+        active={taskView === 'week'}
+        role="tab"
+        aria-selected={taskView === 'week'}
+        onClick={() => handleTaskViewChange('week')}
+      >
+        Semana
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="small"
+        className={styles.viewSwitchButton}
+        active={taskView === 'month'}
+        role="tab"
+        aria-selected={taskView === 'month'}
+        onClick={() => handleTaskViewChange('month')}
+      >
+        Mês
+      </Button>
+    </div>
+  ) : null;
+
   const headerActions = isCustomListView ? (
     <>
       {tableControls}
@@ -1025,6 +1084,11 @@ export function Tasks() {
       >
         Editar
       </Button>
+    </>
+  ) : isUnifiedView ? (
+    <>
+      {taskView === 'schedule' && tableControls}
+      {viewSwitchTabs}
     </>
   ) : tableControls;
 
@@ -1600,49 +1664,6 @@ export function Tasks() {
     );
   }
 
-  // "Calendário" view: dated tasks across week/month, plus undated tasks in week view.
-  if (selectedList === 'later' && !selectedCustomListId) {
-    return (
-      <MainLayout
-        sidebar={sidebarNode}
-        title={pageTitle}
-        titleVariant="heading"
-        titleDescription={pageDescription}
-        headerActions={headerActions}
-        onCreateTask={handleControlBarCreateTask}
-        rightSidebar={computedRightSidebar}
-        onOpenChat={handleOpenChatGeneral}
-        onSubmitPrompt={handleOpenChatGeneral}
-        hideControlBar={isChatOpen}
-        hideHeader={true}
-        fullHeightContent
-        mainBodyRef={mainBodyRef}
-        defaultTaskCategory={contextTaskCategory}
-      >
-        {showTaskInCenter ? taskDetailsInCenter : (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <CalendarView
-              tasks={calendarDatedTasks}
-              undatedTasks={calendarUndatedTasks}
-              view={calendarView}
-              anchorDate={calendarAnchorDate}
-              selectedTaskId={selectedTask?.id}
-              onViewChange={setCalendarView}
-            onAnchorDateChange={setCalendarAnchorDate}
-            onTaskClick={handleTaskClick}
-            onToggleCompletion={handleToggleCompletion}
-            onUpdateTask={handleUpdateTask}
-            onCreateTask={async (title, dueDate) => {
-              await handleControlBarCreateTask({ title, description: '', dueDate });
-            }}
-            onDeleteTask={handleDeleteTask}
-          />
-          </div>
-        )}
-      </MainLayout>
-    );
-  }
-
   // If a specific list or category is selected (not "all"), show simple list without Collapsible
   if (selectedList !== 'all' || selectedCustomListId || selectedCategoryName) {
     const simpleViewTasks = (selectedCustomListId || selectedCategoryName) ? visibleTasks : filteredTasks;
@@ -1729,6 +1750,50 @@ export function Tasks() {
             </Collapsible>
           )}
         </div>}
+      </MainLayout>
+    );
+  }
+
+  // Unified calendar views (Semana / Mês) within the primary tasks page
+  if (isUnifiedView && (taskView === 'week' || taskView === 'month')) {
+    return (
+      <MainLayout
+        sidebar={sidebarNode}
+        title={pageTitle}
+        titleVariant="heading"
+        titleDescription={pageDescription}
+        headerActions={headerActions}
+        onCreateTask={handleControlBarCreateTask}
+        rightSidebar={computedRightSidebar}
+        onOpenChat={handleOpenChatGeneral}
+        onSubmitPrompt={handleOpenChatGeneral}
+        hideControlBar={isChatOpen}
+        hideHeader={showTaskInCenter}
+        fullHeightContent
+        mainBodyRef={mainBodyRef}
+        defaultTaskCategory={contextTaskCategory}
+      >
+        {showTaskInCenter ? taskDetailsInCenter : (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <CalendarView
+              tasks={calendarDatedTasks}
+              undatedTasks={calendarUndatedTasks}
+              view={taskView}
+              anchorDate={calendarAnchorDate}
+              selectedTaskId={selectedTask?.id}
+              onViewChange={(v) => handleTaskViewChange(v)}
+              onAnchorDateChange={setCalendarAnchorDate}
+              onTaskClick={handleTaskClick}
+              onToggleCompletion={handleToggleCompletion}
+              onUpdateTask={handleUpdateTask}
+              onCreateTask={async (title, dueDate) => {
+                await handleControlBarCreateTask({ title, description: '', dueDate });
+              }}
+              onDeleteTask={handleDeleteTask}
+              hideViewSwitch
+            />
+          </div>
+        )}
       </MainLayout>
     );
   }
