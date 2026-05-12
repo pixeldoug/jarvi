@@ -110,9 +110,11 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       const client = await pool.connect();
       try {
         const result = await client.query(
-          `SELECT * FROM tasks 
-           WHERE user_id = $1 
-           ORDER BY created_at DESC`,
+          `SELECT t.*, uwn.nickname AS whatsapp_nickname
+           FROM tasks t
+           LEFT JOIN user_whatsapp_numbers uwn ON t.whatsapp_number_id = uwn.id
+           WHERE t.user_id = $1
+           ORDER BY t.created_at DESC`,
           [userId]
         );
         tasks = result.rows;
@@ -123,9 +125,11 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
       // SQLite
       const db = getDatabase();
       tasks = await db.all(
-        `SELECT * FROM tasks 
-         WHERE user_id = ? 
-         ORDER BY created_at DESC`,
+        `SELECT t.*, uwn.nickname AS whatsapp_nickname
+         FROM tasks t
+         LEFT JOIN user_whatsapp_numbers uwn ON t.whatsapp_number_id = uwn.id
+         WHERE t.user_id = ?
+         ORDER BY t.created_at DESC`,
         [userId]
       );
     }

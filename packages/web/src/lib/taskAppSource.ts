@@ -10,16 +10,15 @@ export interface TaskAppSource {
 /**
  * Derives the external app source from a task, used to render the app chip.
  * Returns null if the task was not created from an external app.
+ * For WhatsApp tasks, shows the nickname of the originating number.
  */
 export function getTaskAppSource(task: Task): TaskAppSource | null {
   if (task.source === 'gmail') {
     return { name: 'Gmail', icon: gmailIcon };
   }
   if (task.source === 'whatsapp' || task.original_whatsapp_content) {
-    return { name: 'Whatsapp', icon: whatsappIcon };
-  }
-  if (import.meta.env.DEV && !task.source) {
-    return { name: 'Whatsapp', icon: whatsappIcon };
+    const label = task.whatsapp_nickname || 'Whatsapp';
+    return { name: label, icon: whatsappIcon };
   }
   return null;
 }

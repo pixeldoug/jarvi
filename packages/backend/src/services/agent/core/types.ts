@@ -169,6 +169,7 @@ export interface AgentContext {
   /** Channel-specific metadata (e.g. WhatsApp phone / message SID). */
   whatsappPhone?: string;
   whatsappMessageSid?: string;
+  whatsappNumberId?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -183,10 +183,17 @@ function AppsList({ onConnect }: AppsListProps) {
 }
 
 // ============================================================================
-// WHATSAPP CONNECTION SUB-PAGE
+// WHATSAPP CONNECTION SUB-PAGE (Multi-number)
 // ============================================================================
 
-type WhatsAppState = 'initial' | 'awaitingCode' | 'connected';
+interface WhatsAppNumber {
+  id: string;
+  phone: string;
+  nickname: string;
+  linked: boolean;
+  awaitingCode: boolean;
+  linkCodeExpiresAt: string | null;
+}
 
 interface WhatsAppConnectPageProps {
   onBack: () => void;
@@ -195,81 +202,57 @@ interface WhatsAppConnectPageProps {
 function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
   const { token } = useAuth();
 
-  const [whatsappState, setWhatsappState] = useState<WhatsAppState>('initial');
-  const [phone, setPhone] = useState('');
-  const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
-  const [verificationCode, setVerificationCode] = useState('');
-
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [requestLoading, setRequestLoading] = useState(false);
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [unlinkLoading, setUnlinkLoading] = useState(false);
-
+  const [numbers, setNumbers] = useState<WhatsAppNumber[]>([]);
+  const [statusLoading, setStatusLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const clearFeedback = () => {
-    setError('');
-    setSuccessMsg('');
+  // New number form state
+  const [newPhone, setNewPhone] = useState('');
+  const [pendingPhone, setPendingPhone] = useState<string | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // Nickname editing state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNickname, setEditNickname] = useState('');
+
+  const clearFeedback = () => { setError(''); setSuccessMsg(''); };
+
+  const loadNumbers = async () => {
+    if (!token) return;
+    setStatusLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-numbers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setNumbers(data);
+    } finally {
+      setStatusLoading(false);
+    }
   };
 
-  // Load current WhatsApp link status on mount
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
+  useEffect(() => { void loadNumbers(); }, [token]);
 
-    const load = async () => {
-      setStatusLoading(true);
-      try {
-        const res = await fetch(`${API_URL}/api/users/whatsapp-link`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await parseApiPayload(res);
-        if (!res.ok) return;
-        if (cancelled) return;
-
-        const fetchedPhone = typeof data.phone === 'string' ? data.phone : '';
-        setLinkedPhone(fetchedPhone || null);
-        setPhone(fetchedPhone);
-
-        if (data.linked) {
-          setWhatsappState('connected');
-        } else if (data.awaitingCode) {
-          setWhatsappState('awaitingCode');
-        } else {
-          setWhatsappState('initial');
-        }
-      } finally {
-        if (!cancelled) setStatusLoading(false);
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  // Send verification code
+  // Request verification code for new number
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
     setRequestLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link/request`, {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-numbers/request`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ phone }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ phone: newPhone }),
       });
       const data = await parseApiPayload(res);
-      if (!res.ok) throw new Error(String(data.error || 'Erro ao enviar código de verificação'));
-
-      setSuccessMsg(String(data.message || 'Código enviado com sucesso.'));
-      setLinkedPhone(typeof data.phone === 'string' ? data.phone : phone);
-      setWhatsappState('awaitingCode');
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao enviar código'));
+      setSuccessMsg(String(data.message || 'Código enviado.'));
+      setPendingPhone(typeof data.phone === 'string' ? data.phone : newPhone);
+      await loadNumbers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao enviar código');
     } finally {
@@ -277,50 +260,24 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
     }
   };
 
-  // Resend verification code
-  const handleResendCode = async () => {
-    clearFeedback();
-    setRequestLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await parseApiPayload(res);
-      if (!res.ok) throw new Error(String(data.error || 'Erro ao reenviar código'));
-      setSuccessMsg(String(data.message || 'Código reenviado com sucesso.'));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao reenviar código');
-    } finally {
-      setRequestLoading(false);
-    }
-  };
-
-  // Confirm verification code
+  // Verify code
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
     setVerifyLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link/verify`, {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-numbers/verify`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ code: verificationCode }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: verificationCode, phone: pendingPhone }),
       });
       const data = await parseApiPayload(res);
       if (!res.ok) throw new Error(String(data.error || 'Erro ao validar código'));
-
       setSuccessMsg(String(data.message || 'WhatsApp vinculado com sucesso.'));
-      setLinkedPhone(typeof data.phone === 'string' ? data.phone : linkedPhone);
+      setPendingPhone(null);
       setVerificationCode('');
-      setWhatsappState('connected');
+      setNewPhone('');
+      await loadNumbers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao validar código');
     } finally {
@@ -328,125 +285,157 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
     }
   };
 
-  // Unlink WhatsApp
-  const handleUnlink = async () => {
+  // Remove a number
+  const handleRemove = async (numberId: string) => {
     clearFeedback();
-    setUnlinkLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link`, {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-numbers/${numberId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await parseApiPayload(res);
-      if (!res.ok) throw new Error(String(data.error || 'Erro ao desvincular WhatsApp'));
-
-      setSuccessMsg(String(data.message || 'WhatsApp desvinculado com sucesso.'));
-      setLinkedPhone(null);
-      setPhone('');
-      setVerificationCode('');
-      setWhatsappState('initial');
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao remover'));
+      setSuccessMsg('Número removido.');
+      await loadNumbers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao desvincular WhatsApp');
+      setError(err instanceof Error ? err.message : 'Erro ao remover');
+    }
+  };
+
+  // Save nickname
+  const handleSaveNickname = async (numberId: string) => {
+    clearFeedback();
+    try {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-numbers/${numberId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nickname: editNickname }),
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao salvar apelido'));
+      setEditingId(null);
+      setEditNickname('');
+      setSuccessMsg('Apelido atualizado.');
+      await loadNumbers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar apelido');
+    }
+  };
+
+  // Resend code for an awaiting number
+  const handleResendCode = async (phone: string) => {
+    clearFeedback();
+    setRequestLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-numbers/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao reenviar código'));
+      setSuccessMsg('Código reenviado.');
+      setPendingPhone(phone);
+      await loadNumbers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao reenviar código');
     } finally {
-      setUnlinkLoading(false);
+      setRequestLoading(false);
     }
   };
 
   return (
     <div className={styles.subPageWrapper}>
-      {/* Back navigation */}
       <button type="button" className={styles.backLink} onClick={onBack}>
         <ArrowLeft size={16} weight="regular" />
         Apps
       </button>
 
-      {/* App identity header */}
       <div className={styles.subPageAppHeader}>
         <div className={styles.iconContainer}>
-          <img
-            src="/icons/apps/whatsapp.svg"
-            alt="WhatsApp"
-            className={styles.appIcon}
-            draggable={false}
-          />
+          <img src="/icons/apps/whatsapp.svg" alt="WhatsApp" className={styles.appIcon} draggable={false} />
         </div>
         <h1 className={styles.subPageAppName}>Whatsapp</h1>
       </div>
 
-      <p className={styles.pageSubtitle}>Gerencie os aplicativos conectados à sua conta.</p>
+      <p className={styles.pageSubtitle}>
+        Conecte um ou mais números de WhatsApp à sua conta. Cada número pode ter um apelido.
+      </p>
 
-      {/* Feedback */}
       {statusLoading && <p className={styles.pageSubtitle}>Carregando...</p>}
       {error && <p className={styles.feedbackError}>{error}</p>}
       {successMsg && <p className={styles.feedbackSuccess}>{successMsg}</p>}
 
-      {/* ── INITIAL STATE ─────────────────────────────────────────── */}
-      {whatsappState === 'initial' && (
-        <form className={styles.formSection} onSubmit={handleRequestCode}>
-          <div>
-            <label className={styles.fieldLabel} htmlFor="wa-phone-initial">
-              Número do WhatsApp
-            </label>
-            <div className={styles.inputRow}>
-              <Input
-                id="wa-phone-initial"
-                name="phone"
-                type="tel"
-                placeholder="+551199999999"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                showLabel={false}
-                required
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                loading={requestLoading}
-                disabled={requestLoading}
-              >
-                Enviar Código
-              </Button>
+      {/* Connected numbers list */}
+      {numbers.length > 0 && (
+        <div className={styles.formSection}>
+          {numbers.map((num) => (
+            <div key={num.id} className={styles.connectedRow}>
+              {num.linked ? (
+                <span className={styles.connectedBadge}>Conectado</span>
+              ) : num.awaitingCode ? (
+                <span className={styles.pendingBadge}>Pendente</span>
+              ) : null}
+
+              {editingId === num.id ? (
+                <div className={styles.inputRow}>
+                  <Input
+                    name="nickname"
+                    type="text"
+                    placeholder="Apelido"
+                    value={editNickname}
+                    onChange={(e) => setEditNickname(e.target.value)}
+                    showLabel={false}
+                  />
+                  <Button variant="primary" size="small" onClick={() => handleSaveNickname(num.id)}>
+                    Salvar
+                  </Button>
+                  <Button variant="secondary" size="small" onClick={() => setEditingId(null)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <p className={styles.connectedPhone}>
+                    <strong>{num.nickname}</strong> — {num.phone}
+                  </p>
+                  <div className={styles.connectedActions}>
+                    {num.linked && (
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        onClick={() => { setEditingId(num.id); setEditNickname(num.nickname); }}
+                      >
+                        Editar apelido
+                      </Button>
+                    )}
+                    {num.awaitingCode && (
+                      <Button
+                        variant="secondary"
+                        size="small"
+                        loading={requestLoading}
+                        onClick={() => handleResendCode(num.phone)}
+                      >
+                        Reenviar código
+                      </Button>
+                    )}
+                    <Button variant="secondary" size="small" onClick={() => handleRemove(num.id)}>
+                      Remover
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
-            <p className={styles.helperText}>Use DDI + DDD + número</p>
-          </div>
-        </form>
+          ))}
+        </div>
       )}
 
-      {/* ── AWAITING CODE STATE ────────────────────────────────────── */}
-      {whatsappState === 'awaitingCode' && (
+      {/* Verification code input for pending number */}
+      {pendingPhone && (
         <form className={styles.formSection} onSubmit={handleVerifyCode}>
           <div>
-            <label className={styles.fieldLabel} htmlFor="wa-phone-await">
-              Número do WhatsApp
-            </label>
-            <div className={styles.inputRow}>
-              <Input
-                id="wa-phone-await"
-                name="phone"
-                type="tel"
-                placeholder="+551199999999"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                showLabel={false}
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                loading={requestLoading}
-                disabled={requestLoading}
-                onClick={handleResendCode}
-              >
-                Renviar Código
-              </Button>
-            </div>
-          </div>
-
-          <div>
             <label className={styles.fieldLabel} htmlFor="wa-code">
-              Código de verificação
+              Código de verificação para {pendingPhone}
             </label>
             <div className={styles.inputRow}>
               <Input
@@ -459,38 +448,39 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
                 showLabel={false}
                 required
               />
-              <Button
-                type="submit"
-                variant="primary"
-                loading={verifyLoading}
-                disabled={verifyLoading}
-              >
+              <Button type="submit" variant="primary" loading={verifyLoading} disabled={verifyLoading}>
                 Confirmar
+              </Button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* Add new number form */}
+      {!pendingPhone && (
+        <form className={styles.formSection} onSubmit={handleRequestCode}>
+          <div>
+            <label className={styles.fieldLabel} htmlFor="wa-phone-new">
+              Adicionar novo número
+            </label>
+            <div className={styles.inputRow}>
+              <Input
+                id="wa-phone-new"
+                name="phone"
+                type="tel"
+                placeholder="+551199999999"
+                value={newPhone}
+                onChange={(e) => setNewPhone(e.target.value)}
+                showLabel={false}
+                required
+              />
+              <Button type="submit" variant="primary" loading={requestLoading} disabled={requestLoading}>
+                Enviar Código
               </Button>
             </div>
             <p className={styles.helperText}>Use DDI + DDD + número</p>
           </div>
         </form>
-      )}
-
-      {/* ── CONNECTED STATE ────────────────────────────────────────── */}
-      {whatsappState === 'connected' && (
-        <div className={styles.formSection}>
-          <div className={styles.connectedRow}>
-            <span className={styles.connectedBadge}>Conectado</span>
-            <p className={styles.connectedPhone}>{linkedPhone}</p>
-            <div className={styles.connectedActions}>
-              <Button
-                variant="secondary"
-                loading={unlinkLoading}
-                disabled={unlinkLoading}
-                onClick={handleUnlink}
-              >
-                Desvincular número
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

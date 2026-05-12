@@ -267,6 +267,19 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS user_whatsapp_numbers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      phone TEXT UNIQUE NOT NULL,
+      nickname TEXT NOT NULL,
+      verified ${booleanType} DEFAULT FALSE,
+      link_code TEXT,
+      link_code_expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );`
   ];
   
@@ -945,6 +958,80 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Create user_whatsapp_numbers table and migrate existing data
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS user_whatsapp_numbers (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          phone TEXT UNIQUE NOT NULL,
+          nickname TEXT NOT NULL,
+          verified BOOLEAN DEFAULT FALSE,
+          link_code TEXT,
+          link_code_expires_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      // Migration: Move existing users.whatsapp_phone data into user_whatsapp_numbers
+      try {
+        const usersWithWhatsapp = await client.query(
+          `SELECT id, whatsapp_phone, whatsapp_verified
+           FROM users
+           WHERE whatsapp_phone IS NOT NULL AND TRIM(whatsapp_phone) <> ''`
+        );
+        for (const user of usersWithWhatsapp.rows) {
+          const phone = String(user.whatsapp_phone).trim();
+          if (!phone) continue;
+          const existingNumber = await client.query(
+            'SELECT id FROM user_whatsapp_numbers WHERE phone = $1',
+            [phone]
+          );
+          if (existingNumber.rows.length > 0) continue;
+          const digits = phone.replace(/\D/g, '');
+          const nickname = digits.length >= 4 ? digits.slice(-4) : digits;
+          const numberId = uuidv4();
+          const now = new Date().toISOString();
+          await client.query(
+            `INSERT INTO user_whatsapp_numbers (id, user_id, phone, nickname, verified, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [numberId, user.id, phone, nickname, Boolean(user.whatsapp_verified), now, now]
+          );
+        }
+      } catch (e) {
+        console.warn('[Migration] WhatsApp numbers data migration (PostgreSQL):', e);
+      }
+
+      // Migration: Add whatsapp_number_id column to tasks
+      try {
+        await client.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS whatsapp_number_id TEXT');
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      // Migration: Add whatsapp_number_id column to pending_tasks
+      try {
+        await client.query('ALTER TABLE pending_tasks ADD COLUMN IF NOT EXISTS whatsapp_number_id TEXT');
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      // Migration: Backfill whatsapp_number_id on existing WhatsApp tasks
+      try {
+        await client.query(
+          `UPDATE tasks SET whatsapp_number_id = uwn.id
+           FROM user_whatsapp_numbers uwn
+           WHERE tasks.user_id = uwn.user_id
+             AND tasks.whatsapp_number_id IS NULL
+             AND (tasks.source = 'whatsapp' OR tasks.original_whatsapp_content IS NOT NULL)`
+        );
+      } catch (e) {
+        console.warn('[Migration] WhatsApp tasks backfill (PostgreSQL):', e);
+      }
     } finally {
       client.release();
     }
@@ -1233,6 +1320,82 @@ const runMigrations = async (): Promise<void> => {
       await db.exec('ALTER TABLE users ADD COLUMN preferred_name TEXT');
     } catch (e) {
       // Column already exists, ignore
+    }
+
+    // Migration: Create user_whatsapp_numbers table (SQLite)
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS user_whatsapp_numbers (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        phone TEXT UNIQUE NOT NULL,
+        nickname TEXT NOT NULL,
+        verified BOOLEAN DEFAULT FALSE,
+        link_code TEXT,
+        link_code_expires_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Move existing users.whatsapp_phone data into user_whatsapp_numbers (SQLite)
+    try {
+      const usersWithWhatsapp = await db.all(
+        `SELECT id, whatsapp_phone, whatsapp_verified
+         FROM users
+         WHERE whatsapp_phone IS NOT NULL AND TRIM(whatsapp_phone) <> ''`
+      );
+      for (const user of usersWithWhatsapp) {
+        const phone = String(user.whatsapp_phone).trim();
+        if (!phone) continue;
+        const existingNumber = await db.get(
+          'SELECT id FROM user_whatsapp_numbers WHERE phone = ?',
+          [phone]
+        );
+        if (existingNumber) continue;
+        const digits = phone.replace(/\D/g, '');
+        const nickname = digits.length >= 4 ? digits.slice(-4) : digits;
+        const numberId = uuidv4();
+        const now = new Date().toISOString();
+        await db.run(
+          `INSERT INTO user_whatsapp_numbers (id, user_id, phone, nickname, verified, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [numberId, user.id, phone, nickname, user.whatsapp_verified ? 1 : 0, now, now]
+        );
+      }
+    } catch (e) {
+      console.warn('[Migration] WhatsApp numbers data migration (SQLite):', e);
+    }
+
+    // Migration: Add whatsapp_number_id column to tasks (SQLite)
+    try {
+      await db.exec('ALTER TABLE tasks ADD COLUMN whatsapp_number_id TEXT');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add whatsapp_number_id column to pending_tasks (SQLite)
+    try {
+      await db.exec('ALTER TABLE pending_tasks ADD COLUMN whatsapp_number_id TEXT');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Backfill whatsapp_number_id on existing WhatsApp tasks (SQLite)
+    try {
+      await db.exec(
+        `UPDATE tasks SET whatsapp_number_id = (
+           SELECT uwn.id FROM user_whatsapp_numbers uwn
+           WHERE uwn.user_id = tasks.user_id
+           LIMIT 1
+         )
+         WHERE whatsapp_number_id IS NULL
+           AND (source = 'whatsapp' OR original_whatsapp_content IS NOT NULL)`
+      );
+    } catch (e) {
+      console.warn('[Migration] WhatsApp tasks backfill (SQLite):', e);
     }
   }
 };

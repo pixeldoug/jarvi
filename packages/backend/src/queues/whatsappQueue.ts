@@ -40,6 +40,7 @@ interface AggregatedInboxPayload {
 
 interface UserLookupResult {
   id: string;
+  whatsappNumberId: string;
 }
 
 interface QueueConnectionConfig {
@@ -272,8 +273,9 @@ const findUserByWhatsappPhone = async (phone: string): Promise<UserLookupResult 
     const client = await pool.connect();
     try {
       const result = await client.query(
-        `SELECT id FROM users
-         WHERE whatsapp_verified = TRUE AND whatsapp_phone IN ($1, $2)
+        `SELECT uwn.user_id AS id, uwn.id AS "whatsappNumberId"
+         FROM user_whatsapp_numbers uwn
+         WHERE uwn.verified = TRUE AND uwn.phone IN ($1, $2)
          LIMIT 1`,
         [variants[0], variants[1] ?? variants[0]],
       );
@@ -285,8 +287,9 @@ const findUserByWhatsappPhone = async (phone: string): Promise<UserLookupResult 
 
   const db = getDatabase();
   const row = await db.get(
-    `SELECT id FROM users
-     WHERE whatsapp_verified = 1 AND whatsapp_phone IN (?, ?)
+    `SELECT uwn.user_id AS id, uwn.id AS whatsappNumberId
+     FROM user_whatsapp_numbers uwn
+     WHERE uwn.verified = 1 AND uwn.phone IN (?, ?)
      LIMIT 1`,
     [variants[0], variants[1] ?? variants[0]],
   );
@@ -365,6 +368,7 @@ const processAggregatedInboxPayload = async (
     const agentResponse = await runWhatsappAgent(user.id, userMessage, redis, {
       whatsappPhone: from,
       whatsappMessageSid: messageSid ?? undefined,
+      whatsappNumberId: user.whatsappNumberId,
     });
     await sendTextMessage(from, agentResponse);
   } catch (error) {

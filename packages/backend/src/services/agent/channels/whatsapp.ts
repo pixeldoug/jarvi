@@ -114,6 +114,7 @@ const WHATSAPP_PROFILE: ChannelProfile = {
 export interface RunWhatsappAgentOptions {
   whatsappPhone?: string;
   whatsappMessageSid?: string;
+  whatsappNumberId?: string;
 }
 
 export const runWhatsappAgent = async (
@@ -146,6 +147,7 @@ export const runWhatsappAgent = async (
     originalUserMessage: userMessage,
     whatsappPhone: options.whatsappPhone,
     whatsappMessageSid: options.whatsappMessageSid,
+    whatsappNumberId: options.whatsappNumberId,
   };
 
   const systemPrompt = buildSystemPrompt(ctx, WHATSAPP_PROFILE);

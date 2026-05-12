@@ -464,10 +464,10 @@ router.put('/password', authenticateToken, async (req: Request, res: Response) =
 });
 
 /**
- * GET /api/users/whatsapp-link
- * Returns WhatsApp link status for authenticated user.
+ * GET /api/users/whatsapp-numbers
+ * Returns all WhatsApp numbers linked to the authenticated user.
  */
-router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Response) => {
+router.get('/whatsapp-numbers', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -475,70 +475,57 @@ router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Respon
       return;
     }
 
-    let user:
-      | {
-          whatsapp_phone?: string | null;
-          whatsapp_verified?: boolean | number | null;
-          whatsapp_link_code?: string | null;
-          whatsapp_link_code_expires_at?: string | null;
-        }
-      | undefined;
+    let numbers: any[];
 
     if (isPostgreSQL()) {
       const pool = getPool();
       const result = await pool.query(
-        `SELECT whatsapp_phone, whatsapp_verified, whatsapp_link_code, whatsapp_link_code_expires_at
-         FROM users
-         WHERE id = $1`,
+        `SELECT id, phone, nickname, verified, link_code IS NOT NULL AS has_pending_code,
+                link_code_expires_at, created_at
+         FROM user_whatsapp_numbers
+         WHERE user_id = $1
+         ORDER BY created_at ASC`,
         [userId]
       );
-      user = result.rows[0];
+      numbers = result.rows;
     } else {
       const db = getDatabase();
-      user = await db.get(
-        `SELECT whatsapp_phone, whatsapp_verified, whatsapp_link_code, whatsapp_link_code_expires_at
-         FROM users
-         WHERE id = ?`,
+      numbers = await db.all(
+        `SELECT id, phone, nickname, verified, (link_code IS NOT NULL) AS has_pending_code,
+                link_code_expires_at, created_at
+         FROM user_whatsapp_numbers
+         WHERE user_id = ?
+         ORDER BY created_at ASC`,
         [userId]
       );
     }
 
-    if (!user) {
-      res.status(404).json({ error: 'Usuário não encontrado' });
-      return;
-    }
-
-    const phone =
-      typeof user.whatsapp_phone === 'string' && user.whatsapp_phone.trim()
-        ? user.whatsapp_phone.trim()
-        : null;
-    const linked = Boolean(user.whatsapp_verified);
-    const hasPendingCode = Boolean(user.whatsapp_link_code);
-    const expiresAtRaw = user.whatsapp_link_code_expires_at || null;
-    const expiresAtDate = expiresAtRaw ? new Date(expiresAtRaw) : null;
-    const hasValidExpiry =
-      !!expiresAtDate &&
-      !Number.isNaN(expiresAtDate.getTime()) &&
-      expiresAtDate.getTime() > Date.now();
-    const awaitingCode = Boolean(phone && !linked && hasPendingCode && hasValidExpiry);
-
-    res.json({
-      phone,
-      linked,
-      awaitingCode,
-      linkCodeExpiresAt: awaitingCode && expiresAtDate ? expiresAtDate.toISOString() : null,
+    const now = Date.now();
+    const mapped = numbers.map((n: any) => {
+      const expiresAtDate = n.link_code_expires_at ? new Date(n.link_code_expires_at) : null;
+      const hasValidExpiry = !!expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) && expiresAtDate.getTime() > now;
+      return {
+        id: n.id,
+        phone: n.phone,
+        nickname: n.nickname,
+        linked: Boolean(n.verified),
+        awaitingCode: Boolean(!n.verified && n.has_pending_code && hasValidExpiry),
+        linkCodeExpiresAt: hasValidExpiry ? expiresAtDate!.toISOString() : null,
+      };
     });
+
+    res.json(mapped);
   } catch (error) {
-    console.error('Error fetching WhatsApp link status:', error);
-    res.status(500).json({ error: 'Erro ao carregar status de vinculação do WhatsApp' });
+    console.error('Error fetching WhatsApp numbers:', error);
+    res.status(500).json({ error: 'Erro ao carregar números de WhatsApp' });
   }
 });
 
 /**
- * POST /api/users/whatsapp-link/request
- * Generates verification code and sends it via WhatsApp.
+ * POST /api/users/whatsapp-numbers/request
+ * Generates verification code and sends it via WhatsApp for a new number.
  */
-router.post('/whatsapp-link/request', authenticateToken, async (req: Request, res: Response) => {
+router.post('/whatsapp-numbers/request', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -556,37 +543,73 @@ router.post('/whatsapp-link/request', authenticateToken, async (req: Request, re
     const linkCode = generateWhatsappLinkCode();
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const digits = normalizedPhone.replace(/\D/g, '');
+    const defaultNickname = digits.length >= 4 ? digits.slice(-4) : digits;
+
+    let numberId: string;
 
     try {
       if (isPostgreSQL()) {
         const pool = getPool();
-        await pool.query(
-          `UPDATE users
-           SET whatsapp_phone = $1, whatsapp_verified = $2, whatsapp_link_code = $3,
-               whatsapp_link_code_expires_at = $4, updated_at = $5
-           WHERE id = $6`,
-          [normalizedPhone, false, linkCode, expiresAt, now, userId]
+        const existing = await pool.query(
+          'SELECT id, user_id FROM user_whatsapp_numbers WHERE phone = $1',
+          [normalizedPhone]
         );
+        if (existing.rows.length > 0) {
+          if (existing.rows[0].user_id !== userId) {
+            res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
+            return;
+          }
+          numberId = existing.rows[0].id;
+          await pool.query(
+            `UPDATE user_whatsapp_numbers
+             SET verified = FALSE, link_code = $1, link_code_expires_at = $2, updated_at = $3
+             WHERE id = $4`,
+            [linkCode, expiresAt, now, numberId]
+          );
+        } else {
+          numberId = uuidv4();
+          await pool.query(
+            `INSERT INTO user_whatsapp_numbers (id, user_id, phone, nickname, verified, link_code, link_code_expires_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, FALSE, $5, $6, $7, $8)`,
+            [numberId, userId, normalizedPhone, defaultNickname, linkCode, expiresAt, now, now]
+          );
+        }
       } else {
         const db = getDatabase();
-        await db.run(
-          `UPDATE users
-           SET whatsapp_phone = ?, whatsapp_verified = ?, whatsapp_link_code = ?,
-               whatsapp_link_code_expires_at = ?, updated_at = ?
-           WHERE id = ?`,
-          [normalizedPhone, 0, linkCode, expiresAt, now, userId]
+        const existing = await db.get(
+          'SELECT id, user_id FROM user_whatsapp_numbers WHERE phone = ?',
+          [normalizedPhone]
         );
+        if (existing) {
+          if (existing.user_id !== userId) {
+            res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
+            return;
+          }
+          numberId = existing.id;
+          await db.run(
+            `UPDATE user_whatsapp_numbers
+             SET verified = 0, link_code = ?, link_code_expires_at = ?, updated_at = ?
+             WHERE id = ?`,
+            [linkCode, expiresAt, now, numberId]
+          );
+        } else {
+          numberId = uuidv4();
+          await db.run(
+            `INSERT INTO user_whatsapp_numbers (id, user_id, phone, nickname, verified, link_code, link_code_expires_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+            [numberId, userId, normalizedPhone, defaultNickname, linkCode, expiresAt, now, now]
+          );
+        }
       }
     } catch (error: any) {
       const errorMessage = String(error?.message || '');
       const isUniqueViolation =
         error?.code === '23505' || errorMessage.includes('UNIQUE constraint failed');
-
       if (isUniqueViolation) {
         res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
         return;
       }
-
       throw error;
     }
 
@@ -597,6 +620,7 @@ router.post('/whatsapp-link/request', authenticateToken, async (req: Request, re
       message: 'Código enviado via WhatsApp.',
       expiresAt,
       phone: normalizedPhone,
+      numberId,
     });
   } catch (error) {
     console.error('Error requesting WhatsApp link:', error);
@@ -605,10 +629,10 @@ router.post('/whatsapp-link/request', authenticateToken, async (req: Request, re
 });
 
 /**
- * POST /api/users/whatsapp-link/verify
- * Verifies code and marks whatsapp as linked.
+ * POST /api/users/whatsapp-numbers/verify
+ * Verifies code and marks a WhatsApp number as linked.
  */
-router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res: Response) => {
+router.post('/whatsapp-numbers/verify', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -616,50 +640,52 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
       return;
     }
     const providedCode = String(req.body?.code || '').replace(/\D/g, '').slice(0, 6);
+    const phone = typeof req.body?.phone === 'string' ? normalizeWhatsappPhone(req.body.phone) : '';
+
     if (providedCode.length !== 6) {
       res.status(400).json({ error: 'Código inválido' });
       return;
     }
 
-    let user: any;
+    let numberRow: any;
     const now = new Date().toISOString();
 
     if (isPostgreSQL()) {
       const pool = getPool();
       const result = await pool.query(
-        `SELECT id, whatsapp_phone, whatsapp_link_code, whatsapp_link_code_expires_at
-         FROM users
-         WHERE id = $1`,
-        [userId]
+        `SELECT id, phone, link_code, link_code_expires_at
+         FROM user_whatsapp_numbers
+         WHERE user_id = $1 AND phone = $2`,
+        [userId, phone]
       );
-      user = result.rows[0];
+      numberRow = result.rows[0];
     } else {
       const db = getDatabase();
-      user = await db.get(
-        `SELECT id, whatsapp_phone, whatsapp_link_code, whatsapp_link_code_expires_at
-         FROM users
-         WHERE id = ?`,
-        [userId]
+      numberRow = await db.get(
+        `SELECT id, phone, link_code, link_code_expires_at
+         FROM user_whatsapp_numbers
+         WHERE user_id = ? AND phone = ?`,
+        [userId, phone]
       );
     }
 
-    if (!user) {
-      res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!numberRow) {
+      res.status(404).json({ error: 'Número não encontrado' });
       return;
     }
 
-    if (!user.whatsapp_phone || !user.whatsapp_link_code || !user.whatsapp_link_code_expires_at) {
+    if (!numberRow.link_code || !numberRow.link_code_expires_at) {
       res.status(400).json({ error: 'Nenhuma solicitação de vinculação pendente' });
       return;
     }
 
-    const expiresAt = new Date(user.whatsapp_link_code_expires_at);
+    const expiresAt = new Date(numberRow.link_code_expires_at);
     if (Number.isNaN(expiresAt.getTime()) || expiresAt < new Date()) {
       res.status(400).json({ error: 'Código expirado. Solicite um novo código.' });
       return;
     }
 
-    if (providedCode !== String(user.whatsapp_link_code)) {
+    if (providedCode !== String(numberRow.link_code)) {
       res.status(400).json({ error: 'Código inválido' });
       return;
     }
@@ -667,25 +693,25 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
     if (isPostgreSQL()) {
       const pool = getPool();
       await pool.query(
-        `UPDATE users
-         SET whatsapp_verified = $1, whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = $2
-         WHERE id = $3`,
-        [true, now, userId]
+        `UPDATE user_whatsapp_numbers
+         SET verified = TRUE, link_code = NULL, link_code_expires_at = NULL, updated_at = $1
+         WHERE id = $2`,
+        [now, numberRow.id]
       );
     } else {
       const db = getDatabase();
       await db.run(
-        `UPDATE users
-         SET whatsapp_verified = ?, whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = ?
+        `UPDATE user_whatsapp_numbers
+         SET verified = 1, link_code = NULL, link_code_expires_at = NULL, updated_at = ?
          WHERE id = ?`,
-        [1, now, userId]
+        [now, numberRow.id]
       );
     }
 
     res.json({
       success: true,
       message: 'WhatsApp vinculado com sucesso.',
-      phone: user.whatsapp_phone,
+      phone: numberRow.phone,
     });
   } catch (error) {
     console.error('Error verifying WhatsApp link:', error);
@@ -694,9 +720,245 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
 });
 
 /**
- * DELETE /api/users/whatsapp-link
- * Unlinks WhatsApp number from account.
+ * PUT /api/users/whatsapp-numbers/:id
+ * Updates the nickname for a WhatsApp number.
  */
+router.put('/whatsapp-numbers/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const numberId = req.params.id;
+    const nickname = typeof req.body?.nickname === 'string' ? req.body.nickname.trim() : '';
+
+    if (!nickname) {
+      res.status(400).json({ error: 'Apelido é obrigatório' });
+      return;
+    }
+
+    if (nickname.length > 30) {
+      res.status(400).json({ error: 'Apelido deve ter no máximo 30 caracteres' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        `UPDATE user_whatsapp_numbers SET nickname = $1, updated_at = $2
+         WHERE id = $3 AND user_id = $4
+         RETURNING id, phone, nickname`,
+        [nickname, now, numberId, userId]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'Número não encontrado' });
+        return;
+      }
+      res.json({ success: true, ...result.rows[0] });
+    } else {
+      const db = getDatabase();
+      const existing = await db.get(
+        'SELECT id FROM user_whatsapp_numbers WHERE id = ? AND user_id = ?',
+        [numberId, userId]
+      );
+      if (!existing) {
+        res.status(404).json({ error: 'Número não encontrado' });
+        return;
+      }
+      await db.run(
+        'UPDATE user_whatsapp_numbers SET nickname = ?, updated_at = ? WHERE id = ?',
+        [nickname, now, numberId]
+      );
+      res.json({ success: true, id: numberId, nickname });
+    }
+  } catch (error) {
+    console.error('Error updating WhatsApp number nickname:', error);
+    res.status(500).json({ error: 'Erro ao atualizar apelido' });
+  }
+});
+
+/**
+ * DELETE /api/users/whatsapp-numbers/:id
+ * Removes a WhatsApp number from the account.
+ */
+router.delete('/whatsapp-numbers/:id', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const numberId = req.params.id;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        'DELETE FROM user_whatsapp_numbers WHERE id = $1 AND user_id = $2 RETURNING id',
+        [numberId, userId]
+      );
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'Número não encontrado' });
+        return;
+      }
+    } else {
+      const db = getDatabase();
+      const existing = await db.get(
+        'SELECT id FROM user_whatsapp_numbers WHERE id = ? AND user_id = ?',
+        [numberId, userId]
+      );
+      if (!existing) {
+        res.status(404).json({ error: 'Número não encontrado' });
+        return;
+      }
+      await db.run('DELETE FROM user_whatsapp_numbers WHERE id = ?', [numberId]);
+    }
+
+    res.json({ success: true, message: 'Número de WhatsApp removido.' });
+  } catch (error) {
+    console.error('Error removing WhatsApp number:', error);
+    res.status(500).json({ error: 'Erro ao remover número de WhatsApp' });
+  }
+});
+
+// Legacy single-number endpoints (backward compatibility)
+
+/**
+ * GET /api/users/whatsapp-link
+ * Returns WhatsApp link status (legacy - returns first number).
+ */
+router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    let numberRow: any;
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT phone, verified, link_code, link_code_expires_at
+         FROM user_whatsapp_numbers WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1`,
+        [userId]
+      );
+      numberRow = result.rows[0];
+    } else {
+      const db = getDatabase();
+      numberRow = await db.get(
+        `SELECT phone, verified, link_code, link_code_expires_at
+         FROM user_whatsapp_numbers WHERE user_id = ? ORDER BY created_at ASC LIMIT 1`,
+        [userId]
+      );
+    }
+
+    if (!numberRow) {
+      res.json({ phone: null, linked: false, awaitingCode: false, linkCodeExpiresAt: null });
+      return;
+    }
+
+    const linked = Boolean(numberRow.verified);
+    const hasPendingCode = Boolean(numberRow.link_code);
+    const expiresAtDate = numberRow.link_code_expires_at ? new Date(numberRow.link_code_expires_at) : null;
+    const hasValidExpiry = !!expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) && expiresAtDate.getTime() > Date.now();
+
+    res.json({
+      phone: numberRow.phone,
+      linked,
+      awaitingCode: Boolean(!linked && hasPendingCode && hasValidExpiry),
+      linkCodeExpiresAt: hasValidExpiry ? expiresAtDate!.toISOString() : null,
+    });
+  } catch (error) {
+    console.error('Error fetching WhatsApp link status:', error);
+    res.status(500).json({ error: 'Erro ao carregar status de vinculação do WhatsApp' });
+  }
+});
+
+/** POST /api/users/whatsapp-link/request - Legacy: delegates to multi-number request */
+router.post('/whatsapp-link/request', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) { res.status(401).json({ error: 'Usuário não autenticado' }); return; }
+    const phone = typeof req.body?.phone === 'string' ? req.body.phone : '';
+    const normalizedPhone = normalizeWhatsappPhone(phone);
+    if (!normalizedPhone || normalizedPhone.length < 12) {
+      res.status(400).json({ error: 'Número de WhatsApp inválido. Use formato com DDI e DDD.' }); return;
+    }
+    const linkCode = generateWhatsappLinkCode();
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const digits = normalizedPhone.replace(/\D/g, '');
+    const defaultNickname = digits.length >= 4 ? digits.slice(-4) : digits;
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const existing = await pool.query('SELECT id, user_id FROM user_whatsapp_numbers WHERE phone = $1', [normalizedPhone]);
+      if (existing.rows.length > 0 && existing.rows[0].user_id !== userId) {
+        res.status(409).json({ error: 'Este número já está vinculado a outra conta.' }); return;
+      }
+      if (existing.rows.length > 0) {
+        await pool.query('UPDATE user_whatsapp_numbers SET verified = FALSE, link_code = $1, link_code_expires_at = $2, updated_at = $3 WHERE id = $4', [linkCode, expiresAt, now, existing.rows[0].id]);
+      } else {
+        await pool.query('INSERT INTO user_whatsapp_numbers (id, user_id, phone, nickname, verified, link_code, link_code_expires_at, created_at, updated_at) VALUES ($1,$2,$3,$4,FALSE,$5,$6,$7,$8)', [uuidv4(), userId, normalizedPhone, defaultNickname, linkCode, expiresAt, now, now]);
+      }
+    } else {
+      const db = getDatabase();
+      const existing = await db.get('SELECT id, user_id FROM user_whatsapp_numbers WHERE phone = ?', [normalizedPhone]);
+      if (existing && existing.user_id !== userId) {
+        res.status(409).json({ error: 'Este número já está vinculado a outra conta.' }); return;
+      }
+      if (existing) {
+        await db.run('UPDATE user_whatsapp_numbers SET verified = 0, link_code = ?, link_code_expires_at = ?, updated_at = ? WHERE id = ?', [linkCode, expiresAt, now, existing.id]);
+      } else {
+        await db.run('INSERT INTO user_whatsapp_numbers (id, user_id, phone, nickname, verified, link_code, link_code_expires_at, created_at, updated_at) VALUES (?,?,?,?,0,?,?,?,?)', [uuidv4(), userId, normalizedPhone, defaultNickname, linkCode, expiresAt, now, now]);
+      }
+    }
+    await sendVerificationCode(normalizedPhone, linkCode);
+    res.json({ success: true, message: 'Código enviado via WhatsApp.', expiresAt, phone: normalizedPhone });
+  } catch (error) {
+    console.error('Error requesting WhatsApp link (legacy):', error);
+    res.status(500).json({ error: 'Erro ao solicitar vinculação do WhatsApp' });
+  }
+});
+
+/** POST /api/users/whatsapp-link/verify - Legacy: delegates to multi-number verify */
+router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) { res.status(401).json({ error: 'Usuário não autenticado' }); return; }
+    const providedCode = String(req.body?.code || '').replace(/\D/g, '').slice(0, 6);
+    if (providedCode.length !== 6) { res.status(400).json({ error: 'Código inválido' }); return; }
+    const now = new Date().toISOString();
+    let numberRow: any;
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query('SELECT id, phone, link_code, link_code_expires_at FROM user_whatsapp_numbers WHERE user_id = $1 AND link_code IS NOT NULL ORDER BY updated_at DESC LIMIT 1', [userId]);
+      numberRow = result.rows[0];
+    } else {
+      const db = getDatabase();
+      numberRow = await db.get('SELECT id, phone, link_code, link_code_expires_at FROM user_whatsapp_numbers WHERE user_id = ? AND link_code IS NOT NULL ORDER BY updated_at DESC LIMIT 1', [userId]);
+    }
+    if (!numberRow || !numberRow.link_code) { res.status(400).json({ error: 'Nenhuma solicitação de vinculação pendente' }); return; }
+    const expiresAt = new Date(numberRow.link_code_expires_at);
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt < new Date()) { res.status(400).json({ error: 'Código expirado.' }); return; }
+    if (providedCode !== String(numberRow.link_code)) { res.status(400).json({ error: 'Código inválido' }); return; }
+    if (isPostgreSQL()) {
+      await getPool().query('UPDATE user_whatsapp_numbers SET verified = TRUE, link_code = NULL, link_code_expires_at = NULL, updated_at = $1 WHERE id = $2', [now, numberRow.id]);
+    } else {
+      await getDatabase().run('UPDATE user_whatsapp_numbers SET verified = 1, link_code = NULL, link_code_expires_at = NULL, updated_at = ? WHERE id = ?', [now, numberRow.id]);
+    }
+    res.json({ success: true, message: 'WhatsApp vinculado com sucesso.', phone: numberRow.phone });
+  } catch (error) {
+    console.error('Error verifying WhatsApp link (legacy):', error);
+    res.status(500).json({ error: 'Erro ao verificar código de vinculação' });
+  }
+});
+
+/** DELETE /api/users/whatsapp-link - Legacy: removes first linked number */
 router.delete('/whatsapp-link', authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -705,25 +967,19 @@ router.delete('/whatsapp-link', authenticateToken, async (req: Request, res: Res
       return;
     }
 
-    const now = new Date().toISOString();
-
     if (isPostgreSQL()) {
       const pool = getPool();
       await pool.query(
-        `UPDATE users
-         SET whatsapp_phone = NULL, whatsapp_verified = FALSE, whatsapp_link_code = NULL,
-             whatsapp_link_code_expires_at = NULL, updated_at = $1
-         WHERE id = $2`,
-        [now, userId]
+        `DELETE FROM user_whatsapp_numbers
+         WHERE id = (SELECT id FROM user_whatsapp_numbers WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1)`,
+        [userId]
       );
     } else {
       const db = getDatabase();
       await db.run(
-        `UPDATE users
-         SET whatsapp_phone = NULL, whatsapp_verified = 0, whatsapp_link_code = NULL,
-             whatsapp_link_code_expires_at = NULL, updated_at = ?
-         WHERE id = ?`,
-        [now, userId]
+        `DELETE FROM user_whatsapp_numbers
+         WHERE id = (SELECT id FROM user_whatsapp_numbers WHERE user_id = ? ORDER BY created_at ASC LIMIT 1)`,
+        [userId]
       );
     }
 
@@ -1027,6 +1283,9 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
         // Delete Gmail processed emails
         await client.query('DELETE FROM gmail_processed_emails WHERE user_id = $1', [userId]);
 
+        // Delete WhatsApp numbers
+        await client.query('DELETE FROM user_whatsapp_numbers WHERE user_id = $1', [userId]);
+
         // Delete the user row itself (also clears WhatsApp + Gmail OAuth fields)
         await client.query('DELETE FROM users WHERE id = $1', [userId]);
 
@@ -1052,6 +1311,7 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
       await db.run('DELETE FROM lists WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM user_memory_profiles WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM gmail_processed_emails WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM user_whatsapp_numbers WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM users WHERE id = ?', [userId]);
     }
 
