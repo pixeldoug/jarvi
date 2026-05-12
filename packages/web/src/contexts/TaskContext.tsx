@@ -24,6 +24,8 @@ export interface Task {
   due_date?: string;
   recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
   recurrence_config?: string;
+  whatsapp_number_id?: string | null;
+  whatsapp_nickname?: string | null;
   created_at: string;
   updated_at: string;
 }

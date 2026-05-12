@@ -252,7 +252,14 @@
 .connectedRow {
   display: flex;
   align-items: center;
-  gap: var(--sizes-4);
+  gap: var(--sizes-3);
+  flex-wrap: wrap;
+  padding: var(--sizes-3) 0;
+  border-bottom: 1px solid var(--semantic-border-primary, #e5e7eb);
+}
+
+.connectedRow:last-child {
+  border-bottom: none;
 }
 
 .connectedBadge {
@@ -271,6 +278,22 @@
   white-space: nowrap;
 }
 
+.pendingBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--sizes-3);
+  border-radius: 999px;
+  border: 1px solid var(--semantic-content-warning, #ca8a04);
+  background: transparent;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--semantic-content-warning, #ca8a04);
+  white-space: nowrap;
+}
+
 .connectedPhone {
   font-family: var(--typography-body-md-font-family);
   font-size: var(--typography-body-md-font-size);
@@ -278,8 +301,13 @@
   line-height: var(--typography-body-md-line-height);
   color: var(--semantic-content-primary);
   margin: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .connectedActions {
   margin-left: auto;
+  display: flex;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
 }

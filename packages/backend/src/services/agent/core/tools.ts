@@ -437,9 +437,10 @@ async function executeCreateTask(
 
   const source = profile.id === 'whatsapp' ? 'whatsapp' : 'manual';
   const originalContent = profile.id === 'whatsapp' ? (ctx.originalUserMessage ?? null) : null;
+  const whatsappNumberId = profile.id === 'whatsapp' ? (ctx.whatsappNumberId ?? null) : null;
 
   return executeCreateTaskAsActive(
-    { title, description, priority, dueDate, time, category, now, source, originalContent },
+    { title, description, priority, dueDate, time, category, now, source, originalContent, whatsappNumberId },
     ctx,
   );
 }
@@ -454,6 +455,7 @@ interface CreateTaskInput {
   now: string;
   source?: string;
   originalContent?: string | null;
+  whatsappNumberId?: string | null;
 }
 
 async function executeCreateTaskAsActive(
@@ -464,18 +466,19 @@ async function executeCreateTaskAsActive(
   const { title, description, priority, dueDate, time, category, now } = input;
   const source = input.source ?? 'manual';
   const originalContent = input.originalContent ?? null;
+  const whatsappNumberId = input.whatsappNumberId ?? null;
 
   if (isPostgreSQL()) {
     await getPool().query(
-      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, now, now],
+      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, whatsapp_number_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, whatsappNumberId, now, now],
     );
   } else {
     await getDatabase().run(
-      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, now, now],
+      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, whatsapp_number_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, whatsappNumberId, now, now],
     );
   }
 
