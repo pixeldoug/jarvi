@@ -99,6 +99,16 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
       contentClassName={styles.dialogContent}
     >
       <div className={styles.wrapper}>
+        {/* Close button lives outside the scrollable canvas so it stays fixed */}
+        <button
+          type="button"
+          className={styles.closeButton}
+          onClick={onClose}
+          aria-label="Fechar"
+        >
+          <X size={20} weight="regular" />
+        </button>
+
         {/* Sidebar */}
         <aside className={styles.sidebar}>
           <h2 className={styles.sidebarTitle}>Minha Conta</h2>
@@ -118,15 +128,6 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
 
         {/* Canvas */}
         <main className={styles.canvas}>
-          <button
-            type="button"
-            className={styles.closeButton}
-            onClick={onClose}
-            aria-label="Fechar"
-          >
-            <X size={20} weight="regular" />
-          </button>
-
           {!PAGES_WITH_CUSTOM_HEADER.has(activePage) && (
             <h1 className={styles.pageHeader}>{activeItem?.label}</h1>
           )}
