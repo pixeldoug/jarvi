@@ -73,11 +73,14 @@ app.use((req, res, next) => {
   const productionOrigins = process.env.FRONTEND_ORIGINS
     ? process.env.FRONTEND_ORIGINS.split(',').map((item) => item.trim()).filter(Boolean)
     : ['https://app.jarvi.life'];
-  const allowedOrigins = process.env.NODE_ENV === 'production' 
+  const allowedOrigins = process.env.NODE_ENV === 'production'
     ? productionOrigins
     : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
-  
-  if (origin && allowedOrigins.includes(origin)) {
+
+  const isVercelPreview = !!origin && /^https:\/\/[a-zA-Z0-9-]+-[a-zA-Z0-9]+-stridesdigitals-projects\.vercel\.app$/.test(origin);
+  const isAllowed = !!origin && (allowedOrigins.includes(origin) || isVercelPreview);
+
+  if (isAllowed) {
     res.header('Access-Control-Allow-Origin', origin);
   }
   
