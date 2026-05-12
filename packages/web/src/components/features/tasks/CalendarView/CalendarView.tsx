@@ -21,6 +21,8 @@ export interface CalendarViewProps {
   onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onCreateTask?: (title: string, dueDate?: string) => Promise<void>;
   onDeleteTask?: (taskId: string) => void;
+  /** When true, hides the internal week/month view switcher buttons */
+  hideViewSwitch?: boolean;
 }
 
 const PT_MONTH_NAMES = [
@@ -357,6 +359,7 @@ export function CalendarView({
   onUpdateTask,
   onCreateTask,
   onDeleteTask,
+  hideViewSwitch = false,
 }: CalendarViewProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
@@ -589,30 +592,32 @@ export function CalendarView({
           </div>
         </div>
 
-        <div className={styles.toolbarActions}>
-          <div className={styles.viewSwitch} aria-label="Alternar visualização">
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              className={styles.viewSwitchButton}
-              active={view === 'week'}
-              onClick={() => onViewChange('week')}
-            >
-              Semana
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              className={styles.viewSwitchButton}
-              active={view === 'month'}
-              onClick={() => onViewChange('month')}
-            >
-              Mês
-            </Button>
+        {!hideViewSwitch && (
+          <div className={styles.toolbarActions}>
+            <div className={styles.viewSwitch} aria-label="Alternar visualização">
+              <Button
+                type="button"
+                variant="ghost"
+                size="small"
+                className={styles.viewSwitchButton}
+                active={view === 'week'}
+                onClick={() => onViewChange('week')}
+              >
+                Semana
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="small"
+                className={styles.viewSwitchButton}
+                active={view === 'month'}
+                onClick={() => onViewChange('month')}
+              >
+                Mês
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {view === 'week' ? (
