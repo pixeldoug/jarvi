@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Logo } from '../../components/ui';
 import styles from './VerifyEmail.module.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 type VerificationStatus = 'loading' | 'success' | 'error';
 

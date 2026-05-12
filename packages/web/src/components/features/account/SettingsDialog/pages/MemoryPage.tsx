@@ -12,7 +12,7 @@ import { useAuth } from '../../../../../contexts/AuthContext';
 import { Button, TextArea, toast } from '../../../../ui';
 import styles from '../SettingsDialog.module.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export function MemoryPage() {
   const { token } = useAuth();

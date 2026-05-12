@@ -41,6 +41,7 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [cardFocused, setCardFocused] = useState(false);
   const [cardError, setCardError] = useState(false);
+  const [promotionCode, setPromotionCode] = useState('');
 
   const isInTrial = subscription?.status === 'trialing' && !!subscription.trialEndsAt;
   const trialEndsAtDate = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt) : null;
@@ -93,7 +94,7 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
       // Send to backend to create subscription
       const token = localStorage.getItem('jarvi_token');
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/subscriptions/create`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/subscriptions/create`,
         {
           method: 'POST',
           headers: {
@@ -102,6 +103,7 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
           },
           body: JSON.stringify({
             paymentMethodId: paymentMethod.id,
+            ...(promotionCode.trim() ? { promotionCode: promotionCode.trim() } : {}),
           }),
         }
       );
@@ -143,11 +145,32 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
             <>
               Voce esta no periodo gratuito
               {typeof daysLeftInTrial === 'number' ? ` (${daysLeftInTrial} dia(s) restantes)` : ''}.
-              {formattedTrialEnd ? ` Seu cartao sera cobrado em ${formattedTrialEnd}.` : ' Seu cartao sera cobrado ao final do periodo gratuito.'}
+              {formattedTrialEnd
+                ? ` Adicione seu cartao ate ${formattedTrialEnd} para continuar usando o Jarvi.`
+                : ' Adicione seu cartao ao final do periodo gratuito para continuar usando o Jarvi.'}
             </>
           ) : (
-            <>Seu cartao sera cobrado apos a confirmacao e renovara mensalmente.</>
+            <>Adicione seu cartao para continuar usando o Jarvi. Se voce recebeu um cupom do beta, informe abaixo antes de confirmar.</>
           )}
+        </p>
+      </div>
+
+      <div className={styles.couponWrapper}>
+        <label className={styles.label} htmlFor="promotion-code">
+          Cupom de desconto
+        </label>
+        <input
+          id="promotion-code"
+          className={styles.couponInput}
+          type="text"
+          value={promotionCode}
+          onChange={(event) => setPromotionCode(event.target.value)}
+          placeholder="Ex: BETA6MESES"
+          autoComplete="off"
+          disabled={isLoading}
+        />
+        <p className={styles.couponHelp}>
+          Opcional. Use o cupom recebido no convite do beta fechado.
         </p>
       </div>
 
@@ -181,7 +204,7 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
         loading={isLoading}
         className={styles.submitButton}
       >
-        {isLoading ? 'Processando...' : isInTrial ? 'Adicionar cartao' : 'Assinar Jarvi Pro'}
+        {isLoading ? 'Processando...' : isInTrial ? 'Adicionar cartao e cupom' : 'Assinar Jarvi Pro'}
       </Button>
 
       <div className={styles.secureInfo}>

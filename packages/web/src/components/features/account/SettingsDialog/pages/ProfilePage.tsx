@@ -24,7 +24,7 @@ import styles from '../SettingsDialog.module.css';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 const TIMEZONES: SelectOption[] = [
   { value: 'America/Sao_Paulo',               label: 'Brasília (UTC-3)' },

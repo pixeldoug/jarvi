@@ -4,7 +4,7 @@ import { Button, PasswordInput, Logo } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
 import styles from './ResetPassword.module.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export const ResetPassword: React.FC = () => {
   useForceTheme('light');

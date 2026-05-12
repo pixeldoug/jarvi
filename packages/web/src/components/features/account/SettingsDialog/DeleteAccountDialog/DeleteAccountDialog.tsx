@@ -16,7 +16,7 @@ import { useAuth } from '../../../../../contexts/AuthContext';
 import styles from './DeleteAccountDialog.module.css';
 
 const CONFIRM_WORD = 'DELETAR';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export interface DeleteAccountDialogProps {
   isOpen: boolean;

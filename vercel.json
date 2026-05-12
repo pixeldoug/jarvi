@@ -6,12 +6,16 @@
   "devCommand": "cd packages/web && npm run dev",
   "rewrites": [
     {
+      "source": "/api/:match*",
+      "destination": "https://jarvi-staging.up.railway.app/api/:match*"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
   ],
   "env": {
-    "VITE_API_URL": "https://jarvi-production.up.railway.app",
+    "VITE_API_URL": "",
     "VITE_APP_NAME": "Jarvi"
   }
 }

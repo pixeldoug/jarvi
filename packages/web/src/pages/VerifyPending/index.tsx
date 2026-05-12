@@ -4,7 +4,7 @@ import { Button, Logo, OtpInput } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
 import styles from './VerifyPending.module.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
 export const VerifyPending: React.FC = () => {
   useForceTheme('light');

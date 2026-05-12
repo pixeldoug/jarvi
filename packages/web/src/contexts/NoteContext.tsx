@@ -56,7 +56,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const { user, token } = useAuth();
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
   const fetchNotes = async (): Promise<void> => {
     if (!user || !token) {
