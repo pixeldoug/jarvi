@@ -36,6 +36,7 @@
    ============================================================================ */
 
 .wrapper {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100%;
@@ -130,11 +131,12 @@
   position: absolute;
   top: 16px;
   right: 16px;
+  z-index: 1;
   width: 48px;
   height: 48px;
   border: 1px solid var(--semantic-border-primary);
   border-radius: var(--radius-button-icon-radius);
-  background: transparent;
+  background: var(--semantic-surface-primary);
   display: flex;
   align-items: center;
   justify-content: center;
