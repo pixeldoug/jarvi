@@ -68,34 +68,44 @@ app.use(helmet({
 }));
 
 // CORS - configuração para desenvolvimento e produção
+const PRODUCTION_FRONTEND = 'https://app.jarvi.life';
+const configuredOrigins = process.env.FRONTEND_ORIGINS
+  ? process.env.FRONTEND_ORIGINS.split(',').map((item) => item.trim()).filter(Boolean)
+  : [PRODUCTION_FRONTEND];
+const devOrigins = ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
+const productionOrigins = [...new Set([PRODUCTION_FRONTEND, ...configuredOrigins])];
+
+console.log('🔧 CORS startup config:', {
+  NODE_ENV: process.env.NODE_ENV,
+  FRONTEND_ORIGINS: process.env.FRONTEND_ORIGINS,
+  productionOrigins,
+});
+
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  const productionOrigins = process.env.FRONTEND_ORIGINS
-    ? process.env.FRONTEND_ORIGINS.split(',').map((item) => item.trim()).filter(Boolean)
-    : ['https://app.jarvi.life'];
-  const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? productionOrigins
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
+  const allowedOrigins = process.env.NODE_ENV === 'production' ? productionOrigins : devOrigins;
 
   const isVercelPreview = !!origin && /^https:\/\/[a-zA-Z0-9-]+-[a-zA-Z0-9]+-stridesdigitals-projects\.vercel\.app$/.test(origin);
   const isAllowed = !!origin && (allowedOrigins.includes(origin) || isVercelPreview);
 
+  if (!isAllowed && origin) {
+    console.warn(`[CORS] BLOCKED origin="${origin}" NODE_ENV="${process.env.NODE_ENV}" allowed=${JSON.stringify(allowedOrigins)}`);
+  }
+
   if (isAllowed) {
     res.header('Access-Control-Allow-Origin', origin);
   }
-  
+
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  
+
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
     next();
   }
 });
-
-console.log('🔧 CORS: Permitindo origens:', process.env.NODE_ENV === 'production' ? 'produção' : 'desenvolvimento');
 app.use(morgan('combined'));
 
 // Webhooks need raw body (Stripe JSON + Slack form payload) - must be before express.json()
