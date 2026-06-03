@@ -174,3 +174,49 @@
   /* TextInput handles all styling via its own CSS */
 }
 
+/* ============================================ */
+/* Horizontal Layout                            */
+/* ============================================ */
+
+.horizontal {
+  width: 488px;
+  flex-direction: row;
+  padding: 0;
+  gap: 0;
+}
+
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--semantic-border-primary);
+  position: relative;
+  padding: var(--sizes-2) 0;
+}
+
+.rightColumn {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  padding: var(--sizes-2) 0;
+}
+
+.horizontal .calendarSection {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.horizontal .footer {
+  margin-top: auto;
+}
+
+.horizontal .timePickerDropdown {
+  left: 0;
+  right: 0;
+  bottom: calc(56px + 4px);
+  width: auto;
+}
+

@@ -24,7 +24,7 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     ],
     mustContain: ['contrato'],
     mustNotContain: ['amanhã', 'sem data'],
-    idealOutput: 'Tarefa criada: Revisar contrato — hoje.',
+    idealOutput: 'Feito! Tem algum detalhe importante sobre o contrato?',
     tags: ['web', 'task-creation', 'tool-calling'],
   },
   {
@@ -34,7 +34,7 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     mustCallTool: ['create_task'],
     mustCallToolCount: { create_task: 2 },
     mustContain: ['luz', 'seguro'],
-    idealOutput: 'Criadas duas tarefas: Pagar conta de luz e Renovar seguro do carro.',
+    idealOutput: 'Feito! Quer adicionar prazo para a conta de luz ou para o seguro?',
     tags: ['web', 'task-creation', 'multi-create', 'tool-calling'],
   },
 

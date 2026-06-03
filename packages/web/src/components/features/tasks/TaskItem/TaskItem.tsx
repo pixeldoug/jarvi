@@ -11,8 +11,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../../contexts/TaskContext';
 import { Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
+import { CategoryPicker } from '../CategoryPicker/CategoryPicker';
+import { TaskDatePicker } from '../TaskDatePicker/TaskDatePicker';
+import { useCategories } from '../../../../contexts/CategoryContext';
+import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
 import { getTaskAppSource } from '../../../../lib/taskAppSource';
-import { formatTaskDate, formatTaskDateWeekday, isToday } from '../../../../lib/utils';
+import { formatTaskDate, formatTaskDateWeekday, isToday, parseDateString } from '../../../../lib/utils';
 import { 
   PencilSimple, 
   Trash, 
@@ -45,7 +49,6 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   onEdit,
   onDelete,
   onUpdateTask,
-  onOpenDatePicker,
   onClick,
   showInsertionLine = false,
   isActive = false,
@@ -54,7 +57,14 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
 }) => {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const categoryChipRef = useRef<HTMLDivElement>(null);
+  const dateChipRef = useRef<HTMLDivElement>(null);
+
+  const { createCategory } = useCategories();
+  const mergedTaskCategories = useMergedTaskCategories();
 
   const {
     attributes,
@@ -143,7 +153,9 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
       target.closest('[role="button"]') ||
       target.closest(`.${styles.dragHandle}`) ||
       target.closest(`.${styles.actionButton}`) ||
-      target.closest(`.${styles.titleInput}`);
+      target.closest(`.${styles.titleInput}`) ||
+      target.closest('[data-category-chip]') ||
+      target.closest('[data-date-chip]');
     
     if (!isInteractiveElement && onClick) {
       onClick(task);
@@ -176,14 +188,56 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           <div className={styles.taskTitle}>
             {/* Date chip — hidden when task is today and has no time set */}
             {dateLabel !== null && (
-              <Chip
-                label={dateLabel}
-                icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
-                interactive
-                onClick={() => onOpenDatePicker?.(task)}
-                size="small"
-              />
+              <div ref={dateChipRef} style={{ display: 'inline-flex' }} data-date-chip="true">
+                <Chip
+                  label={dateLabel}
+                  icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
+                  interactive
+                  active={showDatePicker || !!task.due_date}
+                  onClick={() => setShowDatePicker(prev => !prev)}
+                  size="small"
+                />
+              </div>
             )}
+
+            <TaskDatePicker
+              isOpen={showDatePicker}
+              onClose={() => setShowDatePicker(false)}
+              layout="horizontal"
+              selectedDate={parseDateString(task.due_date) ?? undefined}
+              selectedTime={task.time || undefined}
+              onDateSelect={async (date) => {
+                try {
+                  await onUpdateTask(task.id, {
+                    title: task.title,
+                    description: task.description,
+                    priority: task.priority,
+                    category: task.category,
+                    completed: task.completed,
+                    dueDate: date ? date.toISOString().split('T')[0] : '',
+                    time: date ? task.time : '',
+                  }, false);
+                } catch (error) {
+                  console.error('Failed to update task date:', error);
+                }
+              }}
+              onTimeSelect={async (time) => {
+                try {
+                  await onUpdateTask(task.id, {
+                    title: task.title,
+                    description: task.description,
+                    priority: task.priority,
+                    category: task.category,
+                    completed: task.completed,
+                    dueDate: task.due_date,
+                    time: time ?? '',
+                  }, false);
+                } catch (error) {
+                  console.error('Failed to update task time:', error);
+                }
+              }}
+              anchorRef={dateChipRef}
+            />
 
             {/* Priority icon */}
             {task.priority && (
@@ -273,12 +327,56 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
 
           {/* Category chip - hidden when details sidebar is open */}
           {!hideCategoryChip && (
-            <Chip 
-              label={task.category || 'Categoria'}
-              icon={<Hash weight="regular" />}
-              size="small"
-            />
+            <div ref={categoryChipRef} style={{ display: 'inline-flex' }} data-category-chip="true">
+              <Chip 
+                label={task.category || 'Categoria'}
+                icon={<Hash weight="regular" />}
+                size="small"
+                interactive
+                active={showCategoryPicker || !!task.category}
+                onClick={() => setShowCategoryPicker(prev => !prev)}
+              />
+            </div>
           )}
+
+          <CategoryPicker
+            isOpen={showCategoryPicker}
+            onClose={() => setShowCategoryPicker(false)}
+            categories={mergedTaskCategories}
+            selectedCategory={task.category || undefined}
+            onSelectCategory={async (cat) => {
+              try {
+                await onUpdateTask(task.id, {
+                  title: task.title,
+                  description: task.description,
+                  priority: task.priority,
+                  category: cat.name,
+                  completed: task.completed,
+                  dueDate: task.due_date,
+                  time: task.time,
+                }, false);
+              } catch (error) {
+                console.error('Failed to update task category:', error);
+              }
+            }}
+            onCreateCategory={async (name) => {
+              try {
+                await createCategory({ name });
+                await onUpdateTask(task.id, {
+                  title: task.title,
+                  description: task.description,
+                  priority: task.priority,
+                  category: name,
+                  completed: task.completed,
+                  dueDate: task.due_date,
+                  time: task.time,
+                }, false);
+              } catch (error) {
+                console.error('Failed to create and assign category:', error);
+              }
+            }}
+            anchorRef={categoryChipRef}
+          />
         </div>
       </div>
     </>

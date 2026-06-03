@@ -161,7 +161,7 @@ export const SCENARIOS: EvalScenario[] = [
       { tool: 'create_task', arg: 'due_date', value: IN_SEVEN_DAYS },
     ],
     idealOutput:
-      'Anotei Cancelar jogo Draw do iPad com prazo em até 7 dias.',
+      'Feito. Tem alguma informação sobre como cancelar o Draw no iPad?',
     tags: ['task-creation', 'relative-date', 'tool-calling'],
   },
   {

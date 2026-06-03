@@ -32,6 +32,8 @@ export interface TaskDatePickerProps {
   anchorRef?: React.RefObject<HTMLElement>;
   /** Additional CSS classes */
   className?: string;
+  /** Layout variant: vertical (default) or horizontal (shortcuts left, calendar right) */
+  layout?: 'vertical' | 'horizontal';
 }
 
 type ShortcutType = 'today' | 'tomorrow' | 'nextWeek' | 'noDate';
@@ -106,6 +108,7 @@ export function TaskDatePicker({
   selectedTime,
   anchorRef,
   className = '',
+  layout = 'vertical',
 }: TaskDatePickerProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -126,8 +129,8 @@ export function TaskDatePicker({
       if (!anchorRef?.current) return;
 
       const rect = anchorRef.current.getBoundingClientRect();
-      const popoverWidth = 288;
-      const popoverHeight = popoverRef.current?.offsetHeight || 480;
+      const popoverWidth = layout === 'horizontal' ? 488 : 288;
+      const popoverHeight = popoverRef.current?.offsetHeight || (layout === 'horizontal' ? 300 : 480);
       const gap = 8;
       const margin = 16;
 
@@ -169,7 +172,7 @@ export function TaskDatePicker({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [isOpen, anchorRef]);
+  }, [isOpen, anchorRef, layout]);
 
   // Handle click outside
   useEffect(() => {
@@ -343,14 +346,95 @@ export function TaskDatePicker({
 
   if (!isOpen || !position) return null;
 
-  const popoverClasses = [styles.popover, className].filter(Boolean).join(' ');
+  const popoverClasses = [
+    styles.popover,
+    layout === 'horizontal' ? styles.horizontal : '',
+    className,
+  ].filter(Boolean).join(' ');
+
+  const shortcuts = (
+    <div className={styles.shortcuts}>
+      {SHORTCUTS.map((shortcut) => {
+        const isActive = shortcut.id === activeShortcut;
+        return (
+          <ListItem
+            key={shortcut.id}
+            label={shortcut.label}
+            icon={shortcut.icon}
+            onClick={() => handleShortcutClick(shortcut)}
+            buttonProps={{
+              role: 'option',
+              'aria-selected': isActive,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+
+  const footer = (
+    <div className={styles.footer}>
+      <Button
+        variant="secondary"
+        size="small"
+        icon={Clock}
+        iconPosition="left"
+        onClick={handleTimeButtonClick}
+        className={styles.footerButton}
+        active={showTimePicker}
+      >
+        {selectedTime ? `Horário: ${selectedTime}` : 'Definir Horário'}
+      </Button>
+    </div>
+  );
+
+  const timePicker = showTimePicker && (
+    <div className={styles.timePickerDropdown}>
+      <div className={styles.timePickerContent}>
+        <div className={styles.timePickerHeader}>
+          <span className={styles.timePickerTitle}>Defina um horário</span>
+        </div>
+        <div className={styles.timePickerList}>
+          {timeSlots.map((time) => {
+            const isActive = time === selectedTime;
+            return (
+              <ListItem
+                key={time}
+                label={time}
+                onClick={() => handleTimeSlotClick(time)}
+                buttonProps={{
+                  role: 'option',
+                  'aria-selected': isActive,
+                  'data-time-value': time,
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+      <div className={styles.timePickerFooter}>
+        <TextInput
+          placeholder="00:00"
+          value={manualTime}
+          onChange={(e) => handleManualTimeChange(e)}
+          onBlur={handleManualTimeBlur}
+          onKeyDown={handleManualTimeKeyDown}
+          showLabel={false}
+          actionIcon={(selectedTime || manualTime) ? XCircle : undefined}
+          onActionClick={handleClearTime}
+          actionAriaLabel="Remover horário"
+          className={styles.timePickerInput}
+        />
+      </div>
+    </div>
+  );
 
   // Renderizar usando Portal diretamente no body
   return createPortal(
     <>
       {/* Backdrop */}
       <div className={styles.backdrop} onClick={onClose} />
-      
+
       {/* Popover */}
       <div
         ref={popoverRef}
@@ -363,102 +447,51 @@ export function TaskDatePicker({
           zIndex: 1000,
         }}
       >
-        {/* Header */}
-        <div className={styles.header}>
-          <span className={styles.headerTitle}>{headerTitle}</span>
-        </div>
-
-        <hr className={styles.divider} />
-
-        {/* Calendar */}
-        <div className={styles.calendarSection} data-theme="dark">
-          <Calendar
-            selectedDate={selectedDate}
-            onDateSelect={handleCalendarSelect}
-            showOutsideDays={true}
-          />
-        </div>
-
-        <hr className={styles.divider} />
-
-        {/* Shortcuts */}
-        <div className={styles.shortcuts}>
-          {SHORTCUTS.map((shortcut) => {
-            // Ativo se for o shortcut identificado
-            const isActive = shortcut.id === activeShortcut;
-            
-            return (
-              <ListItem
-                key={shortcut.id}
-                label={shortcut.label}
-                icon={shortcut.icon}
-                onClick={() => handleShortcutClick(shortcut)}
-                buttonProps={{
-                  role: 'option',
-                  'aria-selected': isActive,
-                }}
-              />
-            );
-          })}
-        </div>
-
-        <hr className={styles.divider} />
-
-        {/* Footer - Define Time Button */}
-        <div className={styles.footer}>
-          <Button
-            variant="secondary"
-            size="small"
-            icon={Clock}
-            iconPosition="left"
-            onClick={handleTimeButtonClick}
-            className={styles.footerButton}
-            active={showTimePicker}
-          >
-            {selectedTime ? `Horário: ${selectedTime}` : 'Definir Horário'}
-          </Button>
-        </div>
-
-        {/* Time Picker Dropdown - positioned inside the popover */}
-        {showTimePicker && (
-          <div className={styles.timePickerDropdown}>
-            <div className={styles.timePickerContent}>
-              <div className={styles.timePickerHeader}>
-                <span className={styles.timePickerTitle}>Defina um horário</span>
+        {layout === 'horizontal' ? (
+          <>
+            {/* Left column: header + shortcuts + time button */}
+            <div className={styles.leftColumn}>
+              <div className={styles.header}>
+                <span className={styles.headerTitle}>{headerTitle}</span>
               </div>
-              <div className={styles.timePickerList}>
-                {timeSlots.map((time) => {
-                  const isActive = time === selectedTime;
-                  return (
-                    <ListItem
-                      key={time}
-                      label={time}
-                      onClick={() => handleTimeSlotClick(time)}
-                      buttonProps={{
-                        role: 'option',
-                        'aria-selected': isActive,
-                        'data-time-value': time,
-                      }}
-                    />
-                  );
-                })}
+              <hr className={styles.divider} />
+              {shortcuts}
+              <hr className={styles.divider} />
+              {footer}
+              {timePicker}
+            </div>
+
+            {/* Right column: calendar */}
+            <div className={styles.rightColumn}>
+              <div className={styles.calendarSection} data-theme="dark">
+                <Calendar
+                  selectedDate={selectedDate}
+                  onDateSelect={handleCalendarSelect}
+                  showOutsideDays={true}
+                />
               </div>
             </div>
-            <div className={styles.timePickerFooter}>
-              <TextInput
-                placeholder="00:00"
-                value={manualTime}
-                onChange={(e) => handleManualTimeChange(e)}
-                onBlur={handleManualTimeBlur}
-                onKeyDown={handleManualTimeKeyDown}
-                showLabel={false}
-                actionIcon={(selectedTime || manualTime) ? XCircle : undefined}
-                onActionClick={handleClearTime}
-                actionAriaLabel="Remover horário"
-                className={styles.timePickerInput}
+          </>
+        ) : (
+          <>
+            {/* Vertical layout (original) */}
+            <div className={styles.header}>
+              <span className={styles.headerTitle}>{headerTitle}</span>
+            </div>
+            <hr className={styles.divider} />
+            <div className={styles.calendarSection} data-theme="dark">
+              <Calendar
+                selectedDate={selectedDate}
+                onDateSelect={handleCalendarSelect}
+                showOutsideDays={true}
               />
             </div>
-          </div>
+            <hr className={styles.divider} />
+            {shortcuts}
+            <hr className={styles.divider} />
+            {footer}
+            {timePicker}
+          </>
         )}
       </div>
     </>,
