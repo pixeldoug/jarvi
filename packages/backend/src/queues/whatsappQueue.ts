@@ -248,7 +248,8 @@ export const enqueueIncomingWhatsappMessage = async (
 
   if (input.messageSid) state.messageSid = input.messageSid;
 
-  await redis.set(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (redis as any).set(
     inboxStateKey(from),
     JSON.stringify(state),
     'PX',
@@ -362,7 +363,8 @@ const processAggregatedInboxPayload = async (
     }
 
     const userMessage = textParts.join('\n\n');
-    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis as unknown as import('../services/agent/core/types').RedisLike, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis as any, {
       whatsappPhone: from,
       whatsappMessageSid: messageSid ?? undefined,
     });
