@@ -193,7 +193,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
                   label={dateLabel}
                   icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
                   interactive
-                  active={showDatePicker || !!task.due_date}
+                  active={showDatePicker}
                   onClick={() => setShowDatePicker(prev => !prev)}
                   size="small"
                 />
@@ -330,10 +330,10 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             <div ref={categoryChipRef} style={{ display: 'inline-flex' }} data-category-chip="true">
               <Chip 
                 label={task.category || 'Categoria'}
-                icon={<Hash weight="regular" />}
+                icon={task.category ? undefined : <Hash weight="regular" />}
                 size="small"
                 interactive
-                active={showCategoryPicker || !!task.category}
+                active={showCategoryPicker}
                 onClick={() => setShowCategoryPicker(prev => !prev)}
               />
             </div>
