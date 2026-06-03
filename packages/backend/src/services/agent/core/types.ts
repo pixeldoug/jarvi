@@ -79,7 +79,8 @@ export interface ConversationMessage {
 // Duck-typed Redis interface — accepts both ioredis Redis and Cluster instances.
 export interface RedisLike {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string, expiryMode: 'EX', time: number): Promise<unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  set(key: string, value: string, ...args: any[]): Promise<any>;
 }
 
 // ---------------------------------------------------------------------------

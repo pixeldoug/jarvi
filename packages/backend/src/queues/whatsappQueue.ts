@@ -362,7 +362,7 @@ const processAggregatedInboxPayload = async (
     }
 
     const userMessage = textParts.join('\n\n');
-    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis, {
+    const agentResponse = await runWhatsappAgent(user.id, userMessage, redis as unknown as import('../services/agent/core/types').RedisLike, {
       whatsappPhone: from,
       whatsappMessageSid: messageSid ?? undefined,
     });
