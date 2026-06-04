@@ -184,6 +184,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     queryFn: () => apiClient.get<Task[]>('/api/tasks'),
     enabled: !!token,
     select: sortTasks,
+    // Prevent aggressive background refetches from overwriting in-flight optimistic
+    // updates. With staleTime = 0 (default) a window-focus or component-remount
+    // event can race with a pending PUT and revert the cache to the pre-save value.
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 
   const tasks = tasksData ?? [];

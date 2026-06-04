@@ -1,4 +1,5 @@
 import { useEditor, EditorContent } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import { mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
@@ -9,7 +10,6 @@ import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
 import {
-  DotsThree,
   DownloadSimple,
   File,
   FileAudio,
@@ -22,7 +22,7 @@ import {
   UploadSimple,
   X,
 } from '@phosphor-icons/react';
-import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, MouseEvent, KeyboardEvent } from 'react';
+import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './RichTextEditor.module.css';
 import { Button } from '../Button/Button';
@@ -32,9 +32,6 @@ import { SlashCommandExtension } from './SlashCommandMenu';
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const FEEDBACK_TIMEOUT_MS = 4000;
-const MIN_EDITOR_HEIGHT = 180;
-const MAX_EDITOR_HEIGHT = 640;
-const EDITOR_HEIGHT_STORAGE_KEY = 'jarvi.richTextEditor.height';
 
 type FeedbackTone = 'info' | 'success' | 'error';
 
@@ -311,17 +308,69 @@ export interface RichTextEditorProps {
   readOnly?: boolean;
 }
 
-function parseContent(raw: string): object | string {
-  if (!raw) return '';
+interface SerializedAttachment {
+  id: string;
+  name: string;
+  ext: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+  previewData: string; // base64 data URL
+}
+
+function parseContentAndAttachments(raw: string): {
+  content: object | string;
+  attachments: AttachmentFile[];
+} {
+  if (!raw) return { content: '', attachments: [] };
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && parsed.type === 'doc') {
-      return parsed;
+      const serialized: SerializedAttachment[] = parsed._attachments ?? [];
+      const attachments: AttachmentFile[] = serialized.map(a => ({
+        id: a.id,
+        name: a.name,
+        ext: a.ext,
+        mimeType: a.mimeType,
+        size: a.size,
+        uploadedAt: new Date(a.uploadedAt),
+        previewUrl: a.previewData,
+      }));
+      const { _attachments: _removed, ...doc } = parsed;
+      return { content: doc, attachments };
     }
-    return raw;
+    return { content: raw, attachments: [] };
   } catch {
-    return raw;
+    return { content: raw, attachments: [] };
   }
+}
+
+function serializeWithAttachments(
+  editorJson: object,
+  attachments: AttachmentFile[],
+): string {
+  const combined: Record<string, unknown> = { ...editorJson };
+  if (attachments.length > 0) {
+    combined._attachments = attachments.map(a => ({
+      id: a.id,
+      name: a.name,
+      ext: a.ext,
+      mimeType: a.mimeType,
+      size: a.size,
+      uploadedAt: a.uploadedAt.toISOString(),
+      previewData: a.previewUrl,
+    } satisfies SerializedAttachment));
+  }
+  return JSON.stringify(combined);
+}
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target?.result as string);
+    reader.onerror = () => reject(new Error(`Cannot read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
 }
 
 // Override TaskItem to use inline styles so the flex row layout can never be
@@ -396,40 +445,19 @@ export function RichTextEditor({
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const initialParsed = useRef(parseContentAndAttachments(content));
+  const [attachments, setAttachments] = useState<AttachmentFile[]>(
+    () => initialParsed.current.attachments,
+  );
   const [viewedAttachment, setViewedAttachment] = useState<AttachmentFile | null>(null);
   const attachmentsRef = useRef(attachments);
   attachmentsRef.current = attachments;
   const dragCounterRef = useRef(0);
 
-  useEffect(() => {
-    return () => {
-      attachmentsRef.current.forEach(a => URL.revokeObjectURL(a.previewUrl));
-    };
-  }, []);
-
   const publishFeedback = useCallback((message: string, tone: FeedbackTone = 'info') => {
     setFeedback({ tone, message });
   }, []);
-
-  const clampEditorHeight = useCallback((height: number): number => {
-    return Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, Math.round(height)));
-  }, []);
-
-  const setContainerHeight = useCallback((height: number) => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-
-    const container = wrapper.parentElement;
-    if (!container) return;
-
-    const clamped = clampEditorHeight(height);
-    container.style.flex = '0 0 auto';
-    container.style.height = `${clamped}px`;
-    container.style.minHeight = `${MIN_EDITOR_HEIGHT}px`;
-  }, [clampEditorHeight]);
 
   useEffect(() => {
     if (!feedback) return;
@@ -438,14 +466,6 @@ export function RichTextEditor({
     }, FEEDBACK_TIMEOUT_MS);
     return () => window.clearTimeout(timeout);
   }, [feedback]);
-
-  useEffect(() => {
-    const storedHeight = window.localStorage.getItem(EDITOR_HEIGHT_STORAGE_KEY);
-    if (!storedHeight) return;
-    const parsed = Number(storedHeight);
-    if (!Number.isFinite(parsed)) return;
-    setContainerHeight(parsed);
-  }, [setContainerHeight]);
 
   const editor = useEditor({
     extensions: [
@@ -467,10 +487,10 @@ export function RichTextEditor({
       Typography,
       SlashCommandExtension,
     ],
-    content: parseContent(content) || '',
+    content: initialParsed.current.content || '',
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      const json = JSON.stringify(editor.getJSON());
+      const json = serializeWithAttachments(editor.getJSON(), attachmentsRef.current);
       // Keep lastContentRef in sync so the external-content sync effect
       // does not call setContent() (and reset the cursor) for changes that
       // originated from the editor itself.
@@ -504,18 +524,21 @@ export function RichTextEditor({
     if (content === lastContentRef.current) return;
     lastContentRef.current = content;
 
-    const parsed = parseContent(content);
+    const { content: parsed, attachments: parsedAttachments } = parseContentAndAttachments(content);
     if (parsed) {
       editor.commands.setContent(parsed as object, { emitUpdate: false });
     } else {
-      editor.commands.clearContent();
+      editor.commands.clearContent(false);
     }
+    setAttachments(parsedAttachments);
   }, [content, editor]);
 
-  // Update editable state
+  // Update editable state — pass false so setEditable does not emit onUpdate,
+  // which would call onChange with the current (possibly empty) doc and
+  // kick off a spurious debounced save that overwrites real task content.
   useEffect(() => {
     if (!editor) return;
-    editor.setEditable(!readOnly);
+    editor.setEditable(!readOnly, false);
   }, [readOnly, editor]);
 
   const insertFile = useCallback((file: File) => {
@@ -582,24 +605,35 @@ export function RichTextEditor({
     input.click();
   }, [editor, insertFile, readOnly]);
 
-  const addFilesAsAttachments = useCallback((files: File[]) => {
+  const addFilesAsAttachments = useCallback(async (files: File[]) => {
     if (!files.length) return;
-    const newAttachments: AttachmentFile[] = files.map(file => {
-      const dotIdx = file.name.lastIndexOf('.');
-      const name = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
-      const ext = dotIdx > 0 ? file.name.slice(dotIdx) : '';
-      return {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        name,
-        ext,
-        mimeType: file.type,
-        size: file.size,
-        uploadedAt: new Date(),
-        previewUrl: URL.createObjectURL(file),
-      };
+    const newAttachments: AttachmentFile[] = await Promise.all(
+      files.map(async file => {
+        const dotIdx = file.name.lastIndexOf('.');
+        const name = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+        const ext = dotIdx > 0 ? file.name.slice(dotIdx) : '';
+        const previewUrl = await readFileAsBase64(file);
+        return {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name,
+          ext,
+          mimeType: file.type,
+          size: file.size,
+          uploadedAt: new Date(),
+          previewUrl,
+        };
+      }),
+    );
+    setAttachments(prev => {
+      const next = [...prev, ...newAttachments];
+      if (editor) {
+        const json = serializeWithAttachments(editor.getJSON(), next);
+        lastContentRef.current = json;
+        onChangeRef.current(json);
+      }
+      return next;
     });
-    setAttachments(prev => [...prev, ...newAttachments]);
-  }, []);
+  }, [editor]);
 
   const handleFileUpload = useCallback(() => {
     if (readOnly) return;
@@ -608,18 +642,22 @@ export function RichTextEditor({
     input.type = 'file';
     input.multiple = true;
     input.onchange = () => {
-      addFilesAsAttachments(Array.from(input.files ?? []));
+      void addFilesAsAttachments(Array.from(input.files ?? []));
     };
     input.click();
   }, [addFilesAsAttachments, readOnly]);
 
   const handleRemoveAttachment = useCallback((id: string) => {
     setAttachments(prev => {
-      const target = prev.find(a => a.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
-      return prev.filter(a => a.id !== id);
+      const next = prev.filter(a => a.id !== id);
+      if (editor) {
+        const json = serializeWithAttachments(editor.getJSON(), next);
+        lastContentRef.current = json;
+        onChangeRef.current(json);
+      }
+      return next;
     });
-  }, []);
+  }, [editor]);
 
   const handlePaste = useCallback((e: ClipboardEvent<HTMLDivElement>) => {
     if (readOnly) return;
@@ -628,7 +666,7 @@ export function RichTextEditor({
     if (!files.length) return;
 
     e.preventDefault();
-    addFilesAsAttachments(files);
+    void addFilesAsAttachments(files);
   }, [addFilesAsAttachments, readOnly]);
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -666,49 +704,8 @@ export function RichTextEditor({
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
-    addFilesAsAttachments(files);
+    void addFilesAsAttachments(files);
   }, [addFilesAsAttachments, readOnly]);
-
-  const handleResizeStart = useCallback((event: MouseEvent<HTMLButtonElement>) => {
-    if (readOnly) return;
-    event.preventDefault();
-
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-
-    const startY = event.clientY;
-    const startHeight = wrapper.getBoundingClientRect().height;
-    const prevCursor = document.body.style.cursor;
-    const prevUserSelect = document.body.style.userSelect;
-
-    setIsResizing(true);
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-
-    const onMouseMove = (moveEvent: globalThis.MouseEvent) => {
-      const deltaY = moveEvent.clientY - startY;
-      setContainerHeight(startHeight + deltaY);
-    };
-
-    const onMouseUp = () => {
-      const currentHeight = wrapperRef.current?.getBoundingClientRect().height;
-      if (currentHeight) {
-        window.localStorage.setItem(
-          EDITOR_HEIGHT_STORAGE_KEY,
-          String(clampEditorHeight(currentHeight)),
-        );
-      }
-
-      setIsResizing(false);
-      document.body.style.cursor = prevCursor;
-      document.body.style.userSelect = prevUserSelect;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, [clampEditorHeight, readOnly, setContainerHeight]);
 
   const handleSaveClick = useCallback(() => {
     if (!onSave) return;
@@ -724,12 +721,23 @@ export function RichTextEditor({
 
   const wrapperClassName = [
     styles.wrapper,
-    isResizing ? styles.resizing : '',
     readOnly ? styles.readOnly : '',
   ].filter(Boolean).join(' ');
 
   return (
     <div className={styles.editorContainer}>
+      {!readOnly && (
+        <BubbleMenu
+          editor={editor}
+          shouldShow={({ state }) => !state.selection.empty}
+        >
+          <EditorToolbar
+            editor={editor}
+            onImageUpload={handleImageUpload}
+            onFileUpload={handleFileUpload}
+          />
+        </BubbleMenu>
+      )}
       <div
         ref={wrapperRef}
         className={wrapperClassName}
@@ -740,26 +748,8 @@ export function RichTextEditor({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        {!readOnly && (
-          <EditorToolbar
-            editor={editor}
-            onImageUpload={handleImageUpload}
-            onFileUpload={handleFileUpload}
-          />
-        )}
         <div className={styles.editorArea} onPaste={handlePaste} data-has-actions={!readOnly && (onSave || onCancel)}>
           <EditorContent editor={editor} />
-          {!readOnly && (
-            <button
-              type="button"
-              className={styles.resizeHandle}
-              onMouseDown={handleResizeStart}
-              aria-label="Redimensionar area de texto"
-              title="Arraste para redimensionar"
-            >
-              <DotsThree size={12} weight="bold" aria-hidden="true" />
-            </button>
-          )}
         </div>
         {!readOnly && (onSave || onCancel) && (
           <div className={styles.editorActions}>

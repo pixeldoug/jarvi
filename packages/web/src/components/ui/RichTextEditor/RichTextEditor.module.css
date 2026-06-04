@@ -9,117 +9,115 @@
   min-height: 0;
   overflow: hidden;
   position: relative;
-  border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-lg) var(--radius-lg);
-  background: var(--semantic-control-bg);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
+
 
 .wrapper.readOnly {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
-  border-radius: 0;
-}
-
-.wrapper.resizing {
-  user-select: none;
 }
 
 /* ============================================================================
-   TOOLBAR
+   FLOATING BUBBLE TOOLBAR (dark pill — shown on text selection)
    ============================================================================ */
 
-.toolbar {
+.floatingToolbar {
   display: flex;
   align-items: center;
-  gap: var(--sizes-1-5, 6px);
-  padding: var(--sizes-2) var(--sizes-4) var(--sizes-2) var(--sizes-2);
-  border-bottom: 1px solid var(--semantic-border-primary);
-  flex-shrink: 0;
+  gap: 0;
+  padding: 8px 16px 8px 8px;
+  background: #18191b;
+  border: 1px solid #2b2d31;
+  border-radius: 16px;
+  box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.32);
   flex-wrap: nowrap;
-  overflow-x: auto;
-  min-height: var(--sizes-14);
-  background: var(--semantic-surface-secondary);
+  white-space: nowrap;
 }
 
-.toolbarBtn {
+.fontPickerBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  border-radius: 16px;
+  border: 1px solid #2b2d31;
+  background: rgba(9, 9, 11, 0.10);
+  color: #eeeff2;
+  font-family: var(--typography-label-md-font-family);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.25px;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.12s ease;
+}
+
+.fontPickerBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fontPickerBtn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+.fontPickerBtnActive {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.floatingToolbarBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--sizes-10);
-  height: var(--sizes-10);
-  border: 1px solid transparent;
-  background: var(--component-button-ghost-bg-default);
-  border-radius: var(--radius-button-icon-radius, var(--radius-sm));
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  border-radius: 16px;
   cursor: pointer;
-  color: var(--component-button-ghost-content-default);
-  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  color: #eeeff2;
+  transition: background-color 0.12s ease;
   padding: 0;
   flex-shrink: 0;
 }
 
-.toolbarBtn:hover {
-  background: var(--component-button-ghost-bg-hover);
-  color: var(--component-button-ghost-content-hover);
+.floatingToolbarBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.toolbarBtn:active {
-  background: var(--component-button-ghost-bg-active);
-  color: var(--component-button-ghost-content-active);
+.floatingToolbarBtn:active {
+  background: rgba(255, 255, 255, 0.12);
 }
 
-.toolbarBtn:focus-visible {
-  outline: 2px solid var(--semantic-control-focusring);
+.floatingToolbarBtn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
   outline-offset: 2px;
 }
 
-.toolbarBtn.active,
-.toolbarBtnWide.active {
-  background: var(--component-button-ghost-bg-active);
-  color: var(--component-button-ghost-content-active);
-  border-color: transparent;
+.floatingToolbarBtnActive {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
-.toolbarBtn:disabled,
-.toolbarBtnDisabled {
-  opacity: 0.5;
+.floatingToolbarBtnDisabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.toolbarBtnWide {
-  composes: toolbarBtn;
-  width: auto;
-  padding: 0 var(--sizes-2) 0 var(--sizes-3);
-  gap: var(--sizes-1);
-  font-family: var(--typography-label-md-font-family);
-  font-size: var(--typography-label-md-font-size);
-  font-weight: var(--typography-label-md-font-weight, 500);
-  border: 1px solid var(--semantic-border-primary);
-  background: var(--component-button-secondary-bg-default);
-  color: var(--component-button-secondary-content-default);
-  min-width: 98px;
-}
-
-.toolbarBtnWide:hover {
-  background: var(--component-button-secondary-bg-hover);
-  color: var(--component-button-secondary-content-hover);
-}
-
-.toolbarBtnWide:active {
-  background: var(--component-button-secondary-bg-active);
-  color: var(--component-button-secondary-content-active);
-}
-
-.toolbarDivider {
-  width: 1px;
+.floatingToolbarDivider {
+  width: 0.5px;
   height: 24px;
-  background: var(--semantic-border-primary);
+  background: #2b2d31;
   flex-shrink: 0;
-  margin: 0 var(--sizes-1-5, 6px);
-}
-
-.toolbarIcon {
-  flex-shrink: 0;
+  margin: 0 4px;
 }
 
 /* ============================================================================
@@ -224,7 +222,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--sizes-4) var(--sizes-6) var(--sizes-4) var(--sizes-4);
+  padding: 0 16px 0 0;
 }
 
 .editorArea[data-has-actions="true"] {
@@ -250,13 +248,17 @@
   color: var(--semantic-control-content);
 }
 
-/* Placeholder */
+/* Placeholder — body-lg: 16px / 450 / 27px lh / 0.25px ls */
 .editorArea :global(.ProseMirror p.is-editor-empty:first-child::before) {
   content: attr(data-placeholder);
-  color: var(--semantic-control-content-placeholder);
+  color: #a0a8b4;
   pointer-events: none;
   float: left;
   height: 0;
+  font-size: 16px;
+  font-weight: 450;
+  line-height: 27px;
+  letter-spacing: 0.25px;
 }
 
 /* Headings */
@@ -397,33 +399,6 @@
   margin: 12px 0;
 }
 
-.resizeHandle {
-  position: absolute;
-  right: var(--sizes-3);
-  bottom: var(--sizes-3);
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--semantic-content-tertiary);
-  cursor: ns-resize;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-}
-
-.resizeHandle:hover {
-  color: var(--semantic-content-secondary);
-  background: var(--semantic-surface-secondary);
-}
-
-.resizeHandle:focus-visible {
-  outline: 2px solid var(--semantic-control-focusring);
-  outline-offset: 1px;
-}
 
 .editorActions {
   display: flex;
@@ -735,7 +710,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  gap: var(--sizes-2, 8px);
+  gap: 16px;
 }
 
 /* ============================================================================

@@ -6,6 +6,6 @@ export const metadata: Metadata = {
 };
 
 export default function EarlyAccessOnboardingPage() {
-  redirect('/beta');
+  redirect('/criar-conta');
 }
 

@@ -392,7 +392,9 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
   if (prevProps.showInsertionLine !== nextProps.showInsertionLine) return false;
   if (prevProps.section !== nextProps.section) return false;
   
-  // Compare task properties that matter for rendering
+  // Compare task properties that matter for rendering.
+  // Include updated_at so a description-only save (which bumps updated_at)
+  // still triggers a re-render and keeps the task reference fresh for onClick(task).
   const taskChanged = 
     prevProps.task.title !== nextProps.task.title ||
     prevProps.task.completed !== nextProps.task.completed ||
@@ -400,7 +402,8 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
     prevProps.task.time !== nextProps.task.time ||
     prevProps.task.category !== nextProps.task.category ||
     prevProps.task.priority !== nextProps.task.priority ||
-    prevProps.task.original_whatsapp_content !== nextProps.task.original_whatsapp_content;
+    prevProps.task.original_whatsapp_content !== nextProps.task.original_whatsapp_content ||
+    prevProps.task.updated_at !== nextProps.task.updated_at;
   
   // If task data changed, allow re-render
   if (taskChanged) return false;

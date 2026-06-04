@@ -147,17 +147,17 @@ export default function LandingPage() {
           </div>
           <div className={styles.navActions}>
             <span className={styles.navGhostButton}>
-              <Button href="#funcionalidades" variant="ghost" size="default">
-                Funcionalidades
+              <Button href="https://app.jarvi.life/" variant="ghost" size="default">
+                Login
               </Button>
             </span>
             <Button
-              href="/beta"
+              href="https://app.jarvi.life/criar-conta"
               variant="primary"
               size="default"
               onClick={() => posthog?.capture('cta_clicked', { location: 'navbar' })}
             >
-              Solicitar Acesso
+              Criar conta
             </Button>
           </div>
         </nav>
@@ -309,12 +309,12 @@ export default function LandingPage() {
           <h2>Garanta seu acesso antecipado</h2>
           <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
           <Button
-            href="/beta"
+            href="https://app.jarvi.life/criar-conta"
             variant="primary"
             size="lg"
             onClick={() => posthog?.capture('cta_clicked', { location: 'cta_section' })}
           >
-            Solicitar Acesso Antecipado
+            Criar conta grátis
           </Button>
         </div>
 

@@ -11,7 +11,7 @@
 
   display: flex;
   flex-direction: column;
-  gap: var(--sizes-10);
+  gap: 24px;
   overflow-y: auto;
 }
 
@@ -112,14 +112,13 @@
 /* Editor Container (replaces textarea) */
 .textareaContainer {
   background: transparent;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  border-radius: 12px;
+  overflow: visible;
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--sizes-3) var(--sizes-6) var(--sizes-4) var(--sizes-4);
 }
 
 .descriptionReadOnly {

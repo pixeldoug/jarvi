@@ -50,8 +50,15 @@ export function TaskDetailsSidebar({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [description, setDescription] = useState('');
-  const [savedDescription, setSavedDescription] = useState('');
-  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const descriptionRef = useRef(description);
+  descriptionRef.current = description;
+  const descSaveTimerRef = useRef<number | null>(null);
+  const handleDescriptionSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const prevTaskRef = useRef<typeof task>(null);
+  const onUpdateTaskRef = useRef(onUpdateTask);
+  onUpdateTaskRef.current = onUpdateTask;
+  // Legacy id-only ref kept for logging instrumentation
+  const prevTaskIdRef = useRef<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -65,22 +72,66 @@ export function TaskDetailsSidebar({
 
   // Update local state when task changes
   useEffect(() => {
-    if (task) {
-      setTitle(task.title || '');
-      const nextDescription = task.description || '';
-      setDescription(nextDescription);
-      setSavedDescription(nextDescription);
-      setSelectedDate(parseDateString(task.due_date));
-      setSelectedTime(task.time || '');
-      if (!isEditingTitle) {
-        setTitleDraft(task.title || '');
-      }
-      setIsEditingDescription(false);
+    if (!task) return;
+
+    const isFirstLoad = prevTaskRef.current === null;
+    const idChanged = !isFirstLoad && prevTaskRef.current!.id !== task.id;
+
+    // When the cache updates (e.g. API response arrives after optimistic update or a
+    // background refresh) and the user is NOT actively editing, sync local description.
+    if (!isFirstLoad && !idChanged && (task.description ?? '') !== descriptionRef.current && descSaveTimerRef.current === null) {
+      setDescription(task.description || '');
     }
+
+    if (isFirstLoad || idChanged) {
+      // Always cancel any stale pending timer when initializing or switching tasks.
+      // A stale timer could fire with old content (e.g. from HMR, Strict Mode re-runs,
+      // or a previous task's debounce that hadn't fired yet) and overwrite the new task's data.
+      if (descSaveTimerRef.current !== null) {
+        window.clearTimeout(descSaveTimerRef.current);
+        descSaveTimerRef.current = null;
+      }
+
+      if (idChanged) {
+        // Switching to a different task: save any pending unsaved content for the previous task.
+        const prev = prevTaskRef.current!;
+        const unsaved = descriptionRef.current;
+        if (unsaved !== (prev.description ?? '')) {
+          void onUpdateTaskRef.current(prev.id, {
+            title: prev.title,
+            description: unsaved,
+            priority: prev.priority,
+            category: prev.category,
+            completed: prev.completed,
+            dueDate: prev.due_date,
+            time: prev.time,
+          });
+        }
+      }
+      // Reset description state for the new task (first load or task switch).
+      setDescription(task.description || '');
+    }
+    // Always update the other fields (title, date, time, titleDraft).
+    setTitle(task.title || '');
+    setSelectedDate(parseDateString(task.due_date));
+    setSelectedTime(task.time || '');
+    if (!isEditingTitle) {
+      setTitleDraft(task.title || '');
+    }
+    prevTaskRef.current = task;
+    prevTaskIdRef.current = task.id;
   }, [task, isEditingTitle]);
 
   const handleDescriptionChange = useCallback((json: string) => {
     setDescription(json);
+    // Debounced save — fires 1.5s after the last content change.
+    // Using a ref to always call the latest version of handleDescriptionSave
+    // so the closure captures the current description value.
+    if (descSaveTimerRef.current !== null) window.clearTimeout(descSaveTimerRef.current);
+    descSaveTimerRef.current = window.setTimeout(() => {
+      descSaveTimerRef.current = null;
+      void handleDescriptionSaveRef.current?.();
+    }, 1500);
   }, []);
 
   // Focus title input when editing
@@ -157,10 +208,16 @@ export function TaskDetailsSidebar({
     }
   };
 
-  const handleDescriptionSave = async () => {
+  const handleDescriptionSave = useCallback(async () => {
     if (!task) return;
-
-    setIsEditingDescription(false);
+    // Skip save if description unchanged from what's in the backend — prevents
+    // spurious saves when the editor blurs before onChange has fired (e.g. file picker).
+    if (description === (task.description ?? '')) return;
+    // Cancel any pending debounced save to avoid a double-save.
+    if (descSaveTimerRef.current !== null) {
+      window.clearTimeout(descSaveTimerRef.current);
+      descSaveTimerRef.current = null;
+    }
     try {
       await onUpdateTask(task.id, {
         title: title || task.title,
@@ -171,16 +228,13 @@ export function TaskDetailsSidebar({
         dueDate: task.due_date,
         time: task.time,
       });
-      setSavedDescription(description);
     } catch (error) {
       console.error('Failed to update task description:', error);
     }
-  };
+  }, [task, title, description, onUpdateTask]);
 
-  const handleDescriptionCancel = useCallback(() => {
-    setDescription(savedDescription);
-    setIsEditingDescription(false);
-  }, [savedDescription]);
+  // Keep ref in sync so the debounced timer always calls the latest closure.
+  handleDescriptionSaveRef.current = handleDescriptionSave;
 
   // Handle completion toggle
   const handleToggleCompletionClick = async () => {
@@ -604,41 +658,12 @@ export function TaskDetailsSidebar({
 
       {/* Description - Rich Text Editor */}
       <div className={styles.textareaContainer}>
-        {isEditingDescription ? (
-          <RichTextEditor
-            content={description}
-            onChange={handleDescriptionChange}
-            onSave={handleDescriptionSave}
-            onCancel={handleDescriptionCancel}
-            placeholder="Adicione uma descrição. Digite / para comandos rápidos."
-          />
-        ) : (
-          <div
-            className={styles.descriptionReadOnly}
-            onClick={() => setIsEditingDescription(true)}
-            role="button"
-            tabIndex={0}
-            aria-label="Editar descrição"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setIsEditingDescription(true);
-              }
-            }}
-          >
-            {isDescriptionEmpty(description) ? (
-              <p className={styles.descriptionPlaceholder}>
-                Adicione uma descrição. Dica: digite <kbd className={styles.kbdHint}>/</kbd> para comandos rápidos.
-              </p>
-            ) : (
-              <RichTextEditor
-                content={description}
-                onChange={handleDescriptionChange}
-                readOnly
-              />
-            )}
-          </div>
-        )}
+        <RichTextEditor
+          content={description}
+          onChange={handleDescriptionChange}
+          onBlur={handleDescriptionSave}
+          placeholder="Adicione uma descrição. Digite / para comandos rápidos."
+        />
       </div>
 
 
@@ -662,20 +687,6 @@ export function TaskDetailsSidebar({
       )}
     </div>
   );
-}
-
-function isDescriptionEmpty(desc: string): boolean {
-  if (!desc) return true;
-  try {
-    const doc = JSON.parse(desc);
-    if (doc?.type !== 'doc') return false;
-    const content: any[] = doc.content ?? [];
-    if (content.length === 0) return true;
-    if (content.length === 1 && content[0].type === 'paragraph' && !content[0].content) return true;
-    return false;
-  } catch {
-    return !desc.trim();
-  }
 }
 
 // Helper function to format creation date

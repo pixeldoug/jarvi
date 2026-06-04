@@ -1,28 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  FormEvent as ReactFormEvent,
-  KeyboardEvent as ReactKeyboardEvent,
-} from 'react';
-import { posthog as posthogClient } from '../lib/posthog';
-import { Check, Eye, EyeSlash } from '@phosphor-icons/react';
-import { Button } from '../components/Button';
-import { Stepper } from '../components/Stepper';
-import styles from './OnboardingWizard.module.css';
+import type { FormEvent as ReactFormEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Check } from '@phosphor-icons/react';
+import { useAuth } from '../../contexts/AuthContext';
+import { Button, Logo, PasswordInput } from '../../components/ui';
+import { useForceTheme } from '../../hooks/useForceTheme';
+import styles from './CriarConta.module.css';
 
-const STEP_NAMES: Record<number, string> = {
-  0: 'name',
-  1: 'email',
-  2: 'areas',
-  3: 'task_origins',
-  4: 'tracking_methods',
-  5: 'pain_points',
-  6: 'desired_capabilities',
-  7: 'ideal_outcome',
-  8: 'interview_availability',
-  9: 'broadcast_updates',
-};
+// ============================================================================
+// TYPES
+// ============================================================================
 
 type InterviewAvailability = 'yes' | 'no' | 'later' | null;
 type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
@@ -80,9 +69,26 @@ interface StepValidationError {
   message: string;
 }
 
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WHATSAPP_REGEX = /^\+?\d{10,15}$/;
 const BASE_FORM_STEPS = 9;
+
+const STEP_NAMES: Record<number, string> = {
+  0: 'name',
+  1: 'email',
+  2: 'areas',
+  3: 'task_origins',
+  4: 'tracking_methods',
+  5: 'pain_points',
+  6: 'desired_capabilities',
+  7: 'ideal_outcome',
+  8: 'interview_availability',
+  9: 'broadcast_updates',
+};
 
 const AREA_OPTIONS: Option[] = [
   { value: 'work', label: 'Trabalho' },
@@ -163,6 +169,10 @@ const INITIAL_DATA: OnboardingFormData = {
   wantsBroadcastUpdates: false,
 };
 
+// ============================================================================
+// HELPERS
+// ============================================================================
+
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -183,171 +193,82 @@ function formatList(labels: string[]): string {
   return `${labels.slice(0, -1).join(', ')} e ${labels[labels.length - 1]}`;
 }
 
-function getLabelsFromSelection(
-  options: Option[],
-  selected: string[],
-  otherText: string
-): string[] {
+function getLabelsFromSelection(options: Option[], selected: string[], otherText: string): string[] {
   const labels = options
-    .filter((option) => selected.includes(option.value) && option.value !== 'other')
-    .map((option) => option.label);
-
-  if (selected.includes('other') && otherText.trim()) {
-    labels.push(otherText.trim());
-  }
-
+    .filter((o) => selected.includes(o.value) && o.value !== 'other')
+    .map((o) => o.label);
+  if (selected.includes('other') && otherText.trim()) labels.push(otherText.trim());
   return labels;
 }
 
 function buildMemorySeed(data: OnboardingFormData): string {
-  const areaLabels = getLabelsFromSelection(AREA_OPTIONS, data.areas, data.areasOther);
-  const taskOriginLabels = getLabelsFromSelection(
-    TASK_ORIGIN_OPTIONS,
-    data.taskOrigins,
-    data.taskOriginsOther
-  );
-  const trackingMethodLabels = getLabelsFromSelection(
-    TRACKING_METHOD_OPTIONS,
-    data.trackingMethods,
-    data.trackingMethodsOther
-  );
-  const painPointLabels = getLabelsFromSelection(
-    PAIN_POINT_OPTIONS,
-    data.painPoints,
-    data.painPointsOther
-  );
-  const desiredCapabilityLabels = getLabelsFromSelection(
-    DESIRED_CAPABILITY_OPTIONS,
-    data.desiredCapabilities,
-    data.desiredCapabilitiesOther
-  );
-
   const lines: string[] = [];
-
-  if (data.name.trim()) {
-    lines.push(`Você se chama ${data.name.trim()}.`);
-  }
-  if (areaLabels.length > 0) {
-    lines.push(`Você quer organizar melhor: ${formatList(areaLabels)}.`);
-  }
-  if (taskOriginLabels.length > 0) {
-    lines.push(`Suas tarefas costumam aparecer por: ${formatList(taskOriginLabels)}.`);
-  }
-  if (trackingMethodLabels.length > 0) {
-    lines.push(`Hoje você registra tarefas usando: ${formatList(trackingMethodLabels)}.`);
-  }
-  if (painPointLabels.length > 0) {
-    lines.push(`Os principais desafios atuais são: ${formatList(painPointLabels)}.`);
-  }
-  if (desiredCapabilityLabels.length > 0) {
-    lines.push(`Você espera que a Jarvi ajude com: ${formatList(desiredCapabilityLabels)}.`);
-  }
-  if (data.idealOutcomeText.trim()) {
-    lines.push(`Resultado ideal para você: ${data.idealOutcomeText.trim()}`);
-  }
-
-  if (lines.length === 0) {
-    return 'Conte um pouco sobre sua rotina para a Jarvi te ajudar melhor.';
-  }
-
-  return lines.join('\n');
+  if (data.name.trim()) lines.push(`Você se chama ${data.name.trim()}.`);
+  const areas = getLabelsFromSelection(AREA_OPTIONS, data.areas, data.areasOther);
+  if (areas.length) lines.push(`Você quer organizar melhor: ${formatList(areas)}.`);
+  const origins = getLabelsFromSelection(TASK_ORIGIN_OPTIONS, data.taskOrigins, data.taskOriginsOther);
+  if (origins.length) lines.push(`Suas tarefas costumam aparecer por: ${formatList(origins)}.`);
+  const tracking = getLabelsFromSelection(TRACKING_METHOD_OPTIONS, data.trackingMethods, data.trackingMethodsOther);
+  if (tracking.length) lines.push(`Hoje você registra tarefas usando: ${formatList(tracking)}.`);
+  const pain = getLabelsFromSelection(PAIN_POINT_OPTIONS, data.painPoints, data.painPointsOther);
+  if (pain.length) lines.push(`Os principais desafios atuais são: ${formatList(pain)}.`);
+  const caps = getLabelsFromSelection(DESIRED_CAPABILITY_OPTIONS, data.desiredCapabilities, data.desiredCapabilitiesOther);
+  if (caps.length) lines.push(`Você espera que a Jarvi ajude com: ${formatList(caps)}.`);
+  if (data.idealOutcomeText.trim()) lines.push(`Resultado ideal para você: ${data.idealOutcomeText.trim()}`);
+  return lines.length > 0 ? lines.join('\n') : 'Conte um pouco sobre sua rotina para a Jarvi te ajudar melhor.';
 }
 
 function getStepError(step: StepIndex, data: OnboardingFormData): StepValidationError | null {
   if (step === 0) {
-    if (!data.name.trim()) {
-      return { field: 'name', message: 'Digite como você prefere ser chamado.' };
-    }
+    if (!data.name.trim()) return { field: 'name', message: 'Digite como você prefere ser chamado.' };
     return null;
   }
-
   if (step === 1) {
-    const normalizedEmail = normalizeEmail(data.email);
-    if (!normalizedEmail) return { field: 'email', message: 'Digite seu email.' };
-    if (!EMAIL_REGEX.test(normalizedEmail)) {
-      return { field: 'email', message: 'Digite um email válido.' };
-    }
+    const email = normalizeEmail(data.email);
+    if (!email) return { field: 'email', message: 'Digite seu email.' };
+    if (!EMAIL_REGEX.test(email)) return { field: 'email', message: 'Digite um email válido.' };
     return null;
   }
-
   if (step === 2) {
-    if (data.areas.length === 0) {
-      return { field: 'areas', message: 'Selecione ao menos uma área.' };
-    }
-    if (data.areas.includes('other') && !data.areasOther.trim()) {
-      return { field: 'areasOther', message: 'Descreva o que entra em "Outros".' };
-    }
+    if (!data.areas.length) return { field: 'areas', message: 'Selecione ao menos uma área.' };
+    if (data.areas.includes('other') && !data.areasOther.trim()) return { field: 'areasOther', message: 'Descreva o que entra em "Outros".' };
     return null;
   }
-
   if (step === 3) {
-    if (data.taskOrigins.length === 0) {
-      return { field: 'taskOrigins', message: 'Selecione ao menos uma opção.' };
-    }
-    if (data.taskOrigins.includes('other') && !data.taskOriginsOther.trim()) {
-      return { field: 'taskOriginsOther', message: 'Descreva o que entra em "Outros".' };
-    }
+    if (!data.taskOrigins.length) return { field: 'taskOrigins', message: 'Selecione ao menos uma opção.' };
+    if (data.taskOrigins.includes('other') && !data.taskOriginsOther.trim()) return { field: 'taskOriginsOther', message: 'Descreva o que entra em "Outros".' };
     return null;
   }
-
   if (step === 4) {
-    if (data.trackingMethods.length === 0) {
-      return { field: 'trackingMethods', message: 'Selecione ao menos uma opção.' };
-    }
-    if (data.trackingMethods.includes('other') && !data.trackingMethodsOther.trim()) {
-      return { field: 'trackingMethodsOther', message: 'Descreva o que entra em "Outros".' };
-    }
+    if (!data.trackingMethods.length) return { field: 'trackingMethods', message: 'Selecione ao menos uma opção.' };
+    if (data.trackingMethods.includes('other') && !data.trackingMethodsOther.trim()) return { field: 'trackingMethodsOther', message: 'Descreva o que entra em "Outros".' };
     return null;
   }
-
   if (step === 5) {
-    if (data.painPoints.length === 0) {
-      return { field: 'painPoints', message: 'Selecione ao menos um desafio.' };
-    }
-    if (data.painPoints.includes('other') && !data.painPointsOther.trim()) {
-      return { field: 'painPointsOther', message: 'Descreva o que entra em "Outros".' };
-    }
+    if (!data.painPoints.length) return { field: 'painPoints', message: 'Selecione ao menos um desafio.' };
+    if (data.painPoints.includes('other') && !data.painPointsOther.trim()) return { field: 'painPointsOther', message: 'Descreva o que entra em "Outros".' };
     return null;
   }
-
   if (step === 6) {
-    if (data.desiredCapabilities.length === 0) {
-      return { field: 'desiredCapabilities', message: 'Selecione ao menos uma opção.' };
-    }
-    if (data.desiredCapabilities.includes('other') && !data.desiredCapabilitiesOther.trim()) {
-      return {
-        field: 'desiredCapabilitiesOther',
-        message: 'Descreva o que entra em "Outra coisa".',
-      };
-    }
+    if (!data.desiredCapabilities.length) return { field: 'desiredCapabilities', message: 'Selecione ao menos uma opção.' };
+    if (data.desiredCapabilities.includes('other') && !data.desiredCapabilitiesOther.trim()) return { field: 'desiredCapabilitiesOther', message: 'Descreva o que entra em "Outra coisa".' };
     return null;
   }
-
-  if (step === 7) {
-    return null;
-  }
-
   if (step === 8) {
-    if (!data.interviewAvailability) {
-      return { field: 'interviewAvailability', message: 'Escolha uma opção para seguir.' };
-    }
+    if (!data.interviewAvailability) return { field: 'interviewAvailability', message: 'Escolha uma opção para seguir.' };
     if (data.interviewAvailability === 'yes') {
-      if (!data.contactValue.trim()) {
-        return { field: 'contactValue', message: 'Informe um WhatsApp ou email para contato.' };
-      }
-      const normalizedEmail = normalizeEmail(data.contactValue);
-      const normalizedWhatsapp = normalizeWhatsapp(data.contactValue);
-      const isValidContact =
-        EMAIL_REGEX.test(normalizedEmail) || WHATSAPP_REGEX.test(normalizedWhatsapp);
-      if (!isValidContact) {
-        return { field: 'contactValue', message: 'Use um WhatsApp com DDI ou email válido.' };
-      }
+      if (!data.contactValue.trim()) return { field: 'contactValue', message: 'Informe um WhatsApp ou email para contato.' };
+      const isValid = EMAIL_REGEX.test(normalizeEmail(data.contactValue)) || WHATSAPP_REGEX.test(normalizeWhatsapp(data.contactValue));
+      if (!isValid) return { field: 'contactValue', message: 'Use um WhatsApp com DDI ou email válido.' };
     }
     return null;
   }
-
   return null;
 }
+
+// ============================================================================
+// SUB-COMPONENTS
+// ============================================================================
 
 interface SelectionChipsProps {
   options: Option[];
@@ -357,58 +278,38 @@ interface SelectionChipsProps {
   compact?: boolean;
 }
 
-function SelectionChips({
-  options,
-  selectedValues,
-  onToggle,
-  maxSelections,
-  compact = false,
-}: SelectionChipsProps) {
-  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-  const otherOptionRef = useRef<HTMLButtonElement | null>(null);
-  const hasOtherSelected = selectedValues.includes('other');
-
+function SelectionChips({ options, selectedValues, onToggle, maxSelections, compact = false }: SelectionChipsProps) {
+  const otherRef = useRef<HTMLButtonElement | null>(null);
+  const hasOther = selectedValues.includes('other');
   useEffect(() => {
-    if (!hasOtherSelected) return;
-    otherOptionRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [hasOtherSelected, compact]);
+    if (!hasOther) return;
+    otherRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [hasOther, compact]);
 
-  const scrollAreaClassName = [
-    styles.optionsScrollArea,
-    compact ? styles.optionsScrollAreaCompact : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
   return (
     <div className={styles.optionsScrollFrame}>
-      <div className={scrollAreaClassName} ref={scrollAreaRef}>
+      <div className={compact ? `${styles.optionsScrollArea} ${styles.optionsScrollAreaCompact}` : styles.optionsScrollArea}>
         <div className={styles.chipContainer}>
-          {options.map((option) => {
-            const isSelected = selectedValues.includes(option.value);
-            const isDisabled =
-              !isSelected && typeof maxSelections === 'number' && selectedValues.length >= maxSelections;
-            const chipClassName = [
-              isSelected ? styles.chipActive : styles.chip,
-              option.value === 'other' ? styles.otherOptionAnchor : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
+          {options.map((opt) => {
+            const isSelected = selectedValues.includes(opt.value);
+            const isDisabled = !isSelected && typeof maxSelections === 'number' && selectedValues.length >= maxSelections;
             return (
               <button
-                key={option.value}
+                key={opt.value}
                 type="button"
-                ref={option.value === 'other' ? otherOptionRef : undefined}
-                className={chipClassName}
-                onClick={() => onToggle(option.value)}
+                ref={opt.value === 'other' ? otherRef : undefined}
+                className={[isSelected ? styles.chipActive : styles.chip, opt.value === 'other' ? styles.otherOptionAnchor : ''].filter(Boolean).join(' ')}
+                onClick={() => onToggle(opt.value)}
                 disabled={isDisabled}
                 aria-pressed={isSelected}
               >
-                <span>{option.label}</span>
+                <span>{opt.label}</span>
               </button>
             );
           })}
         </div>
       </div>
+      <div className={styles.optionsScrollFade} aria-hidden="true" />
     </div>
   );
 }
@@ -420,51 +321,33 @@ interface SelectionChecklistProps {
   compact?: boolean;
 }
 
-function SelectionChecklist({
-  options,
-  selectedValues,
-  onToggle,
-  compact = false,
-}: SelectionChecklistProps) {
-  const otherOptionRef = useRef<HTMLButtonElement | null>(null);
-  const hasOtherSelected = selectedValues.includes('other');
-
+function SelectionChecklist({ options, selectedValues, onToggle, compact = false }: SelectionChecklistProps) {
+  const otherRef = useRef<HTMLButtonElement | null>(null);
+  const hasOther = selectedValues.includes('other');
   useEffect(() => {
-    if (!hasOtherSelected) return;
-    otherOptionRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [hasOtherSelected, compact]);
+    if (!hasOther) return;
+    otherRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [hasOther, compact]);
 
-  const scrollAreaClassName = [
-    styles.optionsScrollArea,
-    compact ? styles.optionsScrollAreaCompact : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
   return (
     <div className={styles.optionsScrollFrame}>
-      <div className={scrollAreaClassName}>
+      <div className={compact ? `${styles.optionsScrollArea} ${styles.optionsScrollAreaCompact}` : styles.optionsScrollArea}>
         <div className={styles.checklist}>
-          {options.map((option) => {
-            const isSelected = selectedValues.includes(option.value);
-            const checklistItemClassName = [
-              styles.checklistItem,
-              option.value === 'other' ? styles.otherOptionAnchor : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
+          {options.map((opt) => {
+            const isSelected = selectedValues.includes(opt.value);
             return (
               <button
-                key={option.value}
+                key={opt.value}
                 type="button"
-                ref={option.value === 'other' ? otherOptionRef : undefined}
-                className={checklistItemClassName}
-                onClick={() => onToggle(option.value)}
+                ref={opt.value === 'other' ? otherRef : undefined}
+                className={[styles.checklistItem, opt.value === 'other' ? styles.otherOptionAnchor : ''].filter(Boolean).join(' ')}
+                onClick={() => onToggle(opt.value)}
                 aria-pressed={isSelected}
               >
                 <span className={isSelected ? styles.checkboxActive : styles.checkbox} aria-hidden="true">
                   {isSelected ? <Check size={14} weight="bold" /> : null}
                 </span>
-                <span className={styles.checklistLabel}>{option.label}</span>
+                <span className={styles.checklistLabel}>{opt.label}</span>
               </button>
             );
           })}
@@ -475,101 +358,98 @@ function SelectionChecklist({
   );
 }
 
-export function OnboardingWizard() {
-  const posthog = posthogClient;
+interface StepperDotsProps {
+  totalSteps: number;
+  currentStep: number;
+}
+
+function StepperDots({ totalSteps, currentStep }: StepperDotsProps) {
+  if (totalSteps === 0) return null;
+  const safe = Math.min(Math.max(currentStep, 0), totalSteps - 1);
+  return (
+    <div className={styles.stepper} role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={safe + 1} aria-label="Progresso das etapas">
+      {Array.from({ length: totalSteps }).map((_, i) => (
+        <span key={i} className={i === safe ? styles.stepActive : styles.step} aria-hidden="true" />
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+
+export function CriarConta() {
+  useForceTheme('light');
+
+  const navigate = useNavigate();
+  const { register } = useAuth();
+
   const formRef = useRef<HTMLFormElement | null>(null);
   const [step, setStep] = useState<StepIndex>(0);
   const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_DATA);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<ValidationErrorField | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Account creation state (step 10)
   const [accountPassword, setAccountPassword] = useState('');
-  const [accountPasswordVisible, setAccountPasswordVisible] = useState(false);
-  const [accountPasswordError, setAccountPasswordError] = useState<string | null>(null);
+  const [accountPasswordStrength, setAccountPasswordStrength] = useState(0);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
-  useEffect(() => {
-    posthog?.capture('onboarding_started', { step: 0, step_name: STEP_NAMES[0] });
-  }, []);
+  const showAccountStep = step === 10;
 
-  useEffect(() => {
-    if (step === 0 || step === 10) return;
-    posthog?.capture('onboarding_step_viewed', {
-      step,
-      step_name: STEP_NAMES[step] ?? `step_${step}`,
-    });
-  }, [step]);
-
-  const generatedMemory = useMemo(
-    () => buildMemorySeed(formData),
-    [
-      formData.name,
-      formData.areas,
-      formData.areasOther,
-      formData.taskOrigins,
-      formData.taskOriginsOther,
-      formData.trackingMethods,
-      formData.trackingMethodsOther,
-      formData.painPoints,
-      formData.painPointsOther,
-      formData.desiredCapabilities,
-      formData.desiredCapabilitiesOther,
-      formData.idealOutcomeText,
-    ]
-  );
-
-  const showSuccessState = step === 10;
   const normalizedWhatsappContact = normalizeWhatsapp(formData.contactValue);
   const shouldShowBroadcastStep =
     formData.interviewAvailability === 'yes' && WHATSAPP_REGEX.test(normalizedWhatsappContact);
   const isFinalStep = step === (shouldShowBroadcastStep ? 9 : 8);
   const totalFormSteps = shouldShowBroadcastStep ? BASE_FORM_STEPS + 1 : BASE_FORM_STEPS;
 
-  const hasError = (field: ValidationErrorField): boolean => errorField === field && !!errorMessage;
-  const getInputClassName = (field: ValidationErrorField): string =>
+  const generatedMemory = useMemo(
+    () => buildMemorySeed(formData),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      formData.name, formData.areas, formData.areasOther, formData.taskOrigins,
+      formData.taskOriginsOther, formData.trackingMethods, formData.trackingMethodsOther,
+      formData.painPoints, formData.painPointsOther, formData.desiredCapabilities,
+      formData.desiredCapabilitiesOther, formData.idealOutcomeText,
+    ]
+  );
+
+  const hasError = (field: ValidationErrorField) => errorField === field && !!errorMessage;
+  const getInputClass = (field: ValidationErrorField) =>
     hasError(field) ? `${styles.input} ${styles.inputError}` : styles.input;
-  const getTextareaClassName = (field: ValidationErrorField): string =>
+  const getTextareaClass = (field: ValidationErrorField) =>
     hasError(field) ? `${styles.textarea} ${styles.textareaError}` : styles.textarea;
 
   const updateField = <T extends keyof OnboardingFormData>(field: T, value: OnboardingFormData[T]) => {
-    if (errorField && errorField !== 'form') {
-      setErrorMessage(null);
-      setErrorField(null);
-    }
-    setFormData((previous) => ({ ...previous, [field]: value }));
+    if (errorField && errorField !== 'form') { setErrorMessage(null); setErrorField(null); }
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const toggleSelection = (
-    field: SelectionField,
-    value: string,
-    maxSelections?: number
-  ) => {
-    if (errorField && errorField !== 'form') {
-      setErrorMessage(null);
-      setErrorField(null);
-    }
-    setFormData((previous) => {
-      const currentValues = previous[field];
-      const hasValue = currentValues.includes(value);
-      let nextValues: string[];
-
-      if (hasValue) {
-        nextValues = currentValues.filter((item) => item !== value);
-      } else if (typeof maxSelections === 'number' && currentValues.length >= maxSelections) {
-        return previous;
+  const toggleSelection = (field: SelectionField, value: string, maxSelections?: number) => {
+    if (errorField && errorField !== 'form') { setErrorMessage(null); setErrorField(null); }
+    setFormData((prev) => {
+      const current = prev[field];
+      const has = current.includes(value);
+      let next: string[];
+      if (has) {
+        next = current.filter((v) => v !== value);
+      } else if (typeof maxSelections === 'number' && current.length >= maxSelections) {
+        return prev;
       } else {
-        nextValues = [...currentValues, value];
+        next = [...current, value];
       }
-
-      const nextState: OnboardingFormData = { ...previous, [field]: nextValues };
-      if (value !== 'other' || nextValues.includes('other')) return nextState;
-
+      const nextState: OnboardingFormData = { ...prev, [field]: next };
+      if (value !== 'other' || next.includes('other')) return nextState;
       if (field === 'areas') nextState.areasOther = '';
       if (field === 'taskOrigins') nextState.taskOriginsOther = '';
       if (field === 'trackingMethods') nextState.trackingMethodsOther = '';
       if (field === 'painPoints') nextState.painPointsOther = '';
       if (field === 'desiredCapabilities') nextState.desiredCapabilitiesOther = '';
-
       return nextState;
     });
   };
@@ -578,20 +458,19 @@ export function OnboardingWizard() {
     setIsSubmitting(true);
     setErrorMessage(null);
     setErrorField(null);
-
     try {
       const normalizedContact = formData.contactValue.trim();
-      const normalizedEmail = normalizeEmail(normalizedContact);
+      const normalizedEmailContact = normalizeEmail(normalizedContact);
       const normalizedWhatsapp = normalizeWhatsapp(normalizedContact);
-      const contactType = EMAIL_REGEX.test(normalizedEmail)
+      const contactType = EMAIL_REGEX.test(normalizedEmailContact)
         ? 'email'
         : WHATSAPP_REGEX.test(normalizedWhatsapp)
           ? 'whatsapp'
           : null;
 
       const payload = {
-        flowVersion: 'figma-onboarding-v1',
-        source: 'marketing-onboarding',
+        flowVersion: 'web-onboarding-v1',
+        source: 'web-onboarding',
         name: formData.name.trim(),
         email: normalizeEmail(formData.email),
         areas: formData.areas,
@@ -614,7 +493,7 @@ export function OnboardingWizard() {
         memorySeedText: generatedMemory,
       };
 
-      const response = await fetch('/api/early-access', {
+      const response = await fetch(`${API_URL}/api/early-access`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -622,27 +501,13 @@ export function OnboardingWizard() {
 
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        posthog?.capture('onboarding_submit_failed', {
-          reason: data.error ?? 'api_error',
-          status_code: response.status,
-        });
         setErrorMessage(data.error || 'Não foi possível enviar sua solicitação agora.');
         setErrorField('form');
         return;
       }
 
-      posthog?.capture('onboarding_completed', {
-        areas: formData.areas,
-        pain_points: formData.painPoints,
-        desired_capabilities: formData.desiredCapabilities,
-        interview_availability: formData.interviewAvailability,
-        wants_broadcast_updates: formData.wantsBroadcastUpdates,
-        total_steps_completed: shouldShowBroadcastStep ? 10 : 9,
-      });
       setStep(10);
-    } catch (error) {
-      console.error('Onboarding submit error:', error);
-      posthog?.capture('onboarding_submit_failed', { reason: 'network_error' });
+    } catch {
       setErrorMessage('Não foi possível enviar sua solicitação agora.');
       setErrorField('form');
     } finally {
@@ -651,31 +516,25 @@ export function OnboardingWizard() {
   };
 
   const handleCreateAccount = async () => {
-    if (accountPassword.length < 8) {
-      setAccountPasswordError('A senha deve ter pelo menos 8 caracteres.');
+    if (accountPasswordStrength < 2) {
+      setAccountError('Por favor, escolha uma senha mais forte.');
       return;
     }
-    setAccountPasswordError(null);
+    setAccountError(null);
     setIsCreatingAccount(true);
     try {
-      const response = await fetch('https://app.jarvi.life/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name.trim(),
-          email: normalizeEmail(formData.email),
-          password: accountPassword,
-        }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) {
-        setAccountPasswordError(data.error || 'Não foi possível criar sua conta agora.');
-        return;
+      const result = await register(
+        normalizeEmail(formData.email),
+        formData.name.trim(),
+        accountPassword,
+      );
+      if (result.pendingVerification) {
+        navigate('/verify-pending', { state: { email: result.email } });
+      } else {
+        navigate('/');
       }
-      posthog?.capture('account_created', { email: normalizeEmail(formData.email) });
-      window.location.href = 'https://app.jarvi.life/';
-    } catch {
-      setAccountPasswordError('Não foi possível criar sua conta agora.');
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : 'Não foi possível criar sua conta agora.');
     } finally {
       setIsCreatingAccount(false);
     }
@@ -683,59 +542,47 @@ export function OnboardingWizard() {
 
   const handleContinue = async () => {
     if (isSubmitting) return;
-
     const validationError = getStepError(step, formData);
     if (validationError) {
       setErrorMessage(validationError.message);
       setErrorField(validationError.field);
       return;
     }
-
     setErrorMessage(null);
     setErrorField(null);
-
-    posthog?.capture('onboarding_step_completed', {
-      step,
-      step_name: STEP_NAMES[step] ?? `step_${step}`,
-    });
-
-    if (step === 1) {
-      const email = normalizeEmail(formData.email);
-      posthog?.identify(email, { name: formData.name.trim(), email });
-    }
-
     if (isFinalStep) {
       await submitOnboarding();
       return;
     }
-
-    setStep((previous) => (previous + 1) as StepIndex);
+    setStep((prev) => (prev + 1) as StepIndex);
   };
 
-  const handleFormSubmit = (event: ReactFormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleFormSubmit = (e: ReactFormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     void handleContinue();
   };
 
-  const handleFormKeyDown = (event: ReactKeyboardEvent<HTMLFormElement>) => {
-    if (event.key !== 'Enter') return;
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    if (event.nativeEvent.isComposing || event.repeat) return;
-
-    const target = event.target;
+  const handleFormKeyDown = (e: ReactKeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.nativeEvent.isComposing || e.repeat) return;
+    const target = e.target;
     if (!(target instanceof HTMLElement)) return;
     if (target.tagName === 'TEXTAREA' || target.tagName === 'A') return;
-
-    event.preventDefault();
+    e.preventDefault();
     formRef.current?.requestSubmit();
   };
 
+  // ============================================================================
+  // RENDER STEPS
+  // ============================================================================
+
   const renderStep = () => {
-    if (showSuccessState) {
+    if (showAccountStep) {
       const firstName = formData.name.trim().split(/\s+/)[0] ?? '';
       const displayFirstName = capitalizeFirstLetter(firstName);
       return (
-        <div className={styles.accountFormContent}>
+        <div className={styles.accountStep}>
           <div className={styles.questionBlock}>
             <h1>
               {displayFirstName ? `Quase lá, ${displayFirstName}!` : 'Quase lá!'}
@@ -743,6 +590,7 @@ export function OnboardingWizard() {
               Crie sua senha.
             </h1>
           </div>
+
           <div className={styles.fieldBlock}>
             <input
               className={styles.input}
@@ -753,52 +601,48 @@ export function OnboardingWizard() {
               aria-label="Email"
             />
           </div>
+
           <div className={styles.fieldBlock}>
-            {accountPasswordError && (
-              <label className={`${styles.label} ${styles.labelError}`}>
-                {accountPasswordError}
-              </label>
-            )}
-            <div className={styles.passwordWrapper}>
-              <input
-                className={`${styles.input} ${accountPasswordError ? styles.inputError : ''} ${styles.inputWithIcon}`}
-                type={accountPasswordVisible ? 'text' : 'password'}
-                value={accountPassword}
-                onChange={(event) => {
-                  setAccountPassword(event.target.value);
-                  if (accountPasswordError) setAccountPasswordError(null);
-                }}
-                placeholder="Mínimo de 8 caracteres"
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                className={styles.passwordToggle}
-                onClick={() => setAccountPasswordVisible((v) => !v)}
-                aria-label={accountPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'}
-              >
-                {accountPasswordVisible
-                  ? <EyeSlash size={20} weight="regular" aria-hidden="true" />
-                  : <Eye size={20} weight="regular" aria-hidden="true" />}
-              </button>
-            </div>
+            <PasswordInput
+              id="account-password"
+              name="password"
+              label=""
+              autoComplete="new-password"
+              required
+              value={accountPassword}
+              onChange={(e) => {
+                setAccountPassword(e.target.value);
+                if (accountError) setAccountError(null);
+              }}
+              placeholder="Mínimo de 8 caracteres"
+              showStrengthMeter
+              minStrength={2}
+              onStrengthChange={setAccountPasswordStrength}
+              userInputs={[normalizeEmail(formData.email), formData.name]}
+              helperText="Mínimo de 8 caracteres"
+            />
           </div>
+
+          {accountError && <p className={styles.errorMessage}>{accountError}</p>}
+
           <Button
             type="button"
             variant="primary"
-            size="lg"
-            className={`${styles.actionButton} ${isCreatingAccount ? styles.actionButtonDisabled : ''}`}
+            size="medium"
+            fullWidth
             disabled={isCreatingAccount}
+            loading={isCreatingAccount}
             onClick={() => { void handleCreateAccount(); }}
           >
-            {isCreatingAccount ? 'Criando conta...' : 'Criar conta'}
+            Criar conta
           </Button>
-          <p className={styles.alreadyHaveAccount}>
-            Já tem uma conta?{' '}
-            <a href="https://app.jarvi.life/" target="_blank" rel="noreferrer">
+
+          <div className={styles.footer}>
+            <span>Já tem uma conta?</span>
+            <button type="button" className={styles.footerLink} onClick={() => navigate('/login')}>
               Entrar
-            </a>
-          </p>
+            </button>
+          </div>
         </div>
       );
     }
@@ -814,11 +658,12 @@ export function OnboardingWizard() {
               <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
             )}
             <input
-              className={getInputClassName('name')}
+              className={getInputClass('name')}
               value={formData.name}
-              onChange={(event) => updateField('name', event.target.value)}
+              onChange={(e) => updateField('name', e.target.value)}
               placeholder="Digite aqui..."
               autoComplete="name"
+              autoFocus
             />
           </div>
         </>
@@ -832,7 +677,7 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>
-              {displayFirstName ? `Olá, ${displayFirstName}! 👋` : 'Olá, 👋!'}
+              {displayFirstName ? `Olá, ${displayFirstName}! 👋` : 'Olá! 👋'}
               <br />
               Qual seu email?
             </h1>
@@ -842,9 +687,9 @@ export function OnboardingWizard() {
               <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
             )}
             <input
-              className={getInputClassName('email')}
+              className={getInputClass('email')}
               value={formData.email}
-              onChange={(event) => updateField('email', event.target.value)}
+              onChange={(e) => updateField('email', e.target.value)}
               placeholder="Digite aqui..."
               autoComplete="email"
               inputMode="email"
@@ -859,14 +704,12 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>Quais áreas da sua vida você quer organizar?</h1>
-            {hasError('areas') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            {hasError('areas') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
           </div>
           <SelectionChips
             options={AREA_OPTIONS}
             selectedValues={formData.areas}
-            onToggle={(value) => toggleSelection('areas', value)}
+            onToggle={(v) => toggleSelection('areas', v)}
             compact={formData.areas.includes('other')}
           />
           {formData.areas.includes('other') && (
@@ -875,9 +718,9 @@ export function OnboardingWizard() {
                 <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
               )}
               <input
-                className={getInputClassName('areasOther')}
+                className={getInputClass('areasOther')}
                 value={formData.areasOther}
-                onChange={(event) => updateField('areasOther', event.target.value)}
+                onChange={(e) => updateField('areasOther', e.target.value)}
                 placeholder="Ex: viagens, hobbies, casa, pets..."
               />
             </div>
@@ -891,14 +734,12 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>Como as suas tarefas aparecem no seu dia?</h1>
-            {hasError('taskOrigins') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            {hasError('taskOrigins') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
           </div>
           <SelectionChips
             options={TASK_ORIGIN_OPTIONS}
             selectedValues={formData.taskOrigins}
-            onToggle={(value) => toggleSelection('taskOrigins', value)}
+            onToggle={(v) => toggleSelection('taskOrigins', v)}
             compact={formData.taskOrigins.includes('other')}
           />
           {formData.taskOrigins.includes('other') && (
@@ -907,9 +748,9 @@ export function OnboardingWizard() {
                 <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
               )}
               <input
-                className={getInputClassName('taskOriginsOther')}
+                className={getInputClass('taskOriginsOther')}
                 value={formData.taskOriginsOther}
-                onChange={(event) => updateField('taskOriginsOther', event.target.value)}
+                onChange={(e) => updateField('taskOriginsOther', e.target.value)}
                 placeholder="Conte de onde essas tarefas também surgem..."
               />
             </div>
@@ -923,14 +764,12 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>Como você registra e acompanha as suas tarefas?</h1>
-            {hasError('trackingMethods') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            {hasError('trackingMethods') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
           </div>
           <SelectionChips
             options={TRACKING_METHOD_OPTIONS}
             selectedValues={formData.trackingMethods}
-            onToggle={(value) => toggleSelection('trackingMethods', value)}
+            onToggle={(v) => toggleSelection('trackingMethods', v)}
             compact={formData.trackingMethods.includes('other')}
           />
           {formData.trackingMethods.includes('other') && (
@@ -939,9 +778,9 @@ export function OnboardingWizard() {
                 <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
               )}
               <input
-                className={getInputClassName('trackingMethodsOther')}
+                className={getInputClass('trackingMethodsOther')}
                 value={formData.trackingMethodsOther}
-                onChange={(event) => updateField('trackingMethodsOther', event.target.value)}
+                onChange={(e) => updateField('trackingMethodsOther', e.target.value)}
                 placeholder="Descreva seu método atual..."
               />
             </div>
@@ -955,14 +794,12 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>Quais desses problemas você se identifica?</h1>
-            {hasError('painPoints') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            {hasError('painPoints') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
           </div>
           <SelectionChecklist
             options={PAIN_POINT_OPTIONS}
             selectedValues={formData.painPoints}
-            onToggle={(value) => toggleSelection('painPoints', value)}
+            onToggle={(v) => toggleSelection('painPoints', v)}
             compact={formData.painPoints.includes('other')}
           />
           {formData.painPoints.includes('other') && (
@@ -971,9 +808,9 @@ export function OnboardingWizard() {
                 <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
               )}
               <input
-                className={getInputClassName('painPointsOther')}
+                className={getInputClass('painPointsOther')}
                 value={formData.painPointsOther}
-                onChange={(event) => updateField('painPointsOther', event.target.value)}
+                onChange={(e) => updateField('painPointsOther', e.target.value)}
                 placeholder="Conte mais sobre esse desafio..."
               />
             </div>
@@ -987,14 +824,12 @@ export function OnboardingWizard() {
         <>
           <div className={styles.questionBlock}>
             <h1>Quais dessas opções você gostaria que a Jarvi fizesse?</h1>
-            {hasError('desiredCapabilities') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            {hasError('desiredCapabilities') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
           </div>
           <SelectionChecklist
             options={DESIRED_CAPABILITY_OPTIONS}
             selectedValues={formData.desiredCapabilities}
-            onToggle={(value) => toggleSelection('desiredCapabilities', value)}
+            onToggle={(v) => toggleSelection('desiredCapabilities', v)}
             compact={formData.desiredCapabilities.includes('other')}
           />
           {formData.desiredCapabilities.includes('other') && (
@@ -1003,9 +838,9 @@ export function OnboardingWizard() {
                 <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
               )}
               <input
-                className={getInputClassName('desiredCapabilitiesOther')}
+                className={getInputClass('desiredCapabilitiesOther')}
                 value={formData.desiredCapabilitiesOther}
-                onChange={(event) => updateField('desiredCapabilitiesOther', event.target.value)}
+                onChange={(e) => updateField('desiredCapabilitiesOther', e.target.value)}
                 placeholder="Descreva o que você espera..."
               />
             </div>
@@ -1025,9 +860,9 @@ export function OnboardingWizard() {
               <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
             )}
             <textarea
-              className={getTextareaClassName('idealOutcomeText')}
+              className={getTextareaClass('idealOutcomeText')}
               value={formData.idealOutcomeText}
-              onChange={(event) => updateField('idealOutcomeText', event.target.value)}
+              onChange={(e) => updateField('idealOutcomeText', e.target.value)}
               placeholder="Conte em uma ou duas frases. Sua resposta ajuda muito a melhorar o produto."
             />
           </div>
@@ -1039,30 +874,25 @@ export function OnboardingWizard() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>Topa conversar com com a gente para melhorar o app?</h1>
-            {hasError('interviewAvailability') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
+            <h1>Topa conversar com a gente para melhorar o app?</h1>
+            {hasError('interviewAvailability') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
           </div>
           <div className={styles.chipContainer}>
-            {INTERVIEW_OPTIONS.map((option) => {
-              const isSelected = formData.interviewAvailability === option.value;
+            {INTERVIEW_OPTIONS.map((opt) => {
+              const isSelected = formData.interviewAvailability === opt.value;
               return (
                 <button
-                  key={option.value}
+                  key={opt.value}
                   type="button"
                   className={isSelected ? styles.chipActive : styles.chip}
-                  onClick={() =>
-                    updateField('interviewAvailability', option.value as InterviewAvailability)
-                  }
+                  onClick={() => updateField('interviewAvailability', opt.value as InterviewAvailability)}
                   aria-pressed={isSelected}
                 >
-                  <span>{option.label}</span>
+                  <span>{opt.label}</span>
                 </button>
               );
             })}
           </div>
-
           {formData.interviewAvailability === 'yes' && (
             <div className={styles.fieldBlock}>
               <label
@@ -1073,9 +903,9 @@ export function OnboardingWizard() {
               </label>
               <input
                 id="contactInput"
-                className={getInputClassName('contactValue')}
+                className={getInputClass('contactValue')}
                 value={formData.contactValue}
-                onChange={(event) => updateField('contactValue', event.target.value)}
+                onChange={(e) => updateField('contactValue', e.target.value)}
                 placeholder="Digite aqui..."
                 autoComplete="tel"
               />
@@ -1089,7 +919,7 @@ export function OnboardingWizard() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>Último passo</h1>
+            <h1>Último passo antes de criar sua conta</h1>
             <p>Quer receber novidades e melhorias da Jarvi no WhatsApp? Sem spam. Só o que importa.</p>
           </div>
           <button
@@ -1098,15 +928,10 @@ export function OnboardingWizard() {
             onClick={() => updateField('wantsBroadcastUpdates', !formData.wantsBroadcastUpdates)}
             aria-pressed={formData.wantsBroadcastUpdates}
           >
-            <span
-              className={formData.wantsBroadcastUpdates ? styles.checkboxActive : styles.checkbox}
-              aria-hidden="true"
-            >
+            <span className={formData.wantsBroadcastUpdates ? styles.checkboxActive : styles.checkbox} aria-hidden="true">
               {formData.wantsBroadcastUpdates ? <Check size={14} weight="bold" /> : null}
             </span>
-            <span className={styles.checkboxRowText}>
-              Sim, receber atualizações no WhatsApp
-            </span>
+            <span className={styles.checkboxRowText}>Sim, receber atualizações no WhatsApp</span>
           </button>
         </>
       );
@@ -1115,77 +940,56 @@ export function OnboardingWizard() {
     return null;
   };
 
-  const actionLabel = isSubmitting ? 'Enviando...' : 'Continuar';
+  const STEP_NAMES_KEYS = STEP_NAMES;
+  void STEP_NAMES_KEYS;
 
   return (
-    <main className={styles.page}>
-      <img
-        src="/assets/images/hero.avif"
-        alt=""
-        aria-hidden="true"
-        className={styles.bgImage}
-      />
-      <div className={styles.bgOverlay} />
+    <div className={styles.container}>
+      <div className={styles.panel}>
+        <Logo className={styles.logo} />
 
-      <div className={styles.content}>
-        <section className={styles.panel}>
-          {!showSuccessState && (
-            <div className={styles.logo}>
-              <img
-                src="/assets/icons/logo-icon.svg"
-                alt=""
-                aria-hidden="true"
-                width={28}
-                height={33}
-              />
-            </div>
-          )}
-
-          {!showSuccessState ? (
-            <form
-              ref={formRef}
-              className={styles.form}
-              onKeyDown={handleFormKeyDown}
-              onSubmit={handleFormSubmit}
+        {!showAccountStep ? (
+          <form
+            ref={formRef}
+            className={styles.form}
+            onKeyDown={handleFormKeyDown}
+            onSubmit={handleFormSubmit}
+          >
+            {errorMessage && errorField === 'form' && (
+              <p className={styles.errorMessage}>{errorMessage}</p>
+            )}
+            <div className={styles.stepContent}>{renderStep()}</div>
+            <Button
+              type="submit"
+              variant={isFinalStep ? 'primary' : 'secondary'}
+              size="medium"
+              fullWidth
+              disabled={isSubmitting}
+              loading={isSubmitting}
             >
-              {errorMessage && errorField === 'form' && (
-                <p className={styles.errorMessage}>{errorMessage}</p>
-              )}
-              <div className={styles.stepContent}>{renderStep()}</div>
-              <Button
-                type="submit"
-                variant={isFinalStep ? 'primary' : 'secondary'}
-                size="lg"
-                className={`${styles.actionButton} ${isSubmitting ? styles.actionButtonDisabled : ''}`}
-                disabled={isSubmitting}
-              >
-                {actionLabel}
-              </Button>
-              {isFinalStep && (
-                <p className={styles.termsCopy}>
-                  Ao concluir, você concorda com nossos{' '}
-                  <a href="/termos-de-uso" target="_blank" rel="noreferrer">
-                    Termos de Uso
-                  </a>{' '}
-                  &{' '}
-                  <a href="/politica-de-privacidade" target="_blank" rel="noreferrer">
-                    Política de Privacidade
-                  </a>
-                  .
-                </p>
-              )}
-              <Stepper
-                totalSteps={totalFormSteps}
-                currentStep={step}
-                className={styles.progress}
-              />
-            </form>
-          ) : (
-            renderStep()
-          )}
-        </section>
+              {isSubmitting ? 'Enviando...' : 'Continuar'}
+            </Button>
+            {isFinalStep && (
+              <p className={styles.termsCopy}>
+                Ao concluir, você concorda com nossos{' '}
+                <a href="https://jarvi.life/termos-de-uso" target="_blank" rel="noreferrer">
+                  Termos de Uso
+                </a>{' '}
+                &{' '}
+                <a href="https://jarvi.life/politica-de-privacidade" target="_blank" rel="noreferrer">
+                  Política de Privacidade
+                </a>
+                .
+              </p>
+            )}
+            <StepperDots totalSteps={totalFormSteps} currentStep={step} />
+          </form>
+        ) : (
+          renderStep()
+        )}
       </div>
-    </main>
+    </div>
   );
 }
 
+export default CriarConta;

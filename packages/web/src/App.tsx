@@ -27,6 +27,7 @@ const VerifyPendingPage = lazy(() => import('./pages/VerifyPending'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPassword'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPassword'));
+const CriarContaPage = lazy(() => import('./pages/CriarConta'));
 
 
 // Protected Route Component
@@ -65,6 +66,14 @@ function AppSwitch() {
     <Routes location={location}>
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
+      <Route
+        path="/criar-conta"
+        element={
+          <Suspense fallback={<Loading centered size="lg" />}>
+            <CriarContaPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/verify-pending"
         element={

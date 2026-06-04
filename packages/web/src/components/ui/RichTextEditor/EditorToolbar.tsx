@@ -34,14 +34,7 @@ const HEADING_OPTIONS = [
   { label: 'Título 3', level: 3, shortcut: '⌘⌥3', className: styles.headingH3 },
 ];
 
-const ICON_SIZE = 16;
-
-function getCurrentHeadingLabel(editor: Editor): string {
-  for (let i = 1; i <= 3; i++) {
-    if (editor.isActive('heading', { level: i })) return `Título ${i}`;
-  }
-  return 'Texto';
-}
+const ICON_SIZE = 20;
 
 function normalizeUrl(value: string): string {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value) ? value : `https://${value}`;
@@ -76,9 +69,9 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
 
   const toolbarButtonClassName = useCallback((isActive = false, isDisabled = false) => {
     return [
-      styles.toolbarBtn,
-      isActive ? styles.active : '',
-      isDisabled ? styles.toolbarBtnDisabled : '',
+      styles.floatingToolbarBtn,
+      isActive ? styles.floatingToolbarBtnActive : '',
+      isDisabled ? styles.floatingToolbarBtnDisabled : '',
     ].filter(Boolean).join(' ');
   }, []);
 
@@ -214,16 +207,16 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
     // Prevent mousedown from stealing focus away from the editor while still
     // allowing focus inside the link input.
     <div
-      className={styles.toolbar}
+      className={styles.floatingToolbar}
       onMouseDown={handleToolbarMouseDown}
       role="toolbar"
       aria-label="Barra de formatação"
     >
-      {/* Heading picker */}
+      {/* Font / Heading picker */}
       <div className={styles.headingPickerWrapper} ref={headingRef}>
         <button
           type="button"
-          className={`${styles.toolbarBtnWide} ${editor.isActive('heading') ? styles.active : ''}`}
+          className={`${styles.fontPickerBtn} ${editor.isActive('heading') ? styles.fontPickerBtnActive : ''}`}
           onClick={() => {
             const rect = headingRef.current?.getBoundingClientRect();
             if (rect) setHeadingMenuPos({ top: rect.bottom + 4, left: rect.left });
@@ -236,8 +229,8 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
           aria-expanded={showHeadingMenu}
           aria-haspopup="menu"
         >
-          <span>{getCurrentHeadingLabel(editor)}</span>
-          <CaretDown size={ICON_SIZE} weight="bold" className={styles.toolbarIcon} />
+          <span>Aa</span>
+          <CaretDown size={16} weight="bold" />
         </button>
       </div>
 
@@ -283,7 +276,7 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         aria-label="Negrito"
         aria-pressed={editor.isActive('bold')}
       >
-        <TextB size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+        <TextB size={ICON_SIZE} weight="regular" />
       </button>
 
       {/* Italic */}
@@ -295,8 +288,22 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         aria-label="Italico"
         aria-pressed={editor.isActive('italic')}
       >
-        <TextItalic size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+        <TextItalic size={ICON_SIZE} weight="regular" />
       </button>
+
+      {/* Strikethrough */}
+      <button
+        type="button"
+        className={toolbarButtonClassName(editor.isActive('strike'))}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        title="Tachado"
+        aria-label="Tachado"
+        aria-pressed={editor.isActive('strike')}
+      >
+        <TextStrikethrough size={ICON_SIZE} weight="regular" />
+      </button>
+
+      <div className={styles.floatingToolbarDivider} />
 
       {/* Link */}
       <div className={styles.linkDialogAnchor} ref={linkWrapperRef}>
@@ -310,7 +317,7 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
           aria-haspopup="dialog"
           aria-pressed={editor.isActive('link')}
         >
-          <LinkSimple size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+          <LinkSimple size={ICON_SIZE} weight="regular" />
         </button>
       </div>
 
@@ -358,8 +365,6 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         document.body,
       )}
 
-      <div className={styles.toolbarDivider} />
-
       {/* Ordered list */}
       <button
         type="button"
@@ -369,7 +374,7 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         aria-label="Lista numerada"
         aria-pressed={editor.isActive('orderedList')}
       >
-        <ListNumbers size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+        <ListNumbers size={ICON_SIZE} weight="regular" />
       </button>
 
       {/* Bullet list */}
@@ -381,19 +386,19 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         aria-label="Lista com marcadores"
         aria-pressed={editor.isActive('bulletList')}
       >
-        <ListBullets size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+        <ListBullets size={ICON_SIZE} weight="regular" />
       </button>
 
-      <div className={styles.toolbarDivider} />
+      <div className={styles.floatingToolbarDivider} />
 
       <button
         type="button"
-        className={styles.toolbarBtn}
+        className={toolbarButtonClassName()}
         onClick={onFileUpload}
         title="Anexar arquivo"
         aria-label="Anexar arquivo"
       >
-        <Paperclip size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+        <Paperclip size={ICON_SIZE} weight="regular" />
       </button>
 
       {/* Task list */}
@@ -405,7 +410,7 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         aria-label="Itens de ação"
         aria-pressed={editor.isActive('taskList')}
       >
-        <CheckSquare size={ICON_SIZE} weight="regular" className={styles.toolbarIcon} />
+        <CheckSquare size={ICON_SIZE} weight="regular" />
       </button>
 
       <div className={styles.moreMenuAnchor} ref={moreMenuRef}>
@@ -424,7 +429,7 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
           aria-haspopup="menu"
           aria-expanded={showMoreMenu}
         >
-          <DotsThree size={ICON_SIZE} weight="bold" className={styles.toolbarIcon} />
+          <DotsThree size={ICON_SIZE} weight="bold" />
         </button>
       </div>
 
