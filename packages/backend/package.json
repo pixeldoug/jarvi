@@ -48,6 +48,9 @@
     "uuid": "^9.0.1",
     "zxcvbn": "^4.4.2"
   },
+  "overrides": {
+    "google-auth-library": "^10.3.0"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
