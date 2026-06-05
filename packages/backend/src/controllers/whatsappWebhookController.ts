@@ -121,10 +121,10 @@ export const receiveMessage = async (req: Request, res: Response): Promise<void>
         );
         // Quick acknowledgment for text-only messages so the user knows
         // we received the message while the agent processes (~2-4s).
-        // Audio/image messages already display their own "⏳ Processando..."
+        // Audio/image messages already display their own "⏳ Pensando..."
         // status from inside the worker.
         if (isFirstInBurst && numMedia === 0) {
-          sendTextMessage(from, 'Processando...').catch(() => {});
+          sendTextMessage(from, 'Pensando...').catch(() => {});
         }
       } catch (queueError) {
         console.error(
