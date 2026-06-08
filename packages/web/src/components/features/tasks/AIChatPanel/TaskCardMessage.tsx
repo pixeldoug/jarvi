@@ -9,6 +9,14 @@ const PRIORITY_LABELS: Record<string, string> = {
   high: 'Urgente',
 };
 
+function normalizeTime(time?: string): string {
+  if (!time) return '';
+  const trimmed = time.trim();
+  const lower = trimmed.toLowerCase();
+  if (!trimmed || lower === 'null' || lower === 'undefined') return '';
+  return trimmed;
+}
+
 function formatDueDate(raw: string): string {
   if (!raw) return '';
   // Parse YYYY-MM-DD safely (avoid timezone shifts from new Date(string))
@@ -47,6 +55,7 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
   const priority = String(data.priority || toolCall.toolArgs.priority || '');
   const dueDate = String(data.due_date || toolCall.toolArgs.due_date || '');
   const category = String(data.category || toolCall.toolArgs.category || '');
+  const time = normalizeTime(String(data.time || toolCall.toolArgs.time || ''));
 
   if (!title && !isCompleted) return null;
 
@@ -55,6 +64,13 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
   };
 
   const formattedDate = formatDueDate(dueDate);
+  // Match the tasklist / details formatting: "9 Jun, 10:35" / "Amanhã, 10:35".
+  // Fall back to showing just the time when a time is set without a date.
+  const dateChipLabel = formattedDate
+    ? time
+      ? `${formattedDate}, ${time}`
+      : formattedDate
+    : time;
   const priorityLabel = PRIORITY_LABELS[priority] || priority;
 
   return (
@@ -76,11 +92,11 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
         </span>
       </div>
 
-      {(formattedDate || category || priorityLabel) && (
+      {(dateChipLabel || category || priorityLabel) && (
         <div className={styles.taskCardChips}>
-          {formattedDate && (
+          {dateChipLabel && (
             <Chip
-              label={formattedDate}
+              label={dateChipLabel}
               icon={<Calendar weight="regular" />}
               size="medium"
               active

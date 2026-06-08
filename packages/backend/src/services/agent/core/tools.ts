@@ -12,7 +12,7 @@
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
-import { sanitizeTimeString } from '../../../utils/taskTime';
+import { sanitizeTimeString, extractTimeFromText } from '../../../utils/taskTime';
 import { hasIO, getIO } from '../../../utils/ioManager';
 import {
   fetchRecentEmails,
@@ -65,7 +65,11 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
             description:
               'Data de vencimento no formato YYYY-MM-DD. Converta prazos relativos como "amanhã", "em até 7 dias", "antes de 7 dias" usando o calendário atual.',
           },
-          time: { type: 'string', description: 'Horário no formato HH:MM' },
+          time: {
+            type: 'string',
+            description:
+              'Horário no formato HH:MM (24h). SEMPRE extraia e converta horários ditos pelo usuário: "13h30"→"13:30", "9h"→"09:00", "9h45"→"09:45", "às 14h"→"14:00", "1h30 da tarde"→"13:30", "meio-dia"→"12:00", "meia-noite"→"00:00". NÃO confunda com durações ("em 2h", "por 3h").',
+          },
           category: { type: 'string', description: 'Categoria da tarefa' },
         },
         required: ['title'],
@@ -99,7 +103,8 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           },
           time: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
-            description: 'Horário no formato HH:MM, ou null para remover o horário',
+            description:
+              'Horário no formato HH:MM (24h), ou null para remover o horário. Converta formatos ditos pelo usuário: "13h30"→"13:30", "9h"→"09:00", "às 14h"→"14:00", "meio-dia"→"12:00".',
           },
           category: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
@@ -432,7 +437,10 @@ async function executeCreateTask(
   const description = args.description ? String(args.description) : null;
   const priority = args.priority ? String(args.priority) : null;
   const dueDate = args.due_date ? String(args.due_date) : null;
-  const time = sanitizeTimeString(args.time);
+  // Deterministic safety net: if the model failed to extract the time, try to
+  // recover it from the original user message ("quarta 13h30" → "13:30").
+  const time =
+    sanitizeTimeString(args.time) ?? extractTimeFromText(ctx.originalUserMessage);
   const category = args.category ? String(args.category) : null;
 
   const source = profile.id === 'whatsapp' ? 'whatsapp' : 'manual';
