@@ -18,7 +18,7 @@ import {
   reconcileMemory,
 } from '../core/memory';
 import { buildSystemPrompt, buildTaskFocusedPrompt, buildWebExtras } from '../core/prompt';
-import { runAgent } from '../core/runAgent';
+import { runAgent, isRateLimitError } from '../core/runAgent';
 import {
   getCompletedTaskCount,
   getTaskById,
@@ -220,8 +220,11 @@ export async function streamChat(
     }
   } catch (err) {
     console.error('AI Chat stream error:', err);
-    const message =
-      err instanceof Error ? err.message : 'Erro ao processar resposta da IA';
+    const message = isRateLimitError(err)
+      ? 'Estou recebendo muitas mensagens agora e atingi um limite temporário. Tenta de novo em alguns instantes. 🙏'
+      : err instanceof Error
+        ? err.message
+        : 'Erro ao processar resposta da IA';
     onEvent({ type: 'error', message });
     onEvent({ type: 'done' });
   }

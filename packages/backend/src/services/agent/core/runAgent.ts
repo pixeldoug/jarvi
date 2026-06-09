@@ -26,16 +26,125 @@ const MAX_ITERATIONS = 5;
 const MAX_TOKENS_STREAM = 4096;
 const MAX_TOKENS_SINGLE = 1024;
 
+// Retry/backoff for transient OpenAI failures (rate limits / 5xx). We disable
+// the SDK's built-in retries (maxRetries: 0) and handle them here so we can
+// honor the `retry-after` headers AND emit observability for rate limiting.
+const MAX_OPENAI_RETRIES = 4;
+const BACKOFF_BASE_MS = 500;
+
 let openaiClient: OpenAI | null = null;
 const getOpenAIClient = (): OpenAI => {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY environment variable is required');
   }
   if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
   }
   return openaiClient;
 };
+
+// ---------------------------------------------------------------------------
+// Resilience: retry with exponential backoff + jitter
+// ---------------------------------------------------------------------------
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Read a header value tolerating both web `Headers` and plain objects. */
+function readHeader(headers: unknown, key: string): string | undefined {
+  if (!headers) return undefined;
+  const maybeGet = (headers as { get?: (k: string) => string | null }).get;
+  if (typeof maybeGet === 'function') {
+    return maybeGet.call(headers, key) ?? undefined;
+  }
+  return (headers as Record<string, string>)[key];
+}
+
+export function isRateLimitError(err: unknown): boolean {
+  return (err as { status?: number })?.status === 429;
+}
+
+function isRetryableError(err: unknown): boolean {
+  const status = (err as { status?: number })?.status;
+  if (status === 429) return true;
+  if (typeof status === 'number' && status >= 500) return true;
+  const code = (err as { code?: string })?.code;
+  return code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED';
+}
+
+/** Returns the server-advised wait in ms (retry-after-ms / retry-after), if any. */
+function getRetryAfterMs(err: unknown): number | null {
+  const headers = (err as { headers?: unknown })?.headers;
+  const ms = readHeader(headers, 'retry-after-ms');
+  if (ms) {
+    const n = Number(ms);
+    if (!Number.isNaN(n)) return n;
+  }
+  const secs = readHeader(headers, 'retry-after');
+  if (secs) {
+    const n = Number(secs);
+    if (!Number.isNaN(n)) return n * 1000;
+  }
+  return null;
+}
+
+/**
+ * Structured log emitted whenever the OpenAI API rate-limits us. Shaped as a
+ * single `ai_rate_limited` event so it can be shipped to PostHog / a log
+ * aggregator later without changing the call sites.
+ */
+function recordRateLimit(
+  err: unknown,
+  meta: { channel: string; userId: string; attempt: number; willRetry: boolean },
+): void {
+  const headers = (err as { headers?: unknown })?.headers;
+  console.warn(
+    '[ai_rate_limited] %s',
+    JSON.stringify({
+      event: 'ai_rate_limited',
+      model: AGENT_MODEL,
+      channel: meta.channel,
+      userId: meta.userId,
+      attempt: meta.attempt,
+      willRetry: meta.willRetry,
+      remainingTokens: readHeader(headers, 'x-ratelimit-remaining-tokens'),
+      remainingRequests: readHeader(headers, 'x-ratelimit-remaining-requests'),
+      resetTokens: readHeader(headers, 'x-ratelimit-reset-tokens'),
+      retryAfterMs: getRetryAfterMs(err),
+    }),
+  );
+}
+
+/**
+ * Invoke an OpenAI call with retry + exponential backoff (with jitter),
+ * honoring the server's `retry-after` headers. Rate-limit hits are recorded
+ * for observability on every attempt.
+ */
+async function callWithRetry<T>(
+  fn: () => Promise<T>,
+  meta: { channel: string; userId: string },
+): Promise<T> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      const retryable = isRetryableError(err);
+      const willRetry = retryable && attempt < MAX_OPENAI_RETRIES;
+
+      if (isRateLimitError(err)) {
+        recordRateLimit(err, { ...meta, attempt, willRetry });
+      }
+
+      if (!willRetry) throw err;
+
+      const exponential = BACKOFF_BASE_MS * 2 ** attempt;
+      const jitter = Math.random() * BACKOFF_BASE_MS;
+      const delay = Math.max(getRetryAfterMs(err) ?? 0, exponential) + jitter;
+      await sleep(delay);
+      attempt++;
+    }
+  }
+}
 
 export interface RunAgentOptions {
   /** Force `tool_choice: 'required'` on the first iteration (anti-hallucination retry). */
@@ -70,14 +179,18 @@ export async function runAgent(
     let finishReason: string | null = null;
 
     if (profile.transport === 'stream') {
-      const stream = await openai.chat.completions.create({
-        model: AGENT_MODEL,
-        messages,
-        tools,
-        tool_choice: toolChoice,
-        stream: true,
-        max_completion_tokens: MAX_TOKENS_STREAM,
-      });
+      const stream = await callWithRetry(
+        () =>
+          openai.chat.completions.create({
+            model: AGENT_MODEL,
+            messages,
+            tools,
+            tool_choice: toolChoice,
+            stream: true,
+            max_completion_tokens: MAX_TOKENS_STREAM,
+          }),
+        { channel: profile.id, userId: ctx.userId },
+      );
 
       const indexed = new Map<number, { id: string; name: string; args: string }>();
 
@@ -112,13 +225,17 @@ export async function runAgent(
 
       pendingToolCalls = Array.from(indexed.values()).filter((tc) => tc.id && tc.name);
     } else {
-      const response = await openai.chat.completions.create({
-        model: AGENT_MODEL,
-        messages,
-        tools,
-        tool_choice: toolChoice,
-        max_completion_tokens: MAX_TOKENS_SINGLE,
-      });
+      const response = await callWithRetry(
+        () =>
+          openai.chat.completions.create({
+            model: AGENT_MODEL,
+            messages,
+            tools,
+            tool_choice: toolChoice,
+            max_completion_tokens: MAX_TOKENS_SINGLE,
+          }),
+        { channel: profile.id, userId: ctx.userId },
+      );
 
       const choice = response.choices[0];
       const message = choice?.message;

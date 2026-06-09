@@ -340,6 +340,11 @@ async function main() {
       model: process.env.OPENAI_MODEL ?? 'gpt-4o',
       environment: process.env.NODE_ENV ?? 'development',
     },
+
+    // Throttle parallel scenarios so the agent runs + the Factuality grader
+    // calls don't burst past the OpenAI TPM limit (which produced flaky 429s).
+    // Override with EVAL_MAX_CONCURRENCY if a higher tier allows more.
+    maxConcurrency: parseInt(process.env.EVAL_MAX_CONCURRENCY ?? '3', 10),
   });
 
   // ── Compute satisfaction from aggregated scorer averages ─────────────────

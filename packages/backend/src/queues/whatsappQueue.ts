@@ -2,7 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { extractTextFromPdfBuffer } from '../services/documentService';
 import { analyzeImageForChat, transcribeAudio } from '../services/openaiService';
 import { downloadMedia, sendTextMessage } from '../services/whatsappService';
-import { runWhatsappAgent } from '../services/agent';
+import { runWhatsappAgent, isRateLimitError } from '../services/agent';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 
 interface WhatsappMessageJob {
@@ -374,11 +374,11 @@ const processAggregatedInboxPayload = async (
       from,
       error: error instanceof Error ? error.message : String(error),
     });
+    const userMessage = isRateLimitError(error)
+      ? '⚠️ Estou recebendo muitas mensagens agora e atingi um limite temporário. Tente de novo em alguns instantes. 🙏'
+      : '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.';
     try {
-      await sendTextMessage(
-        from,
-        '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.',
-      );
+      await sendTextMessage(from, userMessage);
     } catch (sendError) {
       console.error('Failed to send WhatsApp error notification:', sendError);
     }
