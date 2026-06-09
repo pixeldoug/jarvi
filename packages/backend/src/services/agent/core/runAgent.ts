@@ -26,6 +26,24 @@ const MAX_ITERATIONS = 5;
 const MAX_TOKENS_STREAM = 4096;
 const MAX_TOKENS_SINGLE = 1024;
 
+// Optional determinism knobs, off in production (env unset). The eval CI sets
+// AGENT_SEED to make run-to-run comparisons stable; AGENT_TEMPERATURE is also
+// honored when set, but only set it for models that accept a custom value.
+function parseEnvNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') return undefined;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+function getDeterminismParams(): { temperature?: number; seed?: number } {
+  const params: { temperature?: number; seed?: number } = {};
+  const temperature = parseEnvNumber(process.env.AGENT_TEMPERATURE);
+  const seed = parseEnvNumber(process.env.AGENT_SEED);
+  if (temperature !== undefined) params.temperature = temperature;
+  if (seed !== undefined) params.seed = seed;
+  return params;
+}
+
 // Retry/backoff for transient OpenAI failures (rate limits / 5xx). We disable
 // the SDK's built-in retries (maxRetries: 0) and handle them here so we can
 // honor the `retry-after` headers AND emit observability for rate limiting.
@@ -161,6 +179,7 @@ export async function runAgent(
 ): Promise<AgentRunResult> {
   const openai = getOpenAIClient();
   const tools = getToolsForChannel(profile);
+  const determinismParams = getDeterminismParams();
 
   let messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
@@ -188,6 +207,7 @@ export async function runAgent(
             tool_choice: toolChoice,
             stream: true,
             max_completion_tokens: MAX_TOKENS_STREAM,
+            ...determinismParams,
           }),
         { channel: profile.id, userId: ctx.userId },
       );
@@ -233,6 +253,7 @@ export async function runAgent(
             tools,
             tool_choice: toolChoice,
             max_completion_tokens: MAX_TOKENS_SINGLE,
+            ...determinismParams,
           }),
         { channel: profile.id, userId: ctx.userId },
       );

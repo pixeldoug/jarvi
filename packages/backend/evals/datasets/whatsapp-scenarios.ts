@@ -8,7 +8,7 @@
  *  - tags:     categories for filtering / grouping in Braintrust UI
  */
 
-import { addDays, makePendingTask, makeTask, todayIso } from '../helpers';
+import { addDays, makeCategory, makePendingTask, makeTask, todayIso } from '../helpers';
 
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
@@ -33,6 +33,7 @@ export interface EvalScenario {
     memory?: string;
     preferredName?: string;
     activeTasks?: ReturnType<typeof makeTask>[];
+    categories?: ReturnType<typeof makeCategory>[];
     pendingTasks?: ReturnType<typeof makePendingTask>[];
     focusedTask?: ReturnType<typeof makeTask>;
     mode?: 'general' | 'task';

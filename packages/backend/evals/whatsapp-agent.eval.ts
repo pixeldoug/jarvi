@@ -20,6 +20,7 @@ import OpenAI from 'openai';
 import {
   setupEvalDatabase,
   buildContext,
+  seedCategoriesForEval,
   seedPendingTasksForEval,
   seedTasksForEval,
 } from './helpers';
@@ -119,6 +120,7 @@ async function runScenario(scenario: {
     scenario.contextOverrides as Parameters<typeof buildContext>[0],
   );
   ctx.originalUserMessage = scenario.input;
+  await seedCategoriesForEval(ctx.categories);
   await seedPendingTasksForEval(ctx.pendingTasks);
   await seedTasksForEval([
     ...(ctx.activeTasks ?? []),

@@ -5,7 +5,7 @@
  * general mode (chat panel) and task mode (focused task sidebar).
  */
 
-import { addDays, makeTask, todayIso } from '../helpers';
+import { addDays, makeCategory, makeTask, todayIso } from '../helpers';
 import type { EvalScenario } from './whatsapp-scenarios';
 
 const TODAY = todayIso();
@@ -36,6 +36,51 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     mustContain: ['luz', 'seguro'],
     idealOutput: 'Feito! Quer adicionar prazo para a conta de luz ou para o seguro?',
     tags: ['web', 'task-creation', 'multi-create', 'tool-calling'],
+  },
+
+  // ── Category reuse (must NOT invent new categories) ───────────────────────
+  {
+    name: 'web/reuse-existing-category',
+    channel: 'web',
+    input: 'cria uma tarefa pra pagar a fatura do cartão amanhã',
+    contextOverrides: {
+      categories: [
+        makeCategory({ name: 'Trabalho' }),
+        makeCategory({ name: 'Saúde' }),
+        makeCategory({ name: 'Finanças' }),
+      ],
+    },
+    mustCallTool: ['create_task'],
+    mustCallToolArgs: [
+      { tool: 'create_task', arg: 'category', value: 'Finanças' },
+    ],
+    mustContain: ['fatura'],
+    idealOutput: 'Criei a tarefa de pagar a fatura do cartão para amanhã, na categoria Finanças.',
+    tags: ['web', 'task-creation', 'category', 'reuse'],
+  },
+  {
+    name: 'web/no-invented-category-when-no-fit',
+    channel: 'web',
+    input: 'cria uma tarefa de comprar ração pro cachorro',
+    contextOverrides: {
+      categories: [
+        makeCategory({ name: 'Trabalho' }),
+        makeCategory({ name: 'Saúde' }),
+      ],
+    },
+    mustCallTool: ['create_task'],
+    // No existing category fits, so the agent must leave it uncategorized —
+    // never invent a new free-text category like these plausible guesses.
+    mustNotCallToolArgs: [
+      { tool: 'create_task', arg: 'category', value: 'Pets' },
+      { tool: 'create_task', arg: 'category', value: 'Compras' },
+      { tool: 'create_task', arg: 'category', value: 'Animais' },
+      { tool: 'create_task', arg: 'category', value: 'Casa' },
+      { tool: 'create_task', arg: 'category', value: 'Pessoal' },
+    ],
+    mustContain: ['ração'],
+    idealOutput: 'Criei a tarefa de comprar ração pro cachorro. Não adicionei categoria porque nenhuma das suas se encaixa.',
+    tags: ['web', 'task-creation', 'category', 'no-invent'],
   },
 
   // ── Task updates ──────────────────────────────────────────────────────────

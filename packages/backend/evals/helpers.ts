@@ -7,7 +7,12 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { AgentContext, PendingTaskRow, TaskRow } from '../src/services/agent/core/types';
+import type {
+  AgentContext,
+  CategoryRow,
+  PendingTaskRow,
+  TaskRow,
+} from '../src/services/agent/core/types';
 
 // ---------------------------------------------------------------------------
 // In-memory SQLite setup — call once before any DB-touching service import
@@ -94,6 +99,21 @@ export function addDays(isoDate: string, days: number): string {
 
 let _taskIdCounter = 1;
 let _pendingTaskIdCounter = 1;
+let _categoryIdCounter = 1;
+
+export function makeCategory(
+  overrides: Partial<CategoryRow> & { name: string },
+): CategoryRow {
+  return {
+    id: `category-${_categoryIdCounter++}`,
+    user_id: 'eval-user',
+    color: null,
+    icon: null,
+    visible: 1,
+    position: 0,
+    ...overrides,
+  };
+}
 
 export function makeTask(
   overrides: Partial<TaskRow> & { title: string },
@@ -206,6 +226,33 @@ export async function seedTasksForEval(tasks: TaskRow[]): Promise<void> {
   }
 }
 
+export async function seedCategoriesForEval(categories: CategoryRow[]): Promise<void> {
+  if (categories.length === 0) return;
+
+  const { getDatabase } = await import('../src/database');
+  const db = getDatabase();
+  const now = new Date().toISOString();
+
+  for (const [index, category] of categories.entries()) {
+    await db.run(
+      `INSERT OR REPLACE INTO categories (
+         id, user_id, name, color, icon, position, visible, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        category.id,
+        category.user_id,
+        category.name,
+        category.color ?? null,
+        category.icon ?? null,
+        category.position ?? index,
+        category.visible ?? 1,
+        now,
+        now,
+      ],
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Context builder
 // ---------------------------------------------------------------------------
@@ -215,6 +262,7 @@ export interface ContextOptions {
   timezone?: string;
   preferredName?: string;
   activeTasks?: TaskRow[];
+  categories?: CategoryRow[];
   pendingTasks?: PendingTaskRow[];
   focusedTask?: TaskRow;
   mode?: 'general' | 'task';
@@ -229,7 +277,7 @@ export function buildContext(opts: ContextOptions = {}): AgentContext {
     activeTasks: opts.activeTasks ?? [],
     completedTaskCount: 2,
     lists: [],
-    categories: [],
+    categories: opts.categories ?? [],
     pendingTasks: opts.pendingTasks ?? [],
     mode: opts.mode ?? (opts.focusedTask ? 'task' : 'general'),
     focusedTask: opts.focusedTask,
