@@ -290,6 +290,40 @@
   animation-delay: 0.3s;
 }
 
+/* ---- Tool status (e.g. "Pesquisando suas tarefas…") ---- */
+
+.toolStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2, 8px);
+  padding: var(--sizes-3) var(--sizes-6);
+}
+
+.toolStatusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand-primary-400, var(--semantic-content-tertiary));
+  animation: typingPulse 1.2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+.toolStatusText {
+  font-size: var(--font-size-sm, 13px);
+  color: var(--semantic-content-secondary, var(--semantic-content-tertiary));
+}
+
+@keyframes typingPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes typingBounce {
   0%, 60%, 100% {
     transform: translateY(0);

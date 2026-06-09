@@ -21,9 +21,11 @@ import {
   getDynamicGreeting,
 } from './time';
 import {
+  addDaysToIsoDate,
   bucketTasksByDate,
   formatCategoryLine,
   formatListLine,
+  formatTaskIndexLine,
   formatTaskLine,
   normalizeTaskDueDate,
   normalizeTaskTime,
@@ -58,17 +60,62 @@ function buildTemporalContext(ctx: AgentContext): string {
   ]);
 }
 
+// How many days ahead are rendered in FULL detail. Tasks further out go to the
+// compact index instead, keeping the base prompt small while staying complete.
+const RICH_UPCOMING_DAYS = 7;
+// Cap on undated tasks rendered in full detail; the rest move to the index.
+const UNSCHEDULED_RICH_LIMIT = 15;
+
+const isHighPriority = (t: TaskRow): boolean =>
+  (t.priority ?? '').toLowerCase() === 'high';
+
 function buildTaskListSection(ctx: AgentContext): string {
   const { isoDate, hourMinute } = getDateTimeForTimezone(ctx.timezone);
   const buckets = bucketTasksByDate(ctx.activeTasks, isoDate);
+  const horizonIso = addDaysToIsoDate(isoDate, RICH_UPCOMING_DAYS);
+
+  // Split future-dated tasks: next 7 days = rich, further out = index.
+  const upcomingNear: TaskRow[] = [];
+  const upcomingFar: TaskRow[] = [];
+  for (const t of buckets.upcoming) {
+    const due = normalizeTaskDueDate(t.due_date);
+    if (due && due <= horizonIso) upcomingNear.push(t);
+    else upcomingFar.push(t);
+  }
+
+  // Undated tasks: keep the first N in detail, push the rest to the index —
+  // except high-priority ones, which always stay visible (rich or index line).
+  const unscheduledRich = buckets.unscheduled.slice(0, UNSCHEDULED_RICH_LIMIT);
+  const unscheduledRest = buckets.unscheduled.slice(UNSCHEDULED_RICH_LIMIT);
+
+  // Compact index: everything not shown in detail above. High-priority items
+  // keep their flag via formatTaskIndexLine so the model can still surface them.
+  const indexTasks = [...upcomingFar, ...unscheduledRest];
 
   const formatGroup = (tasks: TaskRow[], emptyLabel: string): string =>
     tasks.length > 0
       ? tasks.map((t) => formatTaskLine(t, isoDate, hourMinute)).join('\n')
       : `  (${emptyLabel})`;
 
+  const totalActive = ctx.activeTaskCount ?? ctx.activeTasks.length;
+  const overflow = Math.max(0, totalActive - ctx.activeTasks.length);
+
+  const indexSection =
+    indexTasks.length > 0
+      ? joinNonEmpty([
+          '',
+          `OUTRAS TAREFAS (ÍNDICE — ${indexTasks.length} tarefas, resumo só com título/data/id; use search_tasks para detalhes ou filtros amplos):`,
+          indexTasks.map(formatTaskIndexLine).join('\n'),
+        ])
+      : null;
+
+  const overflowNote =
+    overflow > 0
+      ? `\n(+${overflow} tarefa(s) ativa(s) não carregada(s) aqui — use search_tasks para alcançá-las.)`
+      : null;
+
   return joinNonEmpty([
-    `Tarefas do usuário — ${ctx.activeTasks.length} ativas, ${ctx.completedTaskCount} concluídas:`,
+    `Tarefas do usuário — ${totalActive} ativas, ${ctx.completedTaskCount} concluídas:`,
     '',
     'TAREFAS DE HOJE (use SOMENTE esta seção para "como está meu dia?", "hoje", saudações genéricas e briefing do dia atual):',
     formatGroup(buckets.today, 'nenhuma tarefa para hoje'),
@@ -76,14 +123,16 @@ function buildTaskListSection(ctx: AgentContext): string {
     'TAREFAS DE AMANHÃ (use SOMENTE quando o usuário pedir explicitamente amanhã):',
     formatGroup(buckets.tomorrow, 'nenhuma tarefa para amanhã'),
     '',
-    'PRÓXIMAS TAREFAS / NO RADAR (não misture com o briefing de hoje; só cite em seção separada se for útil):',
-    formatGroup(buckets.upcoming, 'nenhuma próxima tarefa com data'),
+    'PRÓXIMAS TAREFAS / NO RADAR (próximos 7 dias; não misture com o briefing de hoje; só cite em seção separada se for útil):',
+    formatGroup(upcomingNear, 'nenhuma próxima tarefa com data nos próximos 7 dias'),
     '',
     'TAREFAS SEM DATA (não entram no briefing de hoje; cite separadamente só se o usuário pedir visão geral):',
-    formatGroup(buckets.unscheduled, 'nenhuma tarefa sem data'),
+    formatGroup(unscheduledRich, 'nenhuma tarefa sem data'),
     '',
     'TAREFAS VENCIDAS (não entram em prioridades; ofereça reagendar/concluir/descartar):',
     formatGroup(buckets.overdue, 'nenhuma tarefa vencida'),
+    indexSection,
+    overflowNote,
   ]);
 }
 
@@ -216,6 +265,13 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
   '⛔ LISTAGEM SEM ESCOPO DEFINIDO:',
   'Quando o usuário pedir para ver tarefas sem especificar período ("quais são minhas tarefas?", "o que tenho pra fazer?", "me mostra minhas tarefas"), NÃO liste tudo. Faça UMA pergunta curta para clarificar: "Quer ver as de hoje, da semana, ou todas?"',
   'Exceção: se o contexto da conversa já tornou o escopo óbvio (ex: o usuário acabou de perguntar sobre hoje), responda direto.',
+  '',
+  '🔎 BUSCA DE TAREFAS (search_tasks):',
+  'As seções acima mostram em DETALHE apenas as tarefas mais relevantes (vencidas, hoje, amanhã, próximos 7 dias e prioridade alta). As demais aparecem resumidas em "OUTRAS TAREFAS (ÍNDICE)" — só título, data e id.',
+  '- Se o usuário pedir DETALHES de uma tarefa que só aparece no índice, ou perguntar sobre um período/categoria/texto que NÃO está nas seções detalhadas (ex: "o que tenho em julho?", "tarefas de academia", "tem algo sobre o cartório?"), chame search_tasks com os filtros adequados (query, category, priority, due_from, due_to).',
+  '- Tarefas CONCLUÍDAS não aparecem na lista acima: para perguntas sobre o que já foi feito, use search_tasks com include_completed=true.',
+  '- Se a tarefa JÁ aparece em detalhe nas seções acima (ou o título já está no índice e basta isso), responda DIRETO, sem chamar search_tasks — evite latência desnecessária.',
+  '- NUNCA invente tarefas: se search_tasks não retornar resultados, diga que não encontrou.',
   '',
   '⛔ ACKNOWLEDGMENTS AMBÍGUOS ("pode ser", "ok", "sim", "tá bom", "beleza"):',
   'Quando a mensagem do usuário for apenas uma confirmação genérica a algo que VOCÊ ofereceu antes, releia sua última resposta. Se você não ofereceu nada concreto dentro do escopo (criar/editar/concluir/excluir tarefa), apenas confirme brevemente — NUNCA chame nenhuma tool.',

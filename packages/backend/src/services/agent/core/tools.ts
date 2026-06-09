@@ -23,7 +23,10 @@ import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
 import {
   getTaskById,
+  normalizeTaskDueDate,
+  normalizeTaskTime,
   safeParseCategoryNames,
+  searchUserTasks,
 } from './tasks';
 import {
   confirmPending,
@@ -136,6 +139,46 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
         type: 'object',
         properties: { task_id: { type: 'string' } },
         required: ['task_id'],
+      },
+    },
+  },
+  search_tasks: {
+    type: 'function',
+    function: {
+      name: 'search_tasks',
+      description:
+        'Busca tarefas do usuário no banco quando a informação NÃO está nas seções de tarefas já mostradas no contexto. Use para: detalhes de uma tarefa que só aparece no ÍNDICE, períodos fora dos próximos 7 dias ("o que tenho em julho?"), busca por texto/categoria/prioridade, ou tarefas concluídas. NÃO use se a tarefa já aparece em detalhe no contexto — responda direto para evitar latência.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Texto a procurar no título e na descrição (case-insensitive).',
+          },
+          category: { type: 'string', description: 'Filtrar por categoria exata.' },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high'],
+            description: 'Filtrar por prioridade.',
+          },
+          due_from: {
+            type: 'string',
+            description: 'Data inicial do período (YYYY-MM-DD), inclusive.',
+          },
+          due_to: {
+            type: 'string',
+            description: 'Data final do período (YYYY-MM-DD), inclusive.',
+          },
+          include_completed: {
+            type: 'boolean',
+            description: 'Se true, inclui tarefas concluídas. Padrão: false.',
+          },
+          limit: {
+            type: 'number',
+            description: 'Máximo de resultados (padrão 20, máximo 50).',
+          },
+        },
+        required: [],
       },
     },
   },
@@ -702,6 +745,43 @@ async function executeUpdateMemory(
   if (!summary) return { success: false, message: 'summary vazio' };
   await persistMemory(ctx.userId, summary);
   return { success: true };
+}
+
+function truncateDescription(value: string, maxLength = 200): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1)}…`;
+}
+
+async function executeSearchTasks(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const asString = (v: unknown): string | undefined =>
+    typeof v === 'string' && v.trim() ? v.trim() : undefined;
+
+  const rows = await searchUserTasks(ctx.userId, {
+    query: asString(args.query),
+    category: asString(args.category),
+    priority: asString(args.priority),
+    dueFrom: asString(args.due_from),
+    dueTo: asString(args.due_to),
+    includeCompleted: args.include_completed === true,
+    limit: typeof args.limit === 'number' ? args.limit : undefined,
+  });
+
+  const tasks = rows.map((t) => ({
+    id: t.id,
+    title: t.title,
+    due_date: normalizeTaskDueDate(t.due_date),
+    time: normalizeTaskTime(t.time),
+    priority: t.priority ?? null,
+    category: t.category ?? null,
+    completed: Boolean(t.completed),
+    description: t.description?.trim() ? truncateDescription(t.description) : null,
+  }));
+
+  return { success: true, data: { count: tasks.length, tasks } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1452,6 +1532,8 @@ export async function executeToolCall(
       return executeCompleteTask(args, ctx);
     case 'delete_task':
       return executeDeleteTask(args, ctx);
+    case 'search_tasks':
+      return executeSearchTasks(args, ctx);
     case 'update_memory':
       return executeUpdateMemory(args, ctx);
     case 'create_list':

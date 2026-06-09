@@ -11,6 +11,7 @@ import { extractMemoryPostResponse, getUserProfile } from '../core/memory';
 import { buildSystemPrompt, buildWhatsappExtras } from '../core/prompt';
 import { runAgent } from '../core/runAgent';
 import {
+  getActiveTaskCount,
   getCompletedTaskCount,
   getUserActiveTasks,
 } from '../core/tasks';
@@ -95,6 +96,7 @@ const WHATSAPP_PROFILE: ChannelProfile = {
     'update_task',
     'complete_task',
     'delete_task',
+    'search_tasks',
     'update_memory',
   ],
   outputFormat: 'plain',
@@ -125,10 +127,12 @@ export const runWhatsappAgent = async (
   const [
     { memory, timezone, preferredName },
     activeTasks,
+    activeTaskCount,
     completedTaskCount,
   ] = await Promise.all([
     getUserProfile(userId),
     getUserActiveTasks(userId),
+    getActiveTaskCount(userId),
     getCompletedTaskCount(userId),
   ]);
 
@@ -138,6 +142,7 @@ export const runWhatsappAgent = async (
     timezone,
     memory,
     activeTasks,
+    activeTaskCount,
     completedTaskCount,
     lists: [],
     categories: [],

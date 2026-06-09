@@ -267,7 +267,11 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );`
+    );`,
+
+    // Indexes powering the agent's active-task fetch and `search_tasks` tool.
+    `CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_due ON tasks (user_id, completed, due_date);`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_user_category ON tasks (user_id, category);`
   ];
   
   if (isPostgres) {

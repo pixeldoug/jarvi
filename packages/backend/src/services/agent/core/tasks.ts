@@ -10,8 +10,14 @@
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
 import type { CategoryRow, ListRow, TaskRow } from './types';
 
-const ACTIVE_TASKS_LIMIT = 50;
+// Cap on how many active tasks we load into the prompt. The first slice is
+// rendered in full detail; the remainder becomes a compact index (title + id).
+// Tasks beyond this cap are reachable via the `search_tasks` tool.
+const ACTIVE_TASKS_LIMIT = 200;
 const ALL_TASKS_LIMIT = 100;
+// Default/clamp for the on-demand `search_tasks` tool result size.
+const SEARCH_TASKS_DEFAULT_LIMIT = 20;
+const SEARCH_TASKS_MAX_LIMIT = 50;
 
 const ACTIVE_TASK_ORDERING = `
   CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
@@ -137,6 +143,108 @@ export async function getUserActiveTasks(userId: string): Promise<TaskRow[]> {
      LIMIT ${ACTIVE_TASKS_LIMIT}`,
     [userId],
   );
+}
+
+export async function getActiveTaskCount(userId: string): Promise<number> {
+  if (isPostgreSQL()) {
+    const result = await getPool().query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM tasks WHERE user_id = $1 AND completed = FALSE',
+      [userId],
+    );
+    return Number(result.rows[0]?.count ?? 0);
+  }
+
+  const row = await getDatabase().get<{ count: number }>(
+    'SELECT COUNT(*) AS count FROM tasks WHERE user_id = ? AND completed = 0',
+    [userId],
+  );
+  return Number(row?.count ?? 0);
+}
+
+// ---------------------------------------------------------------------------
+// On-demand search (powers the `search_tasks` tool)
+// ---------------------------------------------------------------------------
+
+export interface TaskSearchFilters {
+  /** Free text matched against title + description (case-insensitive). */
+  query?: string;
+  category?: string;
+  priority?: string;
+  /** Inclusive lower bound on due_date (YYYY-MM-DD). */
+  dueFrom?: string;
+  /** Inclusive upper bound on due_date (YYYY-MM-DD). */
+  dueTo?: string;
+  /** When true, also returns completed tasks. Defaults to false. */
+  includeCompleted?: boolean;
+  limit?: number;
+}
+
+export async function searchUserTasks(
+  userId: string,
+  filters: TaskSearchFilters,
+): Promise<TaskRow[]> {
+  const limit = Math.min(
+    Math.max(1, filters.limit ?? SEARCH_TASKS_DEFAULT_LIMIT),
+    SEARCH_TASKS_MAX_LIMIT,
+  );
+  const pg = isPostgreSQL();
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let idx = 1;
+  const ph = (): string => (pg ? `$${idx++}` : '?');
+
+  params.push(userId);
+  conditions.push(`user_id = ${ph()}`);
+
+  if (!filters.includeCompleted) {
+    conditions.push(`completed = ${pg ? 'FALSE' : '0'}`);
+  }
+
+  const query = filters.query?.trim();
+  if (query) {
+    const like = `%${query.toLowerCase()}%`;
+    const titlePh = ph();
+    params.push(like);
+    const descPh = ph();
+    params.push(like);
+    conditions.push(
+      `(LOWER(title) LIKE ${titlePh} OR LOWER(COALESCE(description, '')) LIKE ${descPh})`,
+    );
+  }
+
+  const category = filters.category?.trim();
+  if (category) {
+    conditions.push(`LOWER(COALESCE(category, '')) = ${ph()}`);
+    params.push(category.toLowerCase());
+  }
+
+  const priority = filters.priority?.trim();
+  if (priority) {
+    conditions.push(`priority = ${ph()}`);
+    params.push(priority);
+  }
+
+  if (filters.dueFrom) {
+    conditions.push(`due_date >= ${ph()}`);
+    params.push(filters.dueFrom);
+  }
+
+  if (filters.dueTo) {
+    conditions.push(`due_date <= ${ph()}`);
+    params.push(filters.dueTo);
+  }
+
+  const sql = `SELECT ${TASK_COLUMNS}
+     FROM tasks
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY ${ACTIVE_TASK_ORDERING}
+     LIMIT ${limit}`;
+
+  if (pg) {
+    const result = await getPool().query(sql, params);
+    return result.rows as TaskRow[];
+  }
+  return getDatabase().all<TaskRow[]>(sql, params);
 }
 
 export async function getUserAllTasks(userId: string): Promise<TaskRow[]> {
@@ -269,6 +377,24 @@ export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): str
     parts.push('HORÁRIO JÁ PASSOU');
   }
 
+  parts.push(`id: ${t.id}`);
+  return `  - ${parts.join(' | ')}`;
+}
+
+/**
+ * Compact one-liner for the prompt's task INDEX section: title + date + id only
+ * (no description). Keeps the long tail of tasks referenceable by the model
+ * without inflating tokens. High priority is flagged so it stays visible.
+ */
+export function formatTaskIndexLine(t: TaskRow): string {
+  const dueDateStr = normalizeTaskDueDate(t.due_date);
+  const timeStr = normalizeTaskTime(t.time);
+
+  const parts: string[] = [`"${t.title}"`];
+  if (dueDateStr) parts.push(`vence ${dueDateStr}`);
+  if (timeStr) parts.push(`às ${timeStr}`);
+  if ((t.priority ?? '').toLowerCase() === 'high') parts.push('prioridade high');
+  if (t.category) parts.push(`cat: ${t.category}`);
   parts.push(`id: ${t.id}`);
   return `  - ${parts.join(' | ')}`;
 }

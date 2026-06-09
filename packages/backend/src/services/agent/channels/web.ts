@@ -20,6 +20,7 @@ import {
 import { buildSystemPrompt, buildTaskFocusedPrompt, buildWebExtras } from '../core/prompt';
 import { runAgent, isRateLimitError } from '../core/runAgent';
 import {
+  getActiveTaskCount,
   getCompletedTaskCount,
   getTaskById,
   getUserActiveTasks,
@@ -59,6 +60,7 @@ const WEB_PROFILE: ChannelProfile = {
     'update_task',
     'complete_task',
     'delete_task',
+    'search_tasks',
     'update_memory',
     'create_list',
     'update_list',
@@ -135,12 +137,14 @@ export async function streamChat(
       };
       systemPrompt = buildTaskFocusedPrompt(task, ctx, WEB_PROFILE);
     } else {
-      const [activeTasks, completedTaskCount, lists, categories] = await Promise.all([
-        getUserActiveTasks(userId),
-        getCompletedTaskCount(userId),
-        getUserLists(userId),
-        getUserCategories(userId),
-      ]);
+      const [activeTasks, activeTaskCount, completedTaskCount, lists, categories] =
+        await Promise.all([
+          getUserActiveTasks(userId),
+          getActiveTaskCount(userId),
+          getCompletedTaskCount(userId),
+          getUserLists(userId),
+          getUserCategories(userId),
+        ]);
 
       const lastUserMessage = [...messages]
         .reverse()
@@ -153,6 +157,7 @@ export async function streamChat(
         timezone,
         memory,
         activeTasks,
+        activeTaskCount,
         completedTaskCount,
         lists,
         categories,

@@ -92,6 +92,7 @@ export type ToolName =
   | 'update_task'
   | 'complete_task'
   | 'delete_task'
+  | 'search_tasks'
   | 'update_memory'
   | 'create_list'
   | 'update_list'
@@ -151,8 +152,14 @@ export interface AgentContext {
   timezone: string;
   /** Current persisted memory text. May be empty. */
   memory: string;
-  /** Active tasks (max 50) used to render the prompt. */
+  /** Active tasks (capped) used to render the prompt's rich slice + index. */
   activeTasks: TaskRow[];
+  /**
+   * Total number of active tasks for this user. May exceed `activeTasks.length`
+   * when the user has more active tasks than the fetch cap; used for the header
+   * count and the "...e mais N" overflow note. Defaults to `activeTasks.length`.
+   */
+  activeTaskCount?: number;
   /** Count of completed tasks for the prompt header. */
   completedTaskCount: number;
   /** User's saved filter lists (web only — empty for WhatsApp). */
