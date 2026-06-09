@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { createServer } from 'http';
 import { initializeDatabase } from './database';
 import taskRoutes from './routes/taskRoutes';
@@ -44,7 +44,8 @@ const limiter = rateLimit({
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
-  keyGenerator: (req) => (req as any).user?.id || req.ip || 'unknown',
+  keyGenerator: (req) =>
+    (req as any).user?.id || (req.ip ? ipKeyGenerator(req.ip) : 'unknown'),
   message: { error: 'Too many AI requests, please wait a moment.' },
   standardHeaders: true,
   legacyHeaders: false,
