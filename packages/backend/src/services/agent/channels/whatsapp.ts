@@ -14,6 +14,7 @@ import {
   getActiveTaskCount,
   getCompletedTaskCount,
   getUserActiveTasks,
+  getUserCategories,
 } from '../core/tasks';
 import { getDateTimeForTimezone } from '../core/time';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
@@ -129,11 +130,13 @@ export const runWhatsappAgent = async (
     activeTasks,
     activeTaskCount,
     completedTaskCount,
+    categories,
   ] = await Promise.all([
     getUserProfile(userId),
     getUserActiveTasks(userId),
     getActiveTaskCount(userId),
     getCompletedTaskCount(userId),
+    getUserCategories(userId),
   ]);
 
   const ctx: AgentContext = {
@@ -145,7 +148,7 @@ export const runWhatsappAgent = async (
     activeTaskCount,
     completedTaskCount,
     lists: [],
-    categories: [],
+    categories,
     pendingTasks: [],
     mode: 'general',
     originalUserMessage: userMessage,

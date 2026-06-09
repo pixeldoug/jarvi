@@ -210,6 +210,7 @@ function buildListsAndCategoriesSection(ctx: AgentContext): string | null {
   return joinNonEmpty([
     'Categorias existentes:',
     categorySummary,
+    '- REGRA DE CATEGORIA (OBRIGATÓRIO): Ao definir a categoria em create_task/update_task, use SEMPRE o nome EXATO de uma das categorias existentes acima. NUNCA invente categoria nova nem use variações/sinônimos. Se nenhuma categoria existente se encaixar, deixe a tarefa SEM categoria — não tente forçar. Só crie uma categoria nova com create_category quando o usuário pedir isso explicitamente.',
     '',
     'Filtros/listas salvos:',
     listSummary,

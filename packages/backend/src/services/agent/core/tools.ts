@@ -23,8 +23,10 @@ import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
 import {
   getTaskById,
+  getUserCategories,
   normalizeTaskDueDate,
   normalizeTaskTime,
+  resolveExistingCategoryName,
   safeParseCategoryNames,
   searchUserTasks,
 } from './tasks';
@@ -484,7 +486,14 @@ async function executeCreateTask(
   // recover it from the original user message ("quarta 13h30" → "13:30").
   const time =
     sanitizeTimeString(args.time) ?? extractTimeFromText(ctx.originalUserMessage);
-  const category = args.category ? String(args.category) : null;
+  // Deterministic guard: only accept categories that already exist for this
+  // user. Anything the model invents is dropped (null) so the curated set never
+  // drifts. New categories must be created explicitly via create_category.
+  const existingCategories = await getUserCategories(ctx.userId);
+  const category = resolveExistingCategoryName(
+    args.category ? String(args.category) : null,
+    existingCategories,
+  );
 
   const source = profile.id === 'whatsapp' ? 'whatsapp' : 'manual';
   const originalContent = profile.id === 'whatsapp' ? (ctx.originalUserMessage ?? null) : null;
@@ -655,6 +664,7 @@ async function executeUpdateTask(
     return trimmed;
   };
 
+  let existingCategories: CategoryRow[] | null = null;
   for (const key of [
     'title',
     'description',
@@ -667,6 +677,16 @@ async function executeUpdateTask(
       fields.push(`${key} = ${ph()}`);
       if (key === 'time') {
         values.push(sanitizeTimeString(args[key]));
+      } else if (key === 'category') {
+        // Allow clearing (null), but snap any non-null value to an existing
+        // category so the agent can't introduce free-text drift.
+        const normalized = normalizeNullableField(args[key]);
+        if (normalized === null) {
+          values.push(null);
+        } else {
+          if (!existingCategories) existingCategories = await getUserCategories(ctx.userId);
+          values.push(resolveExistingCategoryName(String(normalized), existingCategories));
+        }
       } else {
         values.push(normalizeNullableField(args[key]));
       }

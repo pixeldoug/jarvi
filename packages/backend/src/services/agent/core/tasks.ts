@@ -334,6 +334,28 @@ export async function getUserCategories(userId: string): Promise<CategoryRow[]> 
   )) as CategoryRow[];
 }
 
+/**
+ * Snap a model-provided category string to an EXISTING user category, matching
+ * case-insensitively and ignoring surrounding whitespace. Returns the canonical
+ * stored name (preserving the user's casing) or null when there is no match.
+ *
+ * This is the deterministic guard that stops the agent from inventing free-text
+ * categories that drift from the curated `categories` set. New categories must
+ * be created explicitly via `create_category`, never as a side effect of
+ * create_task/update_task.
+ */
+export function resolveExistingCategoryName(
+  candidate: string | null | undefined,
+  categories: CategoryRow[],
+): string | null {
+  if (!candidate) return null;
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  const key = trimmed.toLowerCase();
+  const match = categories.find((c) => c.name.trim().toLowerCase() === key);
+  return match ? match.name : null;
+}
+
 export function safeParseCategoryNames(raw: unknown): string[] {
   if (Array.isArray(raw) && (raw as unknown[]).every((x) => typeof x === 'string')) {
     return raw as string[];
