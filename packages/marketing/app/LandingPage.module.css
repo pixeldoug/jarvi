@@ -1055,12 +1055,16 @@
   .slidesTrack {
     transform: none;
     gap: 12px;
-    /* Leading/trailing space so the first and last slides can center. */
-    padding: 0 6%;
+    /* Viewport-relative leading/trailing space. Using vw (not %) keeps this
+       margin independent of the track's border-box padding, so it always
+       equals (100vw - slide width) / 2 and the first AND last slides center. */
+    padding: 0 7vw;
   }
 
   .slide {
-    flex: 0 0 88%;
+    /* Fixed viewport width keeps the centering math independent of the
+       track padding, so the last slide can sit dead-center too. */
+    flex: 0 0 86vw;
     scroll-snap-align: center;
   }
 
