@@ -263,7 +263,9 @@
 .featuresSection {
   position: relative;
   background: #fff;
-  overflow: visible;
+  /* Clip the carousel's full-bleed bleed horizontally; `clip` (not `hidden`)
+     keeps the vertical axis visible so position: sticky still works. */
+  overflow-x: clip;
   /* Pull up 2px to guarantee zero gap with the hero curve at any zoom/DPR */
   margin-top: -2px;
 }
@@ -395,10 +397,37 @@
    ====================================================== */
 
 .featurePreviewWrapper {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 24px;
   width: 100%;
+}
+
+.showcaseViewport {
+  position: relative;
+  /* Full-bleed: span the whole window so neighbouring slides peek at the edges.
+     The .featuresSection clips the horizontal overflow. */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+.slidesTrack {
+  /* Active slide width and gap between slides. */
+  --slide-w: min(980px, 76vw);
+  --gap: 24px;
+  display: flex;
+  gap: var(--gap);
+  /* Center the active slide in the window, then offset by the active index. */
+  transform: translateX(
+    calc((100vw - var(--slide-w)) / 2 - var(--active-index, 0) * (var(--slide-w) + var(--gap)))
+  );
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.slide {
+  flex: 0 0 var(--slide-w);
+  min-width: 0;
 }
 
 .showcaseCard {
@@ -420,24 +449,21 @@
 }
 
 .pauseButton {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  width: 40px;
-  height: 40px;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
   border-radius: 9999px;
-  border: 0;
-  border-bottom: 2px solid rgba(9, 9, 11, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.52);
+  background: rgba(240, 240, 243, 0.92);
   cursor: pointer;
   transition: background-color 140ms ease;
 }
 
 .pauseButton:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(255, 255, 255, 0.98);
 }
 
 .pauseButton:focus-visible {
@@ -447,8 +473,8 @@
 
 .pauseGlyph {
   position: relative;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
 }
 
 .pauseGlyph::before,
@@ -456,22 +482,103 @@
   content: '';
   position: absolute;
   top: 0;
-  width: 3px;
-  height: 12px;
+  width: 4px;
+  height: 16px;
   border-radius: 3px;
-  background: #fff;
+  background: #1d1d1f;
 }
 
-.pauseGlyph::before { left: 1px; }
-.pauseGlyph::after { right: 1px; }
+.pauseGlyph::before { left: 2px; }
+.pauseGlyph::after { right: 2px; }
 
 .playGlyph {
   width: 0;
   height: 0;
-  margin-left: 2px;
-  border-top: 7px solid transparent;
-  border-bottom: 7px solid transparent;
-  border-left: 11px solid #fff;
+  margin-left: 3px;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 14px solid #1d1d1f;
+}
+
+/* ======================================================
+   Carousel controls (progress indicator + play/pause)
+   ====================================================== */
+
+.carouselControls {
+  position: sticky;
+  bottom: 24px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  /* Resting position: in the whitespace just below the card. The sticky bar
+     pins to the viewport bottom (overlapping the card) while scrolling, then
+     settles here. The containing block is the showcase wrapper, so it never
+     floats above the card / over the section heading. */
+  margin-top: 24px;
+  pointer-events: none;
+}
+
+.progressTrack,
+.pauseButton {
+  pointer-events: auto;
+}
+
+.progressTrack {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(240, 240, 243, 0.92);
+}
+
+.dot {
+  position: relative;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: #475569;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 200ms ease;
+}
+
+.dot:hover {
+  background: #475569;
+}
+
+.dot:focus-visible {
+  outline: 2px solid rgba(97, 55, 243, 0.45);
+  outline-offset: 3px;
+}
+
+.dotActive {
+  width: 60px;
+  background: #d6d9dd;
+  cursor: default;
+}
+
+.dotActive:hover {
+  background: #d6d9dd;
+}
+
+.progressFill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background: #6137f3;
+  border-radius: 9999px;
 }
 
 /* ======================================================
@@ -796,6 +903,10 @@
     opacity: 1;
     transform: none;
   }
+
+  .slidesTrack {
+    transition: none;
+  }
 }
 
 /* ======================================================
@@ -923,6 +1034,39 @@
 
   .showcaseCard {
     border-radius: 16px;
+  }
+
+  /* Carousel becomes a native swipeable, snapping scroller with peeking. */
+  .showcaseViewport {
+    width: 100%;
+    margin-left: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0;
+  }
+
+  .showcaseViewport::-webkit-scrollbar {
+    display: none;
+  }
+
+  .slidesTrack {
+    transform: none;
+    gap: 12px;
+    /* Leading/trailing space so the first and last slides can center. */
+    padding: 0 6%;
+  }
+
+  .slide {
+    flex: 0 0 88%;
+    scroll-snap-align: center;
+  }
+
+  /* On small cards, keep the controls just below the card instead of overlapping. */
+  .carouselControls {
+    margin-top: 16px;
   }
 
   .featureCopy {

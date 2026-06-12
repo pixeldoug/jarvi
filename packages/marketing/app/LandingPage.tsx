@@ -1,14 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import {
-  Brain,
-  ChatsTeardrop,
-  CirclesFour,
-  MagicWand,
-  Palette,
-  Sparkle,
-} from '@phosphor-icons/react';
+import { ArrowClockwise, Sparkle } from '@phosphor-icons/react';
 import { usePostHog } from 'posthog-js/react';
 import styles from './LandingPage.module.css';
 import { Button } from './components/Button';
@@ -17,6 +10,9 @@ import { CurveDivider } from './components/CurveDivider';
 type FeatureKey = 'whatsapp' | 'email' | 'calendar' | 'wand' | 'cards' | 'checks';
 
 const featureOrder: FeatureKey[] = ['whatsapp', 'email', 'calendar', 'wand', 'cards', 'checks'];
+
+// Auto-play duration per slide, in milliseconds (Apple-style fixed timer).
+const SLIDE_DURATION = 6000;
 
 const assets = {
   screenExample: '/assets/images/screen-demo.avif',
@@ -85,28 +81,158 @@ const featureCopyByFeature: Record<FeatureKey, { title: string; description: str
 export default function LandingPage() {
   const posthog = usePostHog();
   const [activeFeature, setActiveFeature] = useState<FeatureKey>('whatsapp');
+  const [progress, setProgress] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isEnded, setIsEnded] = useState(false);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [isCtaInView, setIsCtaInView] = useState(false);
+
   const ctaSectionRef = useRef<HTMLElement | null>(null);
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const buttonRefs = useRef<Record<FeatureKey, HTMLButtonElement | null>>({
-    whatsapp: null,
-    email: null,
-    calendar: null,
-    wand: null,
-    cards: null,
-    checks: null,
-  });
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const slideRefs = useRef<Partial<Record<FeatureKey, HTMLDivElement | null>>>({});
+  const videoRefs = useRef<Partial<Record<FeatureKey, HTMLVideoElement | null>>>({});
+  const programmaticScrollRef = useRef(false);
+  const activeFeatureRef = useRef<FeatureKey>(activeFeature);
+  activeFeatureRef.current = activeFeature;
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+
+  const activeIndex = featureOrder.indexOf(activeFeature);
   const activeCopy = featureCopyByFeature[activeFeature];
 
+  const goToFeature = (feature: FeatureKey) => {
+    setActiveFeature(feature);
+    setProgress(0);
+    setIsEnded(false);
+  };
+
+  // Play/pause/replay button handler.
+  const handlePlaybackToggle = () => {
+    if (isEnded) {
+      setActiveFeature(featureOrder[0]);
+      setProgress(0);
+      setIsEnded(false);
+      setIsPaused(false);
+      return;
+    }
+    setIsPaused((prev) => !prev);
+  };
+
+  // Respect the user's reduced-motion preference.
   useEffect(() => {
-    const rail = railRef.current;
-    const targetButton = buttonRefs.current[activeFeature];
-    if (!rail || !targetButton) return;
-    if (rail.scrollWidth <= rail.clientWidth) return;
-    const targetScrollLeft =
-      targetButton.offsetLeft - rail.clientWidth / 2 + targetButton.clientWidth / 2;
-    rail.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReducedMotion(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Track the mobile breakpoint (matches the 680px CSS breakpoint).
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 680px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Auto-play loop: fills the progress bar and advances on a fixed timer.
+  useEffect(() => {
+    if (isPaused || reducedMotion || isInteracting || isEnded) return;
+    let raf = 0;
+    let start: number | null = null;
+    const tick = (now: number) => {
+      // Resume from the current progress so leaving hover doesn't reset the bar.
+      if (start === null) start = now - progressRef.current * SLIDE_DURATION;
+      const pct = Math.min((now - start) / SLIDE_DURATION, 1);
+      setProgress(pct);
+      if (pct >= 1) {
+        const i = featureOrder.indexOf(activeFeatureRef.current);
+        if (i >= featureOrder.length - 1) {
+          // Reached the last slide: stop and surface the replay button.
+          setProgress(1);
+          setIsEnded(true);
+          return;
+        }
+        setActiveFeature(featureOrder[i + 1]);
+        setProgress(0);
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [activeFeature, isPaused, reducedMotion, isInteracting, isEnded]);
+
+  // Play only the active video; pause the rest to save resources.
+  useEffect(() => {
+    featureOrder.forEach((feature) => {
+      const video = videoRefs.current[feature];
+      if (!video) return;
+      if (feature === activeFeature) {
+        video.currentTime = 0;
+        void video.play().catch(() => {});
+      } else {
+        video.pause();
+      }
+    });
   }, [activeFeature]);
+
+  // Mobile: keep the scroll position in sync when the active feature changes.
+  useEffect(() => {
+    if (!isMobile) return;
+    const viewport = viewportRef.current;
+    const slide = slideRefs.current[activeFeature];
+    if (!viewport || !slide) return;
+    programmaticScrollRef.current = true;
+    viewport.scrollTo({
+      left: slide.offsetLeft - (viewport.clientWidth - slide.clientWidth) / 2,
+      behavior: 'smooth',
+    });
+    const timeout = window.setTimeout(() => {
+      programmaticScrollRef.current = false;
+    }, 600);
+    return () => window.clearTimeout(timeout);
+  }, [activeFeature, isMobile]);
+
+  // Mobile: update the active feature as the user swipes (with anti-loop guard).
+  useEffect(() => {
+    if (!isMobile) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (programmaticScrollRef.current) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const center = viewport.scrollLeft + viewport.clientWidth / 2;
+        let nearest: FeatureKey = featureOrder[0];
+        let min = Infinity;
+        featureOrder.forEach((feature) => {
+          const slide = slideRefs.current[feature];
+          if (!slide) return;
+          const slideCenter = slide.offsetLeft + slide.clientWidth / 2;
+          const distance = Math.abs(slideCenter - center);
+          if (distance < min) {
+            min = distance;
+            nearest = feature;
+          }
+        });
+        if (nearest !== activeFeatureRef.current) {
+          setActiveFeature(nearest);
+          setProgress(0);
+          setIsEnded(false);
+        }
+      });
+    };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      viewport.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [isMobile]);
 
   useEffect(() => {
     const section = ctaSectionRef.current;
@@ -122,19 +248,6 @@ export default function LandingPage() {
     observer.observe(section);
     return () => observer.disconnect();
   }, []);
-
-  const renderFeatureIcon = (feature: FeatureKey, isActive: boolean) => {
-    const size = isActive ? 28 : 24;
-    const iconProps = { size, weight: 'regular' as const, 'aria-hidden': true as const };
-    if (feature === 'whatsapp') {
-      return <img src={assets.whatsappIcon} alt="" aria-hidden="true" width={size} height={size} />;
-    }
-    if (feature === 'email') return <CirclesFour {...iconProps} />;
-    if (feature === 'calendar') return <Brain {...iconProps} />;
-    if (feature === 'wand') return <MagicWand {...iconProps} />;
-    if (feature === 'cards') return <ChatsTeardrop {...iconProps} />;
-    return <Palette {...iconProps} />;
-  };
 
   return (
     <main className={styles.page}>
@@ -226,57 +339,106 @@ export default function LandingPage() {
           </div>
 
           <div className={`${styles.featurePreviewWrapper} ${styles.reveal} ${styles.revealDelay6}`}>
-            <div className={styles.showcaseCard}>
-              {featureVideos[activeFeature] ? (
-                <video
-                  key={activeFeature}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  aria-hidden="true"
-                  className={styles.showcaseImage}
-                >
-                  <source src={featureVideos[activeFeature]!.webm} type="video/webm" />
-                  <source src={featureVideos[activeFeature]!.mp4} type="video/mp4" />
-                </video>
-              ) : (
-                <img
-                  src={featureImages[activeFeature]}
-                  alt=""
-                  aria-hidden="true"
-                  className={styles.showcaseImage}
-                  loading="lazy"
-                />
-              )}
+            <div
+              className={styles.showcaseViewport}
+              ref={viewportRef}
+              onPointerDown={() => setIsInteracting(true)}
+              onPointerUp={() => setIsInteracting(false)}
+              onPointerCancel={() => setIsInteracting(false)}
+            >
+              <div
+                className={styles.slidesTrack}
+                style={{ '--active-index': activeIndex } as React.CSSProperties}
+              >
+                {featureOrder.map((feature) => {
+                  const video = featureVideos[feature];
+                  const isActive = activeFeature === feature;
+                  return (
+                    <div
+                      key={feature}
+                      className={styles.slide}
+                      ref={(el) => {
+                        slideRefs.current[feature] = el;
+                      }}
+                      aria-hidden={isActive ? undefined : true}
+                    >
+                      <div className={styles.showcaseCard}>
+                        {video ? (
+                          <video
+                            ref={(el) => {
+                              videoRefs.current[feature] = el;
+                            }}
+                            loop
+                            muted
+                            playsInline
+                            preload="metadata"
+                            aria-hidden="true"
+                            className={styles.showcaseImage}
+                          >
+                            <source src={video.webm} type="video/webm" />
+                            <source src={video.mp4} type="video/mp4" />
+                          </video>
+                        ) : (
+                          <img
+                            src={featureImages[feature]}
+                            alt=""
+                            aria-hidden="true"
+                            className={styles.showcaseImage}
+                            loading="lazy"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className={styles.featureButtonRow} ref={railRef}>
-              {featureOrder.map((feature) => {
-                const isActive = activeFeature === feature;
-                return (
-                  <button
-                    key={feature}
-                    ref={(el) => { buttonRefs.current[feature] = el; }}
-                    type="button"
-                    className={[
-                      styles.featureChip,
-                      styles[
-                        `feature${feature[0]!.toUpperCase()}${feature.slice(1)}` as keyof typeof styles
-                      ],
-                      isActive ? styles.featureChipActive : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    onClick={() => setActiveFeature(feature)}
-                    aria-pressed={isActive}
-                  >
-                    <span className={styles.featureChipInner}>
-                      {renderFeatureIcon(feature, isActive)}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className={styles.carouselControls}>
+              <div className={styles.progressTrack} role="tablist" aria-label="Funcionalidades">
+                {featureOrder.map((feature) => {
+                  const isActive = activeFeature === feature;
+                  return (
+                    <button
+                      key={feature}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-label={featureCopyByFeature[feature].title}
+                      className={isActive ? `${styles.dot} ${styles.dotActive}` : styles.dot}
+                      onClick={() => goToFeature(feature)}
+                    >
+                      {isActive && (
+                        <span
+                          className={styles.progressFill}
+                          style={{ width: `${progress * 100}%` }}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className={styles.pauseButton}
+                onClick={handlePlaybackToggle}
+                aria-label={
+                  isEnded
+                    ? 'Reiniciar apresentação'
+                    : isPaused
+                      ? 'Reproduzir apresentação'
+                      : 'Pausar apresentação'
+                }
+              >
+                {isEnded ? (
+                  <ArrowClockwise size={22} weight="bold" color="#1d1d1f" aria-hidden="true" />
+                ) : (
+                  <span
+                    className={isPaused ? styles.playGlyph : styles.pauseGlyph}
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
             </div>
           </div>
 
