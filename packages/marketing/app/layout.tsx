@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { PostHogProvider } from './providers/PostHogProvider';
+import { MetaPixelProvider } from './providers/MetaPixelProvider';
 import './globals.css';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -35,7 +36,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={plusJakartaSans.className}>
-        <PostHogProvider>{children}</PostHogProvider>
+        <MetaPixelProvider>
+          <PostHogProvider>{children}</PostHogProvider>
+        </MetaPixelProvider>
       </body>
     </html>
   );

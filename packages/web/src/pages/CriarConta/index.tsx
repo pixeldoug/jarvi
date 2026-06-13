@@ -7,6 +7,7 @@ import { Check } from '@phosphor-icons/react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Logo, PasswordInput } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
+import { trackPixel, getFbCookies, generateEventId } from '../../lib/metaPixel';
 import styles from './CriarConta.module.css';
 
 // ============================================================================
@@ -350,6 +351,11 @@ export function CriarConta() {
 
   const showAccountStep = step === 8;
 
+  useEffect(() => {
+    // Top-of-funnel signal: user started the registration flow.
+    trackPixel('InitiateCheckout');
+  }, []);
+
   const normalizedWhatsappContact = normalizeWhatsapp(formData.contactValue);
   const shouldShowBroadcastStep =
     formData.interviewAvailability === 'yes' && WHATSAPP_REGEX.test(normalizedWhatsappContact);
@@ -464,10 +470,18 @@ export function CriarConta() {
     setAccountError(null);
     setIsCreatingAccount(true);
     try {
+      const { fbc, fbp } = getFbCookies();
+      const eventId = generateEventId();
+
+      // Browser Pixel event; the backend fires the same event via CAPI using
+      // this shared eventId so Meta deduplicates the two.
+      trackPixel('RegistrationSubmitted', { custom: true, eventId });
+
       const result = await register(
         normalizeEmail(formData.email),
         formData.name.trim(),
         accountPassword,
+        { fbc, fbp, eventId, eventSourceUrl: window.location.href },
       );
       if (result.pendingVerification) {
         navigate('/verify-pending', { state: { email: result.email } });

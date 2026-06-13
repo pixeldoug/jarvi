@@ -17,6 +17,13 @@ interface RegisterResult {
   email: string;
 }
 
+interface RegisterMeta {
+  fbc?: string;
+  fbp?: string;
+  eventId?: string;
+  eventSourceUrl?: string;
+}
+
 interface LoginError extends Error {
   pendingVerification?: boolean;
   email?: string;
@@ -28,7 +35,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<void>;
-  register: (email: string, name: string, password: string) => Promise<RegisterResult>;
+  register: (email: string, name: string, password: string, meta?: RegisterMeta) => Promise<RegisterResult>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   addPasswordToGoogleAccount: (password: string) => Promise<void>;
@@ -187,7 +194,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (email: string, name: string, password: string): Promise<RegisterResult> => {
+  const register = async (
+    email: string,
+    name: string,
+    password: string,
+    meta?: RegisterMeta,
+  ): Promise<RegisterResult> => {
     try {
       setIsLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
@@ -195,7 +207,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, name, password }),
+        body: JSON.stringify({
+          email,
+          name,
+          password,
+          fbc: meta?.fbc,
+          fbp: meta?.fbp,
+          eventId: meta?.eventId,
+          eventSourceUrl: meta?.eventSourceUrl,
+        }),
       });
 
       const data = await response.json();
@@ -206,6 +226,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Registration now returns pendingVerification instead of token
       if (data.pendingVerification) {
+        // Track the registration submission. The browser RegistrationSubmitted
+        // Pixel event is fired by the caller (CriarConta) with the same eventId.
+        if (posthog) {
+          posthog.identify(data.email || email, {
+            email: data.email || email,
+            name,
+          });
+          posthog.capture('user_registered', { method: 'email', pending_verification: true });
+        }
         return {
           pendingVerification: true,
           email: data.email,

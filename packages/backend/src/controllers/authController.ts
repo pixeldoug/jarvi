@@ -8,6 +8,34 @@ import bcrypt from 'bcryptjs';
 import { sendVerificationEmail, sendPasswordResetEmail, sendGoogleAccountNoticeEmail } from '../services/emailService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { generateOtpFromToken } from '../utils/otp';
+import { sendMetaEvent, getClientIp } from '../services/metaCapiService';
+
+const firstNameOf = (fullName?: string | null): string | undefined =>
+  (fullName || '').trim().split(/\s+/)[0] || undefined;
+
+/**
+ * Fires the deep-funnel Meta conversion (account verified/active) server-side.
+ * Uses a deterministic event id (`cr_<userId>`) so repeated verify calls dedup.
+ */
+const fireMetaCompleteRegistration = (
+  req: Request,
+  user: { id: string; email: string; name?: string | null; meta_fbc?: string | null; meta_fbp?: string | null }
+): void => {
+  void sendMetaEvent({
+    eventName: 'CompleteRegistration',
+    eventId: `cr_${user.id}`,
+    actionSource: 'website',
+    userData: {
+      email: user.email,
+      externalId: user.id,
+      firstName: firstNameOf(user.name),
+      clientIpAddress: getClientIp(req.ip, req.headers['x-forwarded-for']),
+      clientUserAgent: req.headers['user-agent'] || undefined,
+      fbc: user.meta_fbc ?? undefined,
+      fbp: user.meta_fbp ?? undefined,
+    },
+  });
+};
 
 const INTERNAL_TRIAL_DAYS = 7;
 
@@ -180,6 +208,7 @@ export const googleAuth = async (
     const now = new Date().toISOString();
     const trialEndsAt = getInternalTrialEndsAtIso();
     let user;
+    let isNewUser = false;
 
     if (isPostgreSQL()) {
       // PostgreSQL
@@ -191,6 +220,7 @@ export const googleAuth = async (
 
         if (result.rows.length === 0) {
           // Create new user (Google users are automatically verified)
+          isNewUser = true;
           const userId = uuidv4();
           await client.query(
             `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, created_at, updated_at)
@@ -270,6 +300,7 @@ export const googleAuth = async (
 
       if (!user) {
         // Create new user (Google users are automatically verified)
+        isNewUser = true;
         const userId = uuidv4();
         await db.run(
           `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, created_at, updated_at)
@@ -342,6 +373,12 @@ export const googleAuth = async (
       console.error('Failed to sync onboarding lead during Google auth:', syncError);
     }
 
+    // Meta CAPI: a new Google account is created already verified, so it counts
+    // as the CompleteRegistration conversion in a single step.
+    if (isNewUser) {
+      fireMetaCompleteRegistration(req, user);
+    }
+
     // Generate JWT token
     const token = generateToken({
       id: user.id,
@@ -376,12 +413,24 @@ export const register = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { email, name, password } = req.body;
+    const { email, name, password, fbc, fbp, eventId, eventSourceUrl } = req.body as {
+      email?: string;
+      name?: string;
+      password?: string;
+      fbc?: string;
+      fbp?: string;
+      eventId?: string;
+      eventSourceUrl?: string;
+    };
 
     if (!email || !name || !password) {
       res.status(400).json({ error: 'Email, name and password are required' });
       return;
     }
+
+    const metaFbc = fbc || null;
+    const metaFbp = fbp || null;
+    const metaEventId = eventId || null;
 
     // Validate password strength
     const passwordValidation = validatePasswordStrength(password, [email, name], 2);
@@ -415,9 +464,9 @@ export const register = async (
 
         // Create new user with email_verified = false
         await client.query(
-          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, now, now]
+          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
         );
 
         const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -438,9 +487,9 @@ export const register = async (
 
       // Create new user with email_verified = false
       await db.run(
-        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, now, now]
+        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
       );
 
       newUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
@@ -451,6 +500,24 @@ export const register = async (
     } catch (syncError) {
       console.error('Failed to sync onboarding lead during register:', syncError);
     }
+
+    // Meta CAPI: account submitted (pending verification). Mirrors the browser
+    // Pixel "RegistrationSubmitted" event via the shared eventId for dedup.
+    void sendMetaEvent({
+      eventName: 'RegistrationSubmitted',
+      eventId: metaEventId || `rs_${userId}`,
+      actionSource: 'website',
+      eventSourceUrl: eventSourceUrl || undefined,
+      userData: {
+        email,
+        externalId: userId,
+        firstName: firstNameOf(name),
+        clientIpAddress: getClientIp(req.ip, req.headers['x-forwarded-for']),
+        clientUserAgent: req.headers['user-agent'] || undefined,
+        fbc: metaFbc ?? undefined,
+        fbp: metaFbp ?? undefined,
+      },
+    });
 
     // Send verification email
     try {
@@ -695,6 +762,9 @@ export const verifyEmail = async (
       );
     }
 
+    // Meta CAPI: account verified/active = the optimization conversion.
+    fireMetaCompleteRegistration(req, user);
+
     res.json({ 
       success: true, 
       message: 'Email verificado com sucesso! Você já pode fazer login.' 
@@ -796,6 +866,9 @@ export const verifyEmailOtp = async (
         [true, now, user.id]
       );
     }
+
+    // Meta CAPI: account verified/active = the optimization conversion.
+    fireMetaCompleteRegistration(req, user);
 
     // Auto-login após verificação bem-sucedida
     const token = generateToken({

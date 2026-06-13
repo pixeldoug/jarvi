@@ -949,6 +949,20 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Add Meta Ads attribution columns to users (Pixel/CAPI dedup)
+      const metaAdsUserMigrations = [
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_fbc TEXT',
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_fbp TEXT',
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_event_id TEXT',
+      ];
+      for (const migration of metaAdsUserMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
     } finally {
       client.release();
     }
@@ -1237,6 +1251,20 @@ const runMigrations = async (): Promise<void> => {
       await db.exec('ALTER TABLE users ADD COLUMN preferred_name TEXT');
     } catch (e) {
       // Column already exists, ignore
+    }
+
+    // Migration: Add Meta Ads attribution columns to users (SQLite)
+    const metaAdsUserMigrationsSqlite = [
+      'ALTER TABLE users ADD COLUMN meta_fbc TEXT',
+      'ALTER TABLE users ADD COLUMN meta_fbp TEXT',
+      'ALTER TABLE users ADD COLUMN meta_event_id TEXT',
+    ];
+    for (const migration of metaAdsUserMigrationsSqlite) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
     }
   }
 };
