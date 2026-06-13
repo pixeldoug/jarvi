@@ -14,21 +14,17 @@ import styles from './OnboardingWizard.module.css';
 const STEP_NAMES: Record<number, string> = {
   0: 'name',
   1: 'email',
-  2: 'areas',
-  3: 'task_origins',
-  4: 'tracking_methods',
-  5: 'pain_points',
-  6: 'desired_capabilities',
-  7: 'ideal_outcome',
-  8: 'interview_availability',
-  9: 'broadcast_updates',
+  2: 'tracking_methods',
+  3: 'pain_points',
+  4: 'desired_capabilities',
+  5: 'ideal_outcome',
+  6: 'interview_availability',
+  7: 'broadcast_updates',
 };
 
 type InterviewAvailability = 'yes' | 'no' | 'later' | null;
-type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type SelectionField =
-  | 'areas'
-  | 'taskOrigins'
   | 'trackingMethods'
   | 'painPoints'
   | 'desiredCapabilities';
@@ -41,10 +37,6 @@ interface Option {
 interface OnboardingFormData {
   name: string;
   email: string;
-  areas: string[];
-  areasOther: string;
-  taskOrigins: string[];
-  taskOriginsOther: string;
   trackingMethods: string[];
   trackingMethodsOther: string;
   painPoints: string[];
@@ -60,10 +52,6 @@ interface OnboardingFormData {
 type ValidationErrorField =
   | 'name'
   | 'email'
-  | 'areas'
-  | 'areasOther'
-  | 'taskOrigins'
-  | 'taskOriginsOther'
   | 'trackingMethods'
   | 'trackingMethodsOther'
   | 'painPoints'
@@ -82,29 +70,7 @@ interface StepValidationError {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WHATSAPP_REGEX = /^\+?\d{10,15}$/;
-const BASE_FORM_STEPS = 9;
-
-const AREA_OPTIONS: Option[] = [
-  { value: 'work', label: 'Trabalho' },
-  { value: 'personal-projects', label: 'Projetos pessoais' },
-  { value: 'finances', label: 'Finanças' },
-  { value: 'studies', label: 'Estudos' },
-  { value: 'family', label: 'Família' },
-  { value: 'health', label: 'Saúde' },
-  { value: 'routine', label: 'Rotina do dia a dia' },
-  { value: 'other', label: 'Outros' },
-];
-
-const TASK_ORIGIN_OPTIONS: Option[] = [
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'email', label: 'Email' },
-  { value: 'meetings', label: 'Reuniões' },
-  { value: 'thoughts', label: 'Surgem na minha cabeça durante o dia' },
-  { value: 'slack-teams', label: 'Slack, Teams e etc' },
-  { value: 'calendar', label: 'Calendário' },
-  { value: 'in-person', label: 'Alguém me pede algo pessoalmente' },
-  { value: 'other', label: 'Outros' },
-];
+const BASE_FORM_STEPS = 7;
 
 const TRACKING_METHOD_OPTIONS: Option[] = [
   { value: 'mobile-notes', label: 'Anotações no celular' },
@@ -147,10 +113,6 @@ const INTERVIEW_OPTIONS: Option[] = [
 const INITIAL_DATA: OnboardingFormData = {
   name: '',
   email: '',
-  areas: [],
-  areasOther: '',
-  taskOrigins: [],
-  taskOriginsOther: '',
   trackingMethods: [],
   trackingMethodsOther: '',
   painPoints: [],
@@ -200,12 +162,6 @@ function getLabelsFromSelection(
 }
 
 function buildMemorySeed(data: OnboardingFormData): string {
-  const areaLabels = getLabelsFromSelection(AREA_OPTIONS, data.areas, data.areasOther);
-  const taskOriginLabels = getLabelsFromSelection(
-    TASK_ORIGIN_OPTIONS,
-    data.taskOrigins,
-    data.taskOriginsOther
-  );
   const trackingMethodLabels = getLabelsFromSelection(
     TRACKING_METHOD_OPTIONS,
     data.trackingMethods,
@@ -226,12 +182,6 @@ function buildMemorySeed(data: OnboardingFormData): string {
 
   if (data.name.trim()) {
     lines.push(`Você se chama ${data.name.trim()}.`);
-  }
-  if (areaLabels.length > 0) {
-    lines.push(`Você quer organizar melhor: ${formatList(areaLabels)}.`);
-  }
-  if (taskOriginLabels.length > 0) {
-    lines.push(`Suas tarefas costumam aparecer por: ${formatList(taskOriginLabels)}.`);
   }
   if (trackingMethodLabels.length > 0) {
     lines.push(`Hoje você registra tarefas usando: ${formatList(trackingMethodLabels)}.`);
@@ -271,26 +221,6 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
   }
 
   if (step === 2) {
-    if (data.areas.length === 0) {
-      return { field: 'areas', message: 'Selecione ao menos uma área.' };
-    }
-    if (data.areas.includes('other') && !data.areasOther.trim()) {
-      return { field: 'areasOther', message: 'Descreva o que entra em "Outros".' };
-    }
-    return null;
-  }
-
-  if (step === 3) {
-    if (data.taskOrigins.length === 0) {
-      return { field: 'taskOrigins', message: 'Selecione ao menos uma opção.' };
-    }
-    if (data.taskOrigins.includes('other') && !data.taskOriginsOther.trim()) {
-      return { field: 'taskOriginsOther', message: 'Descreva o que entra em "Outros".' };
-    }
-    return null;
-  }
-
-  if (step === 4) {
     if (data.trackingMethods.length === 0) {
       return { field: 'trackingMethods', message: 'Selecione ao menos uma opção.' };
     }
@@ -300,7 +230,7 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
     return null;
   }
 
-  if (step === 5) {
+  if (step === 3) {
     if (data.painPoints.length === 0) {
       return { field: 'painPoints', message: 'Selecione ao menos um desafio.' };
     }
@@ -310,7 +240,7 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
     return null;
   }
 
-  if (step === 6) {
+  if (step === 4) {
     if (data.desiredCapabilities.length === 0) {
       return { field: 'desiredCapabilities', message: 'Selecione ao menos uma opção.' };
     }
@@ -323,11 +253,11 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
     return null;
   }
 
-  if (step === 7) {
+  if (step === 5) {
     return null;
   }
 
-  if (step === 8) {
+  if (step === 6) {
     if (!data.interviewAvailability) {
       return { field: 'interviewAvailability', message: 'Escolha uma opção para seguir.' };
     }
@@ -493,7 +423,7 @@ export function OnboardingWizard() {
   }, []);
 
   useEffect(() => {
-    if (step === 0 || step === 10) return;
+    if (step === 0 || step === 8) return;
     posthog?.capture('onboarding_step_viewed', {
       step,
       step_name: STEP_NAMES[step] ?? `step_${step}`,
@@ -504,10 +434,6 @@ export function OnboardingWizard() {
     () => buildMemorySeed(formData),
     [
       formData.name,
-      formData.areas,
-      formData.areasOther,
-      formData.taskOrigins,
-      formData.taskOriginsOther,
       formData.trackingMethods,
       formData.trackingMethodsOther,
       formData.painPoints,
@@ -518,11 +444,11 @@ export function OnboardingWizard() {
     ]
   );
 
-  const showSuccessState = step === 10;
+  const showSuccessState = step === 8;
   const normalizedWhatsappContact = normalizeWhatsapp(formData.contactValue);
   const shouldShowBroadcastStep =
     formData.interviewAvailability === 'yes' && WHATSAPP_REGEX.test(normalizedWhatsappContact);
-  const isFinalStep = step === (shouldShowBroadcastStep ? 9 : 8);
+  const isFinalStep = step === (shouldShowBroadcastStep ? 7 : 6);
   const totalFormSteps = shouldShowBroadcastStep ? BASE_FORM_STEPS + 1 : BASE_FORM_STEPS;
 
   const hasError = (field: ValidationErrorField): boolean => errorField === field && !!errorMessage;
@@ -564,8 +490,6 @@ export function OnboardingWizard() {
       const nextState: OnboardingFormData = { ...previous, [field]: nextValues };
       if (value !== 'other' || nextValues.includes('other')) return nextState;
 
-      if (field === 'areas') nextState.areasOther = '';
-      if (field === 'taskOrigins') nextState.taskOriginsOther = '';
       if (field === 'trackingMethods') nextState.trackingMethodsOther = '';
       if (field === 'painPoints') nextState.painPointsOther = '';
       if (field === 'desiredCapabilities') nextState.desiredCapabilitiesOther = '';
@@ -594,14 +518,10 @@ export function OnboardingWizard() {
         source: 'marketing-onboarding',
         name: formData.name.trim(),
         email: normalizeEmail(formData.email),
-        areas: formData.areas,
-        taskOrigins: formData.taskOrigins,
         trackingMethods: formData.trackingMethods,
         painPoints: formData.painPoints,
         desiredCapabilities: formData.desiredCapabilities,
         otherDetails: {
-          areas: formData.areasOther.trim() || undefined,
-          taskOrigins: formData.taskOriginsOther.trim() || undefined,
           trackingMethods: formData.trackingMethodsOther.trim() || undefined,
           painPoints: formData.painPointsOther.trim() || undefined,
           desiredCapabilities: formData.desiredCapabilitiesOther.trim() || undefined,
@@ -632,14 +552,13 @@ export function OnboardingWizard() {
       }
 
       posthog?.capture('onboarding_completed', {
-        areas: formData.areas,
         pain_points: formData.painPoints,
         desired_capabilities: formData.desiredCapabilities,
         interview_availability: formData.interviewAvailability,
         wants_broadcast_updates: formData.wantsBroadcastUpdates,
-        total_steps_completed: shouldShowBroadcastStep ? 10 : 9,
+        total_steps_completed: shouldShowBroadcastStep ? 8 : 7,
       });
-      setStep(10);
+      setStep(8);
     } catch (error) {
       console.error('Onboarding submit error:', error);
       posthog?.capture('onboarding_submit_failed', { reason: 'network_error' });
@@ -858,71 +777,7 @@ export function OnboardingWizard() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>Quais áreas da sua vida você quer organizar?</h1>
-            {hasError('areas') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
-          </div>
-          <SelectionChips
-            options={AREA_OPTIONS}
-            selectedValues={formData.areas}
-            onToggle={(value) => toggleSelection('areas', value)}
-            compact={formData.areas.includes('other')}
-          />
-          {formData.areas.includes('other') && (
-            <div className={styles.fieldBlock}>
-              {hasError('areasOther') && errorMessage && (
-                <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
-              )}
-              <input
-                className={getInputClassName('areasOther')}
-                value={formData.areasOther}
-                onChange={(event) => updateField('areasOther', event.target.value)}
-                placeholder="Ex: viagens, hobbies, casa, pets..."
-              />
-            </div>
-          )}
-        </>
-      );
-    }
-
-    if (step === 3) {
-      return (
-        <>
-          <div className={styles.questionBlock}>
-            <h1>Como as suas tarefas aparecem no seu dia?</h1>
-            {hasError('taskOrigins') && errorMessage && (
-              <p className={styles.questionError}>{errorMessage}</p>
-            )}
-          </div>
-          <SelectionChips
-            options={TASK_ORIGIN_OPTIONS}
-            selectedValues={formData.taskOrigins}
-            onToggle={(value) => toggleSelection('taskOrigins', value)}
-            compact={formData.taskOrigins.includes('other')}
-          />
-          {formData.taskOrigins.includes('other') && (
-            <div className={styles.fieldBlock}>
-              {hasError('taskOriginsOther') && errorMessage && (
-                <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
-              )}
-              <input
-                className={getInputClassName('taskOriginsOther')}
-                value={formData.taskOriginsOther}
-                onChange={(event) => updateField('taskOriginsOther', event.target.value)}
-                placeholder="Conte de onde essas tarefas também surgem..."
-              />
-            </div>
-          )}
-        </>
-      );
-    }
-
-    if (step === 4) {
-      return (
-        <>
-          <div className={styles.questionBlock}>
-            <h1>Como você registra e acompanha as suas tarefas?</h1>
+            <h1>Como você cria e lembra das suas tarefas?</h1>
             {hasError('trackingMethods') && errorMessage && (
               <p className={styles.questionError}>{errorMessage}</p>
             )}
@@ -950,11 +805,11 @@ export function OnboardingWizard() {
       );
     }
 
-    if (step === 5) {
+    if (step === 3) {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>Quais desses problemas você se identifica?</h1>
+            <h1>Você lida com algumas das opções abaixo?</h1>
             {hasError('painPoints') && errorMessage && (
               <p className={styles.questionError}>{errorMessage}</p>
             )}
@@ -982,7 +837,7 @@ export function OnboardingWizard() {
       );
     }
 
-    if (step === 6) {
+    if (step === 4) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -1014,7 +869,7 @@ export function OnboardingWizard() {
       );
     }
 
-    if (step === 7) {
+    if (step === 5) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -1035,7 +890,7 @@ export function OnboardingWizard() {
       );
     }
 
-    if (step === 8) {
+    if (step === 6) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -1085,7 +940,7 @@ export function OnboardingWizard() {
       );
     }
 
-    if (step === 9) {
+    if (step === 7) {
       return (
         <>
           <div className={styles.questionBlock}>

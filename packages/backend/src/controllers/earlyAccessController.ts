@@ -84,20 +84,11 @@ const getWizardValidationError = (payload: NormalizedWizardPayload): string | nu
   if (!payload.name) return 'Nome é obrigatório';
   if (!payload.email) return 'Email é obrigatório';
   if (!EMAIL_REGEX.test(payload.email)) return 'Formato de email inválido';
-  if (payload.areas.length === 0) return 'Selecione ao menos uma área';
-  if (payload.taskOrigins.length === 0) return 'Selecione ao menos uma origem de tarefas';
   if (payload.trackingMethods.length === 0) return 'Selecione ao menos uma forma de registro';
   if (payload.painPoints.length === 0) return 'Selecione ao menos um desafio atual';
   if (payload.desiredCapabilities.length === 0) return 'Selecione ao menos uma expectativa';
-  if (payload.taskOrigins.length > 3) return 'Você pode escolher no máximo 3 origens de tarefas';
   if (!payload.memorySeedText) return 'Texto de memória inicial é obrigatório';
 
-  if (payload.areas.includes('other') && !payload.areasOther) {
-    return 'Detalhe o campo "Outros" em áreas';
-  }
-  if (payload.taskOrigins.includes('other') && !payload.taskOriginsOther) {
-    return 'Detalhe o campo "Outros" em origem das tarefas';
-  }
   if (payload.trackingMethods.includes('other') && !payload.trackingMethodsOther) {
     return 'Detalhe o campo "Outros" em métodos de registro';
   }
