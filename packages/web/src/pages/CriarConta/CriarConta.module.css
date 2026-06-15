@@ -428,6 +428,23 @@
   gap: var(--sizes-6);
 }
 
+.dividerContainer {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 100%;
+}
+
+.dividerContainer span {
+  flex-shrink: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+}
+
 /* ============================================================================
    FOOTER (login link)
    ============================================================================ */

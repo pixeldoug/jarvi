@@ -10,7 +10,7 @@ import { validatePasswordStrength } from '../utils/passwordValidator';
 import { generateOtpFromToken } from '../utils/otp';
 import { sendMetaEvent, getClientIp } from '../services/metaCapiService';
 import { identifyServer, captureServer } from '../services/posthogService';
-import { notifyNewAccountCreated } from './earlyAccessController';
+import { notifyNewAccountCreated, persistOnboardingLead } from './earlyAccessController';
 
 const firstNameOf = (fullName?: string | null): string | undefined =>
   (fullName || '').trim().split(/\s+/)[0] || undefined;
@@ -162,7 +162,17 @@ export const googleAuth = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { idToken } = req.body;
+    const { idToken, fbc, fbp } = req.body as {
+      idToken?: string;
+      fbc?: string;
+      fbp?: string;
+    };
+    const onboardingPayload =
+      typeof req.body?.onboarding === 'object' && req.body.onboarding !== null
+        ? (req.body.onboarding as Record<string, unknown>)
+        : null;
+    const metaFbc = fbc || null;
+    const metaFbp = fbp || null;
 
     if (!idToken) {
       res.status(400).json({ error: 'ID token is required' });
@@ -225,8 +235,8 @@ export const googleAuth = async (
           isNewUser = true;
           const userId = uuidv4();
           await client.query(
-            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
             [
               userId,
               email,
@@ -238,6 +248,8 @@ export const googleAuth = async (
               true, // Google users are verified
               'trialing',
               trialEndsAt,
+              metaFbc,
+              metaFbp,
               now,
               now,
             ]
@@ -305,8 +317,8 @@ export const googleAuth = async (
         isNewUser = true;
         const userId = uuidv4();
         await db.run(
-          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             userId,
             email,
@@ -318,6 +330,8 @@ export const googleAuth = async (
             true, // Google users are verified
             'trialing',
             trialEndsAt,
+            metaFbc,
+            metaFbp,
             now,
             now,
           ]
@@ -369,10 +383,26 @@ export const googleAuth = async (
       }
     }
 
+    // Para novas contas vindas do fluxo de onboarding, persistimos o lead com o
+    // email já verificado do Google ANTES de semear a memória. Restringimos a
+    // contas novas para não sobrescrever o lead/memória de usuários existentes.
+    if (isNewUser && onboardingPayload) {
+      try {
+        await persistOnboardingLead(onboardingPayload, { emailOverride: email });
+      } catch (leadError) {
+        console.error('Failed to persist onboarding lead during Google auth:', leadError);
+      }
+    }
+
     try {
       await syncOnboardingLeadWithUser(email, user.id);
     } catch (syncError) {
       console.error('Failed to sync onboarding lead during Google auth:', syncError);
+    }
+
+    // Notifica o time no Slack que uma nova conta foi criada (best-effort).
+    if (isNewUser) {
+      void notifyNewAccountCreated(email, user.id);
     }
 
     // PostHog server-side: identify on every Google auth; capture registration

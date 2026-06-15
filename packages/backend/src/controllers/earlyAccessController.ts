@@ -320,6 +320,295 @@ export const notifyNewAccountCreated = async (
   }
 };
 
+/**
+ * Persiste (upsert por email) um lead de onboarding a partir do payload do
+ * wizard. Reutilizado tanto pela rota pública `/api/early-access` quanto pelo
+ * fluxo de cadastro via Google, onde o email vem do token já verificado.
+ *
+ * `options.emailOverride` força o email do lead (fonte confiável, ex.: Google),
+ * garantindo que o lead case com a conta criada e que a memória inicial seja
+ * semeada corretamente.
+ */
+export const persistOnboardingLead = async (
+  rawPayload: Record<string, unknown>,
+  options?: { emailOverride?: string }
+): Promise<{ ok: boolean; created: boolean; error?: string }> => {
+  const normalizedPayload = parseWizardPayload(rawPayload);
+  if (!normalizedPayload) {
+    return { ok: false, created: false, error: 'Payload do onboarding inválido' };
+  }
+
+  if (options?.emailOverride) {
+    const overrideEmail = normalizeEmail(options.emailOverride);
+    if (overrideEmail) normalizedPayload.email = overrideEmail;
+  }
+
+  const wizardValidationError = getWizardValidationError(normalizedPayload);
+  if (wizardValidationError) {
+    return { ok: false, created: false, error: wizardValidationError };
+  }
+
+  const now = new Date().toISOString();
+  const rawPayloadJson = JSON.stringify(rawPayload);
+  const areasJson = JSON.stringify(normalizedPayload.areas);
+  const taskOriginsJson = JSON.stringify(normalizedPayload.taskOrigins);
+  const trackingMethodsJson = JSON.stringify(normalizedPayload.trackingMethods);
+  const painPointsJson = JSON.stringify(normalizedPayload.painPoints);
+  const desiredCapabilitiesJson = JSON.stringify(normalizedPayload.desiredCapabilities);
+
+  let leadId = '';
+  let wasExistingLead = false;
+
+  if (isPostgreSQL()) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      const existingLeadResult = await client.query(
+        'SELECT id FROM onboarding_leads WHERE email = $1',
+        [normalizedPayload.email]
+      );
+      const existingLead = (existingLeadResult.rows[0] as ExistingOnboardingLeadRow | undefined) || null;
+
+      if (existingLead) {
+        leadId = existingLead.id;
+        wasExistingLead = true;
+
+        await client.query(
+          `UPDATE onboarding_leads
+           SET name = $1,
+               areas_json = $2,
+               areas_other = $3,
+               task_origins_json = $4,
+               task_origins_other = $5,
+               tracking_methods_json = $6,
+               tracking_methods_other = $7,
+               pain_points_json = $8,
+               pain_points_other = $9,
+               desired_capabilities_json = $10,
+               desired_capabilities_other = $11,
+               ideal_outcome_text = $12,
+               interview_availability = $13,
+               contact_value = $14,
+               contact_type = $15,
+               wants_broadcast_updates = $16,
+               memory_seed_text = $17,
+               raw_payload_json = $18,
+               source = $19,
+               flow_version = $20,
+               updated_at = $21
+           WHERE email = $22`,
+          [
+            normalizedPayload.name,
+            areasJson,
+            normalizedPayload.areasOther || null,
+            taskOriginsJson,
+            normalizedPayload.taskOriginsOther || null,
+            trackingMethodsJson,
+            normalizedPayload.trackingMethodsOther || null,
+            painPointsJson,
+            normalizedPayload.painPointsOther || null,
+            desiredCapabilitiesJson,
+            normalizedPayload.desiredCapabilitiesOther || null,
+            normalizedPayload.idealOutcomeText,
+            normalizedPayload.interviewAvailability,
+            normalizedPayload.contactValue || null,
+            normalizedPayload.contactType,
+            normalizedPayload.wantsBroadcastUpdates,
+            normalizedPayload.memorySeedText,
+            rawPayloadJson,
+            normalizedPayload.source,
+            normalizedPayload.flowVersion,
+            now,
+            normalizedPayload.email,
+          ]
+        );
+      } else {
+        leadId = uuidv4();
+
+        await client.query(
+          `INSERT INTO onboarding_leads (
+            id,
+            email,
+            name,
+            areas_json,
+            areas_other,
+            task_origins_json,
+            task_origins_other,
+            tracking_methods_json,
+            tracking_methods_other,
+            pain_points_json,
+            pain_points_other,
+            desired_capabilities_json,
+            desired_capabilities_other,
+            ideal_outcome_text,
+            interview_availability,
+            contact_value,
+            contact_type,
+            wants_broadcast_updates,
+            memory_seed_text,
+            raw_payload_json,
+            source,
+            flow_version,
+            created_at,
+            updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+            $19, $20, $21, $22, $23, $24
+          )`,
+          [
+            leadId,
+            normalizedPayload.email,
+            normalizedPayload.name,
+            areasJson,
+            normalizedPayload.areasOther || null,
+            taskOriginsJson,
+            normalizedPayload.taskOriginsOther || null,
+            trackingMethodsJson,
+            normalizedPayload.trackingMethodsOther || null,
+            painPointsJson,
+            normalizedPayload.painPointsOther || null,
+            desiredCapabilitiesJson,
+            normalizedPayload.desiredCapabilitiesOther || null,
+            normalizedPayload.idealOutcomeText,
+            normalizedPayload.interviewAvailability,
+            normalizedPayload.contactValue || null,
+            normalizedPayload.contactType,
+            normalizedPayload.wantsBroadcastUpdates,
+            normalizedPayload.memorySeedText,
+            rawPayloadJson,
+            normalizedPayload.source,
+            normalizedPayload.flowVersion,
+            now,
+            now,
+          ]
+        );
+      }
+    } finally {
+      client.release();
+    }
+  } else {
+    const db = getDatabase();
+    const existingLead = ((await db.get(
+      'SELECT id FROM onboarding_leads WHERE email = ?',
+      [normalizedPayload.email]
+    )) as ExistingOnboardingLeadRow | undefined) || null;
+
+    if (existingLead) {
+      leadId = existingLead.id;
+      wasExistingLead = true;
+
+      await db.run(
+        `UPDATE onboarding_leads
+         SET name = ?,
+             areas_json = ?,
+             areas_other = ?,
+             task_origins_json = ?,
+             task_origins_other = ?,
+             tracking_methods_json = ?,
+             tracking_methods_other = ?,
+             pain_points_json = ?,
+             pain_points_other = ?,
+             desired_capabilities_json = ?,
+             desired_capabilities_other = ?,
+             ideal_outcome_text = ?,
+             interview_availability = ?,
+             contact_value = ?,
+             contact_type = ?,
+             wants_broadcast_updates = ?,
+             memory_seed_text = ?,
+             raw_payload_json = ?,
+             source = ?,
+             flow_version = ?,
+             updated_at = ?
+         WHERE email = ?`,
+        [
+          normalizedPayload.name,
+          areasJson,
+          normalizedPayload.areasOther || null,
+          taskOriginsJson,
+          normalizedPayload.taskOriginsOther || null,
+          trackingMethodsJson,
+          normalizedPayload.trackingMethodsOther || null,
+          painPointsJson,
+          normalizedPayload.painPointsOther || null,
+          desiredCapabilitiesJson,
+          normalizedPayload.desiredCapabilitiesOther || null,
+          normalizedPayload.idealOutcomeText,
+          normalizedPayload.interviewAvailability,
+          normalizedPayload.contactValue || null,
+          normalizedPayload.contactType,
+          normalizedPayload.wantsBroadcastUpdates,
+          normalizedPayload.memorySeedText,
+          rawPayloadJson,
+          normalizedPayload.source,
+          normalizedPayload.flowVersion,
+          now,
+          normalizedPayload.email,
+        ]
+      );
+    } else {
+      leadId = uuidv4();
+
+      await db.run(
+        `INSERT INTO onboarding_leads (
+          id,
+          email,
+          name,
+          areas_json,
+          areas_other,
+          task_origins_json,
+          task_origins_other,
+          tracking_methods_json,
+          tracking_methods_other,
+          pain_points_json,
+          pain_points_other,
+          desired_capabilities_json,
+          desired_capabilities_other,
+          ideal_outcome_text,
+          interview_availability,
+          contact_value,
+          contact_type,
+          wants_broadcast_updates,
+          memory_seed_text,
+          raw_payload_json,
+          source,
+          flow_version,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          leadId,
+          normalizedPayload.email,
+          normalizedPayload.name,
+          areasJson,
+          normalizedPayload.areasOther || null,
+          taskOriginsJson,
+          normalizedPayload.taskOriginsOther || null,
+          trackingMethodsJson,
+          normalizedPayload.trackingMethodsOther || null,
+          painPointsJson,
+          normalizedPayload.painPointsOther || null,
+          desiredCapabilitiesJson,
+          normalizedPayload.desiredCapabilitiesOther || null,
+          normalizedPayload.idealOutcomeText,
+          normalizedPayload.interviewAvailability,
+          normalizedPayload.contactValue || null,
+          normalizedPayload.contactType,
+          normalizedPayload.wantsBroadcastUpdates,
+          normalizedPayload.memorySeedText,
+          rawPayloadJson,
+          normalizedPayload.source,
+          normalizedPayload.flowVersion,
+          now,
+          now,
+        ]
+      );
+    }
+  }
+
+  return { ok: true, created: !wasExistingLead };
+};
+
 export const joinEarlyAccess = async (req: Request, res: Response): Promise<void> => {
   try {
     const payload =
@@ -328,281 +617,17 @@ export const joinEarlyAccess = async (req: Request, res: Response): Promise<void
         : {};
 
     if (isWizardPayload(payload)) {
-      const normalizedPayload = parseWizardPayload(payload);
-      if (!normalizedPayload) {
-        res.status(400).json({ error: 'Payload do onboarding inválido' });
+      const result = await persistOnboardingLead(payload);
+      if (!result.ok) {
+        res.status(400).json({ error: result.error });
         return;
       }
 
-      const wizardValidationError = getWizardValidationError(normalizedPayload);
-      if (wizardValidationError) {
-        res.status(400).json({ error: wizardValidationError });
-        return;
-      }
-
-      const now = new Date().toISOString();
-      const rawPayloadJson = JSON.stringify(payload);
-      const areasJson = JSON.stringify(normalizedPayload.areas);
-      const taskOriginsJson = JSON.stringify(normalizedPayload.taskOrigins);
-      const trackingMethodsJson = JSON.stringify(normalizedPayload.trackingMethods);
-      const painPointsJson = JSON.stringify(normalizedPayload.painPoints);
-      const desiredCapabilitiesJson = JSON.stringify(normalizedPayload.desiredCapabilities);
-
-      let leadId = '';
-      let wasExistingLead = false;
-
-      if (isPostgreSQL()) {
-        const pool = getPool();
-        const client = await pool.connect();
-        try {
-          const existingLeadResult = await client.query(
-            'SELECT id FROM onboarding_leads WHERE email = $1',
-            [normalizedPayload.email]
-          );
-          const existingLead = (existingLeadResult.rows[0] as ExistingOnboardingLeadRow | undefined) || null;
-
-          if (existingLead) {
-            leadId = existingLead.id;
-            wasExistingLead = true;
-
-            await client.query(
-              `UPDATE onboarding_leads
-               SET name = $1,
-                   areas_json = $2,
-                   areas_other = $3,
-                   task_origins_json = $4,
-                   task_origins_other = $5,
-                   tracking_methods_json = $6,
-                   tracking_methods_other = $7,
-                   pain_points_json = $8,
-                   pain_points_other = $9,
-                   desired_capabilities_json = $10,
-                   desired_capabilities_other = $11,
-                   ideal_outcome_text = $12,
-                   interview_availability = $13,
-                   contact_value = $14,
-                   contact_type = $15,
-                   wants_broadcast_updates = $16,
-                   memory_seed_text = $17,
-                   raw_payload_json = $18,
-                   source = $19,
-                   flow_version = $20,
-                   updated_at = $21
-               WHERE email = $22`,
-              [
-                normalizedPayload.name,
-                areasJson,
-                normalizedPayload.areasOther || null,
-                taskOriginsJson,
-                normalizedPayload.taskOriginsOther || null,
-                trackingMethodsJson,
-                normalizedPayload.trackingMethodsOther || null,
-                painPointsJson,
-                normalizedPayload.painPointsOther || null,
-                desiredCapabilitiesJson,
-                normalizedPayload.desiredCapabilitiesOther || null,
-                normalizedPayload.idealOutcomeText,
-                normalizedPayload.interviewAvailability,
-                normalizedPayload.contactValue || null,
-                normalizedPayload.contactType,
-                normalizedPayload.wantsBroadcastUpdates,
-                normalizedPayload.memorySeedText,
-                rawPayloadJson,
-                normalizedPayload.source,
-                normalizedPayload.flowVersion,
-                now,
-                normalizedPayload.email,
-              ]
-            );
-          } else {
-            leadId = uuidv4();
-
-            await client.query(
-              `INSERT INTO onboarding_leads (
-                id,
-                email,
-                name,
-                areas_json,
-                areas_other,
-                task_origins_json,
-                task_origins_other,
-                tracking_methods_json,
-                tracking_methods_other,
-                pain_points_json,
-                pain_points_other,
-                desired_capabilities_json,
-                desired_capabilities_other,
-                ideal_outcome_text,
-                interview_availability,
-                contact_value,
-                contact_type,
-                wants_broadcast_updates,
-                memory_seed_text,
-                raw_payload_json,
-                source,
-                flow_version,
-                created_at,
-                updated_at
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-                $19, $20, $21, $22, $23, $24
-              )`,
-              [
-                leadId,
-                normalizedPayload.email,
-                normalizedPayload.name,
-                areasJson,
-                normalizedPayload.areasOther || null,
-                taskOriginsJson,
-                normalizedPayload.taskOriginsOther || null,
-                trackingMethodsJson,
-                normalizedPayload.trackingMethodsOther || null,
-                painPointsJson,
-                normalizedPayload.painPointsOther || null,
-                desiredCapabilitiesJson,
-                normalizedPayload.desiredCapabilitiesOther || null,
-                normalizedPayload.idealOutcomeText,
-                normalizedPayload.interviewAvailability,
-                normalizedPayload.contactValue || null,
-                normalizedPayload.contactType,
-                normalizedPayload.wantsBroadcastUpdates,
-                normalizedPayload.memorySeedText,
-                rawPayloadJson,
-                normalizedPayload.source,
-                normalizedPayload.flowVersion,
-                now,
-                now,
-              ]
-            );
-          }
-        } finally {
-          client.release();
-        }
-      } else {
-        const db = getDatabase();
-        const existingLead = ((await db.get(
-          'SELECT id FROM onboarding_leads WHERE email = ?',
-          [normalizedPayload.email]
-        )) as ExistingOnboardingLeadRow | undefined) || null;
-
-        if (existingLead) {
-          leadId = existingLead.id;
-          wasExistingLead = true;
-
-          await db.run(
-            `UPDATE onboarding_leads
-             SET name = ?,
-                 areas_json = ?,
-                 areas_other = ?,
-                 task_origins_json = ?,
-                 task_origins_other = ?,
-                 tracking_methods_json = ?,
-                 tracking_methods_other = ?,
-                 pain_points_json = ?,
-                 pain_points_other = ?,
-                 desired_capabilities_json = ?,
-                 desired_capabilities_other = ?,
-                 ideal_outcome_text = ?,
-                 interview_availability = ?,
-                 contact_value = ?,
-                 contact_type = ?,
-                 wants_broadcast_updates = ?,
-                 memory_seed_text = ?,
-                 raw_payload_json = ?,
-                 source = ?,
-                 flow_version = ?,
-                 updated_at = ?
-             WHERE email = ?`,
-            [
-              normalizedPayload.name,
-              areasJson,
-              normalizedPayload.areasOther || null,
-              taskOriginsJson,
-              normalizedPayload.taskOriginsOther || null,
-              trackingMethodsJson,
-              normalizedPayload.trackingMethodsOther || null,
-              painPointsJson,
-              normalizedPayload.painPointsOther || null,
-              desiredCapabilitiesJson,
-              normalizedPayload.desiredCapabilitiesOther || null,
-              normalizedPayload.idealOutcomeText,
-              normalizedPayload.interviewAvailability,
-              normalizedPayload.contactValue || null,
-              normalizedPayload.contactType,
-              normalizedPayload.wantsBroadcastUpdates,
-              normalizedPayload.memorySeedText,
-              rawPayloadJson,
-              normalizedPayload.source,
-              normalizedPayload.flowVersion,
-              now,
-              normalizedPayload.email,
-            ]
-          );
-        } else {
-          leadId = uuidv4();
-
-          await db.run(
-            `INSERT INTO onboarding_leads (
-              id,
-              email,
-              name,
-              areas_json,
-              areas_other,
-              task_origins_json,
-              task_origins_other,
-              tracking_methods_json,
-              tracking_methods_other,
-              pain_points_json,
-              pain_points_other,
-              desired_capabilities_json,
-              desired_capabilities_other,
-              ideal_outcome_text,
-              interview_availability,
-              contact_value,
-              contact_type,
-              wants_broadcast_updates,
-              memory_seed_text,
-              raw_payload_json,
-              source,
-              flow_version,
-              created_at,
-              updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              leadId,
-              normalizedPayload.email,
-              normalizedPayload.name,
-              areasJson,
-              normalizedPayload.areasOther || null,
-              taskOriginsJson,
-              normalizedPayload.taskOriginsOther || null,
-              trackingMethodsJson,
-              normalizedPayload.trackingMethodsOther || null,
-              painPointsJson,
-              normalizedPayload.painPointsOther || null,
-              desiredCapabilitiesJson,
-              normalizedPayload.desiredCapabilitiesOther || null,
-              normalizedPayload.idealOutcomeText,
-              normalizedPayload.interviewAvailability,
-              normalizedPayload.contactValue || null,
-              normalizedPayload.contactType,
-              normalizedPayload.wantsBroadcastUpdates,
-              normalizedPayload.memorySeedText,
-              rawPayloadJson,
-              normalizedPayload.source,
-              normalizedPayload.flowVersion,
-              now,
-              now,
-            ]
-          );
-        }
-      }
-
-      res.status(wasExistingLead ? 200 : 201).json({
+      res.status(result.created ? 201 : 200).json({
         success: true,
-        message: wasExistingLead
-          ? 'Seu onboarding foi atualizado com sucesso.'
-          : 'Cadastro recebido! Em breve entraremos em contato.',
+        message: result.created
+          ? 'Cadastro recebido! Em breve entraremos em contato.'
+          : 'Seu onboarding foi atualizado com sucesso.',
       });
       return;
     }

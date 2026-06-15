@@ -34,7 +34,11 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
+  loginWithGoogle: (
+    idToken: string,
+    onboarding?: unknown,
+    meta?: { fbc?: string; fbp?: string },
+  ) => Promise<void>;
   register: (email: string, name: string, password: string, meta?: RegisterMeta) => Promise<RegisterResult>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
@@ -156,15 +160,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async (idToken: string) => {
+  const loginWithGoogle = async (
+    idToken: string,
+    onboarding?: unknown,
+    meta?: { fbc?: string; fbp?: string },
+  ) => {
     try {
       setIsLoading(true);
+      const body: Record<string, unknown> = { idToken };
+      if (onboarding) body.onboarding = onboarding;
+      if (meta?.fbc) body.fbc = meta.fbc;
+      if (meta?.fbp) body.fbp = meta.fbp;
       const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

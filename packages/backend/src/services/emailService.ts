@@ -80,9 +80,13 @@ function renderEmailShell(params: {
             <tr>
               <td style="position:relative; border-radius:24px; box-shadow:0px 1px 2px 0px rgba(9,9,11,0.05); background:linear-gradient(155.09deg, rgb(255,255,255) 5.96%, rgb(255,255,255) 74.58%, rgba(255,255,255,0.8) 93.94%);">
                 <!-- Logo no canto superior esquerdo -->
-                <div style="position:absolute; left:27px; top:24px; width:48px; height:48px; background:#18181B; border-radius:16px; border-bottom:2px solid rgba(9,9,11,0.3); box-shadow:0px 1px 0px 0px rgba(24,24,27,0.15); display:flex; align-items:center; justify-content:center;">
-                  <img src="cid:${EMAIL_LOGO_CID}" alt="Jarvi" width="34" height="34" style="display:block;" />
-                </div>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; left:40px; top:40px; width:48px; height:48px; background:#18181B; border-radius:16px; border-bottom:2px solid rgba(9,9,11,0.3); box-shadow:0px 1px 0px 0px rgba(24,24,27,0.15);">
+                  <tr>
+                    <td align="center" valign="middle" style="width:48px; height:48px; text-align:center;">
+                      <img src="cid:${EMAIL_LOGO_CID}" alt="Jarvi" width="40" height="40" style="display:inline-block; vertical-align:middle;" />
+                    </td>
+                  </tr>
+                </table>
                 
                 <!-- Conteúdo do email -->
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">

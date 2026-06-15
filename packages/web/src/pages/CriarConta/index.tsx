@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { Check } from '@phosphor-icons/react';
 import posthog from 'posthog-js';
 import { useAuth } from '../../contexts/AuthContext';
-import { Button, Logo, PasswordInput } from '../../components/ui';
+import { Button, Divider, Logo, PasswordInput } from '../../components/ui';
+import { GoogleLogin } from '../../components/features/auth';
 import { useForceTheme } from '../../hooks/useForceTheme';
 import { trackPixel, getFbCookies, generateEventId } from '../../lib/metaPixel';
 import styles from './CriarConta.module.css';
@@ -16,7 +17,7 @@ import styles from './CriarConta.module.css';
 // ============================================================================
 
 type InterviewAvailability = 'yes' | 'no' | 'later' | null;
-type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type SelectionField =
   | 'trackingMethods'
   | 'painPoints'
@@ -67,17 +68,16 @@ interface StepValidationError {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WHATSAPP_REGEX = /^\+?\d{10,15}$/;
-const BASE_FORM_STEPS = 7;
+const BASE_FORM_STEPS = 6;
 
 const STEP_NAMES: Record<number, string> = {
   0: 'name',
-  1: 'email',
-  2: 'tracking_methods',
-  3: 'pain_points',
-  4: 'desired_capabilities',
-  5: 'ideal_outcome',
-  6: 'interview_availability',
-  7: 'broadcast_updates',
+  1: 'tracking_methods',
+  2: 'pain_points',
+  3: 'desired_capabilities',
+  4: 'ideal_outcome',
+  5: 'interview_availability',
+  6: 'broadcast_updates',
 };
 
 const TRACKING_METHOD_OPTIONS: Option[] = [
@@ -211,27 +211,21 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
     return null;
   }
   if (step === 1) {
-    const email = normalizeEmail(data.email);
-    if (!email) return { field: 'email', message: 'Digite seu email.' };
-    if (!EMAIL_REGEX.test(email)) return { field: 'email', message: 'Digite um email válido.' };
-    return null;
-  }
-  if (step === 2) {
     if (!data.trackingMethods.length) return { field: 'trackingMethods', message: 'Selecione ao menos uma opção.' };
     if (data.trackingMethods.includes('other') && !data.trackingMethodsOther.trim()) return { field: 'trackingMethodsOther', message: 'Descreva o que entra em "Outros".' };
     return null;
   }
-  if (step === 3) {
+  if (step === 2) {
     if (!data.painPoints.length) return { field: 'painPoints', message: 'Selecione ao menos um desafio.' };
     if (data.painPoints.includes('other') && !data.painPointsOther.trim()) return { field: 'painPointsOther', message: 'Descreva o que entra em "Outros".' };
     return null;
   }
-  if (step === 4) {
+  if (step === 3) {
     if (!data.desiredCapabilities.length) return { field: 'desiredCapabilities', message: 'Selecione ao menos uma opção.' };
     if (data.desiredCapabilities.includes('other') && !data.desiredCapabilitiesOther.trim()) return { field: 'desiredCapabilitiesOther', message: 'Descreva o que entra em "Outra coisa".' };
     return null;
   }
-  if (step === 6) {
+  if (step === 5) {
     if (!data.interviewAvailability) return { field: 'interviewAvailability', message: 'Escolha uma opção para seguir.' };
     if (data.interviewAvailability === 'yes') {
       if (!data.contactValue.trim()) return { field: 'contactValue', message: 'Informe um WhatsApp ou email para contato.' };
@@ -362,22 +356,23 @@ export function CriarConta() {
   useForceTheme('light');
 
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const [step, setStep] = useState<StepIndex>(0);
   const [formData, setFormData] = useState<OnboardingFormData>(INITIAL_DATA);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<ValidationErrorField | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Account creation state (step 10)
+  // Account creation state (final step)
   const [accountPassword, setAccountPassword] = useState('');
   const [accountPasswordStrength, setAccountPasswordStrength] = useState(0);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
-  const showAccountStep = step === 8;
+  const ACCOUNT_STEP: StepIndex = 7;
+  const showAccountStep = step === ACCOUNT_STEP;
 
   useEffect(() => {
     // Top-of-funnel signal: user started the registration flow.
@@ -387,7 +382,7 @@ export function CriarConta() {
   const normalizedWhatsappContact = normalizeWhatsapp(formData.contactValue);
   const shouldShowBroadcastStep =
     formData.interviewAvailability === 'yes' && WHATSAPP_REGEX.test(normalizedWhatsappContact);
-  const isFinalStep = step === (shouldShowBroadcastStep ? 7 : 6);
+  const isFinalStep = step === (shouldShowBroadcastStep ? 6 : 5);
   const totalFormSteps = shouldShowBroadcastStep ? BASE_FORM_STEPS + 1 : BASE_FORM_STEPS;
 
   const generatedMemory = useMemo(
@@ -433,65 +428,75 @@ export function CriarConta() {
     });
   };
 
-  const submitOnboarding = async () => {
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setErrorField(null);
+  // Monta o payload do onboarding (lead de early-access) usando o email
+  // informado. No fluxo Google, o email pode ir vazio: o backend sobrescreve
+  // com o email já verificado do token.
+  const buildOnboardingPayload = (emailArg: string) => {
+    const normalizedContact = formData.contactValue.trim();
+    const normalizedEmailContact = normalizeEmail(normalizedContact);
+    const normalizedWhatsapp = normalizeWhatsapp(normalizedContact);
+    const contactType = EMAIL_REGEX.test(normalizedEmailContact)
+      ? 'email'
+      : WHATSAPP_REGEX.test(normalizedWhatsapp)
+        ? 'whatsapp'
+        : null;
+
+    return {
+      flowVersion: 'web-onboarding-v1',
+      source: 'web-onboarding',
+      name: formData.name.trim(),
+      email: normalizeEmail(emailArg),
+      trackingMethods: formData.trackingMethods,
+      painPoints: formData.painPoints,
+      desiredCapabilities: formData.desiredCapabilities,
+      otherDetails: {
+        trackingMethods: formData.trackingMethodsOther.trim() || undefined,
+        painPoints: formData.painPointsOther.trim() || undefined,
+        desiredCapabilities: formData.desiredCapabilitiesOther.trim() || undefined,
+      },
+      idealOutcomeText: formData.idealOutcomeText.trim(),
+      interviewAvailability: formData.interviewAvailability,
+      contactValue: formData.interviewAvailability === 'yes' ? normalizedContact : '',
+      contactType: formData.interviewAvailability === 'yes' ? contactType : null,
+      wantsBroadcastUpdates: formData.wantsBroadcastUpdates,
+      memorySeedText: generatedMemory,
+      ...getTrafficAttribution(),
+    };
+  };
+
+  // Persiste o lead de onboarding (early-access) usando o email informado.
+  // Roda imediatamente antes da criação da conta por email, pois o backend
+  // semeia a memória inicial do usuário a partir do lead chaveado por email.
+  const submitEarlyAccess = async (emailArg: string): Promise<boolean> => {
     try {
-      const normalizedContact = formData.contactValue.trim();
-      const normalizedEmailContact = normalizeEmail(normalizedContact);
-      const normalizedWhatsapp = normalizeWhatsapp(normalizedContact);
-      const contactType = EMAIL_REGEX.test(normalizedEmailContact)
-        ? 'email'
-        : WHATSAPP_REGEX.test(normalizedWhatsapp)
-          ? 'whatsapp'
-          : null;
-
-      const payload = {
-        flowVersion: 'web-onboarding-v1',
-        source: 'web-onboarding',
-        name: formData.name.trim(),
-        email: normalizeEmail(formData.email),
-        trackingMethods: formData.trackingMethods,
-        painPoints: formData.painPoints,
-        desiredCapabilities: formData.desiredCapabilities,
-        otherDetails: {
-          trackingMethods: formData.trackingMethodsOther.trim() || undefined,
-          painPoints: formData.painPointsOther.trim() || undefined,
-          desiredCapabilities: formData.desiredCapabilitiesOther.trim() || undefined,
-        },
-        idealOutcomeText: formData.idealOutcomeText.trim(),
-        interviewAvailability: formData.interviewAvailability,
-        contactValue: formData.interviewAvailability === 'yes' ? normalizedContact : '',
-        contactType: formData.interviewAvailability === 'yes' ? contactType : null,
-        wantsBroadcastUpdates: formData.wantsBroadcastUpdates,
-        memorySeedText: generatedMemory,
-        ...getTrafficAttribution(),
-      };
-
       const response = await fetch(`${API_URL}/api/early-access`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildOnboardingPayload(emailArg)),
       });
 
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
-        setErrorMessage(data.error || 'Não foi possível enviar sua solicitação agora.');
-        setErrorField('form');
-        return;
+        setAccountError(data.error || 'Não foi possível concluir seu cadastro agora.');
+        return false;
       }
-
-      setStep(8);
+      return true;
     } catch {
-      setErrorMessage('Não foi possível enviar sua solicitação agora.');
-      setErrorField('form');
-    } finally {
-      setIsSubmitting(false);
+      setAccountError('Não foi possível concluir seu cadastro agora.');
+      return false;
     }
   };
 
   const handleCreateAccount = async () => {
+    const email = normalizeEmail(formData.email);
+    if (!email) {
+      setAccountError('Digite seu email.');
+      return;
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      setAccountError('Digite um email válido.');
+      return;
+    }
     if (accountPasswordStrength < 2) {
       setAccountError('Por favor, escolha uma senha mais forte.');
       return;
@@ -499,6 +504,9 @@ export function CriarConta() {
     setAccountError(null);
     setIsCreatingAccount(true);
     try {
+      const leadSaved = await submitEarlyAccess(email);
+      if (!leadSaved) return;
+
       const { fbc, fbp } = getFbCookies();
       const eventId = generateEventId();
 
@@ -507,7 +515,7 @@ export function CriarConta() {
       trackPixel('RegistrationSubmitted', { custom: true, eventId });
 
       const result = await register(
-        normalizeEmail(formData.email),
+        email,
         formData.name.trim(),
         accountPassword,
         { fbc, fbp, eventId, eventSourceUrl: window.location.href },
@@ -524,8 +532,25 @@ export function CriarConta() {
     }
   };
 
+  // Cadastro via Google: contas Google já nascem verificadas no backend, então
+  // não passam pela verificação por email. Enviamos o onboarding junto: o
+  // backend persiste o lead com o email já verificado do token e semeia a
+  // memória inicial antes de retornar a sessão.
+  const handleGoogleSignup = async (idToken: string) => {
+    setAccountError(null);
+    setIsGoogleSubmitting(true);
+    try {
+      const { fbc, fbp } = getFbCookies();
+      await loginWithGoogle(idToken, buildOnboardingPayload(''), { fbc, fbp });
+      navigate('/');
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : 'Não foi possível criar sua conta com o Google agora.');
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  };
+
   const handleContinue = async () => {
-    if (isSubmitting) return;
     const validationError = getStepError(step, formData);
     if (validationError) {
       setErrorMessage(validationError.message);
@@ -535,7 +560,7 @@ export function CriarConta() {
     setErrorMessage(null);
     setErrorField(null);
     if (isFinalStep) {
-      await submitOnboarding();
+      setStep(ACCOUNT_STEP);
       return;
     }
     setStep((prev) => (prev + 1) as StepIndex);
@@ -565,21 +590,38 @@ export function CriarConta() {
     if (showAccountStep) {
       const firstName = formData.name.trim().split(/\s+/)[0] ?? '';
       const displayFirstName = capitalizeFirstLetter(firstName);
+      const isBusy = isCreatingAccount || isGoogleSubmitting;
       return (
         <div className={styles.accountStep}>
           <div className={styles.questionBlock}>
             <h1>
               {displayFirstName ? `Quase lá, ${displayFirstName}!` : 'Quase lá!'}
               <br />
-              Crie sua senha.
+              Crie sua conta.
             </h1>
+          </div>
+
+          <GoogleLogin
+            buttonText="Criar com Google"
+            onCredential={handleGoogleSignup}
+            onError={(error) => setAccountError(error)}
+          />
+
+          <div className={styles.dividerContainer}>
+            <Divider />
+            <span>ou com email</span>
+            <Divider />
           </div>
 
           <div className={styles.fieldBlock}>
             <input
               className={styles.input}
-              value={normalizeEmail(formData.email)}
-              readOnly
+              value={formData.email}
+              onChange={(e) => {
+                updateField('email', e.target.value);
+                if (accountError) setAccountError(null);
+              }}
+              placeholder="Digite seu email..."
               autoComplete="email"
               inputMode="email"
               aria-label="Email"
@@ -614,12 +656,24 @@ export function CriarConta() {
             variant="primary"
             size="medium"
             fullWidth
-            disabled={isCreatingAccount}
+            disabled={isBusy}
             loading={isCreatingAccount}
             onClick={() => { void handleCreateAccount(); }}
           >
             Criar conta
           </Button>
+
+          <p className={styles.termsCopy}>
+            Ao concluir, você concorda com nossos{' '}
+            <a href="https://jarvi.life/termos-de-uso" target="_blank" rel="noreferrer">
+              Termos de Uso
+            </a>{' '}
+            &{' '}
+            <a href="https://jarvi.life/politica-de-privacidade" target="_blank" rel="noreferrer">
+              Política de Privacidade
+            </a>
+            .
+          </p>
 
           <div className={styles.footer}>
             <span>Já tem uma conta?</span>
@@ -655,35 +709,6 @@ export function CriarConta() {
     }
 
     if (step === 1) {
-      const firstName = formData.name.trim().split(/\s+/)[0] ?? '';
-      const displayFirstName = capitalizeFirstLetter(firstName);
-      return (
-        <>
-          <div className={styles.questionBlock}>
-            <h1>
-              {displayFirstName ? `Olá, ${displayFirstName}! 👋` : 'Olá! 👋'}
-              <br />
-              Qual seu email?
-            </h1>
-          </div>
-          <div className={styles.fieldBlock}>
-            {hasError('email') && errorMessage && (
-              <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
-            )}
-            <input
-              className={getInputClass('email')}
-              value={formData.email}
-              onChange={(e) => updateField('email', e.target.value)}
-              placeholder="Digite aqui..."
-              autoComplete="email"
-              inputMode="email"
-            />
-          </div>
-        </>
-      );
-    }
-
-    if (step === 2) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -713,7 +738,7 @@ export function CriarConta() {
       );
     }
 
-    if (step === 3) {
+    if (step === 2) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -743,7 +768,7 @@ export function CriarConta() {
       );
     }
 
-    if (step === 4) {
+    if (step === 3) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -773,7 +798,7 @@ export function CriarConta() {
       );
     }
 
-    if (step === 5) {
+    if (step === 4) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -794,7 +819,7 @@ export function CriarConta() {
       );
     }
 
-    if (step === 6) {
+    if (step === 5) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -839,7 +864,7 @@ export function CriarConta() {
       );
     }
 
-    if (step === 7) {
+    if (step === 6) {
       return (
         <>
           <div className={styles.questionBlock}>
@@ -888,24 +913,9 @@ export function CriarConta() {
               variant={isFinalStep ? 'primary' : 'secondary'}
               size="medium"
               fullWidth
-              disabled={isSubmitting}
-              loading={isSubmitting}
             >
-              {isSubmitting ? 'Enviando...' : 'Continuar'}
+              Continuar
             </Button>
-            {isFinalStep && (
-              <p className={styles.termsCopy}>
-                Ao concluir, você concorda com nossos{' '}
-                <a href="https://jarvi.life/termos-de-uso" target="_blank" rel="noreferrer">
-                  Termos de Uso
-                </a>{' '}
-                &{' '}
-                <a href="https://jarvi.life/politica-de-privacidade" target="_blank" rel="noreferrer">
-                  Política de Privacidade
-                </a>
-                .
-              </p>
-            )}
             <StepperDots totalSteps={totalFormSteps} currentStep={step} />
           </form>
         ) : (
