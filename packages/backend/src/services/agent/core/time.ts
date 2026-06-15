@@ -114,6 +114,54 @@ export function getDynamicGreeting(timezone: string): string {
 }
 
 /**
+ * Format a task's due date (and optional time) into a human label in
+ * Portuguese, e.g. "Terça-feira, 16/05 às 17h00". Used to give the WhatsApp
+ * confirmation message a deterministic, trustworthy date string instead of
+ * letting the model format it on its own.
+ *
+ * `dueDate` is a plain calendar date (YYYY-MM-DD) and `time` a plain HH:MM —
+ * neither carries a timezone, so we parse them directly (via Date.UTC for the
+ * weekday) to avoid any off-by-one shift.
+ */
+export function formatDueDateLabel(
+  dueDate: string | null | undefined,
+  time?: string | null,
+): string | null {
+  if (!dueDate) return null;
+
+  const dateMatch = dueDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!dateMatch) return null;
+
+  const year = Number(dateMatch[1]);
+  const month = Number(dateMatch[2]);
+  const day = Number(dateMatch[3]);
+  if (!year || !month || !day) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  if (Number.isNaN(date.getTime())) return null;
+
+  const weekday = PT_WEEKDAYS[date.getUTCDay()] ?? '';
+  const weekdayCapitalized = weekday
+    ? weekday.charAt(0).toUpperCase() + weekday.slice(1)
+    : '';
+  const dd = String(day).padStart(2, '0');
+  const mm = String(month).padStart(2, '0');
+
+  let label = weekdayCapitalized
+    ? `${weekdayCapitalized}, ${dd}/${mm}`
+    : `${dd}/${mm}`;
+
+  const timeMatch = time?.match(/^(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    const hh = timeMatch[1].padStart(2, '0');
+    const min = timeMatch[2];
+    label += ` às ${hh}h${min}`;
+  }
+
+  return label;
+}
+
+/**
  * Build a 7-day calendar lookup so the model never has to do calendar
  * arithmetic (which small models get wrong consistently).
  */

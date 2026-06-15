@@ -30,6 +30,7 @@ import {
   safeParseCategoryNames,
   searchUserTasks,
 } from './tasks';
+import { formatDueDateLabel } from './time';
 import {
   confirmPending,
   getPendingTaskById,
@@ -543,6 +544,14 @@ async function executeCreateTaskAsActive(
     getIO().to(`user:${ctx.userId}`).emit('task:created', { id: taskId, source });
   }
 
+  // Deterministic, trustworthy date label (e.g. "Terça-feira, 16/05 às 17h00")
+  // so the WhatsApp confirmation can echo it verbatim instead of letting the
+  // model format the date itself (which drifts and can expose parsing errors).
+  const dueLabel = formatDueDateLabel(
+    normalizeTaskDueDate(dueDate),
+    normalizeTaskTime(time),
+  );
+
   return {
     success: true,
     data: {
@@ -553,6 +562,7 @@ async function executeCreateTaskAsActive(
       due_date: dueDate,
       time,
       category,
+      due_label: dueLabel,
     },
   };
 }
