@@ -9,7 +9,6 @@ import {
   syncSubscriptionFromStripe,
 } from '../services/stripeService';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
-import { handleSlackApprovalInteraction } from '../controllers/earlyAccessController';
 
 /**
  * Record a Stripe webhook `event.id` so we don't double-apply side-effects when
@@ -87,12 +86,6 @@ class WebhookRetryableError extends Error {
 }
 
 const router = Router();
-
-/**
- * POST /webhooks/slack/interactions
- * Handle Slack interactive message actions (approve/reject early access)
- */
-router.post('/slack/interactions', handleSlackApprovalInteraction);
 
 /**
  * POST /webhooks/stripe

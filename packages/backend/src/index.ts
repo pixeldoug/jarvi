@@ -24,6 +24,7 @@ import { CollaborationService } from './services/collaborationService';
 import { initializeWhatsappWorker } from './queues/whatsappQueue';
 import { initializeGmailWorker } from './queues/gmailQueue';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { shutdownPostHog } from './services/posthogService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -109,7 +110,7 @@ app.use((req, res, next) => {
 });
 app.use(morgan('combined'));
 
-// Webhooks need raw body (Stripe JSON + Slack form payload) - must be before express.json()
+// Webhooks need raw body (Stripe JSON) - must be before express.json()
 app.use(
   '/webhooks',
   express.raw({
@@ -214,6 +215,16 @@ initializeDatabase()
       console.log('📱 WhatsApp worker initialized');
       console.log('📧 Gmail worker initialized');
     });
+
+    // Flush buffered PostHog events before the process exits.
+    const gracefulShutdown = (signal: string) => {
+      console.log(`Received ${signal}, flushing PostHog and shutting down...`);
+      void shutdownPostHog().finally(() => {
+        server.close(() => process.exit(0));
+      });
+    };
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   })
   .catch((error) => {
     console.error('Failed to initialize database:', error);

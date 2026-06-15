@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent as ReactFormEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check } from '@phosphor-icons/react';
+import posthog from 'posthog-js';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Logo, PasswordInput } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
@@ -142,6 +143,33 @@ function normalizeEmail(value: string): string {
 
 function normalizeWhatsapp(value: string): string {
   return value.trim().replace(/[^\d+]/g, '');
+}
+
+interface TrafficAttribution {
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  referringDomain: string | null;
+}
+
+// Le a atribuicao inicial que o PostHog ja captura (sobrevive cross-subdominio
+// via cookie em .jarvi.life), para sabermos a origem do trafego no Slack.
+function getTrafficAttribution(): TrafficAttribution {
+  const read = (key: string): string | null => {
+    try {
+      const value = posthog.get_property(key);
+      return typeof value === 'string' && value.trim() ? value.trim() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    utmSource: read('$initial_utm_source'),
+    utmMedium: read('$initial_utm_medium'),
+    utmCampaign: read('$initial_utm_campaign'),
+    referringDomain: read('$initial_referring_domain'),
+  };
 }
 
 function capitalizeFirstLetter(value: string): string {
@@ -438,6 +466,7 @@ export function CriarConta() {
         contactType: formData.interviewAvailability === 'yes' ? contactType : null,
         wantsBroadcastUpdates: formData.wantsBroadcastUpdates,
         memorySeedText: generatedMemory,
+        ...getTrafficAttribution(),
       };
 
       const response = await fetch(`${API_URL}/api/early-access`, {

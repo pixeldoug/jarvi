@@ -9,6 +9,8 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendGoogleAccountNoticeE
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { generateOtpFromToken } from '../utils/otp';
 import { sendMetaEvent, getClientIp } from '../services/metaCapiService';
+import { identifyServer, captureServer } from '../services/posthogService';
+import { notifyNewAccountCreated } from './earlyAccessController';
 
 const firstNameOf = (fullName?: string | null): string | undefined =>
   (fullName || '').trim().split(/\s+/)[0] || undefined;
@@ -373,6 +375,17 @@ export const googleAuth = async (
       console.error('Failed to sync onboarding lead during Google auth:', syncError);
     }
 
+    // PostHog server-side: identify on every Google auth; capture registration
+    // only for brand-new accounts.
+    identifyServer(user.email, {
+      email: user.email,
+      name: user.name,
+      user_id: user.id,
+    });
+    if (isNewUser) {
+      captureServer(user.email, 'user_registered', { method: 'google', source: 'backend' });
+    }
+
     // Meta CAPI: a new Google account is created already verified, so it counts
     // as the CompleteRegistration conversion in a single step.
     if (isNewUser) {
@@ -500,6 +513,23 @@ export const register = async (
     } catch (syncError) {
       console.error('Failed to sync onboarding lead during register:', syncError);
     }
+
+    // Notifica o time no Slack que uma nova conta foi criada (best-effort).
+    void notifyNewAccountCreated(email, newUser.id);
+
+    // PostHog server-side: garante que o cadastro apareça mesmo se o SDK do
+    // navegador estiver bloqueado (ad blocker) ou não carregar.
+    identifyServer(email, {
+      email,
+      name,
+      user_id: newUser.id,
+      subscription_status: 'trialing',
+    });
+    captureServer(email, 'user_registered', {
+      method: 'email',
+      pending_verification: true,
+      source: 'backend',
+    });
 
     // Meta CAPI: account submitted (pending verification). Mirrors the browser
     // Pixel "RegistrationSubmitted" event via the shared eventId for dedup.

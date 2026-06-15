@@ -1,20 +1,8 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
-import { sendEarlyAccessApprovalEmail } from '../services/emailService';
-import type {
-  SlackApprovalLeadPayload,
-  SlackInteractionPayload,
-  SlackMessageRefResult,
-} from '../services/slackApprovalService';
-import {
-  SLACK_APPROVE_ACTION_ID,
-  SLACK_REJECT_ACTION_ID,
-  parseSlackInteractionPayload,
-  upsertSlackApprovalMessage,
-  updateSlackApprovalMessageStatus,
-  verifySlackRequestSignature,
-} from '../services/slackApprovalService';
+import type { SlackNewAccountPayload } from '../services/slackApprovalService';
+import { postNewAccountNotification } from '../services/slackApprovalService';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const WHATSAPP_REGEX = /^\+?\d{10,15}$/;
@@ -68,8 +56,6 @@ interface NormalizedWizardPayload {
 
 interface ExistingOnboardingLeadRow {
   id: string;
-  slack_channel_id?: string | null;
-  slack_message_ts?: string | null;
 }
 
 const isInterviewAvailability = (value: unknown): value is InterviewAvailability =>
@@ -170,139 +156,6 @@ const isWizardPayload = (payload: Record<string, unknown>): boolean => {
   );
 };
 
-const buildSlackLeadPayload = (
-  leadId: string,
-  normalizedPayload: NormalizedWizardPayload
-): SlackApprovalLeadPayload => ({
-  leadId,
-  name: normalizedPayload.name,
-  email: normalizedPayload.email,
-  source: normalizedPayload.source,
-  flowVersion: normalizedPayload.flowVersion,
-  interviewAvailability: normalizedPayload.interviewAvailability,
-  contactValue: normalizedPayload.contactValue,
-  wantsBroadcastUpdates: normalizedPayload.wantsBroadcastUpdates,
-  areas: normalizedPayload.areas,
-  taskOrigins: normalizedPayload.taskOrigins,
-  trackingMethods: normalizedPayload.trackingMethods,
-  painPoints: normalizedPayload.painPoints,
-  desiredCapabilities: normalizedPayload.desiredCapabilities,
-  idealOutcomeText: normalizedPayload.idealOutcomeText,
-  memorySeedText: normalizedPayload.memorySeedText,
-});
-
-const buildExistingMessageRef = (
-  existingLead: ExistingOnboardingLeadRow | null
-): SlackMessageRefResult | null => {
-  if (!existingLead?.slack_channel_id || !existingLead.slack_message_ts) return null;
-  return {
-    channelId: existingLead.slack_channel_id,
-    messageTs: existingLead.slack_message_ts,
-  };
-};
-
-const markOnboardingLeadAsPendingApproval = async (
-  leadId: string,
-  nowIso: string
-): Promise<void> => {
-  if (isPostgreSQL()) {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `UPDATE onboarding_leads
-         SET approval_status = $1,
-             approval_requested_at = $2,
-             approved_at = $3,
-             approved_by = $4,
-             rejected_at = $5,
-             rejected_by = $6,
-             approval_email_sent_at = $7,
-             updated_at = $8
-         WHERE id = $9`,
-        ['pending', nowIso, null, null, null, null, null, nowIso, leadId]
-      );
-    } finally {
-      client.release();
-    }
-
-    return;
-  }
-
-  const db = getDatabase();
-  await db.run(
-    `UPDATE onboarding_leads
-     SET approval_status = ?,
-         approval_requested_at = ?,
-         approved_at = ?,
-         approved_by = ?,
-         rejected_at = ?,
-         rejected_by = ?,
-         approval_email_sent_at = ?,
-         updated_at = ?
-     WHERE id = ?`,
-    ['pending', nowIso, null, null, null, null, null, nowIso, leadId]
-  );
-};
-
-const saveSlackMessageRefForLead = async (
-  leadId: string,
-  messageRef: SlackMessageRefResult
-): Promise<void> => {
-  if (isPostgreSQL()) {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `UPDATE onboarding_leads
-         SET slack_channel_id = $1,
-             slack_message_ts = $2,
-             updated_at = $3
-         WHERE id = $4`,
-        [messageRef.channelId, messageRef.messageTs, new Date().toISOString(), leadId]
-      );
-    } finally {
-      client.release();
-    }
-
-    return;
-  }
-
-  const db = getDatabase();
-  await db.run(
-    `UPDATE onboarding_leads
-     SET slack_channel_id = ?,
-         slack_message_ts = ?,
-         updated_at = ?
-     WHERE id = ?`,
-    [messageRef.channelId, messageRef.messageTs, new Date().toISOString(), leadId]
-  );
-};
-
-const syncLeadApprovalMessage = async (params: {
-  leadId: string;
-  normalizedPayload: NormalizedWizardPayload;
-  existingMessageRef: SlackMessageRefResult | null;
-}): Promise<void> => {
-  try {
-    const slackPayload = buildSlackLeadPayload(params.leadId, params.normalizedPayload);
-    const messageRef = await upsertSlackApprovalMessage(slackPayload, params.existingMessageRef);
-    if (!messageRef) return;
-    await saveSlackMessageRefForLead(params.leadId, messageRef);
-  } catch (error) {
-    console.error('Slack approval sync error:', error);
-  }
-};
-
-type LeadApprovalStatus = 'pending' | 'approved' | 'rejected';
-
-interface OnboardingLeadApprovalRecord extends SlackApprovalLeadPayload {
-  approvalStatus: LeadApprovalStatus;
-  approvalEmailSentAt: string | null;
-  slackChannelId: string | null;
-  slackMessageTs: string | null;
-}
-
 const parseDbBoolean = (value: unknown): boolean => value === true || value === 1 || value === '1';
 
 const parseJsonArrayField = (value: unknown): string[] => {
@@ -329,38 +182,68 @@ const parseInterviewAvailability = (value: unknown): InterviewAvailability => {
   return 'no';
 };
 
-const parseApprovalStatus = (value: unknown): LeadApprovalStatus => {
-  if (value === 'approved' || value === 'rejected') return value;
-  return 'pending';
+interface LeadAttribution {
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  referringDomain: string | null;
+}
+
+// A atribuicao (UTM/referrer) viaja dentro do payload bruto, ja persistido em
+// raw_payload_json no submit do onboarding — sem necessidade de colunas novas.
+const parseAttribution = (rawPayloadJson: unknown): LeadAttribution => {
+  const empty: LeadAttribution = {
+    utmSource: null,
+    utmMedium: null,
+    utmCampaign: null,
+    referringDomain: null,
+  };
+
+  if (typeof rawPayloadJson !== 'string' || !rawPayloadJson.trim()) return empty;
+
+  try {
+    const parsed = JSON.parse(rawPayloadJson) as Record<string, unknown>;
+    return {
+      utmSource: sanitizeString(parsed.utmSource, 200) || null,
+      utmMedium: sanitizeString(parsed.utmMedium, 200) || null,
+      utmCampaign: sanitizeString(parsed.utmCampaign, 200) || null,
+      referringDomain: sanitizeString(parsed.referringDomain, 200) || null,
+    };
+  } catch (error) {
+    return empty;
+  }
 };
 
-const mapLeadRowToApprovalRecord = (
-  row: Record<string, unknown>
-): OnboardingLeadApprovalRecord => ({
-  leadId: sanitizeString(row.id, 128),
-  name: sanitizeString(row.name, 120),
-  email: normalizeEmail(sanitizeString(row.email, 255)),
-  source: sanitizeString(row.source, 120) || 'marketing-onboarding',
-  flowVersion: sanitizeString(row.flow_version, 120) || 'figma-onboarding-v1',
-  interviewAvailability: parseInterviewAvailability(row.interview_availability),
-  contactValue: sanitizeString(row.contact_value, 255),
-  wantsBroadcastUpdates: parseDbBoolean(row.wants_broadcast_updates),
-  areas: parseJsonArrayField(row.areas_json),
-  taskOrigins: parseJsonArrayField(row.task_origins_json),
-  trackingMethods: parseJsonArrayField(row.tracking_methods_json),
-  painPoints: parseJsonArrayField(row.pain_points_json),
-  desiredCapabilities: parseJsonArrayField(row.desired_capabilities_json),
-  idealOutcomeText: sanitizeString(row.ideal_outcome_text, 2000),
-  memorySeedText: sanitizeString(row.memory_seed_text, 4000),
-  approvalStatus: parseApprovalStatus(row.approval_status),
-  approvalEmailSentAt: sanitizeString(row.approval_email_sent_at, 80) || null,
-  slackChannelId: sanitizeString(row.slack_channel_id, 120) || null,
-  slackMessageTs: sanitizeString(row.slack_message_ts, 120) || null,
-});
+const mapLeadRowToNotificationPayload = (
+  row: Record<string, unknown>,
+  userId: string
+): SlackNewAccountPayload => {
+  const attribution = parseAttribution(row.raw_payload_json);
+  return {
+    userId: sanitizeString(userId, 128),
+    leadId: sanitizeString(row.id, 128),
+    name: sanitizeString(row.name, 120),
+    email: normalizeEmail(sanitizeString(row.email, 255)),
+    source: sanitizeString(row.source, 120) || 'marketing-onboarding',
+    flowVersion: sanitizeString(row.flow_version, 120) || 'figma-onboarding-v1',
+    interviewAvailability: parseInterviewAvailability(row.interview_availability),
+    contactValue: sanitizeString(row.contact_value, 255),
+    wantsBroadcastUpdates: parseDbBoolean(row.wants_broadcast_updates),
+    trackingMethods: parseJsonArrayField(row.tracking_methods_json),
+    painPoints: parseJsonArrayField(row.pain_points_json),
+    desiredCapabilities: parseJsonArrayField(row.desired_capabilities_json),
+    idealOutcomeText: sanitizeString(row.ideal_outcome_text, 2000),
+    memorySeedText: sanitizeString(row.memory_seed_text, 4000),
+    ...attribution,
+  };
+};
 
-const getOnboardingLeadApprovalRecordById = async (
-  leadId: string
-): Promise<OnboardingLeadApprovalRecord | null> => {
+const getOnboardingLeadForNotificationByEmail = async (
+  email: string,
+  userId: string
+): Promise<SlackNewAccountPayload | null> => {
+  const normalizedEmail = normalizeEmail(email);
+
   if (isPostgreSQL()) {
     const pool = getPool();
     const client = await pool.connect();
@@ -374,26 +257,21 @@ const getOnboardingLeadApprovalRecordById = async (
                 interview_availability,
                 contact_value,
                 wants_broadcast_updates,
-                areas_json,
-                task_origins_json,
                 tracking_methods_json,
                 pain_points_json,
                 desired_capabilities_json,
                 ideal_outcome_text,
                 memory_seed_text,
-                approval_status,
-                approval_email_sent_at,
-                slack_channel_id,
-                slack_message_ts
+                raw_payload_json
          FROM onboarding_leads
-         WHERE id = $1`,
-        [leadId]
+         WHERE email = $1`,
+        [normalizedEmail]
       );
 
       const row = (result.rows[0] as Record<string, unknown> | undefined) || null;
       if (!row) return null;
 
-      return mapLeadRowToApprovalRecord(row);
+      return mapLeadRowToNotificationPayload(row, userId);
     } finally {
       client.release();
     }
@@ -409,258 +287,36 @@ const getOnboardingLeadApprovalRecordById = async (
             interview_availability,
             contact_value,
             wants_broadcast_updates,
-            areas_json,
-            task_origins_json,
             tracking_methods_json,
             pain_points_json,
             desired_capabilities_json,
             ideal_outcome_text,
             memory_seed_text,
-            approval_status,
-            approval_email_sent_at,
-            slack_channel_id,
-            slack_message_ts
+            raw_payload_json
      FROM onboarding_leads
-     WHERE id = ?`,
-    [leadId]
+     WHERE email = ?`,
+    [normalizedEmail]
   )) as Record<string, unknown> | undefined) || null;
   if (!row) return null;
 
-  return mapLeadRowToApprovalRecord(row);
+  return mapLeadRowToNotificationPayload(row, userId);
 };
 
-const updateOnboardingLeadDecision = async (params: {
-  leadId: string;
-  status: Exclude<LeadApprovalStatus, 'pending'>;
-  reviewerId: string;
-  reviewedAtIso: string;
-}): Promise<void> => {
-  const approvedAt = params.status === 'approved' ? params.reviewedAtIso : null;
-  const approvedBy = params.status === 'approved' ? params.reviewerId : null;
-  const rejectedAt = params.status === 'rejected' ? params.reviewedAtIso : null;
-  const rejectedBy = params.status === 'rejected' ? params.reviewerId : null;
-
-  if (isPostgreSQL()) {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `UPDATE onboarding_leads
-         SET approval_status = $1,
-             approved_at = $2,
-             approved_by = $3,
-             rejected_at = $4,
-             rejected_by = $5,
-             updated_at = $6
-         WHERE id = $7`,
-        [params.status, approvedAt, approvedBy, rejectedAt, rejectedBy, params.reviewedAtIso, params.leadId]
-      );
-    } finally {
-      client.release();
-    }
-
-    return;
-  }
-
-  const db = getDatabase();
-  await db.run(
-    `UPDATE onboarding_leads
-     SET approval_status = ?,
-         approved_at = ?,
-         approved_by = ?,
-         rejected_at = ?,
-         rejected_by = ?,
-         updated_at = ?
-     WHERE id = ?`,
-    [params.status, approvedAt, approvedBy, rejectedAt, rejectedBy, params.reviewedAtIso, params.leadId]
-  );
-};
-
-const markOnboardingApprovalEmailAsSent = async (
-  leadId: string,
-  sentAtIso: string
-): Promise<void> => {
-  if (isPostgreSQL()) {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query(
-        `UPDATE onboarding_leads
-         SET approval_email_sent_at = $1,
-             updated_at = $2
-         WHERE id = $3`,
-        [sentAtIso, sentAtIso, leadId]
-      );
-    } finally {
-      client.release();
-    }
-
-    return;
-  }
-
-  const db = getDatabase();
-  await db.run(
-    `UPDATE onboarding_leads
-     SET approval_email_sent_at = ?,
-         updated_at = ?
-     WHERE id = ?`,
-    [sentAtIso, sentAtIso, leadId]
-  );
-};
-
-const resolveMessageRefForInteraction = (
-  lead: OnboardingLeadApprovalRecord,
-  interaction: SlackInteractionPayload
-): SlackMessageRefResult | null => {
-  if (lead.slackChannelId && lead.slackMessageTs) {
-    return {
-      channelId: lead.slackChannelId,
-      messageTs: lead.slackMessageTs,
-    };
-  }
-
-  if (interaction.channel?.id && interaction.message?.ts) {
-    return {
-      channelId: interaction.channel.id,
-      messageTs: interaction.message.ts,
-    };
-  }
-
-  return null;
-};
-
-export const handleSlackApprovalInteraction = async (
-  req: Request,
-  res: Response
+/**
+ * Posta no Slack uma notificacao de "nova conta criada", montada a partir do
+ * onboarding lead vinculado ao email. Disparado pelo fluxo de registro (apos a
+ * conta de fato existir). Falhas sao logadas e nunca quebram o registro.
+ */
+export const notifyNewAccountCreated = async (
+  email: string,
+  userId: string
 ): Promise<void> => {
   try {
-    const rawBody = Buffer.isBuffer(req.body)
-      ? req.body.toString('utf8')
-      : typeof req.body === 'string'
-        ? req.body
-        : '';
-    if (!rawBody) {
-      res.status(400).json({ error: 'Corpo da requisicao Slack ausente' });
-      return;
-    }
-
-    const timestampHeader = req.headers['x-slack-request-timestamp'];
-    const signatureHeader = req.headers['x-slack-signature'];
-    const timestamp =
-      typeof timestampHeader === 'string'
-        ? timestampHeader
-        : Array.isArray(timestampHeader)
-          ? timestampHeader[0]
-          : undefined;
-    const signature =
-      typeof signatureHeader === 'string'
-        ? signatureHeader
-        : Array.isArray(signatureHeader)
-          ? signatureHeader[0]
-          : undefined;
-
-    const isValidSignature = verifySlackRequestSignature({
-      rawBody,
-      timestampHeader: timestamp,
-      signatureHeader: signature,
-    });
-    if (!isValidSignature) {
-      res.status(401).json({ error: 'Assinatura Slack inválida' });
-      return;
-    }
-
-    const interaction = parseSlackInteractionPayload(rawBody);
-    if (!interaction) {
-      res.status(400).json({ error: 'Payload de interatividade inválido' });
-      return;
-    }
-
-    const action = interaction.actions?.[0];
-    if (!action) {
-      res.status(200).json({ ok: true });
-      return;
-    }
-
-    if (action.action_id !== SLACK_APPROVE_ACTION_ID && action.action_id !== SLACK_REJECT_ACTION_ID) {
-      res.status(200).json({ ok: true });
-      return;
-    }
-
-    const leadId = sanitizeString(action.value, 128);
-    if (!leadId) {
-      res.status(400).json({ error: 'Lead ID ausente na ação do Slack' });
-      return;
-    }
-
-    const lead = await getOnboardingLeadApprovalRecordById(leadId);
-    if (!lead) {
-      res.status(200).json({
-        response_type: 'ephemeral',
-        text: 'Lead não encontrado ou removido.',
-      });
-      return;
-    }
-
-    const targetStatus: Exclude<LeadApprovalStatus, 'pending'> =
-      action.action_id === SLACK_APPROVE_ACTION_ID ? 'approved' : 'rejected';
-    const reviewedAtIso = new Date().toISOString();
-    const reviewerId = sanitizeString(interaction.user?.id, 120) || 'unknown';
-    const reviewerName =
-      sanitizeString(interaction.user?.real_name, 120) ||
-      sanitizeString(interaction.user?.name, 120) ||
-      sanitizeString(interaction.user?.username, 120) ||
-      reviewerId;
-
-    let effectiveStatus: Exclude<LeadApprovalStatus, 'pending'>;
-
-    if (lead.approvalStatus === 'pending') {
-      await updateOnboardingLeadDecision({
-        leadId: lead.leadId,
-        status: targetStatus,
-        reviewerId,
-        reviewedAtIso,
-      });
-      lead.approvalStatus = targetStatus;
-      effectiveStatus = targetStatus;
-    } else if (lead.approvalStatus !== targetStatus) {
-      const currentStatusText = lead.approvalStatus === 'approved' ? 'aprovado' : 'reprovado';
-      res.status(200).json({
-        response_type: 'ephemeral',
-        text: `Esse lead ja foi ${currentStatusText} anteriormente.`,
-      });
-      return;
-    } else {
-      effectiveStatus = targetStatus;
-    }
-
-    if (effectiveStatus === 'approved' && !lead.approvalEmailSentAt) {
-      await sendEarlyAccessApprovalEmail(lead.email, lead.name);
-      await markOnboardingApprovalEmailAsSent(lead.leadId, reviewedAtIso);
-      lead.approvalEmailSentAt = reviewedAtIso;
-    }
-
-    const messageRef = resolveMessageRefForInteraction(lead, interaction);
-    if (messageRef) {
-      try {
-        await updateSlackApprovalMessageStatus(lead, messageRef, {
-          status: effectiveStatus,
-          reviewerId,
-          reviewerName,
-          reviewedAtIso,
-        });
-      } catch (error) {
-        console.error('Slack approval status update error:', error);
-      }
-    }
-
-    const decisionText = effectiveStatus === 'approved' ? 'aprovado' : 'reprovado';
-    res.status(200).json({
-      response_type: 'ephemeral',
-      text: `Lead ${lead.name} foi marcado como ${decisionText}.`,
-    });
+    const lead = await getOnboardingLeadForNotificationByEmail(email, userId);
+    if (!lead) return;
+    await postNewAccountNotification(lead);
   } catch (error) {
-    console.error('Slack approval interaction error:', error);
-    res.status(500).json({ error: 'Falha ao processar aprovação via Slack' });
+    console.error('Slack new-account notification error:', error);
   }
 };
 
@@ -693,7 +349,6 @@ export const joinEarlyAccess = async (req: Request, res: Response): Promise<void
       const desiredCapabilitiesJson = JSON.stringify(normalizedPayload.desiredCapabilities);
 
       let leadId = '';
-      let existingMessageRef: SlackMessageRefResult | null = null;
       let wasExistingLead = false;
 
       if (isPostgreSQL()) {
@@ -701,14 +356,13 @@ export const joinEarlyAccess = async (req: Request, res: Response): Promise<void
         const client = await pool.connect();
         try {
           const existingLeadResult = await client.query(
-            'SELECT id, slack_channel_id, slack_message_ts FROM onboarding_leads WHERE email = $1',
+            'SELECT id FROM onboarding_leads WHERE email = $1',
             [normalizedPayload.email]
           );
           const existingLead = (existingLeadResult.rows[0] as ExistingOnboardingLeadRow | undefined) || null;
 
           if (existingLead) {
             leadId = existingLead.id;
-            existingMessageRef = buildExistingMessageRef(existingLead);
             wasExistingLead = true;
 
             await client.query(
@@ -827,13 +481,12 @@ export const joinEarlyAccess = async (req: Request, res: Response): Promise<void
       } else {
         const db = getDatabase();
         const existingLead = ((await db.get(
-          'SELECT id, slack_channel_id, slack_message_ts FROM onboarding_leads WHERE email = ?',
+          'SELECT id FROM onboarding_leads WHERE email = ?',
           [normalizedPayload.email]
         )) as ExistingOnboardingLeadRow | undefined) || null;
 
         if (existingLead) {
           leadId = existingLead.id;
-          existingMessageRef = buildExistingMessageRef(existingLead);
           wasExistingLead = true;
 
           await db.run(
@@ -945,13 +598,6 @@ export const joinEarlyAccess = async (req: Request, res: Response): Promise<void
         }
       }
 
-      await markOnboardingLeadAsPendingApproval(leadId, now);
-      await syncLeadApprovalMessage({
-        leadId,
-        normalizedPayload,
-        existingMessageRef,
-      });
-
       res.status(wasExistingLead ? 200 : 201).json({
         success: true,
         message: wasExistingLead
@@ -961,96 +607,10 @@ export const joinEarlyAccess = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const email = sanitizeString(payload.email, 255);
-    const whatsapp = sanitizeString(payload.whatsapp, 64);
-    const wantsBroadcastUpdates = parseBoolean(payload.wantsBroadcastUpdates);
-    const source = sanitizeString(payload.source, 80) || 'marketing-landing';
-
-    if (!email || !whatsapp) {
-      res.status(400).json({ error: 'Email e WhatsApp são obrigatórios' });
-      return;
-    }
-
-    const normalizedEmail = normalizeEmail(email);
-    const normalizedWhatsapp = normalizeWhatsapp(whatsapp);
-
-    if (!EMAIL_REGEX.test(normalizedEmail)) {
-      res.status(400).json({ error: 'Formato de email inválido' });
-      return;
-    }
-
-    if (!WHATSAPP_REGEX.test(normalizedWhatsapp)) {
-      res.status(400).json({ error: 'Formato de WhatsApp inválido' });
-      return;
-    }
-
-    const now = new Date().toISOString();
-
-    if (isPostgreSQL()) {
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        const existingLeadResult = await client.query(
-          'SELECT id FROM early_access_leads WHERE email = $1',
-          [normalizedEmail]
-        );
-
-        if (existingLeadResult.rows.length > 0) {
-          await client.query(
-            `UPDATE early_access_leads
-             SET whatsapp = $1, wants_broadcast_updates = $2, source = $3, updated_at = $4
-             WHERE email = $5`,
-            [normalizedWhatsapp, wantsBroadcastUpdates, source, now, normalizedEmail]
-          );
-
-          res.status(200).json({
-            success: true,
-            message: 'Você já estava na lista, atualizamos seus dados.',
-          });
-          return;
-        }
-
-        await client.query(
-          `INSERT INTO early_access_leads (
-            id, email, whatsapp, wants_broadcast_updates, source, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [uuidv4(), normalizedEmail, normalizedWhatsapp, wantsBroadcastUpdates, source, now, now]
-        );
-      } finally {
-        client.release();
-      }
-    } else {
-      const db = getDatabase();
-      const existingLead = await db.get('SELECT id FROM early_access_leads WHERE email = ?', [
-        normalizedEmail,
-      ]);
-
-      if (existingLead) {
-        await db.run(
-          `UPDATE early_access_leads
-           SET whatsapp = ?, wants_broadcast_updates = ?, source = ?, updated_at = ?
-           WHERE email = ?`,
-          [normalizedWhatsapp, wantsBroadcastUpdates, source, now, normalizedEmail]
-        );
-
-        res.status(200).json({
-          success: true,
-          message: 'Você já estava na lista, atualizamos seus dados.',
-        });
-        return;
-      }
-
-      await db.run(
-        `INSERT INTO early_access_leads (
-          id, email, whatsapp, wants_broadcast_updates, source, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), normalizedEmail, normalizedWhatsapp, wantsBroadcastUpdates, source, now, now]
-      );
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Cadastro recebido! Em breve entraremos em contato.',
+    // Fluxo legado de captura de acesso antecipado (email + WhatsApp) foi
+    // descontinuado. Mantemos apenas o fluxo do questionario (wizard) acima.
+    res.status(410).json({
+      error: 'O acesso antecipado foi encerrado.',
     });
   } catch (error) {
     console.error('Early access lead error:', error);

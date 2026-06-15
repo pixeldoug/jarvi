@@ -4,11 +4,12 @@ import posthog from 'posthog-js';
 
 if (typeof window !== 'undefined') {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
 
   if (key && !key.startsWith('phc_SUBSTITUA') && !posthog.__loaded) {
     posthog.init(key, {
-      api_host: host,
+      // Same-origin reverse proxy (see rewrites in next.config.mjs) so requests
+      // are not blocked by ad/privacy blockers that block us.i.posthog.com.
+      api_host: '/ingest',
       ui_host: 'https://us.posthog.com',
       capture_pageview: false,
       capture_pageleave: true,

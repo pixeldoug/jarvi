@@ -1,42 +1,7 @@
-import crypto from 'crypto';
-
-export const SLACK_APPROVE_ACTION_ID = 'approve_early_access';
-export const SLACK_REJECT_ACTION_ID = 'reject_early_access';
-
 const SLACK_API_BASE = 'https://slack.com/api';
-const MAX_CLOCK_SKEW_SECONDS = 60 * 5;
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-
-interface SlackUserRef {
-  id: string;
-  username?: string;
-  name?: string;
-  real_name?: string;
-}
-
-interface SlackChannelRef {
-  id: string;
-}
-
-interface SlackMessageRef {
-  ts: string;
-}
-
-interface SlackAction {
-  action_id: string;
-  value?: string;
-}
-
-export interface SlackInteractionPayload {
-  type: string;
-  user: SlackUserRef;
-  channel: SlackChannelRef;
-  message: SlackMessageRef;
-  actions?: SlackAction[];
-}
-
-export interface SlackApprovalLeadPayload {
+export interface SlackNewAccountPayload {
+  userId: string;
   leadId: string;
   name: string;
   email: string;
@@ -45,25 +10,15 @@ export interface SlackApprovalLeadPayload {
   interviewAvailability: 'yes' | 'no' | 'later';
   contactValue: string;
   wantsBroadcastUpdates: boolean;
-  areas: string[];
-  taskOrigins: string[];
   trackingMethods: string[];
   painPoints: string[];
   desiredCapabilities: string[];
   idealOutcomeText: string;
   memorySeedText: string;
-}
-
-export interface SlackMessageRefResult {
-  channelId: string;
-  messageTs: string;
-}
-
-interface SlackDecisionInfo {
-  status: Exclude<ApprovalStatus, 'pending'>;
-  reviewerId: string;
-  reviewerName?: string;
-  reviewedAtIso: string;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  referringDomain: string | null;
 }
 
 interface SlackApiErrorResponse {
@@ -80,121 +35,209 @@ interface SlackApiMessageResponse {
 type SlackApiResponse = SlackApiErrorResponse | SlackApiMessageResponse;
 
 const getSlackBotToken = (): string => process.env.SLACK_BOT_TOKEN?.trim() || '';
-const getSlackSigningSecret = (): string => process.env.SLACK_SIGNING_SECRET?.trim() || '';
 const getSlackChannelId = (): string => process.env.SLACK_APPROVAL_CHANNEL_ID?.trim() || '';
 
 export const getMissingSlackConfig = (): string[] => {
   const missing: string[] = [];
   if (!getSlackBotToken()) missing.push('SLACK_BOT_TOKEN');
-  if (!getSlackSigningSecret()) missing.push('SLACK_SIGNING_SECRET');
   if (!getSlackChannelId()) missing.push('SLACK_APPROVAL_CHANNEL_ID');
   return missing;
 };
 
 export const isSlackApprovalConfigured = (): boolean => getMissingSlackConfig().length === 0;
 
-const formatList = (values: string[]): string => {
-  if (values.length === 0) return 'n/a';
-  return values.join(', ');
+// Rotulos legiveis espelhando o front (packages/web/src/pages/CriarConta/index.tsx).
+const TRACKING_METHOD_LABELS: Record<string, string> = {
+  'mobile-notes': 'Anotacoes no celular',
+  'paper-notebook': 'Papel & caderno',
+  'self-whatsapp': 'WhatsApp comigo mesmo',
+  'agenda-calendar': 'Agenda & Calendario',
+  spreadsheets: 'Planilhas',
+  'productivity-apps': 'Apps de produtividade (Notion, ClickUp, etc)',
+  'memory-only': 'Tenta lembrar de cabeca',
+  'no-system': 'Nao tem um sistema',
 };
 
-const buildLeadSummary = (lead: SlackApprovalLeadPayload): string => {
-  const lines = [
-    `*Lead ID:* \`${lead.leadId}\``,
-    `*Nome:* ${lead.name}`,
-    `*Email:* ${lead.email}`,
-    `*Entrevista:* ${lead.interviewAvailability}`,
-    `*Contato:* ${lead.contactValue || 'n/a'}`,
-    `*Broadcast WhatsApp:* ${lead.wantsBroadcastUpdates ? 'sim' : 'nao'}`,
-    `*Areas:* ${formatList(lead.areas)}`,
-    `*Origem de tarefas:* ${formatList(lead.taskOrigins)}`,
-    `*Como registra tarefas:* ${formatList(lead.trackingMethods)}`,
-    `*Dores:* ${formatList(lead.painPoints)}`,
-    `*Desejos:* ${formatList(lead.desiredCapabilities)}`,
-    `*Resultado ideal:* ${lead.idealOutcomeText || 'n/a'}`,
-    `*Contexto (memory):* ${lead.memorySeedText || 'n/a'}`,
-    `*Source:* ${lead.source} | *Flow:* ${lead.flowVersion}`,
-  ];
-
-  return lines.join('\n');
+const PAIN_POINT_LABELS: Record<string, string> = {
+  'forget-fast-capture': 'Esquece se nao anota na hora',
+  'hard-prioritization': 'Dificuldade em priorizar',
+  'overwhelmed-many-tasks': 'Sobrecarregado(a) com tudo que tem pra fazer',
+  'procrastinate-important': 'Procrastina o importante',
+  'dont-know-start': 'Nao sabe por onde comecar',
 };
 
-const getStatusLabel = (status: ApprovalStatus): string => {
-  if (status === 'approved') return 'Aprovado';
-  if (status === 'rejected') return 'Reprovado';
-  return 'Pendente';
+const DESIRED_CAPABILITY_LABELS: Record<string, string> = {
+  'organize-fast': 'Organizar tudo em segundos',
+  'give-clarity': 'Ter mais clareza do que precisa fazer',
+  'auto-organize-week': 'Organizar a semana automaticamente',
+  'decide-what-first': 'Priorizar o que fazer primeiro',
+  'ideas-to-plan': 'Transformar ideias em planos claros',
+  'suggest-next-steps': 'Sugerir proximos passos',
+  'extract-from-email-notes': 'Extrair tarefas de ferramentas externas',
 };
 
-const buildApprovalBlocks = (
-  lead: SlackApprovalLeadPayload,
-  status: ApprovalStatus,
-  decisionInfo?: SlackDecisionInfo
-): Record<string, unknown>[] => {
-  const statusEmoji =
-    status === 'approved' ? ':white_check_mark:' : status === 'rejected' ? ':x:' : ':hourglass_flowing_sand:';
+const INTERVIEW_LABELS: Record<string, string> = {
+  yes: 'Sim',
+  no: 'Nao',
+  later: 'Talvez mais tarde',
+};
 
+// Origem de trafego: mapeia utm_source/medium crus para rotulos amigaveis.
+const UTM_SOURCE_LABELS: Record<string, string> = {
+  instagram: 'Instagram',
+  ig: 'Instagram',
+  facebook: 'Facebook',
+  fb: 'Facebook',
+  google: 'Google',
+  bing: 'Bing',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  linkedin: 'LinkedIn',
+  whatsapp: 'WhatsApp',
+  newsletter: 'Newsletter',
+  email: 'Email',
+};
+
+const UTM_MEDIUM_LABELS: Record<string, string> = {
+  cpc: 'anuncio',
+  ppc: 'anuncio',
+  paid: 'anuncio',
+  paid_social: 'anuncio',
+  ads: 'anuncio',
+  organic: 'organico',
+  social: 'social',
+  referral: 'indicacao',
+  email: 'email',
+  affiliate: 'afiliado',
+};
+
+const prettify = (value: string): string =>
+  value
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+
+const resolveLabels = (values: string[], labels: Record<string, string>): string[] =>
+  values.map((value) => labels[value] ?? value);
+
+const bulletize = (values: string[], labels: Record<string, string>): string =>
+  resolveLabels(values, labels)
+    .map((label) => `• ${label}`)
+    .join('\n');
+
+const buildOriginLabel = (lead: SlackNewAccountPayload): string => {
+  const utmSource = lead.utmSource?.trim();
+  const utmMedium = lead.utmMedium?.trim();
+  const utmCampaign = lead.utmCampaign?.trim();
+  const referringDomain = lead.referringDomain?.trim();
+
+  if (utmSource) {
+    const sourceLabel = UTM_SOURCE_LABELS[utmSource.toLowerCase()] ?? prettify(utmSource);
+    const mediumLabel = utmMedium ? UTM_MEDIUM_LABELS[utmMedium.toLowerCase()] ?? utmMedium : '';
+    let label = mediumLabel ? `${sourceLabel} (${mediumLabel})` : sourceLabel;
+    if (utmCampaign) label += ` · ${utmCampaign}`;
+    return label;
+  }
+
+  if (referringDomain && referringDomain !== '$direct' && referringDomain.toLowerCase() !== 'direct') {
+    return `${referringDomain} (organico)`;
+  }
+
+  return 'Direto';
+};
+
+interface SlackField {
+  type: 'mrkdwn';
+  text: string;
+}
+
+// Quando o contato for um WhatsApp, monta um link wa.me clicavel (digitos sem
+// "+"). Caso contrario (email ou vazio), devolve o texto puro.
+const buildContactLine = (lead: SlackNewAccountPayload): string => {
+  const value = lead.contactValue.trim();
+  if (!value) return '—';
+  if (/^\+?\d{10,15}$/.test(value)) {
+    const digits = value.replace(/\D/g, '');
+    return `<https://wa.me/${digits}|${value}>`;
+  }
+  return value;
+};
+
+const buildContactFields = (lead: SlackNewAccountPayload): SlackField[] => [
+  { type: 'mrkdwn', text: `*Nome*\n${lead.name}` },
+  { type: 'mrkdwn', text: `*Email*\n${lead.email}` },
+  { type: 'mrkdwn', text: `*Contato*\n${buildContactLine(lead)}` },
+  {
+    type: 'mrkdwn',
+    text: `*Entrevista*\n${INTERVIEW_LABELS[lead.interviewAvailability] ?? lead.interviewAvailability}`,
+  },
+  { type: 'mrkdwn', text: `*Broadcast WhatsApp*\n${lead.wantsBroadcastUpdates ? 'Sim' : 'Nao'}` },
+];
+
+const buildProfileSection = (lead: SlackNewAccountPayload): string => {
+  const groups: string[] = [];
+
+  if (lead.trackingMethods.length > 0) {
+    groups.push(`:inbox_tray: *Como registra tarefas*\n${bulletize(lead.trackingMethods, TRACKING_METHOD_LABELS)}`);
+  }
+  if (lead.painPoints.length > 0) {
+    groups.push(`:pushpin: *Dores*\n${bulletize(lead.painPoints, PAIN_POINT_LABELS)}`);
+  }
+  if (lead.desiredCapabilities.length > 0) {
+    groups.push(`:sparkles: *Desejos*\n${bulletize(lead.desiredCapabilities, DESIRED_CAPABILITY_LABELS)}`);
+  }
+
+  return groups.join('\n\n');
+};
+
+const buildNewAccountBlocks = (lead: SlackNewAccountPayload): Record<string, unknown>[] => {
   const blocks: Record<string, unknown>[] = [
     {
       type: 'header',
       text: {
         type: 'plain_text',
-        text: 'Novo pedido de acesso antecipado',
+        text: 'Nova conta criada',
+        emoji: true,
       },
     },
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `${statusEmoji} *Status:* ${getStatusLabel(status)}`,
+        text: `:earth_americas: *Origem:* ${buildOriginLabel(lead)}`,
       },
     },
     {
       type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: buildLeadSummary(lead),
-      },
+      fields: buildContactFields(lead),
     },
   ];
 
-  if (status === 'pending') {
+  const profileText = buildProfileSection(lead);
+  if (profileText) {
+    blocks.push({ type: 'divider' });
     blocks.push({
-      type: 'actions',
-      elements: [
-        {
-          type: 'button',
-          style: 'primary',
-          action_id: SLACK_APPROVE_ACTION_ID,
-          text: {
-            type: 'plain_text',
-            text: 'Aprovar',
-          },
-          value: lead.leadId,
-        },
-        {
-          type: 'button',
-          style: 'danger',
-          action_id: SLACK_REJECT_ACTION_ID,
-          text: {
-            type: 'plain_text',
-            text: 'Reprovar',
-          },
-          value: lead.leadId,
-        },
-      ],
-    });
-  } else if (decisionInfo) {
-    const reviewerLabel = decisionInfo.reviewerName || decisionInfo.reviewerId;
-    blocks.push({
-      type: 'context',
-      elements: [
-        {
-          type: 'mrkdwn',
-          text: `Decisao registrada por <@${decisionInfo.reviewerId}> (${reviewerLabel}) em ${decisionInfo.reviewedAtIso}.`,
-        },
-      ],
+      type: 'section',
+      text: { type: 'mrkdwn', text: profileText },
     });
   }
+
+  if (lead.idealOutcomeText) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: `:checkered_flag: *Resultado ideal*\n${lead.idealOutcomeText}` },
+    });
+  }
+
+  blocks.push({
+    type: 'context',
+    elements: [
+      {
+        type: 'mrkdwn',
+        text: `:bust_in_silhouette: User ID: \`${lead.userId}\`  ·  ${lead.source} · ${lead.flowVersion}`,
+      },
+    ],
+  });
 
   return blocks;
 };
@@ -232,89 +275,16 @@ const callSlackApi = async (
   return data;
 };
 
-export const upsertSlackApprovalMessage = async (
-  lead: SlackApprovalLeadPayload,
-  currentMessage?: SlackMessageRefResult | null
-): Promise<SlackMessageRefResult | null> => {
-  if (!isSlackApprovalConfigured()) {
-    return null;
-  }
-
-  const blocks = buildApprovalBlocks(lead, 'pending');
-  if (currentMessage?.channelId && currentMessage?.messageTs) {
-    const result = await callSlackApi('chat.update', {
-      channel: currentMessage.channelId,
-      ts: currentMessage.messageTs,
-      text: `Revisao de acesso antecipado: ${lead.name} (${lead.email})`,
-      blocks,
-    });
-
-    return { channelId: result.channel, messageTs: result.ts };
-  }
-
-  const result = await callSlackApi('chat.postMessage', {
-    channel: getSlackChannelId(),
-    text: `Novo pedido de acesso antecipado: ${lead.name} (${lead.email})`,
-    blocks,
-  });
-
-  return { channelId: result.channel, messageTs: result.ts };
-};
-
-export const updateSlackApprovalMessageStatus = async (
-  lead: SlackApprovalLeadPayload,
-  messageRef: SlackMessageRefResult,
-  decisionInfo: SlackDecisionInfo
+export const postNewAccountNotification = async (
+  lead: SlackNewAccountPayload
 ): Promise<void> => {
   if (!isSlackApprovalConfigured()) {
     return;
   }
 
-  const blocks = buildApprovalBlocks(lead, decisionInfo.status, decisionInfo);
-  await callSlackApi('chat.update', {
-    channel: messageRef.channelId,
-    ts: messageRef.messageTs,
-    text: `Pedido ${getStatusLabel(decisionInfo.status).toLowerCase()}: ${lead.name} (${lead.email})`,
-    blocks,
+  await callSlackApi('chat.postMessage', {
+    channel: getSlackChannelId(),
+    text: `Nova conta criada: ${lead.name} (${lead.email})`,
+    blocks: buildNewAccountBlocks(lead),
   });
-};
-
-export const parseSlackInteractionPayload = (rawBody: string): SlackInteractionPayload | null => {
-  const parsed = new URLSearchParams(rawBody);
-  const payloadRaw = parsed.get('payload');
-  if (!payloadRaw) return null;
-
-  try {
-    const payload = JSON.parse(payloadRaw) as SlackInteractionPayload;
-    return payload;
-  } catch (error) {
-    return null;
-  }
-};
-
-export const verifySlackRequestSignature = (params: {
-  rawBody: string;
-  timestampHeader?: string;
-  signatureHeader?: string;
-}): boolean => {
-  const secret = getSlackSigningSecret();
-  if (!secret) return false;
-
-  const { rawBody, timestampHeader, signatureHeader } = params;
-  if (!timestampHeader || !signatureHeader) return false;
-
-  const timestamp = Number(timestampHeader);
-  if (!Number.isFinite(timestamp)) return false;
-
-  const nowInSeconds = Math.floor(Date.now() / 1000);
-  if (Math.abs(nowInSeconds - timestamp) > MAX_CLOCK_SKEW_SECONDS) return false;
-
-  const baseString = `v0:${timestampHeader}:${rawBody}`;
-  const digest = `v0=${crypto.createHmac('sha256', secret).update(baseString, 'utf8').digest('hex')}`;
-
-  const digestBuffer = Buffer.from(digest, 'utf8');
-  const signatureBuffer = Buffer.from(signatureHeader, 'utf8');
-  if (digestBuffer.length !== signatureBuffer.length) return false;
-
-  return crypto.timingSafeEqual(digestBuffer, signatureBuffer);
 };
