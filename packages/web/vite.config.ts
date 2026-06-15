@@ -15,6 +15,20 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:3001',
           changeOrigin: true,
         },
+        // Mirror vercel.json rewrites so the same-origin PostHog proxy
+        // (/ingest) also works in local dev. More specific key must come first.
+        '/ingest/static': {
+          target: 'https://us-assets.i.posthog.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/ingest\/static/, '/static'),
+        },
+        '/ingest': {
+          target: 'https://us.i.posthog.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (p) => p.replace(/^\/ingest/, ''),
+        },
       },
     },
     resolve: {
