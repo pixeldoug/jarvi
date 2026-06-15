@@ -1,0 +1,139 @@
+/* ======================================================
+   Intro block
+   ====================================================== */
+
+.intro {
+  margin-bottom: 56px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.pageTitle {
+  margin: 0 0 12px;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: #030712;
+}
+
+.pageSubtitle {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #64748b;
+  max-width: 540px;
+}
+
+/* ======================================================
+   Entry list
+   ====================================================== */
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ======================================================
+   Single changelog entry
+   ====================================================== */
+
+.entry {
+  padding: 40px 0;
+  border-bottom: 1px solid #e2e8f0;
+  scroll-margin-top: 96px; /* sticky header offset */
+}
+
+.entry:last-child {
+  border-bottom: none;
+}
+
+.entryHeader {
+  margin-bottom: 20px;
+}
+
+.entryDate {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.entryTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: #0f172a;
+}
+
+/* ======================================================
+   Item list
+   ====================================================== */
+
+.itemList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.itemEmoji {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.itemText {
+  flex: 1;
+}
+
+.itemText a {
+  color: #4f26e4;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.itemText a:hover {
+  color: #3b1cb2;
+}
+
+.itemText strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ======================================================
+   Responsive
+   ====================================================== */
+
+@media (max-width: 640px) {
+  .pageTitle {
+    font-size: 28px;
+  }
+
+  .entryTitle {
+    font-size: 20px;
+  }
+
+  .entry {
+    padding: 32px 0;
+  }
+}
