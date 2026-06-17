@@ -10,6 +10,9 @@ build/
 .next/
 out/
 
+# Design token audit snapshots (Estágio B da skill audit-design-token)
+.audit-snapshots/
+
 # Environment variables
 .env
 .env.local

@@ -221,10 +221,10 @@
 .heroTitle {
   margin: 0;
   width: min(100%, 836px);
-  font-size: 60px;
-  line-height: 1.24;
-  font-weight: 600;
-  letter-spacing: -2.5px;
+  font-size: var(--typography-display-lg-font-size);
+  line-height: var(--typography-display-lg-line-height);
+  font-weight: var(--typography-display-lg-font-weight);
+  letter-spacing: var(--typography-display-lg-letter-spacing);
   font-family: 'Plus Jakarta Sans', sans-serif;
   background: linear-gradient(90deg, #f3f1fc 3.77%, #eee9fe 100%);
   -webkit-background-clip: text;

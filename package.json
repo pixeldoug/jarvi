@@ -18,6 +18,8 @@
     "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:web\" \"npm run dev:mobile\"",
     "storybook": "cd packages/web && npm run storybook",
     "build-storybook": "cd packages/web && npm run build-storybook",
+    "audit:token": "node .cursor/skills/audit-design-token/scripts/find-token-usages.mjs",
+    "audit:snap": "node .cursor/skills/audit-design-token/scripts/capture-snapshots.mjs",
     "build": "npm run build --workspaces",
     "build:shared": "cd packages/shared && npm run build",
     "build:backend": "cd packages/backend && npm run build",
@@ -47,11 +49,12 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
-    "vite": "^5.0.8",
     "husky": "^8.0.3",
     "lint-staged": "^15.2.0",
+    "playwright": "^1.61.0",
     "prettier": "^3.1.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
   },
   "engines": {
     "node": ">=18.0.0",

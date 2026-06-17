@@ -5,7 +5,7 @@ A cross-platform productivity app with task management, notes, AI assistant, and
 ## Features
 
 - **Task Management** — Create and organize tasks with priorities, due dates, subtasks, lists, and categories. Drag-and-drop reordering with `@dnd-kit`.
-- **AI Assistant** — Streaming chat panel (Anthropic + OpenAI) embedded in the task sidebar. Understands context, executes tool calls (create, update, complete tasks), and renders task card artifacts inline.
+- **AI Assistant** — Streaming chat panel (Anthropic + OpenAI) embedded in the task sidebar. Understadnds context, executes tool calls (create, update, complete tasks), and renders task card artifacts inline.
 - **WhatsApp Agent** — Manage tasks and notes via WhatsApp messages, powered by a queue-based agent (`bullmq` + Twilio).
 - **Notes** — Rich-text editor built on Tiptap v3 with markdown, links, images, and task lists. Supports note sharing with collaboration indicators.
 - **Categories** — Color-coded categories shared across tasks and notes with full CRUD from a settings panel.
@@ -18,6 +18,7 @@ A cross-platform productivity app with task management, notes, AI assistant, and
 ## Tech Stack
 
 ### Web (`packages/web`)
+
 - React 18 + TypeScript + Vite
 - React Router v6, TanStack Query v5
 - Tiptap v3 (rich text editor)
@@ -28,12 +29,14 @@ A cross-platform productivity app with task management, notes, AI assistant, and
 - CSS Modules (no Tailwind on web)
 
 ### Mobile (`packages/mobile`)
+
 - React Native 0.74 + Expo 51
 - React Navigation (bottom tabs + stack)
 - NativeWind + Tailwind CSS
 - TanStack Query v5
 
 ### Backend (`packages/backend`)
+
 - Node.js + Express + TypeScript
 - PostgreSQL (production) / SQLite (dev) via `pg` / `sqlite3`
 - Socket.IO (real-time)
@@ -45,11 +48,13 @@ A cross-platform productivity app with task management, notes, AI assistant, and
 - Rate limiting, helmet, express-validator
 
 ### Marketing (`packages/marketing`)
+
 - Next.js App Router + TypeScript
 - MDX support
 - Early-access route
 
 ### Shared (`packages/shared`)
+
 - Common TypeScript types and design tokens shared across packages
 
 ## Project Structure
@@ -86,6 +91,7 @@ jarvi/
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js >= 18
 - npm >= 9
 - Redis (for WhatsApp queue, optional in dev)
@@ -122,23 +128,25 @@ Required services: Google OAuth, a database (SQLite for dev / PostgreSQL for pro
 
 ## Available Scripts
 
-| Command | Description |
-|---|---|
-| `npm run dev` | Backend + web |
-| `npm run dev:all` | Backend + web + mobile |
-| `npm run dev:marketing` | Marketing site |
-| `npm run dev:stripe` | Backend + web + Stripe webhook listener |
-| `npm run build` | Build all packages |
-| `npm run build:web` | Build web for deployment |
-| `npm run build:marketing` | Build marketing site |
-| `npm run storybook` | Launch Storybook |
-| `npm run db:migrate` | Run database migrations |
-| `npm run db:seed` | Seed database |
-| `npm run type-check` | TypeScript check across all packages |
-| `npm run lint` | Lint all packages |
-| `npm run format` | Prettier format |
-| `npm run clean` | Remove all build artifacts and node_modules |
-| `npm run docker:up` | Start services via Docker Compose |
+
+| Command                   | Description                                 |
+| ------------------------- | ------------------------------------------- |
+| `npm run dev`             | Backend + web                               |
+| `npm run dev:all`         | Backend + web + mobile                      |
+| `npm run dev:marketing`   | Marketing site                              |
+| `npm run dev:stripe`      | Backend + web + Stripe webhook listener     |
+| `npm run build`           | Build all packages                          |
+| `npm run build:web`       | Build web for deployment                    |
+| `npm run build:marketing` | Build marketing site                        |
+| `npm run storybook`       | Launch Storybook                            |
+| `npm run db:migrate`      | Run database migrations                     |
+| `npm run db:seed`         | Seed database                               |
+| `npm run type-check`      | TypeScript check across all packages        |
+| `npm run lint`            | Lint all packages                           |
+| `npm run format`          | Prettier format                             |
+| `npm run clean`           | Remove all build artifacts and node_modules |
+| `npm run docker:up`       | Start services via Docker Compose           |
+
 
 ## Database
 
@@ -152,14 +160,14 @@ The WhatsApp agent processes incoming messages asynchronously using a background
 
 ## Stripe Integration
 
-See [`docs/STRIPE_SETUP.md`](./docs/STRIPE_SETUP.md) for full setup. Stripe handles subscription plans, payment processing, webhook events, and plan management.
+See `[docs/STRIPE_SETUP.md](./docs/STRIPE_SETUP.md)` for full setup. Stripe handles subscription plans, payment processing, webhook events, and plan management.
 
 ## Documentation
 
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — System architecture
-- [`docs/PRODUCTION_PLAN.md`](./docs/PRODUCTION_PLAN.md) — Deployment guide
-- [`docs/STRIPE_SETUP.md`](./docs/STRIPE_SETUP.md) — Stripe configuration
-- [`packages/web/src/design-system/README.md`](./packages/web/src/design-system/README.md) — Design system
+- `[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)` — System architecture
+- `[docs/PRODUCTION_PLAN.md](./docs/PRODUCTION_PLAN.md)` — Deployment guide
+- `[docs/STRIPE_SETUP.md](./docs/STRIPE_SETUP.md)` — Stripe configuration
+- `[packages/web/src/design-system/README.md](./packages/web/src/design-system/README.md)` — Design system
 
 ## License
 

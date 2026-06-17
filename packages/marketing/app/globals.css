@@ -3,6 +3,12 @@
   --text-muted: #475569;
   --chip-default: #f7f8f9;
   --brand: #4f26e4;
+
+  /* Typography token: display-lg (mirrors packages/web design system) */
+  --typography-display-lg-font-size: 60px;
+  --typography-display-lg-line-height: 64px;
+  --typography-display-lg-font-weight: 600;
+  --typography-display-lg-letter-spacing: -2.5px;
 }
 
 * {

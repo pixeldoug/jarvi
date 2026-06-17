@@ -1,0 +1,25 @@
+{
+  "$comment": "Manifesto do Estágio B. Lista as rotas que o capturador (capture-snapshots.mjs) visita por pacote. O runner NÃO mapeia CSS->rota: ele visita cada rota e descobre via DOM onde os elementos do token aparecem. 'auth' indica que a rota precisa de sessão; o runner injeta o JWT (env JARVI_AUDIT_TOKEN ou --jwt) no localStorage antes de navegar. 'waitFor' é um seletor opcional para aguardar antes de capturar.",
+  "packages": {
+    "marketing": {
+      "baseUrl": "http://localhost:3002",
+      "routes": [
+        { "path": "/" },
+        { "path": "/acesso-antecipado" },
+        { "path": "/criar-conta" }
+      ]
+    },
+    "web": {
+      "baseUrl": "http://localhost:3000",
+      "authStorageKey": "jarvi_token",
+      "routes": [
+        { "path": "/login" },
+        { "path": "/criar-conta" },
+        { "path": "/", "auth": true },
+        { "path": "/tasks", "auth": true },
+        { "path": "/notes", "auth": true },
+        { "path": "/settings", "auth": true }
+      ]
+    }
+  }
+}
