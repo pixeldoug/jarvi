@@ -25,6 +25,8 @@ html,
 body {
   margin: 0;
   padding: 0;
+  /* Prevent iOS rubber-band overscroll from revealing the white canvas. */
+  overscroll-behavior: none;
 }
 
 body {

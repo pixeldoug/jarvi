@@ -18,6 +18,13 @@ html {
   transition: background-color 0.2s ease;
 }
 
+html,
+body {
+  /* Prevent iOS rubber-band overscroll from revealing the white canvas at the
+     bottom of the page (e.g. near the ControlBar when the keyboard is open). */
+  overscroll-behavior: none;
+}
+
 body {
   min-height: 100vh;
   background-color: var(--semantic-surface-primary);
