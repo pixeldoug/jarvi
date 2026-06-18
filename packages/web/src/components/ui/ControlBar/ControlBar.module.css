@@ -345,6 +345,9 @@
   .promptInput {
     width: 100%;
     padding: var(--sizes-4) var(--sizes-2);
+    /* Row becomes a column here, so `flex: 1` would control the vertical axis
+       and override the JS-set height. Reset it so the auto-resize height wins. */
+    flex: 0 0 auto;
   }
 
   .promptActions {
