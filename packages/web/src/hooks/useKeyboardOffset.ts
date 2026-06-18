@@ -17,7 +17,13 @@ export function useKeyboardOffset(): void {
     const root = document.documentElement;
 
     const update = () => {
-      const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // Use the layout viewport's clientHeight rather than window.innerHeight:
+      // on iOS, innerHeight includes the area behind the browser's bottom
+      // toolbar (overshooting the keyboard height); on Android with
+      // interactive-widget=resizes-content, clientHeight shrinks with the
+      // keyboard so the offset self-corrects to ~0 (no double counting).
+      const layoutHeight = document.documentElement.clientHeight;
+      const offset = Math.max(0, layoutHeight - vv.height - vv.offsetTop);
       root.style.setProperty('--keyboard-offset', `${offset}px`);
     };
 

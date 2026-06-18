@@ -2,8 +2,9 @@
 .controlBarTask {
   position: fixed;
   /* `--keyboard-offset` (set via useKeyboardOffset) lifts the bar above the
-     on-screen keyboard on mobile; it is 0 when no keyboard is open. */
-  bottom: calc(24px + var(--keyboard-offset, 0px));
+     on-screen keyboard on mobile; it is 0 when no keyboard is open.
+     `safe-area-inset-bottom` keeps it clear of the home indicator. */
+  bottom: calc(24px + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
   transition: bottom 0.2s ease;
   /* Centered in the full viewport (sidebar + content combined).
      translateX(-50%) is handled via Framer Motion style={{ x: "-50%" }} so that
@@ -335,7 +336,7 @@
   .controlBarTask {
     width: 100%;
     max-width: calc(100vw - var(--sizes-6));
-    bottom: calc(var(--sizes-4) + var(--keyboard-offset, 0px));
+    bottom: calc(var(--sizes-4) + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
   }
 
   /* Prompt mode: input on top, actions row below */

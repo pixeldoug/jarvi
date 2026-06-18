@@ -25,6 +25,12 @@ body {
   overscroll-behavior: none;
 }
 
+html {
+  /* Safety net: any residual gap (keyboard animation, sub-pixel rounding,
+     browsers without VisualViewport) shows the theme background, not white. */
+  background-color: var(--semantic-surface-primary);
+}
+
 body {
   min-height: 100vh;
   background-color: var(--semantic-surface-primary);
