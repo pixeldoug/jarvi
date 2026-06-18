@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useDragControls } from 'motion/react';
 import { X } from '@phosphor-icons/react';
 import styles from './BottomSheet.module.css';
 
@@ -29,6 +29,10 @@ export interface BottomSheetProps {
 
 export function BottomSheet({ isOpen, onClose, title, children, forceTheme }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const dragControls = useDragControls();
+  // Tracks the start Y of a swipe that began with the content already scrolled
+  // to the top — used to allow swipe-down-to-close from the content area.
+  const contentSwipeStartY = useRef<number | null>(null);
 
   // Escape to close
   useEffect(() => {
@@ -75,20 +79,48 @@ export function BottomSheet({ isOpen, onClose, title, children, forceTheme }: Bo
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 600) onClose();
+            }}
           >
-            <div className={styles.header}>
+            {/* Header doubles as a drag handle */}
+            <div
+              className={styles.header}
+              onPointerDown={(e) => dragControls.start(e)}
+              style={{ touchAction: 'none', cursor: 'grab' }}
+            >
               {title ? <h2 className={styles.title}>{title}</h2> : <span />}
               <button
                 type="button"
                 className={styles.closeButton}
                 onClick={onClose}
+                onPointerDown={(e) => e.stopPropagation()}
                 aria-label="Fechar"
               >
                 <X size={20} weight="regular" />
               </button>
             </div>
 
-            <div className={styles.content}>{children}</div>
+            <div
+              className={styles.content}
+              onTouchStart={(e) => {
+                contentSwipeStartY.current =
+                  e.currentTarget.scrollTop <= 0 ? e.touches[0].clientY : null;
+              }}
+              onTouchEnd={(e) => {
+                if (contentSwipeStartY.current === null) return;
+                const dy = e.changedTouches[0].clientY - contentSwipeStartY.current;
+                if (dy > 90) onClose();
+                contentSwipeStartY.current = null;
+              }}
+            >
+              {children}
+            </div>
           </motion.div>
         </motion.div>
       )}

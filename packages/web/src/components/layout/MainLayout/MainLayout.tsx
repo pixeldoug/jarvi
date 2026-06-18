@@ -5,7 +5,7 @@
  * Following JarviDS design system from Figma
  */
 
-import { ReactNode, RefObject, createContext, useContext, useEffect, useState } from 'react';
+import { ReactNode, RefObject, TouchEvent as ReactTouchEvent, createContext, useContext, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SidebarSimple } from '@phosphor-icons/react';
 import styles from './MainLayout.module.css';
@@ -130,6 +130,38 @@ export function MainLayout({
 
   const closeSidebar = () => setIsSidebarOpen(false);
 
+  // ── Swipe-to-close gesture for the mobile drawer (swipe right → left) ───────
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [drawerDragX, setDrawerDragX] = useState<number | null>(null);
+
+  const handleDrawerTouchStart = (e: ReactTouchEvent<HTMLElement>) => {
+    const touch = e.touches[0];
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleDrawerTouchMove = (e: ReactTouchEvent<HTMLElement>) => {
+    if (!swipeStartRef.current) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - swipeStartRef.current.x;
+    const dy = touch.clientY - swipeStartRef.current.y;
+    // Engage only on a clearly horizontal, leftward gesture
+    if (drawerDragX === null) {
+      if (Math.abs(dx) > Math.abs(dy) && dx < -8) {
+        setDrawerDragX(dx);
+      }
+      return;
+    }
+    setDrawerDragX(Math.min(0, dx));
+  };
+
+  const handleDrawerTouchEnd = () => {
+    if (drawerDragX !== null && drawerDragX < -80) {
+      closeSidebar();
+    }
+    setDrawerDragX(null);
+    swipeStartRef.current = null;
+  };
+
   return (
     <MobileSidebarContext.Provider value={{ isMobile, isOpen: isDrawerOpen, close: closeSidebar }}>
     <div className={styles.layout}>
@@ -162,6 +194,14 @@ export function MainLayout({
         <aside
           className={styles.sidebar}
           data-open={isDrawerOpen ? '' : undefined}
+          onTouchStart={isMobile ? handleDrawerTouchStart : undefined}
+          onTouchMove={isMobile ? handleDrawerTouchMove : undefined}
+          onTouchEnd={isMobile ? handleDrawerTouchEnd : undefined}
+          style={
+            drawerDragX !== null
+              ? { transform: `translateX(${drawerDragX}px)`, transition: 'none' }
+              : undefined
+          }
         >
           {sidebar}
         </aside>
