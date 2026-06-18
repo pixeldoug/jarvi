@@ -85,6 +85,16 @@
   transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Mobile-only top bar with the sidebar toggle — hidden on desktop */
+.mobileTopBar {
+  display: none;
+}
+
+/* Mobile overlay backdrop — only rendered in mobile drawer mode */
+.backdrop {
+  display: none;
+}
+
 /* Header in main content */
 .mainHeader {
   display: flex;
@@ -233,6 +243,82 @@
   .rightSidebar {
     width: 496px;
     max-width: 496px;
+  }
+}
+
+/* ── Mobile: sidebar becomes an overlay drawer ──────────────────────────────
+   Everything here is scoped to the mobile breakpoint so the desktop layout is
+   untouched. */
+@media (max-width: 768px) {
+  .content {
+    flex-direction: column;
+    gap: var(--sizes-3);
+    padding: var(--sizes-3) var(--sizes-3) var(--sizes-16);
+  }
+
+  /* Toggle row above the header content */
+  .mobileTopBar {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--sizes-2);
+    margin-left: calc(var(--sizes-2) * -1);
+  }
+
+  /* Sidebar turns into a fixed off-canvas drawer that overlays the UI */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: auto;
+    z-index: 1000;
+    padding: var(--sizes-4);
+    transform: translateX(-110%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+  }
+
+  .sidebar[data-open] {
+    transform: translateX(0);
+  }
+
+  /* Backdrop behind the drawer */
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(9, 9, 11, 0.45);
+    animation: backdropFadeIn 0.2s ease;
+  }
+
+  /* Main content takes the full width */
+  .main {
+    flex: 1;
+    width: 100%;
+    height: auto;
+    min-height: calc(100dvh - var(--sizes-6) - var(--sizes-16));
+    padding: var(--sizes-4) var(--sizes-4) 0;
+  }
+
+  /* Task details / right sidebar becomes a full-screen overlay */
+  .rightSidebar {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    z-index: 1001;
+    border-radius: 0;
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

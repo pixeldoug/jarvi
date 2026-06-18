@@ -5,11 +5,41 @@
  * Following JarviDS design system from Figma
  */
 
-import { ReactNode, RefObject } from 'react';
+import { ReactNode, RefObject, createContext, useContext, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { SidebarSimple } from '@phosphor-icons/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
+import { Button } from '../../ui/Button/Button';
 import { useBackground } from '../../../contexts/BackgroundContext';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
+
+/** Breakpoint used to switch the layout into mobile (overlay sidebar) mode. */
+export const MOBILE_BREAKPOINT = '(max-width: 768px)';
+
+interface MobileSidebarContextValue {
+  /** True when the layout is rendered in mobile (overlay) mode. */
+  isMobile: boolean;
+  /** True when the overlay sidebar is currently open. */
+  isOpen: boolean;
+  /** Closes the overlay sidebar (no-op on desktop). */
+  close: () => void;
+}
+
+const MobileSidebarContext = createContext<MobileSidebarContextValue>({
+  isMobile: false,
+  isOpen: false,
+  close: () => {},
+});
+
+/**
+ * Lets sidebar content react to the mobile overlay drawer — e.g. close it when
+ * the user picks a navigation item, or render the collapse button as a close
+ * button. On desktop `isMobile` is false and everything behaves as before.
+ */
+export function useMobileSidebar(): MobileSidebarContextValue {
+  return useContext(MobileSidebarContext);
+}
 
 export interface MainLayoutProps {
   /** Content for the sidebar slot - each page provides its own */
@@ -68,12 +98,40 @@ export function MainLayout({
   defaultTaskCategory,
 }: MainLayoutProps) {
   const { backgroundSrc } = useBackground();
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const isDrawerOpen = isMobile && isSidebarOpen;
+
+  // Reset the overlay state whenever we leave mobile so the desktop layout is
+  // never affected by a previously-open drawer.
+  useEffect(() => {
+    if (!isMobile) setIsSidebarOpen(false);
+  }, [isMobile]);
+
+  // Lock body scroll and allow Escape to close while the drawer is open.
+  useEffect(() => {
+    if (!isDrawerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsSidebarOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDrawerOpen]);
+
   const mainTitleClasses = [
     styles.mainTitle,
     titleVariant === 'heading' && styles.mainTitleHeading,
   ].filter(Boolean).join(' ');
 
+  const closeSidebar = () => setIsSidebarOpen(false);
+
   return (
+    <MobileSidebarContext.Provider value={{ isMobile, isOpen: isDrawerOpen, close: closeSidebar }}>
     <div className={styles.layout}>
       {/* Background */}
       <div className={styles.background}>
@@ -91,13 +149,39 @@ export function MainLayout({
 
       {/* Content */}
       <div className={styles.content}>
+        {/* Mobile overlay backdrop */}
+        {isDrawerOpen && (
+          <div
+            className={styles.backdrop}
+            onClick={closeSidebar}
+            aria-hidden="true"
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className={styles.sidebar}>
+        <aside
+          className={styles.sidebar}
+          data-open={isDrawerOpen ? '' : undefined}
+        >
           {sidebar}
         </aside>
 
         {/* Main Content */}
         <main className={styles.main}>
+          {/* Mobile-only top bar with the sidebar toggle (hidden on desktop via CSS) */}
+          <div className={styles.mobileTopBar}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="medium"
+              icon={SidebarSimple}
+              iconPosition="icon-only"
+              aria-label="Abrir menu"
+              aria-expanded={isDrawerOpen}
+              onClick={() => setIsSidebarOpen(true)}
+            />
+          </div>
+
           {!hideHeader && (
             <header className={styles.mainHeader}>
               <div className={styles.mainHeaderContent}>
@@ -151,6 +235,7 @@ export function MainLayout({
         />
       </div>
     </div>
+    </MobileSidebarContext.Provider>
   );
 }
 

@@ -31,6 +31,7 @@ import { Button } from '../../ui/Button/Button';
 import { ListItem } from '../../ui/ListItem/ListItem';
 import { Dropdown, Tooltip } from '../../ui';
 import { SettingsDialog, type SettingsPage } from '../../features/account/SettingsDialog/SettingsDialog';
+import { useMobileSidebar } from '../MainLayout/MainLayout';
 import { SidebarEmptyState } from './SidebarEmptyState';
 import { SidebarGroupHeader } from './SidebarGroupHeader';
 import { SidebarUserMenu } from './SidebarUserMenu';
@@ -140,6 +141,7 @@ export function Sidebar({
   openSettingsRef,
   forceCollapsed,
 }: SidebarProps) {
+  const { isMobile, close: closeMobileSidebar } = useMobileSidebar();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const prevCollapsedRef = useRef<boolean>(false);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
@@ -194,6 +196,17 @@ export function Sidebar({
   // ── Nav click handler ───────────────────────────────────────────────────────
   const handleNavClick = (listType: ListType) => {
     onListSelect?.(listType);
+    closeMobileSidebar();
+  };
+
+  const handleCategoryClick = (category: CategoryType) => {
+    onCategorySelect?.(category);
+    closeMobileSidebar();
+  };
+
+  const handleCustomListClick = (listId: string) => {
+    onCustomListSelect?.(listId);
+    closeMobileSidebar();
   };
 
   const isNavItemActive = (itemId: ListType): boolean =>
@@ -244,7 +257,7 @@ export function Sidebar({
   return (
     <div
       className={styles.sidebar}
-      data-collapsed={isCollapsed || undefined}
+      data-collapsed={(isCollapsed && !isMobile) || undefined}
     >
       {/* ── Collapsed panel (absolutely fills root, fades in when collapsed) ── */}
       <div className={styles.collapsedPanel}>
@@ -374,8 +387,8 @@ export function Sidebar({
               size="small"
               icon={SidebarSimple}
               iconPosition="icon-only"
-              onClick={() => setIsCollapsed(true)}
-              aria-label="Recolher sidebar"
+              onClick={() => (isMobile ? closeMobileSidebar() : setIsCollapsed(true))}
+              aria-label={isMobile ? 'Fechar menu' : 'Recolher sidebar'}
             />
           </div>
 
@@ -430,7 +443,7 @@ export function Sidebar({
                       label={category.name}
                       icon={Hash}
                       active={selectedCategory === category.name}
-                      onClick={() => onCategorySelect?.(category.name)}
+                      onClick={() => handleCategoryClick(category.name)}
                     />
                   ))
                 ) : (
@@ -464,7 +477,7 @@ export function Sidebar({
                       label={list.name}
                       icon={FunnelSimple}
                       active={selectedCustomListId === list.id}
-                      onClick={() => onCustomListSelect?.(list.id)}
+                      onClick={() => handleCustomListClick(list.id)}
                     />
                   ))
                 ) : (
