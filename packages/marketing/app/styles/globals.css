@@ -29,6 +29,19 @@ body {
   overscroll-behavior: none;
 }
 
+html {
+  /* Safety net so any overscroll/keyboard gap shows the page color, not white. */
+  background-color: #f5f6f8;
+}
+
+/* On mobile, restore the native pull-to-refresh gesture. */
+@media (max-width: 768px) {
+  html,
+  body {
+    overscroll-behavior: auto;
+  }
+}
+
 body {
   background: #f5f6f8;
   color: var(--text-strong);

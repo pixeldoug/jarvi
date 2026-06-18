@@ -25,6 +25,15 @@ body {
   overscroll-behavior: none;
 }
 
+/* On mobile, restore the native pull-to-refresh gesture. The white-on-overscroll
+   case is handled by the `html` background-color below. */
+@media (max-width: 768px) {
+  html,
+  body {
+    overscroll-behavior: auto;
+  }
+}
+
 html {
   /* Safety net: any residual gap (keyboard animation, sub-pixel rounding,
      browsers without VisualViewport) shows the theme background, not white. */
