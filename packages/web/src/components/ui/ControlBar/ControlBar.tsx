@@ -13,6 +13,7 @@ import { Chip } from '../Chip';
 import { TaskDatePicker, PriorityPicker, CategoryPicker } from '../../features/tasks';
 import { useCategories, type Category } from '../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
+import { useKeyboardOffset } from '../../../hooks/useKeyboardOffset';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { toast } from '../Sonner';
 import styles from './ControlBar.module.css';
@@ -52,6 +53,9 @@ export function ControlBar({
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
   const { trialExpired } = useSubscription();
+
+  // Keep the bar above the virtual keyboard on mobile (see hook docs)
+  useKeyboardOffset();
 
   // 'prompt' = AI mode (default) | 'task' = manual task creation
   const [mode, setMode] = useState<'prompt' | 'task'>('prompt');
