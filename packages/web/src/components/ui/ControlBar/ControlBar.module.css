@@ -43,7 +43,7 @@
 
 .promptRow {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--sizes-2);
   width: 100%;
 }
@@ -61,6 +61,12 @@
   min-width: 0;
   padding: var(--sizes-4) var(--sizes-4);
 
+  display: block;
+  resize: none;
+  overflow-y: hidden;
+  /* Fallback cap at ~10 lines; JS keeps the exact height in sync */
+  max-height: calc(var(--typography-label-md-line-height) * 10 + var(--sizes-4) * 2);
+
   background: transparent;
   border: none;
   outline: none;
@@ -75,6 +81,24 @@
 
 .promptInput::placeholder {
   color: var(--semantic-content-secondary);
+}
+
+.promptInput::-webkit-scrollbar {
+  width: 6px;
+}
+
+.promptInput::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: var(--radius-round);
+}
+
+.promptInput::-webkit-scrollbar-thumb {
+  background: var(--semantic-surface-tertiary);
+  border-radius: var(--radius-round);
+}
+
+.promptInput::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
 }
 
 /* Send button (paper plane) */

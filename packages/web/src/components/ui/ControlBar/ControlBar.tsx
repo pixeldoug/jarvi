@@ -58,7 +58,7 @@ export function ControlBar({
 
   // Prompt bar state
   const [promptText, setPromptText] = useState('');
-  const promptInputRef = useRef<HTMLInputElement>(null);
+  const promptInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Task creation state
   const [title, setTitle] = useState('');
@@ -154,6 +154,23 @@ export function ControlBar({
     }
   }, [description]);
 
+  // Auto-resize prompt textarea: grow with content up to 10 lines, then scroll
+  const MAX_PROMPT_LINES = 10;
+  useEffect(() => {
+    const el = promptInputRef.current;
+    if (!el) return;
+
+    el.style.height = 'auto';
+
+    const cs = getComputedStyle(el);
+    const lineHeight = parseFloat(cs.lineHeight) || 22;
+    const paddingY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const maxHeight = lineHeight * MAX_PROMPT_LINES + paddingY;
+
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, [promptText, mode]);
+
   // ── Prompt handlers ──────────────────────────────────────────────────────────
 
   const handlePromptSubmit = () => {
@@ -166,8 +183,8 @@ export function ControlBar({
     setPromptText('');
   };
 
-  const handlePromptKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handlePromptKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handlePromptSubmit();
     }
@@ -417,9 +434,9 @@ export function ControlBar({
             transition={{ duration: 0.15 }}
             className={styles.promptRow}
           >
-            <input
+            <textarea
               ref={promptInputRef}
-              type="text"
+              rows={1}
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
               onKeyDown={handlePromptKeyDown}
