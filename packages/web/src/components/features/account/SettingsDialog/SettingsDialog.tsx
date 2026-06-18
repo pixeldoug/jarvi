@@ -43,7 +43,7 @@ export type SettingsPage =
   | 'filters'
   | 'appearance';
 
-interface SidebarItem {
+export interface SettingsSidebarItem {
   id: SettingsPage;
   label: string;
   icon?: ElementType;
@@ -54,7 +54,7 @@ interface SidebarItem {
 // SIDEBAR ITEMS
 // ============================================================================
 
-const SIDEBAR_ITEMS: SidebarItem[] = [
+export const SIDEBAR_ITEMS: SettingsSidebarItem[] = [
   { id: 'profile',    label: 'Meu perfil', icon: User },
   { id: 'payments',   label: 'Pagamentos', icon: CreditCard },
   { id: 'apps',       label: 'Apps',       icon: CirclesFour },
@@ -65,7 +65,37 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
 ];
 
 // Pages that render their own full header (title + extras)
-const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['apps', 'categories', 'filters']);
+export const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['apps', 'categories', 'filters']);
+
+// ============================================================================
+// PAGE CONTENT (shared between desktop dialog and mobile bottom sheet)
+// ============================================================================
+
+export function SettingsPageContent({
+  page,
+  onClose,
+  hideHeader = false,
+}: {
+  page: SettingsPage;
+  onClose: () => void;
+  /**
+   * When true, pages that render their own title/header (apps, categories,
+   * filters) omit it — used by the mobile bottom sheet, which shows the title
+   * in its own sticky header instead.
+   */
+  hideHeader?: boolean;
+}) {
+  switch (page) {
+    case 'profile':    return <ProfilePage />;
+    case 'payments':   return <PaymentsPage onClose={onClose} />;
+    case 'apps':       return <AppsPage hideHeader={hideHeader} />;
+    case 'memory':     return <MemoryPage />;
+    case 'categories': return <CategoriesPage hideHeader={hideHeader} />;
+    case 'filters':    return <FiltersPage hideHeader={hideHeader} />;
+    case 'appearance': return <AppearancePage />;
+    default:           return null;
+  }
+}
 
 // ============================================================================
 // COMPONENT
@@ -132,13 +162,7 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
             <h1 className={styles.pageHeader}>{activeItem?.label}</h1>
           )}
 
-          {activePage === 'profile'    && <ProfilePage />}
-          {activePage === 'payments'   && <PaymentsPage onClose={onClose} />}
-          {activePage === 'apps'       && <AppsPage />}
-          {activePage === 'memory'     && <MemoryPage />}
-          {activePage === 'categories' && <CategoriesPage />}
-          {activePage === 'filters'    && <FiltersPage />}
-          {activePage === 'appearance' && <AppearancePage />}
+          <SettingsPageContent page={activePage} onClose={onClose} />
         </main>
       </div>
     </Dialog>

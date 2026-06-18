@@ -111,7 +111,7 @@ const parseApiPayload = async (response: Response): Promise<Record<string, unkno
 
 type AppsView = 'list' | 'whatsapp' | 'gmail';
 
-export function AppsPage() {
+export function AppsPage({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const [view, setView] = useState<AppsView>('list');
 
   if (view === 'whatsapp') {
@@ -122,6 +122,7 @@ export function AppsPage() {
   }
   return (
     <AppsList
+      hideHeader={hideHeader}
       onConnect={(appId) => {
         if (appId === 'whatsapp') setView('whatsapp');
         else if (appId === 'gmail') setView('gmail');
@@ -136,15 +137,18 @@ export function AppsPage() {
 
 interface AppsListProps {
   onConnect: (appId: string) => void;
+  hideHeader?: boolean;
 }
 
-function AppsList({ onConnect }: AppsListProps) {
+function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
   return (
     <>
-      <div className={styles.listHeader}>
-        <h1 className={styles.pageTitle}>Apps</h1>
-        <p className={styles.pageSubtitle}>Gerencie os aplicativos conectados à sua conta.</p>
-      </div>
+      {!hideHeader && (
+        <div className={styles.listHeader}>
+          <h1 className={styles.pageTitle}>Apps</h1>
+          <p className={styles.pageSubtitle}>Gerencie os aplicativos conectados à sua conta.</p>
+        </div>
+      )}
 
       <ul className={styles.integrationList}>
         {APPS.map((app) => (

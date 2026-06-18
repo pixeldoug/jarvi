@@ -1,9 +1,4 @@
-/**
- * Sidebar Styles
- * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001333-125371
- */
 
-/* ── Sidebar root (shared by expanded + collapsed) ───────────────────────── */
 
 .sidebar {
   position: relative;
@@ -23,13 +18,19 @@
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ── Collapsed state ─────────────────────────────────────────────────────── */
+/* On mobile the sidebar is a full-height drawer flush to the left screen edge */
+@media (max-width: 768px) {
+  .sidebar {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+}
+
 
 .sidebar[data-collapsed] {
   width: 56px;
 }
 
-/* ── Expanded panel ──────────────────────────────────────────────────────── */
 
 .expandedPanel {
   display: flex;
@@ -317,5 +318,13 @@
   .sidebar {
     border-radius: 36px;
     corner-shape: squircle;
+  }
+
+  /* Mobile drawer stays flush to the left edge even with squircle corners */
+  @media (max-width: 768px) {
+    .sidebar {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
   }
 }

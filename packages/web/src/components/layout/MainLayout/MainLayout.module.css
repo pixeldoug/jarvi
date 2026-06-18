@@ -272,7 +272,6 @@
     height: 100dvh;
     width: auto;
     z-index: 1000;
-    padding: var(--sizes-4);
     transform: translateX(-110%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform;

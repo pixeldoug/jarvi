@@ -101,6 +101,11 @@ export {
 } from './Dialog/Dialog';
 
 export {
+  BottomSheet,
+  type BottomSheetProps,
+} from './BottomSheet/BottomSheet';
+
+export {
   Accordion,
   type AccordionProps,
 } from './Accordion';

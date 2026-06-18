@@ -35,7 +35,7 @@ import styles from './CategoriesPage.module.css';
 // COMPONENT
 // ============================================================================
 
-export function CategoriesPage() {
+export function CategoriesPage({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const { categories, createCategory, updateCategory, deleteCategory, reorderCategories, isLoading } = useCategories();
 
   // Local order: mirrors the server order; updated optimistically on drag
@@ -176,12 +176,14 @@ export function CategoriesPage() {
     <div className={styles.page}>
       {/* Page header */}
       <div className={styles.header}>
-        <div className={styles.headerText}>
-          <h1 className={styles.title}>Categorias</h1>
-          <p className={styles.subtitle}>
-            Gerencie as categorias que aparecem na sua barra lateral.
-          </p>
-        </div>
+        {!hideHeader && (
+          <div className={styles.headerText}>
+            <h1 className={styles.title}>Categorias</h1>
+            <p className={styles.subtitle}>
+              Gerencie as categorias que aparecem na sua barra lateral.
+            </p>
+          </div>
+        )}
         <PrimaryButton
           onClick={() => {
             setIsCreating(true);

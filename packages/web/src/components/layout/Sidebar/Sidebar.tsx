@@ -29,8 +29,13 @@ import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { Avatar } from '../../ui/Avatar/Avatar';
 import { Button } from '../../ui/Button/Button';
 import { ListItem } from '../../ui/ListItem/ListItem';
-import { Dropdown, Tooltip } from '../../ui';
-import { SettingsDialog, type SettingsPage } from '../../features/account/SettingsDialog/SettingsDialog';
+import { Dropdown, Tooltip, Divider, BottomSheet } from '../../ui';
+import {
+  SettingsDialog,
+  SettingsPageContent,
+  SIDEBAR_ITEMS,
+  type SettingsPage,
+} from '../../features/account/SettingsDialog/SettingsDialog';
 import { useMobileSidebar } from '../MainLayout/MainLayout';
 import { SidebarEmptyState } from './SidebarEmptyState';
 import { SidebarGroupHeader } from './SidebarGroupHeader';
@@ -157,15 +162,25 @@ export function Sidebar({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialPage, setSettingsInitialPage] = useState<SettingsPage>('profile');
+  // On mobile, settings open as a bottom sheet instead of the desktop modal.
+  const [mobileSettingsPage, setMobileSettingsPage] = useState<SettingsPage | null>(null);
+
+  // Opens a settings page — bottom sheet on mobile, modal on desktop.
+  const openSettings = (page: SettingsPage) => {
+    if (isMobile) {
+      setMobileSettingsPage(page);
+    } else {
+      setSettingsInitialPage(page);
+      setIsSettingsOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (!openSettingsRef) return;
-    openSettingsRef.current = (page: SettingsPage) => {
-      setSettingsInitialPage(page);
-      setIsSettingsOpen(true);
-    };
+    openSettingsRef.current = (page: SettingsPage) => openSettings(page);
     return () => { openSettingsRef.current = null; };
-  }, [openSettingsRef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openSettingsRef, isMobile]);
 
   useEffect(() => {
     if (forceCollapsed) {
@@ -189,9 +204,10 @@ export function Sidebar({
 
   useEffect(() => {
     if (location.pathname === '/settings') {
-      setIsSettingsOpen(true);
+      if (isMobile) setMobileSettingsPage('profile');
+      else setIsSettingsOpen(true);
     }
-  }, [location.pathname]);
+  }, [location.pathname, isMobile]);
 
   // ── Nav click handler ───────────────────────────────────────────────────────
   const handleNavClick = (listType: ListType) => {
@@ -229,28 +245,38 @@ export function Sidebar({
 
   const handleSettings = () => {
     setIsDropdownOpen(false);
-    setSettingsInitialPage('profile');
-    setIsSettingsOpen(true);
+    openSettings('profile');
   };
 
   const handleUpgradeClick = () => {
-    setSettingsInitialPage('payments');
-    setIsSettingsOpen(true);
+    openSettings('payments');
   };
 
   const handleAddCategory = () => {
-    setSettingsInitialPage('categories');
-    setIsSettingsOpen(true);
+    openSettings('categories');
   };
 
   const handleAddFilter = () => {
-    setSettingsInitialPage('filters');
-    setIsSettingsOpen(true);
+    openSettings('filters');
   };
 
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
     navigate('/tasks', { replace: true });
+  };
+
+  const handleCloseMobileSettings = () => {
+    setMobileSettingsPage(null);
+    if (location.pathname === '/settings') {
+      navigate('/tasks', { replace: true });
+    }
+  };
+
+  // Picks a settings page from the mobile user dropdown.
+  const handleMobileSettingsSelect = (page: SettingsPage) => {
+    setIsDropdownOpen(false);
+    setMobileSettingsPage(page);
+    closeMobileSidebar();
   };
 
   // ── Single root — animates between expanded / collapsed via CSS ─────────────
@@ -529,18 +555,52 @@ export function Sidebar({
         onClose={() => setIsDropdownOpen(false)}
         anchorRef={profileButtonRef}
         align={isCollapsed ? 'right' : 'left'}
-        width={200}
+        width={isMobile ? 240 : 200}
         gap={8}
       >
-        <ListItem label="Minha Conta" icon={Gear} onClick={handleSettings} />
-        <ListItem label="Sair" icon={SignOut} onClick={handleLogout} />
+        {isMobile ? (
+          <>
+            {SIDEBAR_ITEMS.map((item) => (
+              <ListItem
+                key={item.id}
+                label={item.label}
+                icon={item.icon}
+                iconWeight={item.iconWeight}
+                onClick={() => handleMobileSettingsSelect(item.id)}
+              />
+            ))}
+            <Divider />
+            <ListItem label="Sair" icon={SignOut} onClick={handleLogout} />
+          </>
+        ) : (
+          <>
+            <ListItem label="Minha Conta" icon={Gear} onClick={handleSettings} />
+            <ListItem label="Sair" icon={SignOut} onClick={handleLogout} />
+          </>
+        )}
       </Dropdown>
 
+      {/* Desktop: full settings modal */}
       <SettingsDialog
         isOpen={isSettingsOpen}
         onClose={handleCloseSettings}
         initialPage={settingsInitialPage}
       />
+
+      {/* Mobile: single settings page in a bottom sheet */}
+      <BottomSheet
+        isOpen={mobileSettingsPage !== null}
+        onClose={handleCloseMobileSettings}
+        title={SIDEBAR_ITEMS.find((item) => item.id === mobileSettingsPage)?.label}
+      >
+        {mobileSettingsPage && (
+          <SettingsPageContent
+            page={mobileSettingsPage}
+            onClose={handleCloseMobileSettings}
+            hideHeader
+          />
+        )}
+      </BottomSheet>
     </div>
   );
 }

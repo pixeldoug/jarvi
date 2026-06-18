@@ -33,7 +33,7 @@ import styles from './FiltersPage.module.css';
 // COMPONENT
 // ============================================================================
 
-export function FiltersPage() {
+export function FiltersPage({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const { lists, isLoading, updateList, deleteList } = useLists();
 
   // Local order: updated optimistically on drag
@@ -122,12 +122,14 @@ export function FiltersPage() {
     <div className={styles.page}>
       {/* Page header */}
       <div className={styles.header}>
-        <div className={styles.headerText}>
-          <h1 className={styles.title}>Filtros</h1>
-          <p className={styles.subtitle}>
-            Gerencie os filtros salvos que aparecem na sua barra lateral.
-          </p>
-        </div>
+        {!hideHeader && (
+          <div className={styles.headerText}>
+            <h1 className={styles.title}>Filtros</h1>
+            <p className={styles.subtitle}>
+              Gerencie os filtros salvos que aparecem na sua barra lateral.
+            </p>
+          </div>
+        )}
         <PrimaryButton onClick={() => setIsCreateOpen(true)}>
           Novo Filtro
         </PrimaryButton>

@@ -1,0 +1,114 @@
+/**
+ * BottomSheet Styles - Jarvi Web
+ *
+ * Mobile-first bottom sheet: anchored to the bottom, full width, rounded top
+ * corners, slides up from the bottom over a dimmed backdrop.
+ *
+ * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001672-7359
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(9, 9, 11, 0.5);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+:global(.dark) .overlay,
+.overlay[data-theme='dark'] {
+  background: rgba(9, 9, 11, 0.9);
+}
+
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 80dvh;
+  max-height: 92dvh;
+  background: var(--semantic-surface-primary);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  box-shadow: 0px -4px 18px 0px rgba(9, 9, 11, 0.1);
+  padding: var(--sizes-6) var(--sizes-6) max(var(--sizes-6), env(safe-area-inset-bottom));
+}
+
+/* Header: title + close button */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-4);
+  margin-bottom: var(--sizes-6);
+  flex-shrink: 0;
+}
+
+.title {
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  margin: 0;
+}
+
+.closeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--components-button-secondary-bg-default);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-button-icon-radius);
+  color: var(--semantic-content-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.closeButton:hover {
+  background: var(--color-gray-100);
+}
+
+:global(.dark) .closeButton:hover,
+.overlay[data-theme='dark'] .closeButton:hover {
+  background: var(--color-gray-800);
+}
+
+/* Scrollable content */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content::-webkit-scrollbar-thumb {
+  background: var(--semantic-content-tertiary);
+  border-radius: var(--radius-round);
+}
+
+@supports (corner-shape: squircle) {
+  .sheet {
+    border-top-left-radius: 36px;
+    border-top-right-radius: 36px;
+    corner-shape: squircle;
+  }
+}
