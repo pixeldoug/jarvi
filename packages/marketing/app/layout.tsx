@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { PostHogProvider } from './providers/PostHogProvider';
 import { MetaPixelProvider } from './providers/MetaPixelProvider';
-import './globals.css';
+import { SITE_URL } from './lib/site';
+import './styles/globals.css';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -10,10 +11,24 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'Jarvi – App de tarefas com memória inteligente',
   description:
     'Jarvi é um app de tarefas com IA e memória inteligente que te ajuda a organizar desde pequenas tarefas até as mais complexas.',
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    url: SITE_URL,
+    siteName: 'Jarvi',
+    title: 'Jarvi – App de tarefas com memória inteligente',
+    description:
+      'Organize tarefas complexas e tarefas do dia a dia com o Jarvi, um app de produtividade com IA e memória inteligente.',
+  },
+  twitter: {
+    card: 'summary_large_image',
     title: 'Jarvi – App de tarefas com memória inteligente',
     description:
       'Organize tarefas complexas e tarefas do dia a dia com o Jarvi, um app de produtividade com IA e memória inteligente.',

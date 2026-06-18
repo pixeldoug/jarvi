@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowClockwise, Sparkle } from '@phosphor-icons/react';
 import { usePostHog } from 'posthog-js/react';
 import styles from './LandingPage.module.css';
-import { Button } from './components/Button';
-import { CurveDivider } from './components/CurveDivider';
+import { Button } from '../components/Button/Button';
+import { CurveDivider } from '../components/CurveDivider/CurveDivider';
 
 type FeatureKey = 'whatsapp' | 'email' | 'calendar' | 'wand' | 'cards' | 'checks';
 
@@ -457,7 +457,7 @@ export default function LandingPage() {
       <section
         ref={ctaSectionRef}
         className={styles.ctaSection}
-        id="acesso-antecipado"
+        id="cta"
       >
         <img src={assets.ctaBg} alt="" aria-hidden="true" className={styles.ctaBgImage} loading="lazy" />
         <div className={styles.ctaBgBlur} />
@@ -496,10 +496,10 @@ export default function LandingPage() {
                 Strides Digital
               </a>
             </p>
-            <a href="/termos-de-uso" className={styles.footerTerms}>
+            <a href="/termos-de-uso" className={styles.footerLink}>
               Termos de Uso
             </a>
-            <a href="/politica-de-privacidade" className={styles.footerPrivacy}>
+            <a href="/politica-de-privacidade" className={styles.footerLink}>
               Política de Privacidade
             </a>
           </div>

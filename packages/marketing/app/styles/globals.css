@@ -1,0 +1,43 @@
+/* Design tokens generated from Figma (shared with packages/web).
+   Provides every --typography-*, --semantic-*, etc. plus the mobile @media
+   overrides. DO NOT redefine design tokens by hand below. */
+@import './tokens.generated.css';
+
+:root {
+  --text-strong: #030712;
+  --text-muted: #475569;
+  --chip-default: #f7f8f9;
+  --brand: #4f26e4;
+
+  /* Brand name typography — intentionally uses Poppins, not part of the token system */
+  --brand-name-font-family: Poppins, sans-serif;
+  --brand-name-font-size: 20px;
+  --brand-name-line-height: 1.1;
+  --brand-name-font-weight: 600;
+  --brand-name-letter-spacing: -0.5px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #f5f6f8;
+  color: var(--text-strong);
+  font-family: var(--font-font-family-font-display), sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

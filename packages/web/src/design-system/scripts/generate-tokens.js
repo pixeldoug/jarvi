@@ -10,6 +10,16 @@ const path = require('path');
 const CORE_DIR = path.join(__dirname, '../tokens/core');
 const WEB_OUTPUT_DIR = path.join(__dirname, '../tokens');
 
+// Viewport width at which the mobile token scale kicks in.
+const MOBILE_BREAKPOINT = '768px';
+
+// The marketing app (separate Next.js package) consumes a generated copy of the
+// same CSS so its tokens never drift from the web design system.
+const MARKETING_TOKENS_FILE = path.join(
+  __dirname,
+  '../../../../marketing/app/styles/tokens.generated.css'
+);
+
 // Import core tokens (using require with .js extension for Node)
 function loadTokens() {
   // Read the generated TypeScript files and extract the JSON data
@@ -47,6 +57,7 @@ function loadTokens() {
   // Add sizing tokens if available
   if (sizingContent) {
     tokens.typographySizing = extractJson(sizingContent, 'typographySizing');
+    tokens.typographySizingMobile = extractJson(sizingContent, 'typographySizingMobile');
     tokens.spacingSystem = extractJson(sizingContent, 'spacingSystem');
     tokens.dimensions = extractJson(sizingContent, 'dimensions');
     tokens.radius = extractJson(sizingContent, 'radius');
@@ -290,6 +301,30 @@ function generateCSSVariables(tokens) {
 
   css += '}\n\n';
 
+  // Mobile viewport overrides
+  // Same mechanism as dark mode, but triggered by viewport width instead of a
+  // class. Only the typography scale differs between the desktop and mobile
+  // Figma modes, so we re-emit just those CSS variables. Because every consumer
+  // reads `var(--typography-*)`, this cascades automatically to web + marketing
+  // without touching any component.
+  if (tokens.typographySizingMobile && Object.keys(tokens.typographySizingMobile).length > 0) {
+    css += `/* ========================================
+   MOBILE OVERRIDES (viewport <= ${MOBILE_BREAKPOINT})
+   ======================================== */
+
+@media (max-width: ${MOBILE_BREAKPOINT}) {
+  :root {
+    /* ===== Typography Sizing (Mobile) ===== */
+`;
+    Object.entries(tokens.typographySizingMobile).forEach(([key, value]) => {
+      css += `    --typography-${key}-font-size: ${value.fontSize}px;\n`;
+      css += `    --typography-${key}-line-height: ${value.lineHeight}px;\n`;
+      css += `    --typography-${key}-font-weight: ${value.fontWeight};\n`;
+      css += `    --typography-${key}-letter-spacing: ${value.letterSpacing}px;\n`;
+    });
+    css += `  }\n}\n\n`;
+  }
+
   // Add utility comment
   css += `/* ========================================
    USAGE EXAMPLE
@@ -365,6 +400,14 @@ async function main() {
     const css = generateCSSVariables(tokens);
     fs.writeFileSync(path.join(WEB_OUTPUT_DIR, 'css-variables.css'), css);
     console.log('✓ Generated css-variables.css');
+
+    // Mirror the same CSS into the marketing app so both apps share one source.
+    if (fs.existsSync(path.dirname(MARKETING_TOKENS_FILE))) {
+      fs.writeFileSync(MARKETING_TOKENS_FILE, css);
+      console.log('✓ Copied tokens to marketing (tokens.generated.css)');
+    } else {
+      console.log('⚠️  Marketing app dir not found, skipping marketing copy');
+    }
     
     // Generate TypeScript types
     generateTypesFile();

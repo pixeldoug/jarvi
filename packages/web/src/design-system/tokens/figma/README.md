@@ -5,9 +5,12 @@ This folder contains the raw design tokens exported from Figma using the **Figma
 ## Files
 
 - `Default.tokens.json` - Primitive tokens (Colors, Typography, Sizes, Opacity)
-- `Mode.tokens.json` - Sizing system (Typography scale, Spacing, Dimensions)
+- `desktop.tokens.json` - Sizing system for the desktop mode (Typography scale, Radius, Sizes). Emitted into `:root`.
+- `mobile.tokens.json` - Sizing system for the mobile mode. Only the differing values (typography scale) are emitted into an `@media (max-width: 768px)` override.
 - `Light.tokens.json` - Semantic tokens + Component-specific tokens for light mode
 - `Dark.tokens.json` - Semantic tokens + Component-specific tokens for dark mode
+
+> `desktop.tokens.json` and `mobile.tokens.json` are the two modes of the Figma "Mode" collection (formerly a single `Mode.tokens.json`). They share an identical schema; the generator diffs them and only the changed CSS variables are re-emitted inside the mobile media query, so the responsive scale cascades to web + marketing automatically.
 
 ## How to Update Tokens from Figma
 

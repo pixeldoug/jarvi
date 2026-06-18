@@ -315,16 +315,18 @@ export type SemanticCategory = keyof typeof semanticTokens.light;
 }
 
 // Main execution
-// Parse Mode tokens (sizing system built upon primitives)
-function parseModeTokens() {
-  const modeFile = path.join(FIGMA_DIR, 'Mode.tokens.json');
+// Parse a single Mode file (sizing system built upon primitives).
+// The Figma "Mode" collection now exports one file per mode
+// (desktop.tokens.json, mobile.tokens.json) that share the same schema.
+function parseModeFile(filename) {
+  const modeFile = path.join(FIGMA_DIR, filename);
   
   if (!fs.existsSync(modeFile)) {
-    console.log('⚠️  Mode.tokens.json not found, skipping...');
-    return { typography: {}, sizing: {} };
+    console.log(`⚠️  ${filename} not found, skipping...`);
+    return { typography: {}, spacing: {}, dimensions: {}, radius: {}, chip: {}, target: {} };
   }
   
-  console.log('📦 Parsing Mode.tokens.json...');
+  console.log(`📦 Parsing ${filename}...`);
   const data = JSON.parse(fs.readFileSync(modeFile, 'utf8'));
   
   const sizing = {
@@ -442,7 +444,7 @@ function parseModeTokens() {
 }
 
 // Generate sizing file
-function generateSizingFile(sizing) {
+function generateSizingFile(sizing, sizingMobile = { typography: {} }) {
   console.log('📝 Generating sizing.ts...');
   
   // Helper function to quote keys if they contain hyphens
@@ -473,6 +475,26 @@ export const typographySizing = {
     content += `  },\n`;
   });
   
+  content += `} as const;\n\n`;
+
+  // Mobile typography overrides (applied via @media at the generate step).
+  // Only the typography scale differs between the desktop and mobile modes.
+  content += `// ============================================================================
+// TYPOGRAPHY SIZING (MOBILE OVERRIDES)
+// ============================================================================
+
+export const typographySizingMobile = {
+`;
+
+  Object.entries(sizingMobile.typography).forEach(([key, value]) => {
+    content += `  ${quoteKeyIfNeeded(key)}: {\n`;
+    content += `    fontSize: ${value.fontSize},\n`;
+    content += `    lineHeight: ${value.lineHeight},\n`;
+    content += `    fontWeight: ${value.fontWeight},\n`;
+    content += `    letterSpacing: ${value.letterSpacing},\n`;
+    content += `  },\n`;
+  });
+
   content += `} as const;\n\n`;
   
   // Add spacing if exists
@@ -571,6 +593,7 @@ export const targetSizes = {
 // ============================================================================
 
 export type TypographySizingKey = keyof typeof typographySizing;
+export type TypographySizingMobileKey = keyof typeof typographySizingMobile;
 `;
   
   if (Object.keys(sizing.spacing).length > 0) {
@@ -611,15 +634,16 @@ async function main() {
     // Parse semantic tokens
     const { lightSemantic, darkSemantic, components } = parseSemanticTokens();
     
-    // Parse Mode tokens (sizing system)
-    const sizing = parseModeTokens();
+    // Parse Mode tokens (sizing system) for each viewport mode
+    const sizingDesktop = parseModeFile('desktop.tokens.json');
+    const sizingMobile = parseModeFile('mobile.tokens.json');
     
     // Generate TypeScript files
     generateColorsFile(colors);
     generateTypographyFile(typography);
     generateSizesFile(sizes, opacity);
     generateSemanticFile(lightSemantic, darkSemantic, components);
-    generateSizingFile(sizing);
+    generateSizingFile(sizingDesktop, sizingMobile);
     
     console.log('\n✅ Successfully imported tokens from Figma!');
     console.log('📁 Generated files in:', CORE_DIR);
