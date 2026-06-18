@@ -393,16 +393,18 @@ export function ControlBar({
                 </div>
               </div>
 
-              {toggleGroup}
+              <div className={styles.taskActions}>
+                {toggleGroup}
 
-              <Button
-                variant="primary"
-                className={styles.submitButton}
-                onClick={handleSubmitTask}
-                disabled={isSubmitDisabled}
-              >
-                Adicionar
-              </Button>
+                <Button
+                  variant="primary"
+                  className={styles.submitButton}
+                  onClick={handleSubmitTask}
+                  disabled={isSubmitDisabled}
+                >
+                  Adicionar
+                </Button>
+              </div>
             </div>
           </motion.div>
         ) : (
@@ -426,17 +428,19 @@ export function ControlBar({
               disabled={trialExpired}
             />
 
-            {toggleGroup}
+            <div className={styles.promptActions}>
+              {toggleGroup}
 
-            <button
-              type="button"
-              className={styles.sendButton}
-              onClick={handlePromptSubmit}
-              aria-label="Enviar"
-              disabled={trialExpired}
-            >
-              <PaperPlaneTilt weight="fill" size={20} />
-            </button>
+              <button
+                type="button"
+                className={styles.sendButton}
+                onClick={handlePromptSubmit}
+                aria-label="Enviar"
+                disabled={trialExpired}
+              >
+                <PaperPlaneTilt weight="fill" size={20} />
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -48,6 +48,14 @@
   width: 100%;
 }
 
+/* Wraps the toggle group + send button so they can sit inline on desktop
+   and form a justified row below the prompt input on mobile. */
+.promptActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
 .promptInput {
   flex: 1;
   min-width: 0;
@@ -223,6 +231,13 @@
   cursor: pointer;
 }
 
+/* On desktop this wrapper is transparent so the toggle + submit button remain
+   direct flex children of the footer (unchanged layout). On mobile it becomes
+   its own justified row below the chips. */
+.taskActions {
+  display: contents;
+}
+
 .submitButton {
   flex-shrink: 0;
   white-space: nowrap;
@@ -283,4 +298,68 @@
 .toggleButtonActive:hover {
   background: #1a1a27 !important;
   opacity: 1 !important;
+}
+
+/* ── Mobile layout (Figma node 40001676:16054) ───────────────────────────────
+   Stacks the prompt input on top with the toggle group (left) and send button
+   (right) on a justified row below it. */
+@media (max-width: 768px) {
+  .controlBar,
+  .controlBarTask {
+    width: 100%;
+    max-width: calc(100vw - var(--sizes-6));
+    bottom: var(--sizes-4);
+  }
+
+  /* Prompt mode: input on top, actions row below */
+  .promptRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sizes-4);
+  }
+
+  .promptInput {
+    width: 100%;
+    padding: var(--sizes-4) var(--sizes-2);
+  }
+
+  .promptActions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  /* Task mode: stack the chips row above a justified actions row */
+  .taskFooter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sizes-3);
+  }
+
+  /* Chips scroll horizontally in a single line instead of stacking */
+  .chipsGroup {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: var(--sizes-1);
+  }
+
+  .chipsGroup::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chipsGroup > * {
+    flex-shrink: 0;
+  }
+
+  /* Toggle on the left, primary action on the right */
+  .taskActions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sizes-2);
+    width: 100%;
+  }
 }
