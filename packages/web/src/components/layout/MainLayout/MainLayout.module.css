@@ -235,3 +235,12 @@
     max-width: 496px;
   }
 }
+
+/* Smooth corners — enhancement para Chrome 133+ / Safari 18+ */
+@supports (corner-shape: squircle) {
+  .main,
+  .rightSidebar {
+    border-radius: 36px;
+    corner-shape: squircle;
+  }
+}

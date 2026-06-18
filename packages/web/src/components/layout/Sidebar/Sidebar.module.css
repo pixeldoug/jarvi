@@ -311,3 +311,11 @@
   color: var(--component-list-item-content-active) !important;
   box-shadow: none !important;
 }
+
+/* Smooth corners — enhancement para Chrome 133+ / Safari 18+ */
+@supports (corner-shape: squircle) {
+  .sidebar {
+    border-radius: 36px;
+    corner-shape: squircle;
+  }
+}
