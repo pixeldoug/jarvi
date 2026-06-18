@@ -76,7 +76,7 @@ export function CreateListPopover({
   );
 
   const resolveCategoryTags = (categoryNames: string[]): Tag[] => {
-    return categoryNames.map((categoryName) => {
+    return (categoryNames ?? []).map((categoryName) => {
       const normalizedCategoryName = categoryName.trim().toLowerCase();
       const matchedCategory = availableCategories.find(
         (category) => category.name.trim().toLowerCase() === normalizedCategoryName

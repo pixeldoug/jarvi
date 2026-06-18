@@ -657,7 +657,7 @@ export function Tasks() {
     if (activeFilters.priority) {
       result = result.filter((t) => t.priority === activeFilters.priority);
     }
-    if (activeFilters.category.length > 0) {
+    if ((activeFilters.category?.length ?? 0) > 0) {
       result = result.filter((t) => !!t.category && activeFilters.category.includes(t.category));
     }
     if (activeFilters.connectedApp === 'whatsapp') {
@@ -969,7 +969,7 @@ export function Tasks() {
   const toggleSectionsLabel = allSectionsExpanded ? 'Colapsar tudo' : 'Expandir tudo';
   const activeFilterCount = [
     activeFilters.priority,
-    activeFilters.category.length > 0,
+    (activeFilters.category?.length ?? 0) > 0,
     activeFilters.connectedApp,
     !activeFilters.showCompleted,
   ].filter(Boolean).length;
@@ -1276,9 +1276,9 @@ export function Tasks() {
     showDayOfWeek?: boolean;
     // onQuickCreate?: (title: string, sectionId: string) => Promise<void>; // NOT USED IN MVP INITIAL
   }>>(() => memo(({ 
-    title, 
-    tasks: sectionTasks, 
-    emptyMessage, 
+    title,
+    tasks: sectionTasks = [],
+    emptyMessage,
     sectionId, 
     defaultOpen = true,
     isOpen: controlledIsOpen,

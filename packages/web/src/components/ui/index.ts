@@ -135,6 +135,11 @@ export {
 } from './Loading';
 
 export {
+  ErrorBoundary,
+  type ErrorBoundaryProps,
+} from './ErrorBoundary';
+
+export {
   Divider,
   type DividerProps,
 } from './Divider';
