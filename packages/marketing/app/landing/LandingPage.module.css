@@ -200,12 +200,9 @@
 }
 
 .heroTitle {
+  composes: displayLg from '../styles/typography.module.css';
   margin: 0;
   width: min(100%, 836px);
-  font-size: var(--typography-display-lg-font-size);
-  line-height: var(--typography-display-lg-line-height);
-  font-weight: var(--typography-display-lg-font-weight);
-  letter-spacing: var(--typography-display-lg-letter-spacing);
   background: linear-gradient(90deg, #f3f1fc 3.77%, #eee9fe 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -213,13 +210,10 @@
 }
 
 .heroDescription {
+  composes: bodyLg from '../styles/typography.module.css';
   margin: 0;
   width: min(100%, 636px);
   color: #fff;
-  font-size: var(--typography-body-lg-font-size);
-  line-height: var(--typography-body-lg-line-height);
-  font-weight: var(--typography-body-lg-font-weight);
-  letter-spacing: var(--typography-body-lg-letter-spacing);
 }
 
 .heroBgDetailWrapper {
@@ -344,21 +338,15 @@
 }
 
 .featuresSectionTitle {
+  composes: heading2xl from '../styles/typography.module.css';
   margin: 0;
   color: #030712;
-  font-size: var(--typography-heading-2xl-font-size);
-  line-height: var(--typography-heading-2xl-line-height);
-  font-weight: var(--typography-heading-2xl-font-weight);
-  letter-spacing: var(--typography-heading-2xl-letter-spacing);
 }
 
 .featuresSectionDescription {
+  composes: bodyLg from '../styles/typography.module.css';
   margin: 0;
   color: #030712;
-  font-size: var(--typography-body-lg-font-size);
-  line-height: var(--typography-body-lg-line-height);
-  font-weight: var(--typography-body-lg-font-weight);
-  letter-spacing: var(--typography-body-lg-letter-spacing);
   width: min(100%, 582px);
 }
 
@@ -551,21 +539,15 @@
 }
 
 .featureCopyTitleAnimated {
+  composes: headingLg from '../styles/typography.module.css';
   margin: 0;
-  font-size: var(--typography-heading-lg-font-size);
-  line-height: var(--typography-heading-lg-line-height);
-  font-weight: var(--typography-heading-lg-font-weight);
-  letter-spacing: var(--typography-heading-lg-letter-spacing);
   text-wrap: balance;
   animation: featureTextEnter 420ms ease-out both;
 }
 
 .featureCopyDescriptionAnimated {
+  composes: bodyLg from '../styles/typography.module.css';
   margin: 8px 0 0;
-  font-size: var(--typography-body-lg-font-size);
-  line-height: var(--typography-body-lg-line-height);
-  font-weight: var(--typography-body-lg-font-weight);
-  letter-spacing: var(--typography-body-lg-letter-spacing);
   text-wrap: balance;
   animation: featureTextEnter 520ms ease-out both;
 }
@@ -651,7 +633,7 @@
 .ctaContent h2 {
   margin: 0;
   width: min(100%, 494px);
-  font-size: clamp(var(--typography-heading-2xl-font-size), 3.75vw, 60px);
+  font-size: var(--typography-heading-2xl-font-size);
   line-height: var(--typography-heading-2xl-line-height);
   font-weight: var(--typography-heading-2xl-font-weight);
   letter-spacing: var(--typography-heading-2xl-letter-spacing);
@@ -735,10 +717,7 @@
 }
 
 .footerLink {
-  font-size: var(--typography-body-sm-font-size);
-  line-height: var(--typography-body-sm-line-height);
-  font-weight: var(--typography-body-sm-font-weight);
-  letter-spacing: var(--typography-body-sm-letter-spacing);
+  composes: bodySm from '../styles/typography.module.css';
   color: #eee9fe;
   text-decoration: none;
 }
@@ -820,13 +799,6 @@
     gap: 32px;
   }
 
-  .heroTitle {
-    font-size: var(--typography-display-lg-font-size);
-    line-height: var(--typography-display-lg-line-height);
-    letter-spacing: var(--typography-display-lg-letter-spacing);
-  }
-
-
   .heroBgDetail {
     height: 18.75px;
   }
@@ -859,12 +831,6 @@
   .featuresSectionHeader {
     gap: 16px;
   }
-
-  .featuresSectionTitle {
-    font-size: var(--typography-heading-2xl-font-size);
-    line-height: var(--typography-heading-2xl-line-height);
-  }
-
 
   .showcaseCard {
     border-radius: 16px;
@@ -913,12 +879,6 @@
     min-height: calc((24px * 1.38 * 2) + 8px + (18px * 1.45 * 3));
   }
 
-  .featureCopyTitleAnimated {
-    font-size: var(--typography-heading-lg-font-size);
-    line-height: var(--typography-heading-lg-line-height);
-    letter-spacing: var(--typography-heading-lg-letter-spacing);
-  }
-
   .featureCopyDescriptionAnimated {
     margin-top: 8px;
   }
@@ -934,13 +894,6 @@
   .ctaContent {
     padding: 64px 24px 40px;
   }
-
-  .ctaContent h2 {
-    font-size: var(--typography-heading-2xl-font-size);
-    letter-spacing: var(--typography-heading-2xl-letter-spacing);
-  }
-
-
 
   .footer {
     width: 100%;

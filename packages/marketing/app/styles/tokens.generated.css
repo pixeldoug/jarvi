@@ -193,9 +193,9 @@
   --typography-heading-sm-line-height: 24px;
   --typography-heading-sm-font-weight: 600;
   --typography-heading-sm-letter-spacing: -0.25px;
-  --typography-body-lg-font-size: 18px;
+  --typography-body-lg-font-size: 19px;
   --typography-body-lg-line-height: 27px;
-  --typography-body-lg-font-weight: 450;
+  --typography-body-lg-font-weight: 400;
   --typography-body-lg-letter-spacing: 0.25px;
   --typography-body-md-font-size: 14px;
   --typography-body-md-line-height: 21px;
@@ -546,9 +546,9 @@
     --typography-heading-sm-line-height: 24px;
     --typography-heading-sm-font-weight: 600;
     --typography-heading-sm-letter-spacing: -0.25px;
-    --typography-body-lg-font-size: 18px;
+    --typography-body-lg-font-size: 19px;
     --typography-body-lg-line-height: 27px;
-    --typography-body-lg-font-weight: 450;
+    --typography-body-lg-font-weight: 400;
     --typography-body-lg-letter-spacing: 0.25px;
     --typography-body-md-font-size: 14px;
     --typography-body-md-line-height: 21px;

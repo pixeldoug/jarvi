@@ -41,9 +41,9 @@ export const typographySizing = {
     letterSpacing: -0.25,
   },
   'body-lg': {
-    fontSize: 18,
+    fontSize: 19,
     lineHeight: 27,
-    fontWeight: 450,
+    fontWeight: 400,
     letterSpacing: 0.25,
   },
   'body-md': {
@@ -108,9 +108,9 @@ export const typographySizingMobile = {
     letterSpacing: -0.25,
   },
   'body-lg': {
-    fontSize: 18,
+    fontSize: 19,
     lineHeight: 27,
-    fontWeight: 450,
+    fontWeight: 400,
     letterSpacing: 0.25,
   },
   'body-md': {

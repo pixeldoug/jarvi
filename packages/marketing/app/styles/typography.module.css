@@ -1,0 +1,84 @@
+/**
+ * Each class maps to a complete token group from the design system.
+ * Use with CSS Modules `composes` to avoid repeating the 4 typography
+ * properties on every selector.
+ *
+ * Usage:
+ *   .myClass {
+ *     composes: bodyLg from '../styles/typography.module.css';
+ *     color: #fff;
+ *   }
+ */
+
+
+.displayLg {
+  font-size: var(--typography-display-lg-font-size);
+  line-height: var(--typography-display-lg-line-height);
+  font-weight: var(--typography-display-lg-font-weight);
+  letter-spacing: var(--typography-display-lg-letter-spacing);
+}
+
+.heading2xl {
+  font-size: var(--typography-heading-2xl-font-size);
+  line-height: var(--typography-heading-2xl-line-height);
+  font-weight: var(--typography-heading-2xl-font-weight);
+  letter-spacing: var(--typography-heading-2xl-letter-spacing);
+}
+
+.headingLg {
+  font-size: var(--typography-heading-lg-font-size);
+  line-height: var(--typography-heading-lg-line-height);
+  font-weight: var(--typography-heading-lg-font-weight);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+}
+
+.headingMd {
+  font-size: var(--typography-heading-md-font-size);
+  line-height: var(--typography-heading-md-line-height);
+  font-weight: var(--typography-heading-md-font-weight);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+}
+
+.headingSm {
+  font-size: var(--typography-heading-sm-font-size);
+  line-height: var(--typography-heading-sm-line-height);
+  font-weight: var(--typography-heading-sm-font-weight);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+}
+
+
+.bodyLg {
+  font-size: var(--typography-body-lg-font-size);
+  line-height: var(--typography-body-lg-line-height);
+  font-weight: var(--typography-body-lg-font-weight);
+  letter-spacing: var(--typography-body-lg-letter-spacing);
+}
+
+.bodyMd {
+  font-size: var(--typography-body-md-font-size);
+  line-height: var(--typography-body-md-line-height);
+  font-weight: var(--typography-body-md-font-weight);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+}
+
+.bodySm {
+  font-size: var(--typography-body-sm-font-size);
+  line-height: var(--typography-body-sm-line-height);
+  font-weight: var(--typography-body-sm-font-weight);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+}
+
+
+.labelMd {
+  font-size: var(--typography-label-md-font-size);
+  line-height: var(--typography-label-md-line-height);
+  font-weight: var(--typography-label-md-font-weight);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+}
+
+.labelSm {
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  font-weight: var(--typography-label-sm-font-weight);
+  letter-spacing: var(--typography-label-sm-letter-spacing);
+}
