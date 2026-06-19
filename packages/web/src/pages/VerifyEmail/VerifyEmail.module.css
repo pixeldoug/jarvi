@@ -177,7 +177,9 @@
   }
   
   .content {
-    width: 90%;
+    width: 100%;
+    padding-left: var(--sizes-6);
+    padding-right: var(--sizes-6);
   }
 }
 
@@ -189,10 +191,5 @@
   .logo {
     top: 16px;
     left: 16px;
-  }
-  
-  .content {
-    width: 100%;
-    min-width: 280px;
   }
 }
