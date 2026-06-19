@@ -444,7 +444,7 @@ export function TaskDatePicker({
           position: 'fixed',
           top: `${position.top}px`,
           left: `${position.left}px`,
-          zIndex: 1000,
+          zIndex: 1200,
         }}
       >
         {layout === 'horizontal' ? (

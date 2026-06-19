@@ -335,7 +335,7 @@
   .controlBar,
   .controlBarTask {
     width: 100%;
-    max-width: calc(100vw - var(--sizes-6));
+    max-width: calc(100vw - var(--sizes-2));
     bottom: calc(var(--sizes-4) + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
   }
 

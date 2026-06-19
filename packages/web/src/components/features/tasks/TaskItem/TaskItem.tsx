@@ -6,6 +6,8 @@
  */
 
 import React, { useState, useRef, memo } from 'react';
+import { useMediaQuery } from '../../../../hooks/useMediaQuery';
+import { MOBILE_BREAKPOINT } from '../../../layout/MainLayout/MainLayout';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../../contexts/TaskContext';
@@ -55,6 +57,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   hideCategoryChip = false,
   showDayOfWeek = false,
 }) => {
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -188,7 +191,11 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           <div className={styles.taskTitle}>
             {/* Date chip — hidden when task is today and has no time set */}
             {dateLabel !== null && (
-              <div ref={dateChipRef} style={{ display: 'inline-flex' }} data-date-chip="true">
+              <div
+                ref={dateChipRef}
+                className={`${styles.chipWrapper} ${!task.due_date ? styles.chipWrapperPlaceholder : ''}`}
+                data-date-chip="true"
+              >
                 <Chip
                   label={dateLabel}
                   icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
@@ -271,12 +278,12 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             ) : (
               <p
                 className={`${styles.title} ${task.completed ? styles.titleCompleted : ''} ${isActive ? styles.titleActive : ''}`}
-                onClick={(e) => {
+                onClick={isMobile ? undefined : (e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   handleTitleClick();
                 }}
-                title="Clique para editar o título"
+                title={isMobile ? undefined : 'Clique para editar o título'}
               >
                 {task.title}
               </p>
@@ -327,7 +334,11 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
 
           {/* Category chip - hidden when details sidebar is open */}
           {!hideCategoryChip && (
-            <div ref={categoryChipRef} style={{ display: 'inline-flex' }} data-category-chip="true">
+            <div
+              ref={categoryChipRef}
+              className={`${styles.chipWrapper} ${!task.category ? styles.chipWrapperPlaceholder : ''}`}
+              data-category-chip="true"
+            >
               <Chip 
                 label={task.category || 'Categoria'}
                 icon={task.category ? undefined : <Hash weight="regular" />}

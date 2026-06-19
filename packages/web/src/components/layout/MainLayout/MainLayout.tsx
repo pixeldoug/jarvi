@@ -11,6 +11,7 @@ import { SidebarSimple } from '@phosphor-icons/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
 import { Button } from '../../ui/Button/Button';
+import { BottomSheet } from '../../ui/BottomSheet/BottomSheet';
 import { useBackground } from '../../../contexts/BackgroundContext';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 
@@ -62,6 +63,14 @@ export interface MainLayoutProps {
   onOpenTaskDetails?: (task: any) => void;
   /** Right sidebar slot (e.g., TaskDetailsSidebar) */
   rightSidebar?: ReactNode;
+  /**
+   * When true, on mobile the `rightSidebar` content is presented as a bottom
+   * sheet (matching the account pages overlay pattern) instead of a full-screen
+   * side panel. Desktop is unaffected.
+   */
+  rightSidebarAsSheet?: boolean;
+  /** Close handler used by the mobile bottom sheet (backdrop / drag-to-close). */
+  onRightSidebarClose?: () => void;
   /** Callback to open AI chat panel */
   onOpenChat?: () => void;
   /** Callback when user submits a prompt from the ControlBar (passes the text) */
@@ -89,6 +98,8 @@ export function MainLayout({
   onCreateTask,
   onOpenTaskDetails,
   rightSidebar,
+  rightSidebarAsSheet = false,
+  onRightSidebarClose,
   onOpenChat,
   onSubmitPrompt,
   hideControlBar = false,
@@ -249,9 +260,9 @@ export function MainLayout({
           </div>
         </main>
 
-        {/* Right Sidebar */}
+        {/* Right Sidebar — desktop, or mobile when not presented as a bottom sheet */}
         <AnimatePresence>
-          {rightSidebar && (
+          {rightSidebar && !(isMobile && rightSidebarAsSheet) && (
             <motion.aside
               className={styles.rightSidebar}
               initial={{ opacity: 0, x: 100 }}
@@ -263,6 +274,20 @@ export function MainLayout({
             </motion.aside>
           )}
         </AnimatePresence>
+
+        {/* Mobile: present the right panel as a bottom sheet (account-pages pattern).
+            Kept mounted so the slide-down close animation can play. */}
+        {isMobile && (
+          <BottomSheet
+            isOpen={rightSidebarAsSheet && !!rightSidebar}
+            onClose={onRightSidebarClose ?? (() => {})}
+            hideHeader
+            flush
+            fullHeight
+          >
+            {rightSidebar}
+          </BottomSheet>
+        )}
 
         {/* Control Bar – hidden while chat panel is open */}
         <ControlBar

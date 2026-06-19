@@ -66,6 +66,13 @@
   overflow: visible;
 }
 
+/* Mobile: drag handle is hidden, so drop the extra left padding it reserved */
+@media (max-width: 768px) {
+  .sectionContent {
+    padding-left: var(--sizes-1);
+  }
+}
+
 .sectionOver {
   background: rgba(79, 38, 228, 0.05);
 }

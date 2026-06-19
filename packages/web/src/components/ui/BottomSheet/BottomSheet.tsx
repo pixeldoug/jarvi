@@ -25,9 +25,31 @@ export interface BottomSheetProps {
   children: ReactNode;
   /** Force a specific theme inside the sheet subtree */
   forceTheme?: 'light' | 'dark';
+  /**
+   * Hides the default header (title + close button). A slim grab handle is shown
+   * instead so the sheet can still be dragged down to close. Use when the child
+   * already renders its own header (e.g. the AI chat panel).
+   */
+  hideHeader?: boolean;
+  /**
+   * Removes the sheet's inner padding and content gap so the child can fill the
+   * sheet edge-to-edge and manage its own scrolling.
+   */
+  flush?: boolean;
+  /** Makes the sheet take (almost) the full viewport height. */
+  fullHeight?: boolean;
 }
 
-export function BottomSheet({ isOpen, onClose, title, children, forceTheme }: BottomSheetProps) {
+export function BottomSheet({
+  isOpen,
+  onClose,
+  title,
+  children,
+  forceTheme,
+  hideHeader = false,
+  flush = false,
+  fullHeight = false,
+}: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
   // Tracks the start Y of a swipe that began with the content already scrolled
@@ -74,7 +96,11 @@ export function BottomSheet({ isOpen, onClose, title, children, forceTheme }: Bo
         >
           <motion.div
             ref={sheetRef}
-            className={styles.sheet}
+            className={[
+              styles.sheet,
+              flush && styles.sheetFlush,
+              fullHeight && styles.sheetFull,
+            ].filter(Boolean).join(' ')}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -88,31 +114,43 @@ export function BottomSheet({ isOpen, onClose, title, children, forceTheme }: Bo
               if (info.offset.y > 120 || info.velocity.y > 600) onClose();
             }}
           >
-            {/* Header doubles as a drag handle */}
-            <div
-              className={styles.header}
-              onPointerDown={(e) => dragControls.start(e)}
-              style={{ touchAction: 'none', cursor: 'grab' }}
-            >
-              {title ? <h2 className={styles.title}>{title}</h2> : <span />}
-              <button
-                type="button"
-                className={styles.closeButton}
-                onClick={onClose}
-                onPointerDown={(e) => e.stopPropagation()}
-                aria-label="Fechar"
+            {hideHeader ? (
+              /* Slim grab handle keeps drag-to-close when the child owns its header */
+              <div
+                className={styles.grabHandle}
+                onPointerDown={(e) => dragControls.start(e)}
+                style={{ touchAction: 'none', cursor: 'grab' }}
+                aria-hidden="true"
               >
-                <X size={20} weight="regular" />
-              </button>
-            </div>
+                <span className={styles.grabHandleBar} />
+              </div>
+            ) : (
+              /* Header doubles as a drag handle */
+              <div
+                className={styles.header}
+                onPointerDown={(e) => dragControls.start(e)}
+                style={{ touchAction: 'none', cursor: 'grab' }}
+              >
+                {title ? <h2 className={styles.title}>{title}</h2> : <span />}
+                <button
+                  type="button"
+                  className={styles.closeButton}
+                  onClick={onClose}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  aria-label="Fechar"
+                >
+                  <X size={20} weight="regular" />
+                </button>
+              </div>
+            )}
 
             <div
-              className={styles.content}
-              onTouchStart={(e) => {
+              className={[styles.content, flush && styles.contentFlush].filter(Boolean).join(' ')}
+              onTouchStart={flush ? undefined : (e) => {
                 contentSwipeStartY.current =
                   e.currentTarget.scrollTop <= 0 ? e.touches[0].clientY : null;
               }}
-              onTouchEnd={(e) => {
+              onTouchEnd={flush ? undefined : (e) => {
                 if (contentSwipeStartY.current === null) return;
                 const dy = e.changedTouches[0].clientY - contentSwipeStartY.current;
                 if (dy > 90) onClose();

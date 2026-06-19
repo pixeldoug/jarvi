@@ -38,6 +38,36 @@
   padding: var(--sizes-6) var(--sizes-6) max(var(--sizes-6), env(safe-area-inset-bottom));
 }
 
+/* Flush variant: child fills the sheet edge-to-edge and owns its scroll/padding */
+.sheetFlush {
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+
+.sheetFull {
+  min-height: 92dvh;
+  max-height: 92dvh;
+  height: 92dvh;
+}
+
+/* Slim grab handle shown when the default header is hidden */
+.grabHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: var(--sizes-3) 0 var(--sizes-1);
+}
+
+.grabHandleBar {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-round, 999px);
+  background: var(--semantic-content-tertiary);
+  opacity: 0.6;
+}
+
 /* Header: title + close button */
 .header {
   display: flex;
@@ -90,6 +120,13 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+/* Flush content: no padding/gap, child manages its own layout and scrolling */
+.contentFlush {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
 .content::-webkit-scrollbar {

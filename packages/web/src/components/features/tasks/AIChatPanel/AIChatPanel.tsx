@@ -219,7 +219,7 @@ export function AIChatPanel({
           <textarea
             ref={textareaRef}
             className={styles.inputField}
-            placeholder="Me diga o que você precisa fazer ou saber..."
+            placeholder="Como posso te ajudar?"
             value={input}
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}

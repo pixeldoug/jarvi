@@ -260,7 +260,6 @@
   .mobileTopBar {
     display: flex;
     align-items: center;
-    margin-bottom: var(--sizes-2);
     margin-left: calc(var(--sizes-2) * -1);
   }
 
@@ -298,6 +297,11 @@
     height: auto;
     min-height: calc(100dvh - var(--sizes-6) - var(--sizes-16));
     padding: var(--sizes-4) var(--sizes-4) 0;
+    gap: var(--sizes-2);
+  }
+
+  .mainBody {
+    padding-right: 0;
   }
 
   /* Task details / right sidebar becomes a full-screen overlay */

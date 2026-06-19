@@ -6,6 +6,8 @@
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { MOBILE_BREAKPOINT } from '../../components/layout/MainLayout/MainLayout';
+import { BottomSheet } from '../../components/ui';
 import { Gear, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
@@ -187,6 +189,9 @@ export function Tasks() {
   const [calendarAnchorDate, setCalendarAnchorDate] = useState(() => getLocalDateKey(new Date()));
 
   const isCompactHeader = useMediaQuery('(max-width: 824px)');
+  const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
+  // Mobile-only: chat overlay opens on top of the task-details bottom sheet
+  const [isMobileChatOverlayOpen, setIsMobileChatOverlayOpen] = useState(false);
   const openSettingsRef = useRef<((page: SettingsPage) => void) | null>(null);
 
 
@@ -348,9 +353,19 @@ export function Tasks() {
   }, [chatMode]);
 
   const handleOpenChatFromTask = useCallback(() => {
-    setExpandedFromList(false);
-    setChatMode('task');
-    setIsChatOpen(true);
+    if (isMobile) {
+      // On mobile: open chat as a second overlay on top of task details
+      setChatMode('task');
+      setIsMobileChatOverlayOpen(true);
+    } else {
+      setExpandedFromList(false);
+      setChatMode('task');
+      setIsChatOpen(true);
+    }
+  }, [isMobile]);
+
+  const handleCloseMobileChatOverlay = useCallback(() => {
+    setIsMobileChatOverlayOpen(false);
   }, []);
 
   const handleOpenChatGeneral = useCallback((text?: string) => {
@@ -368,6 +383,18 @@ export function Tasks() {
     setIsChatOpen(false);
     setChatInitialMessage(undefined);
   }, []);
+
+  // Closes whichever panel is currently shown in the right slot. Used by the
+  // mobile bottom sheet (backdrop click / drag-to-close).
+  const handleRightPanelClose = useCallback(() => {
+    if (isChatOpen) {
+      handleCloseChat();
+    } else if (selectedPendingTask) {
+      handlePendingTaskSidebarClose();
+    } else if (selectedTask) {
+      handleDialogClose();
+    }
+  }, [isChatOpen, selectedPendingTask, selectedTask, handleCloseChat]);
 
   const handleChatTaskCardClick = useCallback((taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
@@ -1495,8 +1522,31 @@ export function Tasks() {
     </motion.div>
   ) : null;
 
+  // Mobile: second BottomSheet for task-context chat, overlaid on top of task details.
+  // Uses createPortal internally, so it can live here and be included in every return branch.
+  const mobileChatOverlay = (
+    <BottomSheet
+      isOpen={isMobileChatOverlayOpen}
+      onClose={handleCloseMobileChatOverlay}
+      hideHeader
+      flush
+    >
+      <AIChatPanel
+        key={`mobile-task-chat-${selectedTask?.id ?? 'none'}`}
+        mode="task"
+        taskId={selectedTask?.id}
+        taskTitle={selectedTask?.title}
+        onClose={handleCloseMobileChatOverlay}
+        onTaskMutated={handleChatTaskMutated}
+        onTaskCardClick={handleChatTaskCardClick}
+        onListCardClick={handleChatListCardClick}
+        onCategoryCardClick={handleChatCategoryCardClick}
+      />
+    </BottomSheet>
+  );
+
   if (isLoading) {
-    return (
+    return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
@@ -1505,6 +1555,8 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
+        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
@@ -1514,11 +1566,12 @@ export function Tasks() {
       >
         {showTaskInCenter ? taskDetailsInCenter : <div className={styles.loading}>Carregando tarefas...</div>}
       </MainLayout>
-    );
+      {mobileChatOverlay}
+    </>);
   }
 
   if (error) {
-    return (
+    return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
@@ -1527,6 +1580,8 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
+        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
@@ -1536,12 +1591,13 @@ export function Tasks() {
       >
         {showTaskInCenter ? taskDetailsInCenter : <div className={styles.error}>Erro: {error}</div>}
       </MainLayout>
-    );
+      {mobileChatOverlay}
+    </>);
   }
 
   // "Esta semana" view: collapsible sections grouped by each day of the current week
   if (selectedList === 'week' && !selectedCustomListId) {
-    return (
+    return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
@@ -1550,6 +1606,8 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
+        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
@@ -1597,12 +1655,13 @@ export function Tasks() {
           </div>
         )}
       </MainLayout>
-    );
+      {mobileChatOverlay}
+    </>);
   }
 
   // "Calendário" view: dated tasks across week/month, plus undated tasks in week view.
   if (selectedList === 'later' && !selectedCustomListId) {
-    return (
+    return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
@@ -1611,6 +1670,8 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
+        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
@@ -1640,13 +1701,15 @@ export function Tasks() {
           </div>
         )}
       </MainLayout>
-    );
+      {mobileChatOverlay}
+    </>);
   }
 
   // If a specific list or category is selected (not "all"), show simple list without Collapsible
   if (selectedList !== 'all' || selectedCustomListId || selectedCategoryName) {
     const simpleViewTasks = (selectedCustomListId || selectedCategoryName) ? visibleTasks : filteredTasks;
     const simpleViewSection = selectedCustomListId ? 'custom-list' : selectedCategoryName ? 'category' : selectedList;
+
     const incompleteSimpleViewTasks = (selectedCustomListId || selectedCategoryName)
       ? simpleViewTasks.filter((task) => !task.completed)
       : simpleViewTasks;
@@ -1654,7 +1717,7 @@ export function Tasks() {
       ? simpleViewTasks.filter((task) => task.completed)
       : [];
 
-    return (
+    return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
@@ -1663,6 +1726,8 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
+        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
@@ -1730,11 +1795,12 @@ export function Tasks() {
           )}
         </div>}
       </MainLayout>
-    );
+      {mobileChatOverlay}
+    </>);
   }
 
   // Default view: "all" selected - show categorized tasks with Collapsible
-  return (
+  return (<>
     <MainLayout
       sidebar={sidebarNode}
       title={pageTitle}
@@ -1744,6 +1810,8 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         onOpenTaskDetails={handleTaskClick}
         rightSidebar={computedRightSidebar}
+        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
@@ -2007,6 +2075,7 @@ export function Tasks() {
         </DragOverlay>
       </DndContext>}
     </MainLayout>
-  );
+    {mobileChatOverlay}
+  </>);
 }
 

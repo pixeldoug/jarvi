@@ -246,3 +246,35 @@
     opacity: 0.5;
   }
 }
+
+/* Chip wrappers (date / category) — inline-flex so they can be hidden on mobile */
+.chipWrapper {
+  display: inline-flex;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  /* Hover-only edit/delete actions don't work well with touch. Tapping the task
+     opens the details panel, where editing/deleting live. */
+  .actions {
+    display: none;
+  }
+
+  /* Drag handle isn't usable with touch and reserves horizontal space */
+  .dragHandle {
+    display: none;
+  }
+
+  /* Reclaim the lateral space previously reserved for the drag handle */
+  .taskItem {
+    margin-left: 0;
+    padding: 0 var(--sizes-2);
+  }
+
+  /* Hide placeholder chips ("Definir" date / empty "Categoria") — only show
+     date/category when they carry real information. Setting them lives in the
+     details panel. */
+  .chipWrapperPlaceholder {
+    display: none;
+  }
+}

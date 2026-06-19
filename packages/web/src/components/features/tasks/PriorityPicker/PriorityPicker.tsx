@@ -182,7 +182,7 @@ export function PriorityPicker({
           position: 'fixed',
           top: `${position.top}px`,
           left: `${position.left}px`,
-          zIndex: 1000,
+          zIndex: 1200,
         }}
       >
         {/* Header */}
