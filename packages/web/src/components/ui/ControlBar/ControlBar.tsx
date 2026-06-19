@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt } from '@phosphor-icons/react';
+import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../Button';
 import { Chip } from '../Chip';
@@ -40,6 +40,8 @@ export interface ControlBarProps {
   hidden?: boolean;
   /** Default category pre-filled when entering task creation mode */
   defaultCategory?: string;
+  /** Called on mobile after an action completes (prompt submit or task creation) so the FAB can re-appear */
+  onMobileClose?: () => void;
 }
 
 export function ControlBar({
@@ -49,6 +51,7 @@ export function ControlBar({
   onSubmitPrompt,
   hidden = false,
   defaultCategory,
+  onMobileClose,
 }: ControlBarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -185,6 +188,7 @@ export function ControlBar({
       onOpenChat();
     }
     setPromptText('');
+    onMobileClose?.();
   };
 
   const handlePromptKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -224,6 +228,7 @@ export function ControlBar({
     });
 
     handleSwitchToPrompt();
+    onMobileClose?.();
   };
 
   const handleTaskKeyDown = (e: React.KeyboardEvent) => {
@@ -327,6 +332,16 @@ export function ControlBar({
       animate={hidden ? { opacity: 0, y: 20, pointerEvents: 'none' } : { opacity: 1, y: 0, pointerEvents: 'auto' }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
     >
+      {onMobileClose && (
+        <button
+          type="button"
+          className={styles.mobileCloseButton}
+          onClick={onMobileClose}
+          aria-label="Fechar"
+        >
+          <CaretDown weight="bold" size={16} />
+        </button>
+      )}
       <AnimatePresence mode="wait">
         {mode === 'task' ? (
           // ── TASK MODE ──────────────────────────────────────────────────────────

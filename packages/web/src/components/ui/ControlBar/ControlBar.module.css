@@ -339,6 +339,36 @@
     bottom: calc(var(--sizes-4) + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Chevron-down button that dismisses the ControlBar on mobile */
+  .mobileCloseButton {
+    position: absolute;
+    top: var(--sizes-2);
+    right: var(--sizes-2);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-round);
+    border: none;
+
+    background: transparent;
+    color: var(--semantic-content-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .mobileCloseButton:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--semantic-content-primary);
+  }
+
+  .mobileCloseButton:active {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
   /* Prompt mode: input on top, actions row below */
   .promptRow {
     flex-direction: column;
@@ -349,6 +379,8 @@
   .promptInput {
     width: 100%;
     padding: var(--sizes-4) var(--sizes-2);
+    /* Account for the close button overlapping the top-right corner */
+    padding-right: calc(28px + var(--sizes-4));
     /* Row becomes a column here, so `flex: 1` would control the vertical axis
        and override the JS-set height. Reset it so the auto-resize height wins. */
     flex: 0 0 auto;
@@ -364,6 +396,11 @@
     flex-direction: column;
     align-items: stretch;
     gap: var(--sizes-3);
+  }
+
+  /* Give the title input room for the close button at the top-right */
+  .taskWrapper {
+    padding-right: calc(28px + var(--sizes-2));
   }
 
   /* Chips scroll horizontally in a single line instead of stacking */

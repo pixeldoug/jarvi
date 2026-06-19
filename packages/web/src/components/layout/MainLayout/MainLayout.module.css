@@ -325,6 +325,55 @@
   }
 }
 
+/* ── Mobile FAB (Floating Action Button) ─────────────────────────────────────
+   Only shown on mobile. Hides when the ControlBar is open or the chat is active. */
+.fab {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    position: fixed;
+    bottom: calc(var(--sizes-6) + env(safe-area-inset-bottom, 0px));
+    right: var(--sizes-4);
+    z-index: 100;
+
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-round);
+    border: none;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+
+    background: var(--component-button-primary-bg-default, #4f26e4);
+    color: #fff;
+    box-shadow:
+      0px 0px 1px rgba(9, 9, 11, 0.2),
+      0px 4px 18px rgba(9, 9, 11, 0.1),
+      0px 6px 8px rgba(9, 9, 11, 0.05);
+
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+  }
+
+  .fab:active {
+    opacity: 0.85;
+    transform: scale(0.95);
+  }
+
+  /* Backdrop that dismisses the ControlBar when tapping outside */
+  .controlBarBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: transparent;
+  }
+}
+
 /* Smooth corners — enhancement para Chrome 133+ / Safari 18+ */
 @supports (corner-shape: squircle) {
   .main,

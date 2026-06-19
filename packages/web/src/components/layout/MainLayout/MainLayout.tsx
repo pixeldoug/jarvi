@@ -7,7 +7,7 @@
 
 import { ReactNode, RefObject, TouchEvent as ReactTouchEvent, createContext, useContext, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { SidebarSimple } from '@phosphor-icons/react';
+import { SidebarSimple, PencilSimple } from '@phosphor-icons/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
 import { Button } from '../../ui/Button/Button';
@@ -112,6 +112,7 @@ export function MainLayout({
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isDrawerOpen = isMobile && isSidebarOpen;
+  const [isMobileControlBarOpen, setIsMobileControlBarOpen] = useState(false);
 
   // Reset the overlay state whenever we leave mobile so the desktop layout is
   // never affected by a previously-open drawer.
@@ -290,14 +291,35 @@ export function MainLayout({
         )}
 
         {/* Control Bar – hidden while chat panel is open */}
+        {isMobile && !hideControlBar && isMobileControlBarOpen && (
+          <div
+            className={styles.controlBarBackdrop}
+            onClick={() => setIsMobileControlBarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
         <ControlBar
           onCreateTask={onCreateTask}
           onOpenTaskDetails={onOpenTaskDetails}
           onOpenChat={onOpenChat}
           onSubmitPrompt={onSubmitPrompt}
-          hidden={hideControlBar}
+          hidden={hideControlBar || (isMobile && !isMobileControlBarOpen)}
           defaultCategory={defaultTaskCategory}
+          onMobileClose={isMobile ? () => setIsMobileControlBarOpen(false) : undefined}
         />
+
+        {/* FAB – mobile only, hidden while chat is open or ControlBar is visible */}
+        {isMobile && !hideControlBar && !isMobileControlBarOpen && (
+          <button
+            type="button"
+            className={styles.fab}
+            aria-label="Abrir barra de controle"
+            onClick={() => setIsMobileControlBarOpen(true)}
+          >
+            <PencilSimple weight="regular" size={24} />
+          </button>
+        )}
       </div>
     </div>
     </MobileSidebarContext.Provider>
