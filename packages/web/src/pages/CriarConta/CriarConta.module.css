@@ -138,8 +138,8 @@
   background: var(--semantic-surface-primary);
   padding: 0 16px;
   font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-md-font-size);
-  line-height: var(--typography-body-md-line-height);
+  font-size: var(--typography-label-md-font-size);
+  line-height: var(--typography-label-md-line-height);
   color: var(--semantic-content-primary);
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;

@@ -97,11 +97,6 @@
   display: contents;
 }
 
-@media (max-width: 768px) {
-  .navGhostButton {
-    display: none;
-  }
-}
 
 .heroSection {
   position: relative;
