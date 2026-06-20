@@ -298,7 +298,7 @@ export default function LandingPage() {
           </div>
           <div className={`${styles.heroTitleGroup} ${styles.reveal} ${styles.revealDelay3}`}>
             <h1 className={styles.heroTitle}>
-              Seu assistente de tarefas com IA que funciona no WhatsApp
+              Assistente de tarefas com IA que funciona no WhatsApp
             </h1>
             <p className={styles.heroDescription}>
               Jarvi é um assistente de IA que te ajuda a anotar, organizar e lembrar o que importa. Aprende com você, no WhatsApp e em outros apps.
