@@ -343,6 +343,7 @@
 }
 
 .inputWrapper {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--sizes-2);
@@ -358,6 +359,133 @@
 
 .inputWrapper:focus-within {
   border-color: var(--color-brand-primary-400);
+}
+
+.inputWrapperDragging {
+  border-color: var(--color-brand-primary-400);
+}
+
+/* Drop indicator shown while dragging a file over the input. */
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2);
+  border-radius: 28px;
+  border: 2px dashed var(--color-brand-primary-400);
+  background: color-mix(in srgb, var(--color-brand-primary-500) 28%, var(--component-control-bar-bg-active));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-primary-400) 40%, transparent);
+  color: var(--color-brand-primary-200);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ---- Attachments ---- */
+
+.attachmentBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sizes-2);
+  padding: 0 var(--sizes-2) var(--sizes-2);
+}
+
+.attachmentChip,
+.messageAttachmentChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 4px 8px;
+  background: var(--semantic-surface-secondary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 10px;
+}
+
+.attachmentChipIcon {
+  color: var(--color-brand-primary-400);
+  flex-shrink: 0;
+}
+
+.attachmentChipName {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachmentRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--semantic-content-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.attachmentRemove:hover {
+  color: var(--semantic-content-primary);
+  background: var(--semantic-surface-secondary);
+}
+
+.messageAttachments {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  max-width: 85%;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.inputActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+/* Matches the ControlBar attach button (40x40, radius 16, transparent). */
+.attachButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  border: none;
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.attachButton:not(:disabled):hover {
+  color: var(--semantic-content-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.attachButton:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.attachButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .inputField {

@@ -9,6 +9,19 @@ export interface ChatMessageData {
   content: string;
   contentAfter?: string;
   toolCalls?: ToolCallData[];
+  /** Files the user attached to this message (metadata only, for display). */
+  attachments?: ChatAttachmentMeta[];
+}
+
+/** Lightweight attachment metadata kept in the UI for rendering chips. */
+export interface ChatAttachmentMeta {
+  name: string;
+  mimeType: string;
+}
+
+/** Full attachment payload sent to the backend (base64, no `data:` prefix). */
+export interface ChatAttachment extends ChatAttachmentMeta {
+  data: string;
 }
 
 export interface ToolCallData {
@@ -40,10 +53,16 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
   const [isWaiting, setIsWaiting] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!token || !text.trim() || isStreaming) return;
+  const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
+    const trimmed = text.trim();
+    if (!token || (!trimmed && attachments.length === 0) || isStreaming) return;
 
-    const userMsg: ChatMessageData = { id: nextId(), role: 'user', content: text.trim() };
+    const userMsg: ChatMessageData = {
+      id: nextId(),
+      role: 'user',
+      content: trimmed,
+      attachments: attachments.map(({ name, mimeType }) => ({ name, mimeType })),
+    };
 
     setMessages((prev) => [...prev, userMsg]);
 
@@ -68,7 +87,12 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages: historyForApi, mode, taskId }),
+        body: JSON.stringify({
+          messages: historyForApi,
+          mode,
+          taskId,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        }),
         signal: controller.signal,
       });
 

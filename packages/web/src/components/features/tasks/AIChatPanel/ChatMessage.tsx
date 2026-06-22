@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FileText } from '@phosphor-icons/react';
 import type { ChatMessageData } from '../../../../hooks/useChatStream';
 import { TaskCardMessage } from './TaskCardMessage';
 import { ListCardMessage } from './ListCardMessage';
@@ -103,15 +104,30 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
     (tc) => tc.result?.success && tc.toolName === 'show_category',
   );
 
+  const attachments = message.attachments ?? [];
+
   return (
     <div className={`${styles.messageRow} ${isUser ? styles.messageRowUser : styles.messageRowAi}`}>
-      <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : styles.bubbleAi}`}>
-        {message.content && (
-          isUser
-            ? <p className={styles.bubbleText}>{message.content}</p>
-            : <div className={styles.aiContent}>{renderAiContent(message.content)}</div>
-        )}
-      </div>
+      {isUser && attachments.length > 0 && (
+        <div className={styles.messageAttachments}>
+          {attachments.map((a, i) => (
+            <div key={`${message.id}-att-${i}`} className={styles.messageAttachmentChip} title={a.name}>
+              <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
+              <span className={styles.attachmentChipName}>{a.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(!isUser || message.content) && (
+        <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : styles.bubbleAi}`}>
+          {message.content && (
+            isUser
+              ? <p className={styles.bubbleText}>{message.content}</p>
+              : <div className={styles.aiContent}>{renderAiContent(message.content)}</div>
+          )}
+        </div>
+      )}
 
       {visibleTaskToolCalls.map((tc, i) => (
         <TaskCardMessage key={`${message.id}-tc-${i}`} toolCall={tc} onTaskClick={onTaskCardClick} />

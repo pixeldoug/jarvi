@@ -11,7 +11,7 @@ import { BottomSheet } from '../../components/ui';
 import { Gear, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
-import type { ToolCallData } from '../../hooks/useChatStream';
+import type { ToolCallData, ChatAttachment } from '../../hooks/useChatStream';
 import { useLists } from '../../contexts/ListContext';
 import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
 import type { PendingTask } from '../../hooks/usePendingTasks';
@@ -178,6 +178,7 @@ export function Tasks() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMode, setChatMode] = useState<'task' | 'general'>('general');
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
+  const [chatInitialAttachments, setChatInitialAttachments] = useState<ChatAttachment[] | undefined>(undefined);
   const [chatKey, setChatKey] = useState(0);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
@@ -368,13 +369,14 @@ export function Tasks() {
     setIsMobileChatOverlayOpen(false);
   }, []);
 
-  const handleOpenChatGeneral = useCallback((text?: string) => {
+  const handleOpenChatGeneral = useCallback((text?: string, attachments?: ChatAttachment[]) => {
     setChatMode('general');
     setExpandedFromList(false);
-    if (text) {
+    if (text || (attachments && attachments.length > 0)) {
       // Force a fresh panel so the initial message is always sent cleanly
       setChatKey((k) => k + 1);
       setChatInitialMessage(text);
+      setChatInitialAttachments(attachments && attachments.length > 0 ? attachments : undefined);
     }
     setIsChatOpen(true);
   }, []);
@@ -382,6 +384,7 @@ export function Tasks() {
   const handleCloseChat = useCallback(() => {
     setIsChatOpen(false);
     setChatInitialMessage(undefined);
+    setChatInitialAttachments(undefined);
   }, []);
 
   // Closes whichever panel is currently shown in the right slot. Used by the
@@ -1454,6 +1457,7 @@ export function Tasks() {
             onClose={handleCloseChat}
             onTaskMutated={handleChatTaskMutated}
             initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
+            initialAttachments={chatMode === 'general' ? chatInitialAttachments : undefined}
             onTaskCardClick={handleChatTaskCardClick}
             onListCardClick={handleChatListCardClick}
             onCategoryCardClick={handleChatCategoryCardClick}

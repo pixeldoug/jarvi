@@ -45,6 +45,35 @@
     0px 1px 0px 0px rgba(0, 0, 0, 0.3);
 }
 
+.promptMode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  width: 100%;
+  border-radius: var(--radius-md, 12px);
+}
+
+/* Drop indicator shown while dragging a file over the prompt input. */
+.dropOverlay {
+  position: absolute;
+  inset: calc(var(--sizes-2) * -1);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2);
+  border-radius: var(--radius-md, 12px);
+  border: 2px dashed var(--color-brand-primary-400);
+  background: color-mix(in srgb, var(--color-brand-primary-500) 28%, var(--component-control-bar-bg-active));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-primary-400) 40%, transparent);
+  color: var(--color-brand-primary-200);
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .promptRow {
   display: flex;
   align-items: flex-end;
@@ -52,12 +81,101 @@
   width: 100%;
 }
 
-/* Wraps the toggle group + send button so they can sit inline on desktop
-   and form a justified row below the prompt input on mobile. */
-.promptActions {
+/* ── Prompt attachments ─────────────────────────────────────────────────────── */
+
+.hiddenFileInput {
+  display: none;
+}
+
+.attachmentBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sizes-2);
+  width: 100%;
+  padding: var(--sizes-1) var(--sizes-2) 0;
+}
+
+.attachmentChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 4px 8px;
+  background: var(--semantic-surface-secondary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 10px;
+}
+
+.attachmentChipIcon {
+  color: var(--color-brand-primary-400);
+  flex-shrink: 0;
+}
+
+.attachmentChipName {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachmentRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.attachmentRemove:hover {
+  color: var(--semantic-content-primary);
+  background: var(--semantic-surface-secondary);
+}
+
+.attachButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 16px;
+  border: none;
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.attachButton:not(:disabled):hover {
+  color: var(--semantic-content-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.attachButton:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.attachButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+/* Left-aligned controls: attach button + AI/manual toggle, side by side.
+   The prompt input (flex:1) sits between this group and the send button,
+   keeping these on the left and the send action on the right. */
+.promptActionsLeft {
   display: flex;
   align-items: center;
   gap: var(--sizes-2);
+  flex-shrink: 0;
 }
 
 .promptInput {
@@ -369,26 +487,26 @@
     background: rgba(255, 255, 255, 0.12);
   }
 
-  /* Prompt mode: input on top, actions row below */
+  /* Prompt mode: input on top, controls row below (attach+toggle left, send right) */
   .promptRow {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--sizes-4);
   }
 
   .promptInput {
+    /* Force the input onto its own first line, full width */
+    order: -1;
+    flex: 1 0 100%;
     width: 100%;
     padding: var(--sizes-4) var(--sizes-2);
     /* Account for the close button overlapping the top-right corner */
     padding-right: calc(28px + var(--sizes-4));
-    /* Row becomes a column here, so `flex: 1` would control the vertical axis
-       and override the JS-set height. Reset it so the auto-resize height wins. */
-    flex: 0 0 auto;
   }
 
-  .promptActions {
-    justify-content: space-between;
-    width: 100%;
+  /* Push the send button to the right edge of the controls row */
+  .promptActionsLeft {
+    margin-right: auto;
   }
 
   /* Task mode: stack the chips row above a justified actions row */

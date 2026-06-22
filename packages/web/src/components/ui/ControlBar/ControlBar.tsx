@@ -6,7 +6,8 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown } from '@phosphor-icons/react';
+import type { ClipboardEvent, DragEvent } from 'react';
+import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../Button';
 import { Chip } from '../Chip';
@@ -15,6 +16,13 @@ import { useCategories, type Category } from '../../../contexts/CategoryContext'
 import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
 import { useKeyboardOffset } from '../../../hooks/useKeyboardOffset';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
+import type { ChatAttachment } from '../../../hooks/useChatStream';
+import {
+  MAX_CHAT_ATTACHMENTS,
+  PendingAttachment,
+  filesToPendingAttachments,
+  toChatAttachmentPayload,
+} from '../../../utils/chatAttachments';
 import { toast } from '../Sonner';
 import styles from './ControlBar.module.css';
 
@@ -34,8 +42,8 @@ export interface ControlBarProps {
   onOpenTaskDetails?: (task: any) => void;
   /** Callback to open AI chat panel */
   onOpenChat?: () => void;
-  /** Callback when prompt is submitted with text (optional – falls back to onOpenChat) */
-  onSubmitPrompt?: (text: string) => void;
+  /** Callback when prompt is submitted with text and optional attachments (falls back to onOpenChat) */
+  onSubmitPrompt?: (text: string, attachments?: ChatAttachment[]) => void;
   /** When true, slides and fades the bar out of view */
   hidden?: boolean;
   /** Default category pre-filled when entering task creation mode */
@@ -65,7 +73,10 @@ export function ControlBar({
 
   // Prompt bar state
   const [promptText, setPromptText] = useState('');
+  const [promptAttachments, setPromptAttachments] = useState<PendingAttachment[]>([]);
+  const [isDraggingPrompt, setIsDraggingPrompt] = useState(false);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
+  const promptFileInputRef = useRef<HTMLInputElement>(null);
 
   // Task creation state
   const [title, setTitle] = useState('');
@@ -180,14 +191,69 @@ export function ControlBar({
 
   // ── Prompt handlers ──────────────────────────────────────────────────────────
 
+  const addPromptFiles = useCallback(async (files: File[]) => {
+    if (!files.length || trialExpired) return;
+    const prepared = await filesToPendingAttachments(files);
+    if (!prepared.length) return;
+    setPromptAttachments((prev) => [...prev, ...prepared].slice(0, MAX_CHAT_ATTACHMENTS));
+  }, [trialExpired]);
+
+  const handleRemovePromptAttachment = useCallback((id: string) => {
+    setPromptAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const handlePromptFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      void addPromptFiles(Array.from(e.target.files ?? []));
+      e.target.value = '';
+    },
+    [addPromptFiles],
+  );
+
+  const handlePromptPaste = useCallback(
+    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const files = Array.from(e.clipboardData.files);
+      if (!files.length) return;
+      e.preventDefault();
+      void addPromptFiles(files);
+    },
+    [addPromptFiles],
+  );
+
+  const handlePromptDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (trialExpired) return;
+    e.preventDefault();
+    setIsDraggingPrompt(true);
+  }, [trialExpired]);
+
+  const handlePromptDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    // Ignore leaves that just move onto a child element of the drop zone.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setIsDraggingPrompt(false);
+  }, []);
+
+  const handlePromptDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDraggingPrompt(false);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length) void addPromptFiles(files);
+    },
+    [addPromptFiles],
+  );
+
   const handlePromptSubmit = () => {
     if (trialExpired) return;
-    if (onSubmitPrompt && promptText.trim()) {
-      onSubmitPrompt(promptText.trim());
+    const text = promptText.trim();
+    const payload = toChatAttachmentPayload(promptAttachments);
+    if (onSubmitPrompt && (text || payload.length > 0)) {
+      onSubmitPrompt(text, payload);
     } else if (onOpenChat) {
       onOpenChat();
     }
     setPromptText('');
+    setPromptAttachments([]);
     onMobileClose?.();
   };
 
@@ -451,21 +517,70 @@ export function ControlBar({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={styles.promptRow}
+            className={styles.promptMode}
+            onDragOver={handlePromptDragOver}
+            onDragLeave={handlePromptDragLeave}
+            onDrop={handlePromptDrop}
           >
-            <textarea
-              ref={promptInputRef}
-              rows={1}
-              value={promptText}
-              onChange={(e) => setPromptText(e.target.value)}
-              onKeyDown={handlePromptKeyDown}
-              placeholder="Como posso te ajudar?"
-              className={styles.promptInput}
-              disabled={trialExpired}
-            />
+            {isDraggingPrompt && (
+              <div className={styles.dropOverlay}>
+                <UploadSimple size={20} weight="bold" />
+                <span>Solte para anexar</span>
+              </div>
+            )}
+            {promptAttachments.length > 0 && (
+              <div className={styles.attachmentBar}>
+                {promptAttachments.map((a) => (
+                  <div key={a.id} className={styles.attachmentChip} title={a.name}>
+                    <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
+                    <span className={styles.attachmentChipName}>{a.name}</span>
+                    <button
+                      type="button"
+                      className={styles.attachmentRemove}
+                      onClick={() => handleRemovePromptAttachment(a.id)}
+                      aria-label={`Remover ${a.name}`}
+                    >
+                      <X size={12} weight="bold" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            <div className={styles.promptActions}>
-              {toggleGroup}
+            <div className={styles.promptRow}>
+              <input
+                ref={promptFileInputRef}
+                type="file"
+                multiple
+                className={styles.hiddenFileInput}
+                onChange={handlePromptFileInputChange}
+              />
+
+              <textarea
+                ref={promptInputRef}
+                rows={1}
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                onKeyDown={handlePromptKeyDown}
+                onPaste={handlePromptPaste}
+                placeholder="Como posso te ajudar?"
+                className={styles.promptInput}
+                disabled={trialExpired}
+              />
+
+              <div className={styles.promptActionsLeft}>
+                <button
+                  type="button"
+                  className={styles.attachButton}
+                  onClick={() => promptFileInputRef.current?.click()}
+                  aria-label="Anexar arquivo"
+                  disabled={trialExpired || promptAttachments.length >= MAX_CHAT_ATTACHMENTS}
+                >
+                  <Paperclip size={20} />
+                </button>
+
+                {toggleGroup}
+              </div>
 
               <button
                 type="button"

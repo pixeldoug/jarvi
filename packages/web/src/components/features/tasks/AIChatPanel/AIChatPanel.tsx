@@ -1,8 +1,15 @@
 import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
-import { X, PaperPlaneRight, NotePencil, Sparkle } from '@phosphor-icons/react';
+import type { ClipboardEvent, DragEvent } from 'react';
+import { X, PaperPlaneRight, NotePencil, Sparkle, Paperclip, FileText, UploadSimple } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
-import { useChatStream, ToolCallData } from '../../../../hooks/useChatStream';
+import { useChatStream, ToolCallData, ChatAttachment } from '../../../../hooks/useChatStream';
+import {
+  MAX_CHAT_ATTACHMENTS,
+  PendingAttachment,
+  filesToPendingAttachments,
+  toChatAttachmentPayload,
+} from '../../../../utils/chatAttachments';
 import { Button } from '../../../ui';
 import { ChatMessage } from './ChatMessage';
 import { SkillChips } from './SkillChips';
@@ -29,6 +36,8 @@ export interface AIChatPanelProps {
   onTaskMutated: (toolCalls: ToolCallData[]) => void;
   /** Message to send automatically when the panel first mounts */
   initialMessage?: string;
+  /** Attachments to send alongside the initial message (e.g. from ControlBar) */
+  initialAttachments?: ChatAttachment[];
   /** Called when the user clicks a task card artifact inside the chat */
   onTaskCardClick?: (taskId: string) => void;
   /** Called when the user clicks a list/filter card artifact inside the chat */
@@ -43,6 +52,7 @@ export function AIChatPanel({
   onClose,
   onTaskMutated,
   initialMessage,
+  initialAttachments,
   onTaskCardClick,
   onListCardClick,
   onCategoryCardClick,
@@ -51,8 +61,11 @@ export function AIChatPanel({
   const { trialExpired } = useSubscription();
   const { messages, sendMessage, isStreaming, isWaiting, reset } = useChatStream(mode, taskId);
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const initialSentRef = useRef(false);
   // Track already-processed tool results to avoid calling onTaskMutated repeatedly
   // as text tokens stream in after a tool call completes.
@@ -62,9 +75,10 @@ export function AIChatPanel({
 
   // Send initialMessage on first mount (e.g. from ControlBar prompt)
   useLayoutEffect(() => {
-    if (initialMessage && !initialSentRef.current) {
+    const hasInitialAttachments = (initialAttachments?.length ?? 0) > 0;
+    if ((initialMessage || hasInitialAttachments) && !initialSentRef.current) {
       initialSentRef.current = true;
-      sendMessage(initialMessage);
+      sendMessage(initialMessage ?? '', initialAttachments ?? []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Intentionally runs only on mount
@@ -98,15 +112,69 @@ export function AIChatPanel({
     }
   }, [messages, onTaskMutated]);
 
+  const addFiles = useCallback(async (files: File[]) => {
+    if (!files.length || trialExpired) return;
+    const prepared = await filesToPendingAttachments(files);
+    if (!prepared.length) return;
+    setAttachments((prev) => [...prev, ...prepared].slice(0, MAX_CHAT_ATTACHMENTS));
+  }, [trialExpired]);
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      void addFiles(Array.from(e.target.files ?? []));
+      e.target.value = '';
+    },
+    [addFiles],
+  );
+
+  const handlePaste = useCallback(
+    (e: ClipboardEvent<HTMLTextAreaElement>) => {
+      const files = Array.from(e.clipboardData.files);
+      if (!files.length) return;
+      e.preventDefault();
+      void addFiles(files);
+    },
+    [addFiles],
+  );
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (trialExpired) return;
+    e.preventDefault();
+    setIsDragging(true);
+  }, [trialExpired]);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    // Ignore leaves that just move onto a child element of the drop zone.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length) void addFiles(files);
+    },
+    [addFiles],
+  );
+
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text || isStreaming || trialExpired) return;
+    if ((!text && attachments.length === 0) || isStreaming || trialExpired) return;
+    const payload: ChatAttachment[] = toChatAttachmentPayload(attachments);
     setInput('');
-    sendMessage(text);
+    setAttachments([]);
+    sendMessage(text, payload);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, isStreaming, sendMessage]);
+  }, [input, attachments, isStreaming, trialExpired, sendMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -123,6 +191,7 @@ export function AIChatPanel({
   const handleNewConversation = () => {
     reset();
     setInput('');
+    setAttachments([]);
   };
 
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -215,7 +284,44 @@ export function AIChatPanel({
 
       {/* Input */}
       <div className={styles.inputBar}>
-        <div className={styles.inputWrapper} data-theme="dark">
+        {attachments.length > 0 && (
+          <div className={styles.attachmentBar}>
+            {attachments.map((a) => (
+              <div key={a.id} className={styles.attachmentChip} title={a.name}>
+                <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
+                <span className={styles.attachmentChipName}>{a.name}</span>
+                <button
+                  type="button"
+                  className={styles.attachmentRemove}
+                  onClick={() => handleRemoveAttachment(a.id)}
+                  aria-label={`Remover ${a.name}`}
+                >
+                  <X size={12} weight="bold" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div
+          className={`${styles.inputWrapper} ${isDragging ? styles.inputWrapperDragging : ''}`}
+          data-theme="dark"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {isDragging && (
+            <div className={styles.dropOverlay}>
+              <UploadSimple size={20} weight="bold" />
+              <span>Solte para anexar</span>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className={styles.hiddenFileInput}
+            onChange={handleFileInputChange}
+          />
           <textarea
             ref={textareaRef}
             className={styles.inputField}
@@ -223,17 +329,29 @@ export function AIChatPanel({
             value={input}
             onChange={handleTextareaInput}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             rows={1}
             disabled={isStreaming || trialExpired}
           />
-          <button
-            className={styles.sendButton}
-            onClick={handleSend}
-            disabled={!input.trim() || isStreaming || trialExpired}
-            aria-label="Enviar"
-          >
-            <PaperPlaneRight size={20} weight="fill" />
-          </button>
+          <div className={styles.inputActions}>
+            <button
+              type="button"
+              className={styles.attachButton}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming || trialExpired || attachments.length >= MAX_CHAT_ATTACHMENTS}
+              aria-label="Anexar arquivo"
+            >
+              <Paperclip size={20} />
+            </button>
+            <button
+              className={styles.sendButton}
+              onClick={handleSend}
+              disabled={(!input.trim() && attachments.length === 0) || isStreaming || trialExpired}
+              aria-label="Enviar"
+            >
+              <PaperPlaneRight size={20} weight="fill" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

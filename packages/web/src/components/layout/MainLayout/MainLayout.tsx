@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SidebarSimple, PencilSimple } from '@phosphor-icons/react';
 import styles from './MainLayout.module.css';
 import { ControlBar, TaskCreationData } from '../../ui/ControlBar';
+import type { ChatAttachment } from '../../../hooks/useChatStream';
 import { Button } from '../../ui/Button/Button';
 import { BottomSheet } from '../../ui/BottomSheet/BottomSheet';
 import { useBackground } from '../../../contexts/BackgroundContext';
@@ -73,8 +74,8 @@ export interface MainLayoutProps {
   onRightSidebarClose?: () => void;
   /** Callback to open AI chat panel */
   onOpenChat?: () => void;
-  /** Callback when user submits a prompt from the ControlBar (passes the text) */
-  onSubmitPrompt?: (text: string) => void;
+  /** Callback when user submits a prompt from the ControlBar (text + optional attachments) */
+  onSubmitPrompt?: (text: string, attachments?: ChatAttachment[]) => void;
   /** When true, hides the ControlBar (e.g. while chat panel is open) */
   hideControlBar?: boolean;
   /** When true, hides the page title/header (e.g. when task details fill the center column) */
