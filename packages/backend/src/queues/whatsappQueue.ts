@@ -2,7 +2,7 @@ import { Queue, Worker } from 'bullmq';
 import { extractTextFromPdfBuffer } from '../services/documentService';
 import { analyzeImageForChat, transcribeAudio } from '../services/openaiService';
 import { downloadMedia, sendTextMessage } from '../services/whatsappService';
-import { runWhatsappAgent, isRateLimitError } from '../services/agent';
+import { runWhatsappAgent, isRateLimitError, isRequestTooLargeError } from '../services/agent';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 
 interface WhatsappMessageJob {
@@ -374,9 +374,11 @@ const processAggregatedInboxPayload = async (
       from,
       error: error instanceof Error ? error.message : String(error),
     });
-    const userMessage = isRateLimitError(error)
-      ? '⚠️ Estou recebendo muitas mensagens agora e atingi um limite temporário. Tente de novo em alguns instantes. 🙏'
-      : '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.';
+    const userMessage = isRequestTooLargeError(error)
+      ? '⚠️ Esse conteúdo é grande demais para eu processar de uma vez. Tente enviar um arquivo ou imagem menor. 🙏'
+      : isRateLimitError(error)
+        ? '⚠️ Estou recebendo muitas mensagens agora e atingi um limite temporário. Tente de novo em alguns instantes. 🙏'
+        : '⚠️ Tive um problema para processar sua mensagem agora. Tente novamente em alguns segundos.';
     try {
       await sendTextMessage(from, userMessage);
     } catch (sendError) {

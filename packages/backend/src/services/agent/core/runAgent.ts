@@ -81,7 +81,25 @@ export function isRateLimitError(err: unknown): boolean {
   return (err as { status?: number })?.status === 429;
 }
 
+function getErrorMessage(err: unknown): string {
+  const e = err as { error?: { message?: string }; message?: string };
+  return e?.error?.message ?? e?.message ?? '';
+}
+
+/**
+ * A 429 caused by a single request exceeding the per-minute token limit
+ * ("Request too large"). Unlike a transient rate limit, retrying the SAME
+ * oversized request will always fail, so this must NOT be retried — and it
+ * deserves a different, honest user-facing message.
+ */
+export function isRequestTooLargeError(err: unknown): boolean {
+  if ((err as { status?: number })?.status !== 429) return false;
+  return getErrorMessage(err).toLowerCase().includes('request too large');
+}
+
 function isRetryableError(err: unknown): boolean {
+  // An oversized single request will never succeed on retry.
+  if (isRequestTooLargeError(err)) return false;
   const status = (err as { status?: number })?.status;
   if (status === 429) return true;
   if (typeof status === 'number' && status >= 500) return true;

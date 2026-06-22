@@ -8,4 +8,4 @@
 
 export { runWhatsappAgent, type RunWhatsappAgentOptions } from './channels/whatsapp';
 export { streamChat, type SSEEvent, type ChatMessage } from './channels/web';
-export { isRateLimitError } from './core/runAgent';
+export { isRateLimitError, isRequestTooLargeError } from './core/runAgent';

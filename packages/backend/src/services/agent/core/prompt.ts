@@ -30,6 +30,7 @@ import {
   normalizeTaskDueDate,
   normalizeTaskTime,
 } from './tasks';
+import { parseTaskDescription } from './taskDescription';
 import type { AgentContext, ChannelProfile, TaskRow } from './types';
 
 // ---------------------------------------------------------------------------
@@ -448,6 +449,21 @@ export function buildTaskFocusedPrompt(
 ): string {
   const temporal = buildTemporalContext(ctx);
 
+  const parsedDescription = parseTaskDescription(task.description);
+  const descriptionLine = parsedDescription.text
+    ? `- Descrição: "${parsedDescription.text}"`
+    : null;
+  const imageLine =
+    parsedDescription.images.length > 0
+      ? `- Imagens anexadas (${parsedDescription.images.length}): ${parsedDescription.images
+          .map((i) => i.name)
+          .join(', ')} — as imagens foram enviadas junto com a mensagem do usuário; analise-as como contexto desta tarefa.`
+      : null;
+  const otherAttachmentsLine =
+    parsedDescription.otherAttachmentLabels.length > 0
+      ? `- Outros anexos: ${parsedDescription.otherAttachmentLabels.join(', ')}`
+      : null;
+
   return joinNonEmpty([
     temporal,
     '',
@@ -457,7 +473,9 @@ export function buildTaskFocusedPrompt(
     '',
     'Você está ajudando com uma tarefa específica:',
     `- Título: "${task.title}"`,
-    task.description ? `- Descrição: "${task.description}"` : null,
+    descriptionLine,
+    imageLine,
+    otherAttachmentsLine,
     task.priority ? `- Prioridade: ${task.priority}` : null,
     task.due_date ? `- Data de vencimento: ${normalizeTaskDueDate(task.due_date)}` : null,
     task.time ? `- Horário: ${normalizeTaskTime(task.time)}` : null,

@@ -373,6 +373,75 @@ function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
+// Image compression on upload. Without this, attachments store the ORIGINAL
+// image inline as base64 (data URL) inside the task description, bloating the
+// database, every API payload, and the LLM context. Resizing + re-encoding
+// keeps quality good for screen/preview/vision while cutting size massively.
+const MAX_IMAGE_DIMENSION = 1600;
+const IMAGE_COMPRESSION_QUALITY = 0.9;
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    // NOTE: `document.createElement('img')` (not `new Image()`) because this
+    // file imports TipTap's `Image` node, which shadows the DOM constructor.
+    const img = document.createElement('img');
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Cannot decode image'));
+    img.src = src;
+  });
+}
+
+/**
+ * Resize/re-encode an image file into a (smaller) data URL. Falls back to the
+ * raw data URL on any failure, and never re-encodes animated GIFs (canvas would
+ * flatten them to a single frame).
+ */
+async function imageFileToDataUrl(file: File): Promise<string> {
+  const rawDataUrl = await readFileAsBase64(file);
+
+  if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+    return rawDataUrl;
+  }
+
+  try {
+    const img = await loadImage(rawDataUrl);
+    const largestSide = Math.max(img.width, img.height);
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / largestSide);
+    const targetW = Math.max(1, Math.round(img.width * scale));
+    const targetH = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return rawDataUrl;
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    // Prefer WebP (best ratio for screenshots); browsers without WebP export
+    // return a PNG data URL, which we still accept (resize alone already helps).
+    let encoded = canvas.toDataURL('image/webp', IMAGE_COMPRESSION_QUALITY);
+    if (!encoded.startsWith('data:image/webp')) {
+      encoded = canvas.toDataURL('image/png');
+    }
+
+    // Keep whichever is smaller — never grow the payload.
+    return encoded.length < rawDataUrl.length ? encoded : rawDataUrl;
+  } catch {
+    return rawDataUrl;
+  }
+}
+
+/** Derive the MIME type and approximate byte size from a base64 data URL. */
+function dataUrlInfo(dataUrl: string): { mimeType: string; size: number } {
+  const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
+  const mimeType = match?.[1] ?? 'application/octet-stream';
+  const commaIdx = dataUrl.indexOf(',');
+  const base64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : '';
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  const size = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+  return { mimeType, size };
+}
+
 // Override TaskItem to use inline styles so the flex row layout can never be
 // broken by external CSS or CSS Module scoping issues.
 // Also adds a `subtaskId` attribute so the parent can track which editor task
@@ -541,7 +610,7 @@ export function RichTextEditor({
     editor.setEditable(!readOnly, false);
   }, [readOnly, editor]);
 
-  const insertFile = useCallback((file: File) => {
+  const insertFile = useCallback(async (file: File) => {
     if (!editor) return;
     if (!editor.isEditable) return;
 
@@ -553,22 +622,15 @@ export function RichTextEditor({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onerror = () => {
-      publishFeedback(`Nao foi possivel anexar "${file.name}".`, 'error');
-    };
-
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
-      if (!src) {
-        publishFeedback(`Nao foi possivel processar "${file.name}".`, 'error');
-        return;
-      }
-
+    try {
       if (isImageFile(file)) {
+        // Compress/resize before embedding so the inline image data URL stays
+        // small (avoids bloating the saved document + downstream payloads).
+        const src = await imageFileToDataUrl(file);
         editor.chain().focus().setImage({ src, alt: file.name }).run();
         publishFeedback(`Imagem "${file.name}" inserida.`, 'success');
       } else {
+        const src = await readFileAsBase64(file);
         // Insert non-image files as a downloadable link with file info
         const sizeLabel = formatFileSize(file.size);
         editor
@@ -587,8 +649,9 @@ export function RichTextEditor({
           .run();
         publishFeedback(`Arquivo "${file.name}" anexado.`, 'success');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      publishFeedback(`Nao foi possivel anexar "${file.name}".`, 'error');
+    }
   }, [editor, publishFeedback]);
 
   const handleImageUpload = useCallback(() => {
@@ -600,7 +663,7 @@ export function RichTextEditor({
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file || !editor) return;
-      insertFile(file);
+      void insertFile(file);
     };
     input.click();
   }, [editor, insertFile, readOnly]);
@@ -612,13 +675,19 @@ export function RichTextEditor({
         const dotIdx = file.name.lastIndexOf('.');
         const name = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
         const ext = dotIdx > 0 ? file.name.slice(dotIdx) : '';
-        const previewUrl = await readFileAsBase64(file);
+        const isImage = file.type.startsWith('image/');
+        const previewUrl = isImage
+          ? await imageFileToDataUrl(file)
+          : await readFileAsBase64(file);
+        const { mimeType, size } = isImage
+          ? dataUrlInfo(previewUrl)
+          : { mimeType: file.type, size: file.size };
         return {
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name,
           ext,
-          mimeType: file.type,
-          size: file.size,
+          mimeType,
+          size,
           uploadedAt: new Date(),
           previewUrl,
         };

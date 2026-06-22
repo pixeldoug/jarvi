@@ -18,7 +18,8 @@ import {
   reconcileMemory,
 } from '../core/memory';
 import { buildSystemPrompt, buildTaskFocusedPrompt, buildWebExtras } from '../core/prompt';
-import { runAgent, isRateLimitError } from '../core/runAgent';
+import { runAgent, isRateLimitError, isRequestTooLargeError } from '../core/runAgent';
+import { parseTaskDescription, type TaskImageAttachment } from '../core/taskDescription';
 import {
   getActiveTaskCount,
   getCompletedTaskCount,
@@ -114,6 +115,9 @@ export async function streamChat(
 
     let ctx: AgentContext;
     let systemPrompt: string;
+    // Images attached to the focused task, forwarded to the model as proper
+    // multimodal `image_url` parts (NOT as base64 text in the prompt).
+    let focusedTaskImages: TaskImageAttachment[] = [];
 
     if (mode === 'task' && taskId) {
       const task = await getTaskById(taskId, userId);
@@ -122,6 +126,7 @@ export async function streamChat(
         onEvent({ type: 'done' });
         return;
       }
+      focusedTaskImages = parseTaskDescription(task.description).images;
       ctx = {
         userId,
         preferredName,
@@ -171,6 +176,28 @@ export async function streamChat(
     const initialMessages: ChatCompletionMessageParam[] = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+    // Attach the focused task's images to the latest user turn so the model can
+    // actually see them (multimodal). Bounded token cost, unlike base64 text.
+    if (focusedTaskImages.length > 0) {
+      for (let i = initialMessages.length - 1; i >= 0; i--) {
+        if (initialMessages[i].role === 'user') {
+          const existing = initialMessages[i].content;
+          const text = typeof existing === 'string' ? existing : '';
+          initialMessages[i] = {
+            role: 'user',
+            content: [
+              ...(text ? [{ type: 'text' as const, text }] : []),
+              ...focusedTaskImages.map((img) => ({
+                type: 'image_url' as const,
+                image_url: { url: img.dataUrl },
+              })),
+            ],
+          };
+          break;
+        }
+      }
+    }
 
     let { text, toolCallNames } = await runAgent(
       WEB_PROFILE,
@@ -225,11 +252,13 @@ export async function streamChat(
     }
   } catch (err) {
     console.error('AI Chat stream error:', err);
-    const message = isRateLimitError(err)
-      ? 'Estou recebendo muitas mensagens agora e atingi um limite temporário. Tenta de novo em alguns instantes. 🙏'
-      : err instanceof Error
-        ? err.message
-        : 'Erro ao processar resposta da IA';
+    const message = isRequestTooLargeError(err)
+      ? 'Esse conteúdo é grande demais para eu processar de uma vez — provavelmente uma imagem muito pesada. Tente reduzir o tamanho da imagem antes de continuar. 🙏'
+      : isRateLimitError(err)
+        ? 'Estou recebendo muitas mensagens agora e atingi um limite temporário. Tenta de novo em alguns instantes. 🙏'
+        : err instanceof Error
+          ? err.message
+          : 'Erro ao processar resposta da IA';
     onEvent({ type: 'error', message });
     onEvent({ type: 'done' });
   }

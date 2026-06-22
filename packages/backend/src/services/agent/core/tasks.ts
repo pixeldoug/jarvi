@@ -8,6 +8,7 @@
  */
 
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
+import { summarizeTaskDescription } from './taskDescription';
 import type { CategoryRow, ListRow, TaskRow } from './types';
 
 // Cap on how many active tasks we load into the prompt. The first slice is
@@ -391,7 +392,10 @@ export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): str
   if (timeStr) parts.push(`às ${timeStr}`);
   if (t.priority) parts.push(`prioridade ${t.priority}`);
   if (t.category) parts.push(`cat: ${t.category}`);
-  if (t.description?.trim()) parts.push(`desc: ${truncateForPrompt(t.description)}`);
+  if (t.description?.trim()) {
+    const descSummary = summarizeTaskDescription(t.description);
+    if (descSummary) parts.push(`desc: ${truncateForPrompt(descSummary)}`);
+  }
 
   if (dueDateStr && dueDateStr < todayIso) {
     parts.push('VENCIDA');
