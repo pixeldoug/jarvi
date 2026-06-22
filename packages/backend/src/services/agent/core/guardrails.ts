@@ -17,8 +17,11 @@ const DEDUP_WINDOW_SECONDS = 120;
  * Heuristic: matches assistant text that confirms a creation/edit. Any of these
  * phrases without a matching tool call is treated as hallucination.
  */
+// The noun-form claims ("sugerida"/"criada") are excluded when they describe a
+// drafted message/text the assistant is suggesting (e.g. "Mensagem sugerida:",
+// "texto criado"), so drafting a WhatsApp message never trips the task guardrail.
 export const CREATION_CLAIM_REGEX =
-  /(^|\s)(➕|📋|sugerida\b|sugeri\b|criada\b|criei\b|anotei\b|agendei\b|registrei\b)/i;
+  /(^|\s)(➕|📋|(?<!mensagem )(?<!msg )(?<!texto )(?<!recado )(?<!frase )(?:sugerida|sugeri|criada|criei|anotei|agendei|registrei))\b/i;
 
 export const UPDATE_CLAIM_REGEX =
   /\b(atualizei|alterei|ajustei|corrigi|mudei|deixei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei)\b/i;
