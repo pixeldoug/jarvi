@@ -10,6 +10,19 @@
   gap: var(--sizes-8);
 }
 
+/* Empty state should span the full available width, cancelling the
+   .mainBody right padding (and the .sectionContent left offset when nested). */
+.emptyStateFull {
+  width: auto;
+  margin-right: calc(var(--sizes-10) * -1);
+}
+
+.emptyStateFullInSection {
+  width: auto;
+  margin-left: calc(var(--sizes-4) * -1);
+  margin-right: calc((var(--sizes-10) + var(--sizes-1)) * -1);
+}
+
 
 .pendingTaskList {
   display: flex;

@@ -1760,6 +1760,7 @@ export function Tasks() {
               ))
             ) : (
               <TaskEmptyState
+                className={styles.emptyStateFullInSection}
                 title="Nada por aqui ainda"
                 description={
                   selectedCategoryName
@@ -1833,6 +1834,7 @@ export function Tasks() {
         <div className={styles.content}>
           {visibleTasks.length === 0 && pendingTasks.length === 0 && !isPendingTasksLoading && (
             <TaskEmptyState
+              className={styles.emptyStateFull}
               title="Nada por aqui ainda"
               description="Crie sua primeira tarefa para começar a organizar seu dia."
             />

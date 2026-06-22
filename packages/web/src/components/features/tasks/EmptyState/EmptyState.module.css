@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--sizes-6);
-  width: 100%;
+  width: auto;
   min-height: 400px;
   padding: var(--sizes-6) var(--sizes-2);
 
