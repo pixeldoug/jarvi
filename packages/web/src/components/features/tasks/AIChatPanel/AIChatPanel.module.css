@@ -406,6 +406,42 @@
   border-radius: 10px;
 }
 
+.messageAttachmentChipButton {
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.messageAttachmentChipButton:hover {
+  background: var(--semantic-surface-tertiary, var(--semantic-surface-secondary));
+  border-color: var(--semantic-border-secondary, var(--semantic-border-primary));
+}
+
+.messageAttachmentChipButton:focus-visible {
+  outline: 2px solid var(--color-brand-primary-400);
+  outline-offset: 2px;
+}
+
+.attachmentChipPreview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.attachmentChipPreview:focus-visible {
+  outline: 2px solid var(--color-brand-primary-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .attachmentChipIcon {
   color: var(--color-brand-primary-400);
   flex-shrink: 0;

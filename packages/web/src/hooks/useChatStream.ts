@@ -17,6 +17,11 @@ export interface ChatMessageData {
 export interface ChatAttachmentMeta {
   name: string;
   mimeType: string;
+  /**
+   * Data URL for previewing the file in the attachment viewer. Kept only in the
+   * client-side message history (never sent back to the API).
+   */
+  previewUrl?: string;
 }
 
 /** Full attachment payload sent to the backend (base64, no `data:` prefix). */
@@ -61,7 +66,11 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
       id: nextId(),
       role: 'user',
       content: trimmed,
-      attachments: attachments.map(({ name, mimeType }) => ({ name, mimeType })),
+      attachments: attachments.map(({ name, mimeType, data }) => ({
+        name,
+        mimeType,
+        previewUrl: `data:${mimeType};base64,${data}`,
+      })),
     };
 
     setMessages((prev) => [...prev, userMsg]);

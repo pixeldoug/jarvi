@@ -24,6 +24,7 @@ import {
   toChatAttachmentPayload,
 } from '../../../utils/chatAttachments';
 import { toast } from '../Sonner';
+import { AttachmentViewer } from '../AttachmentViewer';
 import styles from './ControlBar.module.css';
 
 export interface TaskCreationData {
@@ -74,6 +75,7 @@ export function ControlBar({
   // Prompt bar state
   const [promptText, setPromptText] = useState('');
   const [promptAttachments, setPromptAttachments] = useState<PendingAttachment[]>([]);
+  const [viewingPromptAttachment, setViewingPromptAttachment] = useState<PendingAttachment | null>(null);
   const [isDraggingPrompt, setIsDraggingPrompt] = useState(false);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
   const promptFileInputRef = useRef<HTMLInputElement>(null);
@@ -532,8 +534,15 @@ export function ControlBar({
               <div className={styles.attachmentBar}>
                 {promptAttachments.map((a) => (
                   <div key={a.id} className={styles.attachmentChip} title={a.name}>
-                    <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
-                    <span className={styles.attachmentChipName}>{a.name}</span>
+                    <button
+                      type="button"
+                      className={styles.attachmentChipPreview}
+                      onClick={() => setViewingPromptAttachment(a)}
+                      aria-label={`Visualizar ${a.name}`}
+                    >
+                      <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
+                      <span className={styles.attachmentChipName}>{a.name}</span>
+                    </button>
                     <button
                       type="button"
                       className={styles.attachmentRemove}
@@ -624,6 +633,19 @@ export function ControlBar({
         onPrioritySelect={(p) => setPriority(p)}
         anchorRef={priorityChipRef}
       />
+
+      {viewingPromptAttachment && (
+        <AttachmentViewer
+          attachment={{
+            id: viewingPromptAttachment.id,
+            name: viewingPromptAttachment.name,
+            mimeType: viewingPromptAttachment.mimeType,
+            previewUrl: `data:${viewingPromptAttachment.mimeType};base64,${viewingPromptAttachment.data}`,
+          }}
+          onClose={() => setViewingPromptAttachment(null)}
+          onRemove={() => handleRemovePromptAttachment(viewingPromptAttachment.id)}
+        />
+      )}
     </motion.div>
   );
 }

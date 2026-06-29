@@ -12,6 +12,7 @@ import { Gear, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from 
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData, ChatAttachment } from '../../hooks/useChatStream';
+import { mergeAttachmentsIntoDescription, buildAiTaskDescription } from '../../utils/chatAttachments';
 import { useLists } from '../../contexts/ListContext';
 import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
 import type { PendingTask } from '../../hooks/usePendingTasks';
@@ -401,8 +402,13 @@ export function Tasks() {
 
   const handleChatTaskCardClick = useCallback((taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
-    if (task) setSelectedTask(task);
-  }, [tasks]);
+    if (!task) return;
+    // Mirror handleTaskClick: when the chat is open, show the task details in
+    // the center column (with a back button) instead of leaving the chat panel.
+    setExpandedFromList(isChatOpen);
+    setSelectedTask(task);
+    setSelectedPendingTask(null);
+  }, [tasks, isChatOpen]);
 
   const handleChatListCardClick = useCallback((listId: string) => {
     setSelectedCustomListId(listId);
@@ -414,6 +420,21 @@ export function Tasks() {
     setSelectedCustomListId(null);
   }, []);
 
+  // Persist files sent in a task-mode chat into the task's description so they
+  // become part of the task context (visible in the task details).
+  const handleChatAttachToTask = useCallback((chatAttachments: ChatAttachment[]) => {
+    if (!selectedTask || chatAttachments.length === 0) return;
+    const description = mergeAttachmentsIntoDescription(selectedTask.description, chatAttachments);
+    void handleUpdateTask(selectedTask.id, { description });
+  }, [selectedTask]);
+
+  // Files sent in a general-mode chat message, held until the AI's tool calls
+  // for that turn arrive — so they can be attached to a task it creates.
+  const pendingChatAttachmentsRef = useRef<ChatAttachment[]>([]);
+  const handleChatAttachmentsSent = useCallback((chatAttachments: ChatAttachment[]) => {
+    pendingChatAttachmentsRef.current = chatAttachments;
+  }, []);
+
   const handleChatTaskMutated = useCallback((toolCalls: ToolCallData[]) => {
     toolCalls.forEach((tc) => {
       if (!tc.result?.success || !tc.result.data) return;
@@ -421,11 +442,20 @@ export function Tasks() {
 
       switch (tc.toolName) {
         case 'create_task': {
+          const rawDescription = (d.description as string | undefined) ?? '';
+          const attachmentsForTask = pendingChatAttachmentsRef.current;
+          // Structure the AI's Markdown description into a rich doc and/or embed
+          // the files the user sent in this turn, so the task carries them.
+          const shouldStructure = attachmentsForTask.length > 0 || rawDescription.trim() !== '';
+          const finalDescription = shouldStructure
+            ? buildAiTaskDescription(rawDescription, attachmentsForTask)
+            : (rawDescription || undefined);
+
           const newTask: Task = {
             id: d.id as string,
             user_id: '',
             title: d.title as string,
-            description: (d.description as string | undefined) ?? undefined,
+            description: finalDescription,
             completed: false,
             priority: (d.priority as Task['priority']) || 'medium',
             category: (d.category as string | undefined) ?? undefined,
@@ -435,6 +465,15 @@ export function Tasks() {
             updated_at: new Date().toISOString(),
           };
           queryClient.setQueryData<Task[]>(['tasks'], (old) => [...(old ?? []), newTask]);
+
+          // The task already exists on the backend (create_task inserted the
+          // raw description); persist the structured doc + attachments over it.
+          if (shouldStructure && finalDescription) {
+            void updateTask(newTask.id, { description: finalDescription }, false).catch((err) =>
+              console.error('Failed to persist AI task description/attachments:', err),
+            );
+          }
+          pendingChatAttachmentsRef.current = [];
           break;
         }
         case 'update_task': {
@@ -507,7 +546,7 @@ export function Tasks() {
 
     // Always follow up with a refetch to ensure consistency with the server
     queryClient.invalidateQueries({ queryKey: ['tasks'] });
-  }, [queryClient]);
+  }, [queryClient, updateTask]);
 
   const handleOpenDatePicker = (task: any) => {
     // Placeholder - can add date picker later
@@ -1461,6 +1500,8 @@ export function Tasks() {
             onTaskCardClick={handleChatTaskCardClick}
             onListCardClick={handleChatListCardClick}
             onCategoryCardClick={handleChatCategoryCardClick}
+            onAttachToTask={handleChatAttachToTask}
+            onAttachmentsSent={handleChatAttachmentsSent}
           />
         </motion.div>
       ) : selectedPendingTask ? (
@@ -1545,6 +1586,8 @@ export function Tasks() {
         onTaskCardClick={handleChatTaskCardClick}
         onListCardClick={handleChatListCardClick}
         onCategoryCardClick={handleChatCategoryCardClick}
+        onAttachToTask={handleChatAttachToTask}
+        onAttachmentsSent={handleChatAttachmentsSent}
       />
     </BottomSheet>
   );

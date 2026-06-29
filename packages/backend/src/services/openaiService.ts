@@ -364,7 +364,7 @@ export const analyzeImageForChat = async (
         content: [
           {
             type: 'text',
-            text: 'Descreva o conteúdo desta imagem em português, de forma concisa (máximo 3 linhas), focando em qualquer tarefa, compromisso, lembrete ou ação que o usuário possa querer registrar.',
+            text: 'Descreva o conteúdo desta imagem em português, de forma concisa (máximo 4 linhas). Transcreva TEXTUALMENTE qualquer texto identificável visível (nomes de música/produto/empresa, títulos, datas, valores, nomes de pessoas) — esses identificadores são essenciais para nomear a tarefa. Em seguida, aponte qualquer tarefa, compromisso, lembrete ou ação que o usuário possa querer registrar.',
           },
           {
             type: 'image_url',

@@ -10,24 +10,16 @@ import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
 import {
-  DownloadSimple,
-  File,
-  FileAudio,
-  FileCode,
-  FilePdf,
-  FileText,
-  FileVideo,
-  FileZip,
   Trash,
   UploadSimple,
-  X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, KeyboardEvent } from 'react';
-import { createPortal } from 'react-dom';
 import styles from './RichTextEditor.module.css';
 import { Button } from '../Button/Button';
 import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandExtension } from './SlashCommandMenu';
+import { AttachmentRefNode } from './AttachmentRefNode';
+import { AttachmentViewer, AttachmentFileIcon } from '../AttachmentViewer';
 
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -69,32 +61,6 @@ function formatAttachmentDate(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const mins = String(date.getMinutes()).padStart(2, '0');
   return `${day} ${month} ${year}, ${hours}:${mins}`;
-}
-
-function AttachmentFileIcon({ mimeType }: { mimeType: string }) {
-  const size = 24;
-  const weight = 'regular' as const;
-  if (mimeType === 'application/pdf') return <FilePdf size={size} weight={weight} />;
-  if (mimeType.startsWith('audio/')) return <FileAudio size={size} weight={weight} />;
-  if (mimeType.startsWith('video/')) return <FileVideo size={size} weight={weight} />;
-  if (mimeType === 'text/plain' || mimeType === 'text/markdown') return <FileText size={size} weight={weight} />;
-  if (
-    mimeType === 'text/html' ||
-    mimeType === 'text/css' ||
-    mimeType === 'text/javascript' ||
-    mimeType === 'application/json' ||
-    mimeType === 'application/xml' ||
-    mimeType.includes('typescript')
-  ) return <FileCode size={size} weight={weight} />;
-  if (
-    mimeType === 'application/zip' ||
-    mimeType === 'application/x-zip-compressed' ||
-    mimeType === 'application/gzip' ||
-    mimeType === 'application/x-tar' ||
-    mimeType === 'application/x-7z-compressed' ||
-    mimeType === 'application/x-rar-compressed'
-  ) return <FileZip size={size} weight={weight} />;
-  return <File size={size} weight={weight} />;
 }
 
 function AttachmentPreviewContent({ attachment }: { attachment: AttachmentFile }) {
@@ -181,120 +147,6 @@ function AttachmentCard({
         <span className={styles.attachmentDate}>{formatAttachmentDate(attachment.uploadedAt)}</span>
       </div>
     </div>
-  );
-}
-
-function AttachmentViewerPreview({ attachment }: { attachment: AttachmentFile }) {
-  if (attachment.mimeType.startsWith('image/')) {
-    return (
-      <img
-        src={attachment.previewUrl}
-        alt={`${attachment.name}${attachment.ext}`}
-        className={styles.viewerImage}
-      />
-    );
-  }
-  if (attachment.mimeType.startsWith('video/')) {
-    return (
-      <video
-        src={attachment.previewUrl}
-        className={styles.viewerVideo}
-        controls
-        autoPlay={false}
-      />
-    );
-  }
-  if (attachment.mimeType === 'application/pdf') {
-    return (
-      <iframe
-        src={attachment.previewUrl}
-        className={styles.viewerIframe}
-        title={`${attachment.name}${attachment.ext}`}
-      />
-    );
-  }
-  return (
-    <div className={styles.viewerGenericPreview}>
-      <AttachmentFileIcon mimeType={attachment.mimeType} />
-      <span className={styles.viewerGenericLabel}>{attachment.name}{attachment.ext}</span>
-      <p className={styles.viewerGenericHint}>Prévia não disponível para este tipo de arquivo</p>
-    </div>
-  );
-}
-
-function AttachmentViewer({
-  attachment,
-  onClose,
-  onRemove,
-}: {
-  attachment: AttachmentFile;
-  onClose: () => void;
-  onRemove: (id: string) => void;
-}) {
-  useEffect(() => {
-    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = attachment.previewUrl;
-    a.download = `${attachment.name}${attachment.ext}`;
-    a.click();
-  };
-
-  const handleDelete = () => {
-    onRemove(attachment.id);
-    onClose();
-  };
-
-  return createPortal(
-    <div className={styles.viewerOverlay} role="dialog" aria-modal="true" aria-label={`Visualizar ${attachment.name}${attachment.ext}`}>
-      <div className={styles.viewerInner}>
-        {/* Actions top-right */}
-        <div className={styles.viewerActions}>
-          <button
-            type="button"
-            className={styles.viewerActionBtn}
-            onClick={handleDelete}
-            aria-label="Excluir anexo"
-          >
-            <Trash size={16} weight="regular" />
-          </button>
-          <button
-            type="button"
-            className={styles.viewerActionBtn}
-            onClick={handleDownload}
-            aria-label="Baixar arquivo"
-          >
-            <DownloadSimple size={16} weight="regular" />
-          </button>
-          <button
-            type="button"
-            className={`${styles.viewerActionBtn} ${styles.viewerActionBtnClose}`}
-            onClick={onClose}
-            aria-label="Fechar visualizador"
-          >
-            <X size={16} weight="bold" />
-          </button>
-        </div>
-
-        {/* Header top-left */}
-        <div className={styles.viewerHeader}>
-          <h2 className={styles.viewerTitle}>{attachment.name}{attachment.ext}</h2>
-          <p className={styles.viewerDate}>{formatAttachmentDate(attachment.uploadedAt)}</p>
-        </div>
-
-        {/* Preview centered */}
-        <div className={styles.viewerPreviewArea}>
-          <AttachmentViewerPreview attachment={attachment} />
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }
 
@@ -524,6 +376,12 @@ export function RichTextEditor({
   attachmentsRef.current = attachments;
   const dragCounterRef = useRef(0);
 
+  // Opens the attachment referenced by an inline chip (attachmentRef NodeView).
+  const handleOpenAttachmentRef = useCallback((attachmentId: string) => {
+    const match = attachmentsRef.current.find((a) => a.id === attachmentId);
+    if (match) setViewedAttachment(match);
+  }, []);
+
   const publishFeedback = useCallback((message: string, tone: FeedbackTone = 'info') => {
     setFeedback({ tone, message });
   }, []);
@@ -555,6 +413,7 @@ export function RichTextEditor({
       Placeholder.configure({ placeholder }),
       Typography,
       SlashCommandExtension,
+      AttachmentRefNode.configure({ onOpen: handleOpenAttachmentRef }),
     ],
     content: initialParsed.current.content || '',
     editable: !readOnly,
@@ -880,9 +739,16 @@ export function RichTextEditor({
 
       {viewedAttachment && (
         <AttachmentViewer
-          attachment={viewedAttachment}
+          attachment={{
+            id: viewedAttachment.id,
+            name: viewedAttachment.name,
+            ext: viewedAttachment.ext,
+            mimeType: viewedAttachment.mimeType,
+            previewUrl: viewedAttachment.previewUrl,
+            subtitle: formatAttachmentDate(viewedAttachment.uploadedAt),
+          }}
           onClose={() => setViewedAttachment(null)}
-          onRemove={handleRemoveAttachment}
+          onRemove={() => handleRemoveAttachment(viewedAttachment.id)}
         />
       )}
     </div>

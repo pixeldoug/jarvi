@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { FileText } from '@phosphor-icons/react';
-import type { ChatMessageData } from '../../../../hooks/useChatStream';
+import type { ChatMessageData, ChatAttachmentMeta } from '../../../../hooks/useChatStream';
 import { TaskCardMessage } from './TaskCardMessage';
 import { ListCardMessage } from './ListCardMessage';
 import { CategoryCardMessage } from './CategoryCardMessage';
+import { AttachmentViewer } from '../../../ui/AttachmentViewer';
 import styles from './AIChatPanel.module.css';
 
 // Renders **bold**, `code`, and "quoted names" within a line of text.
@@ -74,6 +75,7 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCategoryCardClick }: ChatMessageProps) {
   const isUser = message.role === 'user';
+  const [viewing, setViewing] = useState<ChatAttachmentMeta | null>(null);
 
   const taskToolCalls = Array.from(
     new Map(
@@ -110,12 +112,30 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
     <div className={`${styles.messageRow} ${isUser ? styles.messageRowUser : styles.messageRowAi}`}>
       {isUser && attachments.length > 0 && (
         <div className={styles.messageAttachments}>
-          {attachments.map((a, i) => (
-            <div key={`${message.id}-att-${i}`} className={styles.messageAttachmentChip} title={a.name}>
-              <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
-              <span className={styles.attachmentChipName}>{a.name}</span>
-            </div>
-          ))}
+          {attachments.map((a, i) => {
+            const canPreview = Boolean(a.previewUrl);
+            const chipContent = (
+              <>
+                <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
+                <span className={styles.attachmentChipName}>{a.name}</span>
+              </>
+            );
+            return canPreview ? (
+              <button
+                key={`${message.id}-att-${i}`}
+                type="button"
+                className={`${styles.messageAttachmentChip} ${styles.messageAttachmentChipButton}`}
+                title={`Visualizar ${a.name}`}
+                onClick={() => setViewing(a)}
+              >
+                {chipContent}
+              </button>
+            ) : (
+              <div key={`${message.id}-att-${i}`} className={styles.messageAttachmentChip} title={a.name}>
+                {chipContent}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -155,6 +175,17 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
         <div className={`${styles.bubble} ${styles.bubbleAi}`}>
           <div className={styles.aiContent}>{renderAiContent(message.contentAfter)}</div>
         </div>
+      )}
+
+      {viewing?.previewUrl && (
+        <AttachmentViewer
+          attachment={{
+            name: viewing.name,
+            mimeType: viewing.mimeType,
+            previewUrl: viewing.previewUrl,
+          }}
+          onClose={() => setViewing(null)}
+        />
       )}
     </div>
   );

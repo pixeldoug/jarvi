@@ -11,6 +11,7 @@ import {
   toChatAttachmentPayload,
 } from '../../../../utils/chatAttachments';
 import { Button } from '../../../ui';
+import { AttachmentViewer } from '../../../ui/AttachmentViewer';
 import { ChatMessage } from './ChatMessage';
 import { SkillChips } from './SkillChips';
 import jarviLogo from '../../../../assets/logo/symbol.svg';
@@ -44,6 +45,16 @@ export interface AIChatPanelProps {
   onListCardClick?: (listId: string) => void;
   /** Called when the user clicks a category card artifact inside the chat */
   onCategoryCardClick?: (categoryName: string) => void;
+  /**
+   * Called when a message with attachments is sent in task mode, so the parent
+   * can persist those files into the task's context (description attachments).
+   */
+  onAttachToTask?: (attachments: ChatAttachment[]) => void;
+  /**
+   * Called when a message with attachments is sent in general mode, so the
+   * parent can attach those files to a task the AI creates in the same turn.
+   */
+  onAttachmentsSent?: (attachments: ChatAttachment[]) => void;
 }
 
 export function AIChatPanel({
@@ -56,12 +67,15 @@ export function AIChatPanel({
   onTaskCardClick,
   onListCardClick,
   onCategoryCardClick,
+  onAttachToTask,
+  onAttachmentsSent,
 }: AIChatPanelProps) {
   const { user } = useAuth();
   const { trialExpired } = useSubscription();
   const { messages, sendMessage, isStreaming, isWaiting, reset } = useChatStream(mode, taskId);
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [viewingAttachment, setViewingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -78,6 +92,16 @@ export function AIChatPanel({
     const hasInitialAttachments = (initialAttachments?.length ?? 0) > 0;
     if ((initialMessage || hasInitialAttachments) && !initialSentRef.current) {
       initialSentRef.current = true;
+      // The initial message bypasses handleSend, so replicate its attachment
+      // persistence here — otherwise files sent with the first message (e.g.
+      // from the ControlBar) never reach the task the AI creates this turn.
+      if (hasInitialAttachments && initialAttachments) {
+        if (mode === 'task') {
+          onAttachToTask?.(initialAttachments);
+        } else {
+          onAttachmentsSent?.(initialAttachments);
+        }
+      }
       sendMessage(initialMessage ?? '', initialAttachments ?? []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,11 +194,22 @@ export function AIChatPanel({
     const payload: ChatAttachment[] = toChatAttachmentPayload(attachments);
     setInput('');
     setAttachments([]);
+    // Persist the files into a task's context so they live on after the
+    // message is sent (and the input chips are cleared): in task mode, attach
+    // to the current task; in general mode, hand them to the parent so they can
+    // be attached to a task the AI creates in this same turn.
+    if (payload.length > 0) {
+      if (mode === 'task') {
+        onAttachToTask?.(payload);
+      } else {
+        onAttachmentsSent?.(payload);
+      }
+    }
     sendMessage(text, payload);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, attachments, isStreaming, trialExpired, sendMessage]);
+  }, [input, attachments, isStreaming, trialExpired, sendMessage, mode, onAttachToTask, onAttachmentsSent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -288,8 +323,15 @@ export function AIChatPanel({
           <div className={styles.attachmentBar}>
             {attachments.map((a) => (
               <div key={a.id} className={styles.attachmentChip} title={a.name}>
-                <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
-                <span className={styles.attachmentChipName}>{a.name}</span>
+                <button
+                  type="button"
+                  className={styles.attachmentChipPreview}
+                  onClick={() => setViewingAttachment(a)}
+                  aria-label={`Visualizar ${a.name}`}
+                >
+                  <FileText size={14} weight="fill" className={styles.attachmentChipIcon} />
+                  <span className={styles.attachmentChipName}>{a.name}</span>
+                </button>
                 <button
                   type="button"
                   className={styles.attachmentRemove}
@@ -354,6 +396,19 @@ export function AIChatPanel({
           </div>
         </div>
       </div>
+
+      {viewingAttachment && (
+        <AttachmentViewer
+          attachment={{
+            id: viewingAttachment.id,
+            name: viewingAttachment.name,
+            mimeType: viewingAttachment.mimeType,
+            previewUrl: `data:${viewingAttachment.mimeType};base64,${viewingAttachment.data}`,
+          }}
+          onClose={() => setViewingAttachment(null)}
+          onRemove={() => handleRemoveAttachment(viewingAttachment.id)}
+        />
+      )}
     </div>
   );
 }
