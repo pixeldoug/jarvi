@@ -18,6 +18,7 @@ import {
 } from '../core/tasks';
 import { getDateTimeForTimezone } from '../core/time';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
+import { recordAgentTurnUsage, sumAgentTurnUsage } from '../core/telemetry';
 import type {
   AgentContext,
   ChannelProfile,
@@ -126,7 +127,7 @@ export const runWhatsappAgent = async (
   options: RunWhatsappAgentOptions = {},
 ): Promise<string> => {
   const [
-    { memory, timezone, preferredName },
+    { memory, timezone, preferredName, email, subscriptionStatus },
     activeTasks,
     activeTaskCount,
     completedTaskCount,
@@ -179,13 +180,14 @@ export const runWhatsappAgent = async (
     { role: 'user', content: userMessage },
   ];
 
-  let { text, toolCallNames } = await runAgent(
+  let { text, toolCallNames, usage } = await runAgent(
     WHATSAPP_PROFILE,
     ctx,
     systemPrompt,
     initialMessages,
     {},
   );
+  let retried = false;
 
   if (
     WHATSAPP_PROFILE.enableAntiHallucinationRetry &&
@@ -205,7 +207,17 @@ export const runWhatsappAgent = async (
     );
     text = retry.text || text;
     toolCallNames = [...toolCallNames, ...retry.toolCallNames];
+    usage = sumAgentTurnUsage([usage, retry.usage]);
+    retried = true;
   }
+
+  recordAgentTurnUsage({
+    email,
+    channel: 'whatsapp',
+    subscriptionStatus,
+    usage,
+    retried,
+  });
 
   const finalResponse = text || 'Entendido! Como posso te ajudar?';
 

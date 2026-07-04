@@ -18,10 +18,11 @@ import type {
   AgentCallbacks,
   AgentContext,
   AgentRunResult,
+  AgentTurnUsage,
   ChannelProfile,
 } from './types';
 
-const AGENT_MODEL = 'gpt-5.4-mini';
+export const AGENT_MODEL = 'gpt-5.4-mini';
 const MAX_ITERATIONS = 5;
 const MAX_TOKENS_STREAM = 4096;
 const MAX_TOKENS_SINGLE = 1024;
@@ -207,6 +208,13 @@ export async function runAgent(
   let finalText = '';
   const toolCallNames: string[] = [];
 
+  // Cost telemetry: summed across every OpenAI call this run makes (each
+  // tool-use iteration is a separate billed request).
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCachedTokens = 0;
+  let apiCalls = 0;
+
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const toolChoice =
       options.forceToolChoice && iteration === 0 ? 'required' : 'auto';
@@ -224,6 +232,7 @@ export async function runAgent(
             tools,
             tool_choice: toolChoice,
             stream: true,
+            stream_options: { include_usage: true },
             max_completion_tokens: MAX_TOKENS_STREAM,
             ...determinismParams,
           }),
@@ -233,6 +242,14 @@ export async function runAgent(
       const indexed = new Map<number, { id: string; name: string; args: string }>();
 
       for await (const chunk of stream) {
+        // The usage summary arrives as its own chunk (often with an empty
+        // `choices` array), so it must be read before the `!choice` guard.
+        if (chunk.usage) {
+          totalInputTokens += chunk.usage.prompt_tokens ?? 0;
+          totalOutputTokens += chunk.usage.completion_tokens ?? 0;
+          totalCachedTokens += chunk.usage.prompt_tokens_details?.cached_tokens ?? 0;
+        }
+
         const choice = chunk.choices[0];
         if (!choice) continue;
 
@@ -261,6 +278,7 @@ export async function runAgent(
         }
       }
 
+      apiCalls++;
       pendingToolCalls = Array.from(indexed.values()).filter((tc) => tc.id && tc.name);
     } else {
       const response = await callWithRetry(
@@ -275,6 +293,13 @@ export async function runAgent(
           }),
         { channel: profile.id, userId: ctx.userId },
       );
+
+      apiCalls++;
+      if (response.usage) {
+        totalInputTokens += response.usage.prompt_tokens ?? 0;
+        totalOutputTokens += response.usage.completion_tokens ?? 0;
+        totalCachedTokens += response.usage.prompt_tokens_details?.cached_tokens ?? 0;
+      }
 
       const choice = response.choices[0];
       const message = choice?.message;
@@ -374,5 +399,12 @@ export async function runAgent(
     callbacks.onSeparator?.();
   }
 
-  return { text: finalText, toolCallNames };
+  const usage: AgentTurnUsage = {
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    cachedTokens: totalCachedTokens,
+    apiCalls,
+  };
+
+  return { text: finalText, toolCallNames, usage };
 }

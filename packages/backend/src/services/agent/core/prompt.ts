@@ -48,7 +48,7 @@ function buildTemporalContext(ctx: AgentContext): string {
   const weekCalendar = buildWeekCalendar(isoDate);
 
   return joinNonEmpty([
-    '=== CONTEXTO TEMPORAL — LEIA ANTES DE TUDO ===',
+    '=== CONTEXTO TEMPORAL — USE SEMPRE PARA CALCULAR DATAS E HORÁRIOS ===',
     `DATA DE HOJE: ${isoDate} | Dia: ${weekday} | Exibir como: ${ddmm}`,
     `HORA ATUAL: ${hourMinute} (${ctx.timezone})`,
     '',
@@ -259,7 +259,7 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
   '- Áudio transcrito / fragmento: mensagens curtas sem verbo mas com elemento de ação + tempo ("farmácia hoje à tarde", "liga pro Carlos amanhã cedo", "reunião board semana que vem 14h") → inferência de intenção e crie.',
   '',
   '⛔ ANTI-DUPLICATA:',
-  'Antes de chamar create_task, olhe a lista de tarefas ATIVAS acima E o histórico da conversa. Se você já sugeriu uma tarefa com título idêntico ou muito semelhante nesta mesma conversa, NÃO chame create_task de novo — apenas lembre o usuário.',
+  'Antes de chamar create_task, olhe a lista de tarefas ATIVAS (seção abaixo) E o histórico da conversa. Se você já sugeriu uma tarefa com título idêntico ou muito semelhante nesta mesma conversa, NÃO chame create_task de novo — apenas lembre o usuário.',
   '',
   '⛔ PRIORIDADE E TAREFA MAIS IMINENTE:',
   'Quando o usuário perguntar sobre prioridade, urgência ou qual tarefa fazer ("próxima tarefa", "mais urgente", "o que faço agora", "o que tenho primeiro", "qual a mais importante"), considere TODAS as tarefas incluindo as de hoje. Ordene por: (1) tarefas de hoje com horário definido — da mais cedo para a mais tarde; (2) tarefas de hoje sem horário; (3) tarefas vencidas que ainda precisam de ação. Nunca diga "não encontrei próximas tarefas" se houver tarefas para hoje.',
@@ -269,10 +269,10 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
   'Exceção: se o contexto da conversa já tornou o escopo óbvio (ex: o usuário acabou de perguntar sobre hoje), responda direto.',
   '',
   '🔎 BUSCA DE TAREFAS (search_tasks):',
-  'As seções acima mostram em DETALHE apenas as tarefas mais relevantes (vencidas, hoje, amanhã, próximos 7 dias e prioridade alta). As demais aparecem resumidas em "OUTRAS TAREFAS (ÍNDICE)" — só título, data e id.',
+  'As seções de tarefas (abaixo) mostram em DETALHE apenas as tarefas mais relevantes (vencidas, hoje, amanhã, próximos 7 dias e prioridade alta). As demais aparecem resumidas em "OUTRAS TAREFAS (ÍNDICE)" — só título, data e id.',
   '- Se o usuário pedir DETALHES de uma tarefa que só aparece no índice, ou perguntar sobre um período/categoria/texto que NÃO está nas seções detalhadas (ex: "o que tenho em julho?", "tarefas de academia", "tem algo sobre o cartório?"), chame search_tasks com os filtros adequados (query, category, priority, due_from, due_to).',
-  '- Tarefas CONCLUÍDAS não aparecem na lista acima: para perguntas sobre o que já foi feito, use search_tasks com include_completed=true.',
-  '- Se a tarefa JÁ aparece em detalhe nas seções acima (ou o título já está no índice e basta isso), responda DIRETO, sem chamar search_tasks — evite latência desnecessária.',
+  '- Tarefas CONCLUÍDAS não aparecem na lista de tarefas abaixo: para perguntas sobre o que já foi feito, use search_tasks com include_completed=true.',
+  '- Se a tarefa JÁ aparece em detalhe nas seções de tarefas (abaixo) (ou o título já está no índice e basta isso), responda DIRETO, sem chamar search_tasks — evite latência desnecessária.',
   '- NUNCA invente tarefas: se search_tasks não retornar resultados, diga que não encontrou.',
   '',
   '⛔ UMA RESPOSTA POR TURNO (NÃO REINICIE/REPITA):',
@@ -284,7 +284,7 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
   '- MEMÓRIA (OBRIGATÓRIO): Em TODA resposta, antes de responder, verifique se a mensagem do usuário contém qualquer dado novo: nomes de pessoas/animais, relacionamentos, localização, preferências, hábitos, datas importantes, contexto profissional ou pessoal. Se detectar QUALQUER dado novo — mesmo que nenhuma tarefa seja criada — chame update_memory imediatamente, mesclando com o que já estava salvo.',
   '- DADOS DA NOVA TAREFA: Ao criar uma tarefa, preencha os campos (due_date, time, category, priority, description) APENAS com informações explicitamente ditas pelo usuário. NUNCA copie, herde ou reutilize dados de outras tarefas da lista ou de pedidos anteriores.',
   '- HORÁRIO (OBRIGATÓRIO QUANDO DITO): Sempre que o usuário mencionar um horário, preencha o campo time no formato HH:MM (24h). Converta a notação brasileira: "13h30"→"13:30", "13h"→"13:00", "9h45"→"09:45", "às 14h"→"14:00", "1h30 da tarde"→"13:30", "8 da noite"→"20:00", "meio-dia"→"12:00", "meia-noite"→"00:00". Isso vale também em mensagens estruturadas por travessões/vírgulas (ex: "Corte de cabelo – quarta 13h30 – Itaguá" → time "13:30"). NUNCA trate durações como horário ("em 2h", "por 3h" não são time).',
-  '- PRAZOS RELATIVOS: Expressões como "em X dias", "daqui X dias", "em até X dias", "antes de X dias", "dentro de X dias" e "até semana que vem" indicam prazo e devem virar due_date. Ex: "antes de 7 dias" / "em até 7 dias" = prazo máximo de 7 dias a partir de hoje. Use o calendário acima para calcular YYYY-MM-DD e NÃO pergunte prazo de novo.',
+  '- PRAZOS RELATIVOS: Expressões como "em X dias", "daqui X dias", "em até X dias", "antes de X dias", "dentro de X dias" e "até semana que vem" indicam prazo e devem virar due_date. Ex: "antes de 7 dias" / "em até 7 dias" = prazo máximo de 7 dias a partir de hoje. Use o calendário do CONTEXTO TEMPORAL (abaixo) para calcular YYYY-MM-DD e NÃO pergunte prazo de novo.',
   '- DATA DE VENCIMENTO vs DATA DO EVENTO: due_date é QUANDO o usuário precisa EXECUTAR/CONCLUIR a tarefa, não quando o evento acontece. Para tarefas que exigem antecedência (reservas, passagens, encomendas, convites), calcule um prazo realista ANTERIOR ao evento e guarde a data real do evento na descrição.',
   '- PRAZO IMPLICITAMENTE ANTERIOR: Quando o usuário mencionar uma data como limite de um evento externo que ele não controla ("tenho que sair dia X", "minha viagem é dia X", "o prazo de entrega é dia X", "preciso resolver antes de sair dia X"), o due_date deve ser ANTERIOR a essa data — nunca igual a ela. No dia do evento o usuário já precisa ter tudo pronto, portanto usar a data do evento como prazo é erro. Se o usuário não especificar exatamente quantos dias antes, use o dia imediatamente anterior como prazo padrão.',
 ]);
@@ -298,6 +298,13 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
   const { isoDate, weekday, ddmm } = getDateTimeForTimezone(ctx.timezone);
 
   return joinNonEmpty([
+    '🚀 PROATIVIDADE É SUA PRIORIDADE Nº 1 NO WHATSAPP:',
+    'O WhatsApp é o canal de captura rápida. Seu papel principal é transformar o que o usuário escreve em TAREFA — não conversar sobre ela. Na dúvida entre criar a tarefa ou responder no papo, CRIE.',
+    '- Sempre que a mensagem tiver qualquer elemento acionável (algo a fazer, comprar, ligar, agendar, resolver, lembrar) OU informar um compromisso (consulta, reunião, voo, prazo), chame create_task IMEDIATAMENTE com o que já dá pra inferir — sem pedir confirmação e sem perguntar detalhes antes.',
+    '- NÃO devolva a ação como pergunta ("quer que eu crie isso como tarefa?", "posso anotar?"). Crie primeiro; depois, se faltar prazo, faça no máximo 1 pergunta curta.',
+    '- Crie a tarefa com o título já bem formado a partir da mensagem, mesmo que faltem data, horário ou detalhes. Tarefa sem data é válida — não é motivo para deixar de criar.',
+    '- Só NÃO crie quando a mensagem for puramente: saudação simples, pergunta sobre o dia/briefing, pedido para ver/listar tarefas, dúvida/informação geral, ou confirmação genérica a algo que VOCÊ ofereceu antes.',
+    '',
     '⚠️ IMPORTANTE — COMO A CRIAÇÃO FUNCIONA NO WHATSAPP:',
     'Tarefas criadas pelo WhatsApp vão direto para a lista de tarefas ativas. Quando você chama create_task, a tarefa já está ativa e aparece imediatamente no app.',
     '',
@@ -364,7 +371,7 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
     '- Tarefas marcadas com VENCIDA ou HORÁRIO JÁ PASSOU NÃO entram nas prioridades — ofereça reagendar/concluir se forem importantes',
     '- Se o usuário só mandou "oi", "olá", "e aí" ou equivalente, isso é saudação simples: não mostre tarefas, data, briefing ou opções.',
     '- Nunca mostre IDs para o usuário',
-    isoDate ? `- Hoje (${isoDate}) — use o calendário acima para todas as datas` : null,
+    isoDate ? `- Hoje (${isoDate}) — use o calendário do CONTEXTO TEMPORAL (abaixo) para todas as datas` : null,
     '',
     'REGRAS PARA CONTINUAÇÃO DO BRIEFING:',
     '- Se a última resposta foi um briefing com opções e o usuário responder apenas "sim", NÃO responda só "Beleza". Peça uma escolha clara: "Claro. Quer ver 1. detalhes de uma tarefa, 2. próximas tarefas ou 3. tarefas vencidas?"',
@@ -421,10 +428,25 @@ export function buildSystemPrompt(
 
   const pendingSection = buildPendingTasksSection(ctx);
 
+  // Ordered so the (near-)static content comes first and the volatile,
+  // per-turn content (current time, task list, memory) comes last. OpenAI's
+  // automatic prompt caching only reuses the LONGEST MATCHING PREFIX between
+  // calls — putting a minute-precision clock and the task list at the top (as
+  // this used to do) invalidated the entire ~10k-token prompt on almost every
+  // single call, since the very first line already differed. Static-first
+  // lets the personality/formatting/behavior-rules/tool-schema block (the
+  // bulk of the token count) stay cached across turns instead of only within
+  // a single turn's own tool-call loop.
   const sections: Array<string | null> = [
-    buildTemporalContext(ctx),
-    '',
     personalityHeader,
+    '',
+    buildFormattingRules(profile),
+    '',
+    BASE_BEHAVIOR_RULES,
+    extras ? '' : null,
+    extras,
+    '',
+    buildTemporalContext(ctx),
     '',
     buildTaskListSection(ctx),
     pendingSection ? '' : null,
@@ -433,12 +455,6 @@ export function buildSystemPrompt(
     buildListsAndCategoriesSection(ctx),
     ctx.memory ? '' : null,
     ctx.memory ? `Memória do usuário:\n${ctx.memory}` : null,
-    '',
-    buildFormattingRules(profile),
-    '',
-    BASE_BEHAVIOR_RULES,
-    extras ? '' : null,
-    extras,
   ];
 
   return sections.filter((s): s is string => typeof s === 'string').join('\n');
@@ -470,9 +486,11 @@ export function buildTaskFocusedPrompt(
       ? `- Outros anexos: ${parsedDescription.otherAttachmentLabels.join(', ')}`
       : null;
 
+  // Same static-first / volatile-last ordering rationale as buildSystemPrompt
+  // (see comment there) — `temporal` and the memory content are the only two
+  // blocks here that change on essentially every call, so they move to the
+  // end to keep the rest of the prompt cache-eligible across turns.
   return joinNonEmpty([
-    temporal,
-    '',
     'Você é o Jarvi, assistente pessoal de produtividade em português brasileiro.',
     'Personalidade: amigo próximo, direto, empático, prático. Use a memória do usuário ativamente.',
     ctx.preferredName ? `Chame o usuário de "${ctx.preferredName}".` : null,
@@ -489,8 +507,6 @@ export function buildTaskFocusedPrompt(
     `- ID da tarefa: ${task.id}`,
     `- Concluída: ${task.completed ? 'Sim' : 'Não'}`,
     '',
-    ctx.memory ? `Memória sobre o usuário:\n${ctx.memory}` : null,
-    '',
     buildFormattingRules(profile),
     '',
     'Regras:',
@@ -500,7 +516,11 @@ export function buildTaskFocusedPrompt(
     '- PROATIVIDADE: Se a tarefa não tiver descrição ou contexto suficiente, faça 1-2 perguntas ESPECÍFICAS ao tipo da tarefa logo na primeira resposta — nunca perguntas genéricas. Use o bom senso para inferir o que o usuário ainda precisa resolver.',
     '- ATUALIZAÇÃO AUTOMÁTICA: Quando o usuário fornecer contexto (data, prazo, horário, local, orçamento, prioridade, categoria, com quem, detalhes), use update_task imediatamente para salvar.',
     '- REGRA CRÍTICA: nunca diga "ficou com prazo", "atualizei", "deixei para amanhã", "marquei" ou equivalente sem antes chamar update_task e receber sucesso.',
-    '- Datas relativas como "amanhã", "hoje", "até amanhã no fim do dia" devem virar due_date no formato YYYY-MM-DD usando o calendário acima. Se houver horário ou expressão como "fim do dia", preencha também time.',
+    '- Datas relativas como "amanhã", "hoje", "até amanhã no fim do dia" devem virar due_date no formato YYYY-MM-DD usando o calendário do CONTEXTO TEMPORAL (abaixo). Se houver horário ou expressão como "fim do dia", preencha também time.',
     '- MEMÓRIA: Em TODA resposta, antes de responder, verifique se a mensagem contém dado novo sobre o usuário. Se sim, chame update_memory mesclando com o que já estava salvo.',
+    '',
+    temporal,
+    '',
+    ctx.memory ? `Memória sobre o usuário:\n${ctx.memory}` : null,
   ]);
 }

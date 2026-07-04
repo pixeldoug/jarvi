@@ -37,6 +37,10 @@ export interface UserProfile {
   memory: string;
   timezone: string;
   preferredName: string;
+  /** PostHog distinct_id convention (email), used to attribute AI cost telemetry. */
+  email: string;
+  /** Raw `users.subscription_status` (e.g. 'active' | 'trialing' | 'none'), for cost-by-plan segmentation. */
+  subscriptionStatus: string;
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
@@ -48,7 +52,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
           [userId],
         ),
         getPool().query(
-          'SELECT timezone, preferred_name, name FROM users WHERE id = $1',
+          'SELECT timezone, preferred_name, name, email, subscription_status FROM users WHERE id = $1',
           [userId],
         ),
       ]);
@@ -62,6 +66,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
         memory,
         timezone: userRow?.timezone || FALLBACK_TIMEZONE,
         preferredName,
+        email: userRow?.email || '',
+        subscriptionStatus: userRow?.subscription_status || 'none',
       };
     }
     const db = getDatabase();
@@ -70,8 +76,14 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
         'SELECT memory_text, consent_ai_memory FROM user_memory_profiles WHERE user_id = ?',
         [userId],
       ),
-      db.get<{ timezone?: string; preferred_name?: string; name?: string }>(
-        'SELECT timezone, preferred_name, name FROM users WHERE id = ?',
+      db.get<{
+        timezone?: string;
+        preferred_name?: string;
+        name?: string;
+        email?: string;
+        subscription_status?: string;
+      }>(
+        'SELECT timezone, preferred_name, name, email, subscription_status FROM users WHERE id = ?',
         [userId],
       ),
     ]);
@@ -81,9 +93,17 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       memory,
       timezone: userRow?.timezone || FALLBACK_TIMEZONE,
       preferredName,
+      email: userRow?.email || '',
+      subscriptionStatus: userRow?.subscription_status || 'none',
     };
   } catch {
-    return { memory: '', timezone: FALLBACK_TIMEZONE, preferredName: '' };
+    return {
+      memory: '',
+      timezone: FALLBACK_TIMEZONE,
+      preferredName: '',
+      email: '',
+      subscriptionStatus: 'none',
+    };
   }
 }
 

@@ -203,4 +203,19 @@ export interface AgentRunResult {
   text: string;
   /** Names of every tool successfully invoked across iterations. */
   toolCallNames: string[];
+  /** Token usage aggregated across every OpenAI call made within this run. */
+  usage: AgentTurnUsage;
+}
+
+// ---------------------------------------------------------------------------
+// Cost telemetry
+// ---------------------------------------------------------------------------
+
+export interface AgentTurnUsage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Portion of inputTokens served from OpenAI's automatic prompt cache. */
+  cachedTokens: number;
+  /** Number of OpenAI API calls made within this runAgent() invocation. */
+  apiCalls: number;
 }

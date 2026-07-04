@@ -29,6 +29,7 @@ import {
   getUserLists,
 } from '../core/tasks';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
+import { recordAgentTurnUsage, sumAgentTurnUsage } from '../core/telemetry';
 import type {
   AgentContext,
   ChannelProfile,
@@ -97,7 +98,7 @@ export async function streamChat(
 ): Promise<void> {
   try {
     const profileData = await getUserProfile(userId);
-    const { timezone, preferredName } = profileData;
+    const { timezone, preferredName, email, subscriptionStatus } = profileData;
     let { memory } = profileData;
 
     if (WEB_PROFILE.enableMemoryReconciliation && (await needsReconciliation(userId))) {
@@ -199,7 +200,7 @@ export async function streamChat(
       }
     }
 
-    let { text, toolCallNames } = await runAgent(
+    let { text, toolCallNames, usage } = await runAgent(
       WEB_PROFILE,
       ctx,
       systemPrompt,
@@ -213,6 +214,7 @@ export async function streamChat(
         onSeparator: () => onEvent({ type: 'separator' }),
       },
     );
+    let retried = false;
 
     if (
       WEB_PROFILE.enableAntiHallucinationRetry &&
@@ -240,7 +242,17 @@ export async function streamChat(
       );
       text = retry.text || text;
       toolCallNames = [...toolCallNames, ...retry.toolCallNames];
+      usage = sumAgentTurnUsage([usage, retry.usage]);
+      retried = true;
     }
+
+    recordAgentTurnUsage({
+      email,
+      channel: 'web',
+      subscriptionStatus,
+      usage,
+      retried,
+    });
 
     onEvent({ type: 'done' });
 
