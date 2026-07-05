@@ -12,6 +12,10 @@ on:
       - 'packages/backend/src/services/agent/**'
       - 'packages/backend/evals/**'
       - 'packages/backend/src/services/openaiService.ts'
+  # Lets us re-run the eval on demand (e.g. after a transient OpenAI quota/
+  # rate-limit failure) from the Actions tab, without needing a throwaway
+  # commit just to re-trigger the push/pull_request path filters above.
+  workflow_dispatch:
 
 jobs:
   eval:
@@ -45,14 +49,14 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
-          # Realistic floor: the suite currently sits ~70%. Ratchet this up as
-          # scenario pass-rate improves rather than leaving an aspirational gate
-          # that fails on every agent commit.
-          EVAL_MIN_SATISFACTION: '0.65'
-          # Best-effort determinism so run-to-run comparisons don't flip on
-          # LLM noise. (Temperature is left default since the agent model may
-          # reject a custom value; set AGENT_TEMPERATURE here if it accepts 0.)
-          AGENT_SEED: '7'
+          # Dataset fixes (real weekday math instead of fixed day-offsets,
+          # assertions aligned with the current prompt) plus prompt bug fixes
+          # brought local satisfaction to a stable 83% across repeated runs.
+          # Raise this further only after confirming CI holds at the new floor.
+          # (Determinism knobs AGENT_SEED/AGENT_TEMPERATURE are set directly in
+          # the `eval` npm script in package.json, not here, so local and CI
+          # runs can't drift apart.)
+          EVAL_MIN_SATISFACTION: '0.80'
           NODE_ENV: ci
 
       - name: Post eval results to PR
