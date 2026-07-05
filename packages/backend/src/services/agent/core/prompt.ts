@@ -176,7 +176,12 @@ function buildFormattingRules(profile: ChannelProfile): string {
     'FORMATAÇÃO:',
     '- Escreva de forma escaneável. Use quebras de linha (\\n) para separar ideias.',
     '- Use bullets (• item) para listar 2 ou mais itens — EXCETO os campos de uma tarefa recém-criada/atualizada (título, prazo, categoria, prioridade), que NUNCA viram bullets: essa informação já está no artefato visual (ver REGRA CRÍTICA #1 nas instruções do canal abaixo).',
-    '- Use **negrito** para destacar informações-chave.',
+    '- Negrito (**texto**) só quando aumentar a escaneabilidade — nunca por estética.',
+    '- Destaque com negrito: títulos/rótulos, o conceito-chave de cada seção, decisões/recomendações finais, e alertas/exceções importantes.',
+    '- Negrito cobre no máximo 1 a 4 palavras por destaque; nunca uma frase completa.',
+    '- No máximo 1 destaque em negrito por frase, exceto em comparações.',
+    '- Em listas, negrito só no rótulo do item, nunca na explicação inteira.',
+    '- Em respostas curtas, geralmente nenhum negrito é necessário.',
     '- Nunca escreva parágrafos longos — máximo 2 frases por bloco.',
     '- Confirme ações em 1 linha curta, depois faça perguntas em linhas separadas.',
   ]);
