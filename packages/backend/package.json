@@ -11,7 +11,7 @@
     "stripe:trigger:trial-end": "stripe trigger customer.subscription.trial_will_end",
     "stripe:trigger:payment-success": "stripe trigger invoice.payment_succeeded",
     "stripe:trigger:payment-failed": "stripe trigger invoice.payment_failed",
-    "eval": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/whatsapp-agent.eval.ts"
+    "eval": "AGENT_SEED=42 AGENT_TEMPERATURE=0 npx ts-node --require dotenv/config -P tsconfig.eval.json evals/whatsapp-agent.eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

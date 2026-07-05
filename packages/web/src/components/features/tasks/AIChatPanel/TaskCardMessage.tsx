@@ -1,4 +1,4 @@
-import { CheckCircle, Calendar, Hash, Fire } from '@phosphor-icons/react';
+import { CheckCircle, Calendar, Hash, Fire, Trash } from '@phosphor-icons/react';
 import { Chip } from '../../../ui';
 import type { ToolCallData } from '../../../../hooks/useChatStream';
 import styles from './AIChatPanel.module.css';
@@ -49,6 +49,7 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
   const data = toolCall.result?.data;
   if (!data) return null;
 
+  const isDeleted = toolCall.toolName === 'delete_task';
   const taskId = String(data.id || '');
   const title = String(data.title || toolCall.toolArgs.title || '');
   const isCompleted = toolCall.toolName === 'complete_task' || Boolean(data.completed);
@@ -57,10 +58,14 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
   const category = String(data.category || toolCall.toolArgs.category || '');
   const time = normalizeTime(String(data.time || toolCall.toolArgs.time || ''));
 
-  if (!title && !isCompleted) return null;
+  if (!title && !isCompleted && !isDeleted) return null;
+
+  // A deleted task no longer exists, so there's nothing to navigate to —
+  // unlike the other cards, this one is never clickable.
+  const isClickable = !isDeleted && Boolean(taskId && onTaskClick);
 
   const handleClick = () => {
-    if (taskId && onTaskClick) onTaskClick(taskId);
+    if (isClickable) onTaskClick?.(taskId);
   };
 
   const formattedDate = formatDueDate(dueDate);
@@ -75,24 +80,32 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
 
   return (
     <div
-      className={`${styles.taskCard} ${taskId && onTaskClick ? styles.taskCardClickable : ''}`}
+      className={`${styles.taskCard} ${isClickable ? styles.taskCardClickable : ''}`}
       onClick={handleClick}
-      role={taskId && onTaskClick ? 'button' : undefined}
-      tabIndex={taskId && onTaskClick ? 0 : undefined}
-      onKeyDown={taskId && onTaskClick ? (e) => e.key === 'Enter' && handleClick() : undefined}
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onKeyDown={isClickable ? (e) => e.key === 'Enter' && handleClick() : undefined}
     >
       <div className={styles.taskCardHeader}>
-        <CheckCircle
-          size={20}
-          weight={isCompleted ? 'fill' : 'regular'}
-          className={isCompleted ? styles.taskCardCheckDone : styles.taskCardCheck}
-        />
-        <span className={`${styles.taskCardTitle} ${isCompleted ? styles.taskCardTitleDone : ''}`}>
-          {title || 'Tarefa concluída'}
+        {isDeleted ? (
+          <Trash size={20} weight="regular" className={styles.taskCardCheckDone} />
+        ) : (
+          <CheckCircle
+            size={20}
+            weight={isCompleted ? 'fill' : 'regular'}
+            className={isCompleted ? styles.taskCardCheckDone : styles.taskCardCheck}
+          />
+        )}
+        <span
+          className={`${styles.taskCardTitle} ${isCompleted || isDeleted ? styles.taskCardTitleDone : ''}`}
+        >
+          {title || (isDeleted ? 'Tarefa excluída' : 'Tarefa concluída')}
         </span>
       </div>
 
-      {(dateChipLabel || category || priorityLabel) && (
+      {/* A deleted task's date/category/priority are no longer relevant — the
+          card only needs to confirm WHICH task was removed. */}
+      {!isDeleted && (dateChipLabel || category || priorityLabel) && (
         <div className={styles.taskCardChips}>
           {dateChipLabel && (
             <Chip

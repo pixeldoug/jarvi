@@ -661,6 +661,11 @@ async function executeCompleteTask(
   const taskId = String(args.task_id || '');
   if (!taskId) return { success: false, message: 'task_id é obrigatório' };
 
+  // Fetch the title BEFORE mutating so both the model's confirmation text and
+  // the UI's task card can reference it — without this, "concluída"/"deletada"
+  // confirmations have no way to say WHICH task was affected.
+  const existing = await getTaskById(taskId, ctx.userId);
+
   if (isPostgreSQL()) {
     await getPool().query(
       'UPDATE tasks SET completed = TRUE, updated_at = $1 WHERE id = $2 AND user_id = $3',
@@ -672,7 +677,10 @@ async function executeCompleteTask(
       [now, taskId, ctx.userId],
     );
   }
-  return { success: true, data: { id: taskId, completed: true } };
+  return {
+    success: true,
+    data: { id: taskId, title: existing?.title ?? null, completed: true },
+  };
 }
 
 async function executeDeleteTask(
@@ -681,6 +689,10 @@ async function executeDeleteTask(
 ): Promise<ToolExecutionResult> {
   const taskId = String(args.task_id || '');
   if (!taskId) return { success: false, message: 'task_id é obrigatório' };
+
+  // Fetch BEFORE deleting — once the row is gone there's no way to recover
+  // the title, and both the confirmation text and the UI's task card need it.
+  const existing = await getTaskById(taskId, ctx.userId);
 
   if (isPostgreSQL()) {
     await getPool().query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [
@@ -693,7 +705,10 @@ async function executeDeleteTask(
       ctx.userId,
     ]);
   }
-  return { success: true, data: { id: taskId, deleted: true } };
+  return {
+    success: true,
+    data: { id: taskId, title: existing?.title ?? null, deleted: true },
+  };
 }
 
 async function executeUpdateMemory(

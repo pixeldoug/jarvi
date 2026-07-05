@@ -83,7 +83,7 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
         .filter(
           (tc) =>
             tc.result?.success &&
-            ['create_task', 'update_task', 'complete_task'].includes(tc.toolName),
+            ['create_task', 'update_task', 'complete_task', 'delete_task'].includes(tc.toolName),
         )
         .map((tc) => {
           const taskId = String(tc.result?.data?.id || '');

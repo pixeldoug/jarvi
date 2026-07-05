@@ -93,6 +93,74 @@ export function addDays(isoDate: string, days: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Weekday-aware dates — scenarios like "consulta sexta" or "academia quarta"
+// must resolve to whatever the real next Friday/Wednesday is FROM TODAY, not
+// a fixed day-count offset. A fixed offset (`addDays(today, 4)`) only lands on
+// the right weekday if the suite happens to run on the same weekday it was
+// written on — every other day it silently asserts the wrong date. The
+// production prompt (`buildWeekCalendar` in `time.ts`) shows the model a
+// 7-day calendar and has it match the weekday name directly, so scenarios
+// must replicate that same "next occurrence within 7 days" semantics,
+// including offset 0 when today already IS the target weekday.
+// ---------------------------------------------------------------------------
+
+/** JS `Date#getUTCDay()` convention: 0=domingo ... 6=sábado. */
+export const WEEKDAY = {
+  domingo: 0,
+  segunda: 1,
+  terca: 2,
+  quarta: 3,
+  quinta: 4,
+  sexta: 5,
+  sabado: 6,
+} as const;
+
+/**
+ * Next date (>= isoDate, within the next 6 days) whose weekday matches
+ * `targetWeekday`. If `isoDate` itself already falls on that weekday, returns
+ * `isoDate` unchanged — this mirrors how the model resolves "sexta" when the
+ * 7-day calendar it's shown has today's entry already labeled "sexta-feira".
+ */
+export function nextWeekday(isoDate: string, targetWeekday: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const todayWeekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const offset = (targetWeekday - todayWeekday + 7) % 7;
+  return addDays(isoDate, offset);
+}
+
+// ---------------------------------------------------------------------------
+// Wall-clock-relative times — scenarios that need a "this already happened
+// today" or "this is still upcoming today" time (e.g. testing that overdue
+// same-day appointments aren't prioritized) can't hardcode a clock time
+// either: whether "11:00" is in the past depends on when the suite runs.
+// ---------------------------------------------------------------------------
+
+function currentHourMinute(timezone = 'America/Sao_Paulo'): { hour: number; minute: number } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: timezone,
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '12');
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+  return { hour, minute };
+}
+
+/**
+ * A same-day HH:MM offset from the current wall-clock time, clamped to
+ * [00:00, 23:59]. Use a negative `minutesOffset` for a time guaranteed to
+ * already be in the past today, or positive for one guaranteed still ahead.
+ */
+export function offsetTimeToday(minutesOffset: number, timezone = 'America/Sao_Paulo'): string {
+  const { hour, minute } = currentHourMinute(timezone);
+  const total = Math.max(0, Math.min(23 * 60 + 59, hour * 60 + minute + minutesOffset));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
 // Task factory
 // ---------------------------------------------------------------------------
 

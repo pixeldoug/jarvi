@@ -8,18 +8,59 @@
  *  - tags:     categories for filtering / grouping in Braintrust UI
  */
 
-import { addDays, makeCategory, makeTask, todayIso } from '../helpers';
+import {
+  addDays,
+  makeCategory,
+  makeTask,
+  nextWeekday,
+  offsetTimeToday,
+  todayIso,
+  WEEKDAY,
+} from '../helpers';
+/**
+ * Gold-standard WhatsApp task-creation confirmation, mirroring the mandatory
+ * format in `buildWhatsappExtras` (prompt.ts): bold title + 🗓️, a due-date
+ * line (or none, for undated tasks), then a short reminder ask.
+ *
+ * Deliberately describes the date the way the USER phrased it ("sexta às
+ * 16h") rather than the resolved YYYY-MM-DD/weekday label: the exact
+ * calendar date the model lands on for ambiguous relative expressions isn't
+ * perfectly reproducible run-to-run even with a fixed seed (see the eval
+ * report's "determinism caveat") — pinning a specific resolved date here
+ * risks the grader marking a *correctly computed but differently-run* date
+ * as a factual disagreement. RuleChecker's `mustCallToolArgs` already
+ * asserts the exact due_date; this idealOutput only needs to establish the
+ * expected FORMAT/behavior, not re-litigate the date math.
+ */
+function waConfirmation(
+  title: string,
+  dateAsUserSaidIt: string | null,
+  reminderHint = 'Jarvi oferece um lembrete adequado ao tipo de compromisso e pergunta se o usuário quer um prazo.',
+): string {
+  return dateAsUserSaidIt
+    ? `Salvo! Tarefa "${title}" criada, com o compromisso marcado para ${dateAsUserSaidIt}. ${reminderHint}`
+    : `Salvo! Tarefa "${title}" criada, sem data. ${reminderHint}`;
+}
 
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
 const NEXT_WEEK = addDays(TODAY, 7);
-const IN_TWO_DAYS = addDays(TODAY, 2);
-const IN_FOUR_DAYS = addDays(TODAY, 4);
 const IN_SEVEN_DAYS = addDays(TODAY, 7);
 const YESTERDAY = addDays(TODAY, -1);
+// Weekday-anchored dates — "sexta"/"quarta" must resolve to the REAL next
+// occurrence of that weekday from today, not a fixed day-count (see
+// `nextWeekday` in helpers.ts for why a fixed offset silently breaks on most
+// days of the week).
+const NEXT_WEDNESDAY = nextWeekday(TODAY, WEEKDAY.quarta);
+const NEXT_FRIDAY = nextWeekday(TODAY, WEEKDAY.sexta);
 // Move-out date used in implicit-deadline scenario (25 days out)
 const MOVE_OUT_DATE = addDays(TODAY, 25);
 const MOVE_OUT_DATE_DISPLAY = MOVE_OUT_DATE.split('-').slice(1).reverse().join('/'); // DD/MM
+// Wall-clock-relative times for the overdue/priority scenario — "11:00" is
+// only "already passed" if the suite happens to run after 11am. A time
+// anchored to "now" keeps the HORÁRIO JÁ PASSOU semantics true regardless of
+// when the eval runs.
+const TIME_ALREADY_PASSED_TODAY = offsetTimeToday(-120);
 
 // ---------------------------------------------------------------------------
 // Scenario shape
@@ -128,15 +169,23 @@ export const SCENARIOS: EvalScenario[] = [
       { tool: 'create_task', arg: 'due_date', value: TOMORROW },
       { tool: 'create_task', arg: 'time', value: '10:00' },
     ],
-    mustNotContain: ['sem data', '📋', '🗓️', '✅'],
+    // 🗓️ is REQUIRED by the current prompt ("O emoji 🗓️ faz parte do
+    // formato — sempre inclua"), so it must not be in mustNotContain.
+    mustNotContain: ['sem data', '📋', '✅'],
     tags: ['task-creation'],
   },
   {
     name: 'create-task/no-date',
     input: 'lembrar de renovar o passaporte',
-    mustContain: ['passaporte', 'sem data'],
+    // The current prompt instructs the agent to NEVER write a date line
+    // (literally "sem data" or otherwise) when the task has no due date —
+    // it should omit the line entirely and instead offer a suggested
+    // deadline. 🗓️ is required in every creation confirmation.
+    mustContain: ['passaporte'],
     mustCallTool: ['create_task'],
-    mustNotContain: ['Esta semana', 'Prioridade média', '📋', '🗓️', '✅'],
+    mustNotContain: ['Esta semana', 'Prioridade média', '📋', '✅', 'sem data'],
+    idealOutput:
+      'Salvo! Tarefa "Renovar o passaporte" criada, sem data informada. Jarvi sugere um lembrete com antecedência adequada (ex.: 30 dias antes) e pergunta se o usuário quer definir um prazo.',
     tags: ['task-creation', 'no-date'],
   },
   {
@@ -170,11 +219,12 @@ export const SCENARIOS: EvalScenario[] = [
     mustCallTool: ['create_task'],
     mustCallToolArgs: [
       { tool: 'create_task', arg: 'time', value: '16:00' },
-      { tool: 'create_task', arg: 'due_date', value: IN_FOUR_DAYS },
+      // "sexta" must resolve to the REAL next Friday from today, not a
+      // fixed +4-day offset (only correct if today happens to be Monday).
+      { tool: 'create_task', arg: 'due_date', value: NEXT_FRIDAY },
     ],
     mustNotContain: ['anotado', 'vou anotar', 'registrado', 'me manda de novo'],
-    idealOutput:
-      'Consulta com otorrino Dr Rodrigo Reis — tarefa criada.',
+    idealOutput: waConfirmation('Consulta Otorrino', 'sexta às 16h'),
     tags: ['task-creation', 'implicit-intent', 'appointment'],
   },
   // ── Substantivo + data (sem verbo de intenção) ───────────────────────────────
@@ -187,7 +237,7 @@ export const SCENARIOS: EvalScenario[] = [
       { tool: 'create_task', arg: 'time', value: '10:00' },
     ],
     mustNotContain: ['anotado', 'vou anotar', 'qual dentista', 'mais detalhes'],
-    idealOutput: 'Dentista — tarefa criada.',
+    idealOutput: waConfirmation('Dentista', 'amanhã às 10h'),
     tags: ['task-creation', 'implicit-intent', 'noun-date'],
   },
   {
@@ -195,11 +245,12 @@ export const SCENARIOS: EvalScenario[] = [
     input: 'academia quarta 7h',
     mustCallTool: ['create_task'],
     mustCallToolArgs: [
-      { tool: 'create_task', arg: 'due_date', value: IN_TWO_DAYS },
+      // "quarta" = real next Wednesday from today, not a fixed +2-day offset.
+      { tool: 'create_task', arg: 'due_date', value: NEXT_WEDNESDAY },
       { tool: 'create_task', arg: 'time', value: '07:00' },
     ],
     mustNotContain: ['anotado', 'vou anotar'],
-    idealOutput: 'Academia — tarefa criada.',
+    idealOutput: waConfirmation('Academia', 'quarta às 7h'),
     tags: ['task-creation', 'implicit-intent', 'noun-date'],
   },
 
@@ -213,7 +264,7 @@ export const SCENARIOS: EvalScenario[] = [
       { tool: 'create_task', arg: 'time', value: '09:00' },
     ],
     mustNotContain: ['anotado', 'vou anotar', 'quer que eu crie'],
-    idealOutput: 'Reunião com o CEO — tarefa criada.',
+    idealOutput: waConfirmation('Reunião com o CEO', 'amanhã às 9h'),
     tags: ['task-creation', 'implicit-intent', 'passive-form'],
   },
   {
@@ -221,11 +272,12 @@ export const SCENARIOS: EvalScenario[] = [
     input: 'tenho consulta sexta às 14h',
     mustCallTool: ['create_task'],
     mustCallToolArgs: [
-      { tool: 'create_task', arg: 'due_date', value: IN_FOUR_DAYS },
+      // "sexta" = real next Friday from today, not a fixed +4-day offset.
+      { tool: 'create_task', arg: 'due_date', value: NEXT_FRIDAY },
       { tool: 'create_task', arg: 'time', value: '14:00' },
     ],
     mustNotContain: ['anotado', 'vou anotar', 'quer que eu crie'],
-    idealOutput: 'Consulta — tarefa criada.',
+    idealOutput: waConfirmation('Consulta', 'sexta às 14h'),
     tags: ['task-creation', 'implicit-intent', 'passive-form'],
   },
 
@@ -238,7 +290,7 @@ export const SCENARIOS: EvalScenario[] = [
       { tool: 'create_task', arg: 'due_date', value: TODAY },
     ],
     mustNotContain: ['anotado', 'vou anotar', 'o que você precisa na farmácia'],
-    idealOutput: 'Farmácia — tarefa criada.',
+    idealOutput: waConfirmation('Farmácia', 'hoje à tarde'),
     tags: ['task-creation', 'implicit-intent', 'audio-fragment'],
   },
   {
@@ -249,20 +301,29 @@ export const SCENARIOS: EvalScenario[] = [
       { tool: 'create_task', arg: 'due_date', value: TOMORROW },
     ],
     mustNotContain: ['anotado', 'vou anotar', 'quem é Carlos'],
-    idealOutput: 'Ligar para o Carlos — tarefa criada.',
+    idealOutput: waConfirmation('Ligar para Carlos', 'amanhã cedo'),
     tags: ['task-creation', 'implicit-intent', 'audio-fragment'],
   },
   {
     name: 'create-task/audio-fragment-reuniao-board',
     input: 'reunião board semana que vem 14h',
     mustCallTool: ['create_task'],
-    mustCallToolArgs: [
+    // "semana que vem" WITHOUT a specific weekday is ambiguous (could mean
+    // the same weekday next week, next Monday, etc.) — per product decision,
+    // the agent creates the task immediately (still respects "criação
+    // imediata") but leaves due_date unset and asks the user which day they
+    // mean, instead of silently guessing a date that might be wrong.
+    mustNotCallToolArgs: [
       { tool: 'create_task', arg: 'due_date', value: NEXT_WEEK },
+    ],
+    mustCallToolArgs: [
       { tool: 'create_task', arg: 'time', value: '14:00' },
     ],
+    mustContain: ['dia'],
     mustNotContain: ['anotado', 'vou anotar'],
-    idealOutput: 'Reunião com o board — tarefa criada.',
-    tags: ['task-creation', 'implicit-intent', 'audio-fragment'],
+    idealOutput:
+      'Salvo! Tarefa "Reunião board" criada, sem data ainda. Jarvi pergunta qual dia da semana que vem o usuário quer dizer.',
+    tags: ['task-creation', 'implicit-intent', 'audio-fragment', 'clarify-date'],
   },
 
   {
@@ -278,7 +339,11 @@ export const SCENARIOS: EvalScenario[] = [
       'vou anotar',
       'quer transformar isso em tarefa',
     ],
-    idealOutput: 'Farmácia para comprar a receita do filho — tarefa criada. Quer adicionar um prazo?',
+    idealOutput: waConfirmation(
+      'Passar na farmácia para comprar a receita do meu filho',
+      null,
+      'Jarvi pergunta se o usuário quer adicionar um prazo.',
+    ),
     tags: ['task-creation', 'implicit-intent', 'proactivity'],
   },
   {
@@ -307,11 +372,20 @@ export const SCENARIOS: EvalScenario[] = [
         priority: 'medium',
       }),
     },
-    mustContain: ['amanhã'],
+    // No rule mandates the literal word "amanhã" in the confirmation — the
+    // task-focused prompt only requires the update to actually happen and be
+    // confirmed. The agent may legitimately confirm with the resolved date
+    // (e.g. "06/07") instead of echoing the relative word, so assert on the
+    // due_date it actually saved plus a generic "prazo" confirmation instead.
+    mustContain: ['prazo'],
     mustNotContain: ['sem data', 'não consegui'],
     mustCallTool: ['update_task'],
+    mustCallToolArgs: [
+      { tool: 'update_task', arg: 'task_id', value: 'task-present-mothers-day' },
+      { tool: 'update_task', arg: 'due_date', value: TOMORROW },
+    ],
     idealOutput:
-      'Atualizei o prazo para amanhã no fim do dia.',
+      'Atualizei o prazo para amanhã (fim do dia) — confirmação curta, sem repetir todos os outros detalhes da tarefa.',
     tags: ['web', 'task-mode', 'date-update', 'tool-calling'],
   },
   {
@@ -352,7 +426,14 @@ export const SCENARIOS: EvalScenario[] = [
     mustCallToolCount: { update_task: 2 },
     mustUpdateTaskIds: ['task-jarvi-p1', 'task-jarvi-p2'],
     mustNotUpdateTaskIds: ['task-personal-present', 'task-jarvi-future'],
-    idealOutput: 'Pronto, tirei as datas das duas tarefas da categoria Jarvi.',
+    // The UI only renders an individual task card when there's a SINGLE
+    // update_task call in the message (see ChatMessage.tsx:
+    // `shouldSummarizeTaskUpdates` collapses >1 update into a generic "N
+    // tarefas atualizadas" card with no titles) — with 2 updates here, naming
+    // which tasks were affected in the text is the ONLY way the user finds
+    // out, so the ideal should expect the titles to be named, not omitted.
+    idealOutput:
+      'Pronto — tirei as datas das tarefas "P1 Botão Conectar no Apps muda quando está conectado" e "P2 Tag do Whatsapp Conectado aparece ser custom" (categoria Jarvi).',
     tags: ['web', 'multi-edit', 'clear-date', 'tool-calling'],
   },
 
@@ -362,7 +443,12 @@ export const SCENARIOS: EvalScenario[] = [
     input: 'o que eu devo priorizar agora?',
     contextOverrides: {
       activeTasks: [
-        makeTask({ title: 'Reunião com Mendes', due_date: TODAY, time: '11:00' }),
+        // Anchored to "now minus 2h" instead of a fixed "11:00" — a fixed
+        // clock time only represents an ALREADY-PASSED same-day appointment
+        // if the suite happens to run after that hour. Anchoring to "now"
+        // keeps this scenario's HORÁRIO JÁ PASSOU premise true at any time
+        // of day the eval runs.
+        makeTask({ title: 'Reunião com Mendes', due_date: TODAY, time: TIME_ALREADY_PASSED_TODAY }),
         makeTask({ title: 'Enviar contrato', due_date: TODAY }),
         makeTask({ title: 'Tarefas atrasadas', due_date: YESTERDAY }),
       ],
@@ -418,7 +504,7 @@ export const SCENARIOS: EvalScenario[] = [
       ],
     },
     mustContain: ['Revisar slides'],
-    idealOutput: 'Revisar slides às 15:00.',
+    idealOutput: 'Sua próxima tarefa é: Revisar slides, hoje às 15:00.',
     tags: ['voice', 'conciseness'],
   },
 
