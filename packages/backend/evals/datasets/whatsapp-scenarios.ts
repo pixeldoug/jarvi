@@ -8,7 +8,7 @@
  *  - tags:     categories for filtering / grouping in Braintrust UI
  */
 
-import { addDays, makeCategory, makePendingTask, makeTask, todayIso } from '../helpers';
+import { addDays, makeCategory, makeTask, todayIso } from '../helpers';
 
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
@@ -34,7 +34,6 @@ export interface EvalScenario {
     preferredName?: string;
     activeTasks?: ReturnType<typeof makeTask>[];
     categories?: ReturnType<typeof makeCategory>[];
-    pendingTasks?: ReturnType<typeof makePendingTask>[];
     focusedTask?: ReturnType<typeof makeTask>;
     mode?: 'general' | 'task';
   };
@@ -267,6 +266,22 @@ export const SCENARIOS: EvalScenario[] = [
   },
 
   {
+    name: 'create-task/soft-mention-still-creates',
+    input: 'preciso passar na farmácia comprar a receita do meu filho qualquer hora dessas',
+    mustCallTool: ['create_task'],
+    mustNotCallToolArgs: [{ tool: 'create_task', arg: 'due_date', value: TODAY }],
+    mustNotContain: [
+      'quer que eu crie',
+      'posso anotar',
+      'quer que eu registre',
+      'anotado',
+      'vou anotar',
+      'quer transformar isso em tarefa',
+    ],
+    idealOutput: 'Farmácia para comprar a receita do filho — tarefa criada. Quer adicionar um prazo?',
+    tags: ['task-creation', 'implicit-intent', 'proactivity'],
+  },
+  {
     name: 'create-task/implicit-deadline-before-event-date',
     input: `preciso ver o portão da casa nova para os gatos. minha saída da casa atual é dia ${MOVE_OUT_DATE_DISPLAY} e preciso ter isso resolvido antes`,
     mustCallTool: ['create_task'],
@@ -277,27 +292,6 @@ export const SCENARIOS: EvalScenario[] = [
     // idealOutput omitted — the key behavior is the due_date being before the move-out date,
     // which is already validated by mustCallTool + mustNotCallToolArgs above.
     tags: ['task-creation', 'temporal-reasoning', 'implicit-deadline'],
-  },
-  {
-    name: 'pending-task/add-date-before-confirming',
-    input: 'vamos fazer amanhã',
-    contextOverrides: {
-      pendingTasks: [
-        makePendingTask({
-          id: 'pending-vpn-no-date',
-          suggested_title: 'Configurar VPN no tablet e note da au',
-          suggested_due_date: null,
-        }),
-      ],
-    },
-    mustContain: ['amanhã'],
-    mustNotContain: ['confirmada', 'sem data'],
-    mustCallTool: ['update_pending_task'],
-    mustNotCallTool: ['confirm_pending_task'],
-    // "aba Integrações" is still correct here — pending tasks (AI-initiated) still live there
-    idealOutput:
-      'Perfeito — deixei para amanhã. Ela continua na aba Integrações para você aprovar.',
-    tags: ['pending-task', 'date-update', 'tool-calling'],
   },
   {
     name: 'web-task/update-focused-task-due-date',

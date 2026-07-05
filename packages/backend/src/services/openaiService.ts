@@ -412,7 +412,8 @@ export const updateMemoryFromWhatsappText = async (
   return null;
 };
 
-// `updateTaskFromFollowUp` was removed — the unified WhatsApp agent now
-// handles pending-task updates via the `update_pending_task` tool call,
-// using the live LLM context instead of a separate follow-up extraction step.
-// See packages/backend/src/services/agent/core/tools.ts.
+// `updateTaskFromFollowUp` was removed as part of the unified agent
+// migration. Pending-task confirm/reject/update now goes exclusively through
+// the REST endpoints in pendingTaskController — the AI agent chat no longer
+// has a pending-task tool surface (it was dead: no channel ever populated
+// `ctx.pendingTasks`, so the tools/prompt section could never be reached).

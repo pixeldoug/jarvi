@@ -2,16 +2,16 @@
  * Twilio WhatsApp webhook entry point.
  *
  * Responsibilities (kept intentionally minimal — single source of truth for
- * intent detection and pending_task lifecycle is the unified agent):
+ * intent detection is the unified agent; pending_task confirm/reject/update
+ * lives only in the REST API — see pendingTaskController):
  *   1. Validate Twilio signature.
  *   2. ACK Twilio with empty TwiML so the request returns < 1s.
  *   3. Normalize the payload and enqueue it for the worker.
  *   4. Send a quick "Processando..." for text-only messages.
  *
  * NO routing on body content (sim/não/follow-up/auto-caption media) lives
- * here anymore — the agent reads the active pending_tasks from its prompt
- * context and decides via tool calls (`confirm_pending_task`,
- * `reject_pending_task`, `update_pending_task`).
+ * here anymore — the agent creates tasks directly (`create_task`) based on
+ * the message content.
  */
 import { Request, Response } from 'express';
 import twilio from 'twilio';

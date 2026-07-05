@@ -21,66 +21,71 @@ import {
   setupEvalDatabase,
   buildContext,
   seedCategoriesForEval,
-  seedPendingTasksForEval,
   seedTasksForEval,
 } from './helpers';
 import { SCENARIOS } from './datasets/whatsapp-scenarios';
 import { WEB_SCENARIOS } from './datasets/web-scenarios';
-import type { ChannelProfile, ToolName } from '../src/services/agent/core/types';
+import type { ChannelProfile } from '../src/services/agent/core/types';
 
 const ALL_SCENARIOS = [...SCENARIOS, ...WEB_SCENARIOS];
 
 // ---------------------------------------------------------------------------
-// Channel profile — full production tool set, safe against in-memory SQLite
+// Channel profiles — mirror production exactly (`whatsapp.ts` / `web.ts`),
+// except `transport` which stays 'single' for both since the eval harness
+// doesn't consume an SSE stream. Any other divergence from production here
+// defeats the purpose of the eval: it would validate behavior nobody ships.
 // ---------------------------------------------------------------------------
 
 const EVAL_WHATSAPP_PROFILE: ChannelProfile = {
   id: 'whatsapp',
-  taskCreationTarget: 'pending_tasks',
+  taskCreationTarget: 'tasks',
   toolsAvailable: [
     'create_task',
     'update_task',
     'complete_task',
     'delete_task',
+    'search_tasks',
     'update_memory',
-    'confirm_pending_task',
-    'reject_pending_task',
-    'update_pending_task',
-  ] as ToolName[],
+  ],
   outputFormat: 'plain',
   transport: 'single',
   enableBriefing: true,
   enableMemoryReconciliation: false,
-  enableDedup: false,
-  enableAntiHallucinationRetry: false,
+  enableDedup: true,
+  enableAntiHallucinationRetry: true,
   supportsTaskMode: false,
   // Loaded lazily below after DB is ready
   systemPromptExtras: undefined,
 };
 
-const EVAL_WEB_TASK_PROFILE: ChannelProfile = {
-  id: 'web',
-  taskCreationTarget: 'tasks',
-  toolsAvailable: ['update_task', 'update_memory'] as ToolName[],
-  outputFormat: 'markdown',
-  transport: 'single',
-  enableBriefing: false,
-  enableMemoryReconciliation: false,
-  enableDedup: false,
-  enableAntiHallucinationRetry: true,
-  supportsTaskMode: true,
-  systemPromptExtras: undefined,
-};
-
+// Production uses the SAME profile for both web general chat and the
+// task-focused sidebar (see web.ts: buildTaskFocusedPrompt/buildSystemPrompt
+// are both called with `WEB_PROFILE`) — one eval profile mirrors that.
 const EVAL_WEB_PROFILE: ChannelProfile = {
   id: 'web',
   taskCreationTarget: 'tasks',
-  toolsAvailable: ['create_task', 'update_task', 'complete_task', 'delete_task', 'update_memory'] as ToolName[],
+  toolsAvailable: [
+    'create_task',
+    'update_task',
+    'complete_task',
+    'delete_task',
+    'search_tasks',
+    'update_memory',
+    'create_list',
+    'update_list',
+    'delete_list',
+    'show_list',
+    'create_category',
+    'update_category',
+    'delete_category',
+    'show_category',
+    'scan_gmail',
+  ],
   outputFormat: 'markdown',
   transport: 'single',
   enableBriefing: false,
-  enableMemoryReconciliation: false,
-  enableDedup: false,
+  enableMemoryReconciliation: true,
+  enableDedup: true,
   enableAntiHallucinationRetry: true,
   supportsTaskMode: true,
   systemPromptExtras: undefined,
@@ -97,6 +102,13 @@ interface CapturedToolCall {
 
 const toolCallsByScenario = new Map<string, string[]>();
 const toolCallDetailsByScenario = new Map<string, CapturedToolCall[]>();
+// RuleChecker's specific failure reasons (e.g. "MISSING: ...", "UNEXPECTED_TOOL: ...").
+// Braintrust's local EvalResult only exposes the final numeric score per scorer
+// (`scores: Record<string, number | null>`) — the rich `metadata` a scorer
+// returns is not preserved on the object `Eval()` gives back locally, only
+// shipped to the remote UI. So RuleChecker stores its own reasons here,
+// keyed the same way, for the local failure summary below to read back.
+const ruleFailuresByScenario = new Map<string, string[]>();
 
 function scenarioKey(input: Record<string, unknown>): string {
   return JSON.stringify(input);
@@ -121,18 +133,12 @@ async function runScenario(scenario: {
   );
   ctx.originalUserMessage = scenario.input;
   await seedCategoriesForEval(ctx.categories);
-  await seedPendingTasksForEval(ctx.pendingTasks);
   await seedTasksForEval([
     ...(ctx.activeTasks ?? []),
     ...(ctx.focusedTask ? [ctx.focusedTask] : []),
   ]);
 
-  const profile =
-    ctx.mode === 'task' && ctx.focusedTask
-      ? EVAL_WEB_TASK_PROFILE
-      : scenario.channel === 'web'
-        ? EVAL_WEB_PROFILE
-        : EVAL_WHATSAPP_PROFILE;
+  const profile = scenario.channel === 'web' ? EVAL_WEB_PROFILE : EVAL_WHATSAPP_PROFILE;
   const systemPrompt =
     ctx.mode === 'task' && ctx.focusedTask
       ? buildTaskFocusedPrompt(ctx.focusedTask, ctx, profile)
@@ -270,6 +276,8 @@ function RuleChecker({
     }
   }
 
+  ruleFailuresByScenario.set(scenarioKey(input), failures);
+
   return {
     name: 'RuleChecker',
     score: failures.length === 0 ? 1 : 0,
@@ -361,9 +369,16 @@ async function main() {
       : 0;
 
   // ── Collect per-case failures ─────────────────────────────────────────────
+  // NOTE: `EvalResult.scores` from the `braintrust` SDK is a plain
+  // `Record<string, number | null>` — just the final numeric score per
+  // scorer, not an object with `.score`/`.metadata`. The detailed reasons a
+  // scorer computes (e.g. RuleChecker's `metadata.failures`) are shipped to
+  // the remote Braintrust UI but not returned on this local object, so
+  // RuleChecker mirrors its own reasons into `ruleFailuresByScenario` above
+  // for us to read back here.
   type EvalResultItem = {
     input: unknown;
-    scores: Record<string, { score: number | null; metadata?: unknown } | null>;
+    scores: Record<string, number | null>;
     metadata?: unknown;
   };
 
@@ -376,12 +391,15 @@ async function main() {
       String((r.input as { input?: string } | undefined)?.input ?? 'unknown').slice(0, 60);
 
     for (const [scorerName, score] of Object.entries(r.scores ?? {})) {
-      if (score && (score.score ?? 1) < 1) {
-        const reasons = ((score.metadata as { failures?: string[] } | undefined)?.failures) ?? [];
+      if (score !== null && score < 1) {
+        const reasons =
+          scorerName === 'RuleChecker'
+            ? ruleFailuresByScenario.get(scenarioKey(r.input as Record<string, unknown>)) ?? []
+            : [];
         failures.push({
           scenario: scenarioName,
           scorer: scorerName,
-          reason: reasons.length > 0 ? reasons.join('; ') : `score: ${score.score}`,
+          reason: reasons.length > 0 ? reasons.join('; ') : `score: ${score}`,
         });
       }
     }

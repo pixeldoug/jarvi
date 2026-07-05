@@ -10,7 +10,6 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   AgentContext,
   CategoryRow,
-  PendingTaskRow,
   TaskRow,
 } from '../src/services/agent/core/types';
 
@@ -98,7 +97,6 @@ export function addDays(isoDate: string, days: number): string {
 // ---------------------------------------------------------------------------
 
 let _taskIdCounter = 1;
-let _pendingTaskIdCounter = 1;
 let _categoryIdCounter = 1;
 
 export function makeCategory(
@@ -130,67 +128,6 @@ export function makeTask(
     created_at: new Date().toISOString(),
     ...overrides,
   };
-}
-
-export function makePendingTask(
-  overrides: Partial<PendingTaskRow> & { suggested_title: string },
-): PendingTaskRow {
-  return {
-    id: `pending-${_pendingTaskIdCounter++}`,
-    user_id: 'eval-user',
-    source: 'whatsapp',
-    suggested_description: null,
-    suggested_priority: null,
-    suggested_due_date: null,
-    suggested_time: null,
-    suggested_category: null,
-    status: 'awaiting_confirmation',
-    expires_at: addDays(todayIso(), 1),
-    created_at: new Date().toISOString(),
-    ...overrides,
-  };
-}
-
-export async function seedPendingTasksForEval(
-  pendingTasks: PendingTaskRow[],
-): Promise<void> {
-  if (pendingTasks.length === 0) return;
-
-  const { getDatabase } = await import('../src/database');
-  const db = getDatabase();
-  const now = new Date().toISOString();
-
-  for (const pending of pendingTasks) {
-    await db.run(
-      `INSERT OR REPLACE INTO pending_tasks (
-         id, user_id, source, raw_content, transcription, original_whatsapp_content,
-         media_attachments, suggested_title, suggested_description, suggested_priority,
-         suggested_due_date, suggested_time, suggested_category, status,
-         whatsapp_message_sid, whatsapp_phone, expires_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        pending.id,
-        pending.user_id,
-        pending.source,
-        pending.suggested_title,
-        null,
-        pending.suggested_title,
-        null,
-        pending.suggested_title,
-        pending.suggested_description,
-        pending.suggested_priority,
-        pending.suggested_due_date,
-        pending.suggested_time,
-        pending.suggested_category,
-        pending.status,
-        null,
-        '+5500000000000',
-        pending.expires_at,
-        pending.created_at ?? now,
-        now,
-      ],
-    );
-  }
 }
 
 export async function seedTasksForEval(tasks: TaskRow[]): Promise<void> {
@@ -263,7 +200,6 @@ export interface ContextOptions {
   preferredName?: string;
   activeTasks?: TaskRow[];
   categories?: CategoryRow[];
-  pendingTasks?: PendingTaskRow[];
   focusedTask?: TaskRow;
   mode?: 'general' | 'task';
 }
@@ -278,7 +214,6 @@ export function buildContext(opts: ContextOptions = {}): AgentContext {
     completedTaskCount: 2,
     lists: [],
     categories: opts.categories ?? [],
-    pendingTasks: opts.pendingTasks ?? [],
     mode: opts.mode ?? (opts.focusedTask ? 'task' : 'general'),
     focusedTask: opts.focusedTask,
     originalUserMessage: '',
