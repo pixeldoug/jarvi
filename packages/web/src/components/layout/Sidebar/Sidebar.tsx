@@ -45,6 +45,7 @@ import { ThemeToggle } from '../../ui/ThemeToggle';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignOut, Gear } from '@phosphor-icons/react';
+import { Repeat } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
 // ── Re-exported task navigation constants ─────────────────────────────────────
@@ -59,6 +60,7 @@ export type ListType =
   | 'later'
   | 'noDate'
   | 'overdue'
+  | 'recurring'
   | 'completed';
 
 export type CategoryType = string;
@@ -128,6 +130,7 @@ const NAV_ITEMS: Array<{ id: ListType; label: string; icon: typeof Checks }> = [
   { id: 'later', label: 'Calendário', icon: CalendarDots },
   { id: 'noDate', label: 'Sem data', icon: Tray },
   { id: 'overdue', label: 'Vencidas', icon: HourglassLow },
+  { id: 'recurring', label: 'Recorrentes', icon: Repeat as typeof Checks },
 ];
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────

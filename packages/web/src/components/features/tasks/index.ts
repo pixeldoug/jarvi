@@ -18,6 +18,8 @@ export { PriorityPicker } from './PriorityPicker';
 export type { PriorityPickerProps, Priority } from './PriorityPicker';
 export { CategoryPicker } from './CategoryPicker';
 export type { CategoryPickerProps, Category } from './CategoryPicker';
+export { FrequencyPicker } from './FrequencyPicker';
+export type { FrequencyPickerProps, FrequencyValue } from './FrequencyPicker';
 
 export { PendingTaskCard } from './PendingTasks/PendingTaskCard';
 export { PendingTaskDetailsSidebar } from './PendingTasks/PendingTaskDetailsSidebar';

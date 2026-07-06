@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 3000,
+      watch: {
+        usePolling: true,
+        interval: 300,
+      },
       proxy: {
         '/api': {
           target: 'http://localhost:3001',
@@ -34,7 +38,21 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': '/src',
-        '@jarvi/shared': path.resolve(__dirname, '../shared/dist/index.js'),
+        // Points at the ESM build (packages/shared's `build` script runs
+        // both `tsc` for dist/ (CJS, consumed by the Node backend) and
+        // `tsc -p tsconfig.esm.json` for dist/esm/ (real `export const`
+        // syntax, consumed here). Aliasing to the CJS dist/index.js instead
+        // is a trap: Rollup's production build (`vite build`) has to
+        // statically re-derive named exports from tsc's CJS output
+        // (`exports.foo = ...` assignments reached through a re-exported
+        // `__exportStar` barrel), and that heuristic is unreliable — it can
+        // silently fail for a subset of named exports (seen with a bare
+        // `export const X: number[] = [...]` sitting next to other exports
+        // that resolved fine) with a misleading "X is not exported by
+        // dist/index.js" error. Aliasing to genuine ESM sidesteps that
+        // whole class of bug since Rollup then parses real `export`
+        // statements instead of re-deriving them from CJS.
+        '@jarvi/shared': path.resolve(__dirname, '../shared/dist/esm/index.js'),
       },
     },
     define: {

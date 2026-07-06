@@ -149,8 +149,16 @@ const createTables = async (): Promise<void> => {
       important ${booleanType} DEFAULT FALSE,
       due_date ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       time TEXT,
+      -- recurrence_type: 'none' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'custom'
+      -- recurrence_config: JSON matching RecurrenceConfig (see packages/shared/src/types/recurrence.ts)
       recurrence_type TEXT DEFAULT 'none',
       recurrence_config TEXT,
+      -- End date of the recurrence (mirrors recurrence_config.until for easy indexing/querying)
+      recurrence_until ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      -- Points to the root task id of the recurrence series (set on generated occurrences)
+      recurrence_parent_id TEXT,
+      -- Idempotency marker: set once this task's next occurrence has been generated
+      recurrence_next_task_id TEXT,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -271,7 +279,9 @@ const createTables = async (): Promise<void> => {
 
     // Indexes powering the agent's active-task fetch and `search_tasks` tool.
     `CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_due ON tasks (user_id, completed, due_date);`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_user_category ON tasks (user_id, category);`
+    `CREATE INDEX IF NOT EXISTS idx_tasks_user_category ON tasks (user_id, category);`,
+    // Powers the recurrence sweep's "which tasks need their next occurrence generated" query.
+    `CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_sweep ON tasks (recurrence_type, completed, due_date);`
   ];
   
   if (isPostgres) {
@@ -909,6 +919,28 @@ const runMigrations = async (): Promise<void> => {
         // Column already exists, ignore
       }
 
+      // Migration: Add recurrence columns (until / parent / next-occurrence marker) to tasks table
+      const recurrenceTaskMigrations = [
+        'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_until TIMESTAMP',
+        'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_parent_id TEXT',
+        'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_next_task_id TEXT',
+      ];
+      for (const migration of recurrenceTaskMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
+      try {
+        await client.query(
+          'CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_sweep ON tasks (recurrence_type, completed, due_date)'
+        );
+      } catch (e) {
+        // Index already exists, ignore
+      }
+
       // Migration: Add gmail_message_id to pending_tasks for deduplication
       try {
         await client.query(`ALTER TABLE pending_tasks ADD COLUMN IF NOT EXISTS gmail_message_id TEXT`);
@@ -1212,6 +1244,28 @@ const runMigrations = async (): Promise<void> => {
       await db.exec(`ALTER TABLE tasks ADD COLUMN source TEXT DEFAULT 'manual'`);
     } catch (e) {
       // Column already exists, ignore
+    }
+
+    // Migration: Add recurrence columns (until / parent / next-occurrence marker) to tasks table (SQLite)
+    const recurrenceTaskMigrationsSqlite = [
+      'ALTER TABLE tasks ADD COLUMN recurrence_until DATETIME',
+      'ALTER TABLE tasks ADD COLUMN recurrence_parent_id TEXT',
+      'ALTER TABLE tasks ADD COLUMN recurrence_next_task_id TEXT',
+    ];
+    for (const migration of recurrenceTaskMigrationsSqlite) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    try {
+      await db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_sweep ON tasks (recurrence_type, completed, due_date)'
+      );
+    } catch (e) {
+      // Index already exists, ignore
     }
 
     // Migration: Add gmail_message_id to pending_tasks for deduplication (SQLite)

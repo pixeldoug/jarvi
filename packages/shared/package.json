@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.esm.json",
     "dev": "tsc --watch",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
     "tokens:import": "node src/design-tokens/scripts/import-from-figma.js",

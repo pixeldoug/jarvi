@@ -7,6 +7,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Calendar, Hash, Fire, Trash, Sparkle, ArrowLeft } from '@phosphor-icons/react';
+import { Repeat } from 'lucide-react';
+import type { RecurrenceType } from '@jarvi/shared';
 import { Task } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
@@ -14,8 +16,10 @@ import { TaskCheckbox } from '../TaskCheckbox';
 import { TaskDatePicker } from '../TaskDatePicker';
 import { PriorityPicker, type Priority } from '../PriorityPicker';
 import { CategoryPicker } from '../CategoryPicker';
+import { FrequencyPicker, type FrequencyValue } from '../FrequencyPicker';
 import { Button, Chip } from '../../../ui';
 import { parseDateString } from '../../../../lib/utils';
+import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recurrence';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
 import styles from './TaskDetailsSidebar.module.css';
 
@@ -64,11 +68,13 @@ export function TaskDetailsSidebar({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const skipTitleBlurSaveRef = useRef(false);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const priorityChipRef = useRef<HTMLDivElement>(null);
   const categoryChipRef = useRef<HTMLDivElement>(null);
+  const frequencyChipRef = useRef<HTMLDivElement>(null);
 
   // Update local state when task changes
   useEffect(() => {
@@ -350,6 +356,7 @@ export function TaskDetailsSidebar({
       setShowDatePicker(false);
       setShowPriorityPicker(false);
       setShowCategoryPicker(false);
+      setShowFrequencyPicker(false);
     }
   }, [isOpen]);
 
@@ -448,6 +455,70 @@ export function TaskDetailsSidebar({
       });
     } catch (error) {
       console.error('Failed to clear task category:', error);
+    }
+  };
+
+  // Current frequency value derived straight from the task (no local mirror
+  // state — same pattern as category/priority in this component).
+  const currentFrequency: FrequencyValue = {
+    recurrenceType: (task?.recurrence_type as RecurrenceType) || 'none',
+    recurrenceConfig: parseRecurrenceConfig(task?.recurrence_config),
+  };
+
+  // Handle frequency change (from FrequencyPicker)
+  const handleFrequencyChange = async (next: FrequencyValue) => {
+    if (!task) return;
+
+    // Recurrence needs a starting due date to anchor to — default to today
+    // when the user configures a frequency before picking a date. Hours must
+    // be zeroed before the dueDate is later serialized with toISOString(),
+    // otherwise evening local time in negative UTC-offset zones rolls over
+    // to tomorrow's date once converted to UTC.
+    const needsDefaultDate = next.recurrenceType !== 'none' && !selectedDate;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextDate = needsDefaultDate ? today : selectedDate;
+    if (needsDefaultDate) setSelectedDate(nextDate);
+
+    try {
+      await onUpdateTask(task.id, {
+        title: title || task.title,
+        description: task.description,
+        priority: task.priority,
+        category: task.category,
+        completed: task.completed,
+        dueDate: nextDate ? nextDate.toISOString().split('T')[0] : task.due_date,
+        time: selectedTime || task.time,
+        recurrence_type: next.recurrenceType,
+        recurrence_config: next.recurrenceConfig ? JSON.stringify(next.recurrenceConfig) : null,
+        recurrence_until:
+          next.recurrenceConfig?.until.type === 'onDate' ? next.recurrenceConfig.until.date ?? null : null,
+      });
+    } catch (error) {
+      console.error('Failed to update task frequency:', error);
+      if (needsDefaultDate) setSelectedDate(null);
+    }
+  };
+
+  // Handle frequency clear (remove recurrence)
+  const handleFrequencyClear = async () => {
+    if (!task) return;
+
+    try {
+      await onUpdateTask(task.id, {
+        title: title || task.title,
+        description: task.description,
+        priority: task.priority,
+        category: task.category,
+        completed: task.completed,
+        dueDate: task.due_date,
+        time: task.time,
+        recurrence_type: 'none',
+        recurrence_config: null,
+        recurrence_until: null,
+      });
+    } catch (error) {
+      console.error('Failed to clear task frequency:', error);
     }
   };
 
@@ -653,6 +724,28 @@ export function TaskDetailsSidebar({
           selectedPriority={task.priority as Priority | undefined}
           onPrioritySelect={handlePrioritySelect}
           anchorRef={priorityChipRef}
+        />
+
+        <div ref={frequencyChipRef} style={{ display: 'inline-flex' }}>
+          <Chip
+            label={formatFrequencyChip(currentFrequency.recurrenceType, currentFrequency.recurrenceConfig) || 'Recorrência'}
+            icon={<Repeat size={16} />}
+            size="medium"
+            interactive
+            active={showFrequencyPicker || currentFrequency.recurrenceType !== 'none'}
+            onClick={() => setShowFrequencyPicker((prev) => !prev)}
+            onClear={currentFrequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
+          />
+        </div>
+
+        {/* Frequency Picker */}
+        <FrequencyPicker
+          isOpen={showFrequencyPicker}
+          onClose={() => setShowFrequencyPicker(false)}
+          anchorRef={frequencyChipRef}
+          value={currentFrequency}
+          onChange={handleFrequencyChange}
+          baseDate={selectedDate || undefined}
         />
       </div>
 

@@ -115,6 +115,41 @@
   padding-right: 6px;
 }
 
+/* Icon-only chip: square button, width === height, label hidden */
+.iconOnly {
+  position: relative;
+  padding: 0;
+  gap: 0;
+  min-width: 0;
+}
+
+.iconOnly.chipSmall {
+  width: var(--size-chip-small-height, 28px);
+}
+
+.iconOnly.chipMedium {
+  width: var(--size-chip-medium-height, 36px);
+}
+
+.iconOnly.hasClear {
+  padding-right: 0;
+}
+
+/* Clear badge overlaps the icon-only button's corner */
+.iconOnly .clearButton {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  margin-left: 0;
+  background: var(--semantic-surface-secondary, #2a2a2a);
+  border: 1px solid var(--semantic-border-primary);
+  opacity: 1;
+}
+
+.iconOnly .clearButton:hover {
+  background: var(--semantic-surface-tertiary);
+}
+
 /* Clear button */
 .clearButton {
   display: flex;

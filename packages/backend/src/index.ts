@@ -23,6 +23,7 @@ import gmailRoutes from './routes/gmailRoutes';
 import { CollaborationService } from './services/collaborationService';
 import { initializeWhatsappWorker } from './queues/whatsappQueue';
 import { initializeGmailWorker } from './queues/gmailQueue';
+import { startRecurrenceScheduler } from './services/recurrenceService';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { shutdownPostHog } from './services/posthogService';
 
@@ -208,12 +209,14 @@ initializeDatabase()
     const collaborationService = new CollaborationService(server);
     initializeWhatsappWorker();
     initializeGmailWorker();
+    startRecurrenceScheduler();
     
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🤝 Collaboration service initialized`);
       console.log('📱 WhatsApp worker initialized');
       console.log('📧 Gmail worker initialized');
+      console.log('🔁 Recurrence scheduler initialized');
     });
 
     // Flush buffered PostHog events before the process exits.

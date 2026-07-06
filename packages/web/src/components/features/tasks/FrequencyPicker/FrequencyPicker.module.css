@@ -1,0 +1,238 @@
+/**
+ * FrequencyPicker Styles
+ *
+ * Follows the "Frequência" Dropdown design in Figma (node 40001716:70617):
+ * a header, then fields grouped into cards. Each field is a row with its
+ * label on the left and a ghost trigger button (value + chevron) on the
+ * right.
+ *
+ * The Dropdown component wraps children in a .content div with 8px padding.
+ * We cancel it on .container and apply our own spacing (same pattern as
+ * FilterPopover.module.css).
+ */
+
+.container {
+  margin: calc(-1 * var(--sizes-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+/* ============================================================================
+   HEADER
+   ============================================================================ */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--sizes-1) var(--sizes-3);
+  width: 100%;
+}
+
+.headerTitle {
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+/* ============================================================================
+   CARD (groups rows with a bordered, filled container)
+   ============================================================================ */
+
+/* Figma insets the card 8px from the Dropdown's edges (DropdownContent
+   wrapper) before the card's own 12px internal padding — replicate that
+   here via margin instead of width:100%, so the card doesn't sit flush
+   against the popover border. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-0-5);
+  margin: 0 var(--sizes-2);
+  padding: 0 var(--sizes-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--semantic-border-primary);
+  background-color: var(--semantic-surface-secondary);
+}
+
+/* Non-row content nested inside a card (weekday toggles, interval input) */
+.cardBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  width: 100%;
+  padding: var(--sizes-2) 0 var(--sizes-3);
+}
+
+/* ============================================================================
+   ROW (label left, trigger right)
+   ============================================================================ */
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+  height: 48px;
+  width: 100%;
+}
+
+.rowLabel {
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+/* ============================================================================
+   ROW TRIGGER (ghost button: value + chevron)
+   ============================================================================ */
+
+.rowTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-1);
+  min-width: 0;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 var(--sizes-2) 0 var(--sizes-3);
+  border: none;
+  border-radius: var(--sizes-4);
+  background-color: var(--component-button-ghost-bg-default);
+  color: var(--component-button-ghost-content-default);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rowTrigger:hover {
+  background-color: var(--component-button-ghost-bg-hover);
+  color: var(--component-button-ghost-content-hover);
+}
+
+.rowTriggerOpen,
+.rowTriggerOpen:hover {
+  background-color: var(--component-button-ghost-bg-active);
+  color: var(--component-button-ghost-content-active);
+}
+
+.rowTriggerValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+}
+
+.rowTriggerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.rowTriggerIconOpen {
+  transform: rotate(180deg);
+}
+
+/* ============================================================================
+   ROW TRIGGER DROPDOWN OPTIONS (Select-like list rendered in nested Dropdown)
+   ============================================================================ */
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-0-5);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.options::-webkit-scrollbar {
+  width: 6px;
+}
+
+.options::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.options::-webkit-scrollbar-thumb {
+  background: var(--semantic-content-tertiary);
+  border-radius: var(--sizes-2);
+}
+
+.options::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}
+
+/* ============================================================================
+   CUSTOM: "A cada [N] <unidade>"
+   ============================================================================ */
+
+.intervalRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sizes-2);
+  width: 100%;
+}
+
+.intervalInput {
+  flex: 1;
+}
+
+.intervalUnit {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-secondary);
+  white-space: nowrap;
+}
+
+/* ============================================================================
+   EXACT TIME FIELD — options list rendered inside the nested Dropdown
+   ============================================================================ */
+
+.timeOptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-0-5);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.timeOptions::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timeOptions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.timeOptions::-webkit-scrollbar-thumb {
+  background: var(--semantic-content-tertiary);
+  border-radius: var(--sizes-2);
+}
+
+.timeOptions::-webkit-scrollbar-thumb:hover {
+  background: var(--semantic-content-secondary);
+}

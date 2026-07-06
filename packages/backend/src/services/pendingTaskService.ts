@@ -28,6 +28,15 @@ export interface PendingTaskRecord {
   status: string;
   expires_at?: string | null;
   created_at?: string | null;
+  /**
+   * Not populated by the current WhatsApp/Gmail agent flows (they don't infer
+   * recurrence from free text) — plumbing only, so a pending-task producer
+   * that *does* want to suggest a recurrence can do so without touching the
+   * confirm/create path.
+   */
+  recurrence_type?: string | null;
+  recurrence_config?: string | null;
+  recurrence_until?: string | null;
 }
 
 export interface TaskRecord {
@@ -43,6 +52,7 @@ export interface TaskRecord {
   due_date: string | null;
   recurrence_type: string;
   recurrence_config: string | null;
+  recurrence_until: string | null;
   original_whatsapp_content: string | null;
   media_attachments: string | null;
   completed: boolean;
@@ -135,6 +145,9 @@ export const createTaskFromPending = async (
     pendingTask.suggested_description?.trim() || 'Resumo não informado pela IA.';
   const finalDescription = `${aiSummary}\n\n---\nContexto original (${sourceLabel}):\n${rawContext}`;
   const sanitizedTime = sanitizeTimeString(pendingTask.suggested_time);
+  const recurrenceType = pendingTask.recurrence_type || 'none';
+  const recurrenceConfig = pendingTask.recurrence_config || null;
+  const recurrenceUntil = pendingTask.recurrence_until || null;
 
   if (isPostgreSQL()) {
     const pool = getPool();
@@ -143,12 +156,12 @@ export const createTaskFromPending = async (
       await client.query(
         `INSERT INTO tasks (
            id, user_id, source, title, description, completed, priority, category, important,
-           time, due_date, recurrence_type, recurrence_config, original_whatsapp_content,
+           time, due_date, recurrence_type, recurrence_config, recurrence_until, original_whatsapp_content,
            media_attachments, created_at, updated_at
          )
          VALUES (
            $1, $2, $3, $4, $5, $6, $7, $8, $9,
-           $10, $11, $12, $13, $14, $15, $16, $17
+           $10, $11, $12, $13, $14, $15, $16, $17, $18
          )`,
         [
           taskId,
@@ -162,8 +175,9 @@ export const createTaskFromPending = async (
           false,
           sanitizedTime,
           pendingTask.suggested_due_date,
-          'none',
-          null,
+          recurrenceType,
+          recurrenceConfig,
+          recurrenceUntil,
           pendingTask.original_whatsapp_content,
           pendingTask.media_attachments,
           now,
@@ -184,12 +198,12 @@ export const createTaskFromPending = async (
   await db.run(
     `INSERT INTO tasks (
        id, user_id, source, title, description, completed, priority, category, important,
-       time, due_date, recurrence_type, recurrence_config, original_whatsapp_content,
+       time, due_date, recurrence_type, recurrence_config, recurrence_until, original_whatsapp_content,
        media_attachments, created_at, updated_at
      )
      VALUES (
        ?, ?, ?, ?, ?, ?, ?, ?, ?,
-       ?, ?, ?, ?, ?, ?, ?, ?
+       ?, ?, ?, ?, ?, ?, ?, ?, ?
      )`,
     [
       taskId,
@@ -203,8 +217,9 @@ export const createTaskFromPending = async (
       false,
       sanitizedTime,
       pendingTask.suggested_due_date,
-      'none',
-      null,
+      recurrenceType,
+      recurrenceConfig,
+      recurrenceUntil,
       pendingTask.original_whatsapp_content,
       pendingTask.media_attachments,
       now,

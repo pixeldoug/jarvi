@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { io } from 'socket.io-client';
 import { toast } from '../components/ui/Sonner';
+import type { RecurrenceType } from '@jarvi/shared';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -22,8 +23,12 @@ export interface Task {
   important?: boolean;
   time?: string;
   due_date?: string;
-  recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
-  recurrence_config?: string;
+  recurrence_type?: RecurrenceType;
+  recurrence_config?: string | null;
+  /** ISO date — end of the recurrence, mirrors recurrence_config.until */
+  recurrence_until?: string | null;
+  /** Set on generated occurrences; points at the root task id of the series. Read-only. */
+  recurrence_parent_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -36,8 +41,9 @@ export interface CreateTaskData {
   important?: boolean;
   time?: string;
   dueDate?: string;
-  recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_type?: RecurrenceType;
   recurrence_config?: string;
+  recurrence_until?: string | null;
 }
 
 export interface UpdateTaskData {
@@ -49,8 +55,9 @@ export interface UpdateTaskData {
   important?: boolean;
   time?: string;
   dueDate?: string;
-  recurrence_type?: 'none' | 'daily' | 'weekly' | 'monthly';
-  recurrence_config?: string;
+  recurrence_type?: RecurrenceType;
+  recurrence_config?: string | null;
+  recurrence_until?: string | null;
 }
 
 export interface SubTask {
@@ -418,34 +425,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         return tasksWithUpdated;
       });
 
-      // Handle recurrence
+      // The backend generates the next occurrence synchronously when a
+      // recurring task is completed (see taskController.toggleTaskCompletion +
+      // recurrenceService). Refetch so the newly created occurrence shows up.
       if (newCompleted && currentTask.recurrence_type && currentTask.recurrence_type !== 'none') {
-        const currentDate = new Date(currentTask.due_date || new Date().toISOString().split('T')[0]);
-        const nextDate = new Date(currentDate);
-
-        switch (currentTask.recurrence_type) {
-          case 'daily':
-            nextDate.setDate(nextDate.getDate() + 1);
-            break;
-          case 'weekly':
-            nextDate.setDate(nextDate.getDate() + 7);
-            break;
-          case 'monthly':
-            nextDate.setMonth(nextDate.getMonth() + 1);
-            break;
-        }
-
-        await createTask({
-          title: currentTask.title,
-          description: currentTask.description,
-          priority: currentTask.priority,
-          category: currentTask.category,
-          important: currentTask.important,
-          time: currentTask.time,
-          dueDate: nextDate.toISOString().split('T')[0],
-          recurrence_type: currentTask.recurrence_type,
-          recurrence_config: currentTask.recurrence_config,
-        }, false);
+        queryClient.invalidateQueries({ queryKey: ['tasks'] });
       }
     } catch {
       // Revert optimistic update

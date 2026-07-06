@@ -2,13 +2,50 @@ import { Request, Response } from 'express';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitizeTimeString } from '../utils/taskTime';
+import { generateNextOccurrenceIfRecurring } from '../services/recurrenceService';
+import { RecurrenceType } from '@jarvi/shared';
+
+const VALID_RECURRENCE_TYPES: RecurrenceType[] = [
+  'none',
+  'hourly',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'custom',
+];
+
+const sanitizeRecurrenceType = (value: unknown): string => {
+  if (typeof value === 'string' && VALID_RECURRENCE_TYPES.includes(value as RecurrenceType)) {
+    return value;
+  }
+  return 'none';
+};
+
+const sanitizeRecurrenceUntil = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'null') return null;
+  return trimmed;
+};
 
 export const createTask = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { title, description, priority, category, important, time, dueDate, recurrence_type, recurrence_config } = req.body;
+    const {
+      title,
+      description,
+      priority,
+      category,
+      important,
+      time,
+      dueDate,
+      recurrence_type,
+      recurrence_config,
+      recurrence_until,
+    } = req.body;
     const userId = req.user?.id; // Will come from auth middleware
     
     // Debug: log received data (simplified)
@@ -27,6 +64,8 @@ export const createTask = async (
     const taskId = uuidv4();
     const now = new Date().toISOString();
     const sanitizedTime = sanitizeTimeString(time);
+    const sanitizedRecurrenceType = sanitizeRecurrenceType(recurrence_type);
+    const sanitizedRecurrenceUntil = sanitizeRecurrenceUntil(recurrence_until);
     let newTask;
 
     if (isPostgreSQL()) {
@@ -36,8 +75,8 @@ export const createTask = async (
       try {
         // Inserir diretamente (colunas já existem)
         await client.query(
-          `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, recurrence_type, recurrence_config, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, recurrence_type, recurrence_config, recurrence_until, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
           [
             taskId,
             userId,
@@ -48,8 +87,9 @@ export const createTask = async (
             important || false,
             sanitizedTime,
             dueDate || null,
-            recurrence_type || 'none',
+            sanitizedRecurrenceType,
             recurrence_config || null,
+            sanitizedRecurrenceUntil,
             now,
             now,
           ]
@@ -64,8 +104,8 @@ export const createTask = async (
       // SQLite
       const db = getDatabase();
       await db.run(
-        `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, recurrence_type, recurrence_config, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, user_id, title, description, priority, category, important, time, due_date, recurrence_type, recurrence_config, recurrence_until, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           taskId,
           userId,
@@ -76,8 +116,9 @@ export const createTask = async (
           important || false,
           sanitizedTime,
           dueDate || null,
-          recurrence_type || 'none',
+          sanitizedRecurrenceType,
           recurrence_config || null,
+          sanitizedRecurrenceUntil,
           now,
           now,
         ]
@@ -143,8 +184,19 @@ export const updateTask = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, completed, priority, category, important, time, dueDate } =
-      req.body;
+    const {
+      title,
+      description,
+      completed,
+      priority,
+      category,
+      important,
+      time,
+      dueDate,
+      recurrence_type,
+      recurrence_config,
+      recurrence_until,
+    } = req.body;
     const userId = req.user?.id;
 
     // Debug: log received data
@@ -158,6 +210,9 @@ export const updateTask = async (
       important,
       time,
       dueDate,
+      recurrence_type,
+      recurrence_config,
+      recurrence_until,
       userId,
       serverTime: new Date().toISOString(),
       serverLocalTime: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
@@ -200,11 +255,20 @@ export const updateTask = async (
           // para SQL NULL, evitando que esses literais vazem para a UI.
           const timeValue = time !== undefined ? sanitizeTimeString(time) : existingTask.time;
           const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
+          const recurrenceTypeValue = recurrence_type !== undefined
+            ? sanitizeRecurrenceType(recurrence_type)
+            : existingTask.recurrence_type;
+          const recurrenceConfigValue = recurrence_config !== undefined
+            ? recurrence_config
+            : existingTask.recurrence_config;
+          const recurrenceUntilValue = recurrence_until !== undefined
+            ? sanitizeRecurrenceUntil(recurrence_until)
+            : existingTask.recurrence_until;
           
           await client.query(
             `UPDATE tasks 
-             SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, updated_at = $9
-             WHERE id = $10 AND user_id = $11`,
+             SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, recurrence_type = $9, recurrence_config = $10, recurrence_until = $11, updated_at = $12
+             WHERE id = $13 AND user_id = $14`,
             [
               title || existingTask.title,
               description !== undefined ? description : existingTask.description,
@@ -214,6 +278,9 @@ export const updateTask = async (
               important !== undefined ? important : existingTask.important,
               timeValue,
               dueDateValue,
+              recurrenceTypeValue,
+              recurrenceConfigValue,
+              recurrenceUntilValue,
               now,
               id,
               userId,
@@ -275,10 +342,19 @@ export const updateTask = async (
       // para SQL NULL, evitando que esses literais vazem para a UI.
       const timeValue = time !== undefined ? sanitizeTimeString(time) : existingTask.time;
       const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
+      const recurrenceTypeValue = recurrence_type !== undefined
+        ? sanitizeRecurrenceType(recurrence_type)
+        : existingTask.recurrence_type;
+      const recurrenceConfigValue = recurrence_config !== undefined
+        ? recurrence_config
+        : existingTask.recurrence_config;
+      const recurrenceUntilValue = recurrence_until !== undefined
+        ? sanitizeRecurrenceUntil(recurrence_until)
+        : existingTask.recurrence_until;
 
       await db.run(
         `UPDATE tasks 
-         SET title = ?, description = ?, completed = ?, priority = ?, category = ?, important = ?, time = ?, due_date = ?, updated_at = ?
+         SET title = ?, description = ?, completed = ?, priority = ?, category = ?, important = ?, time = ?, due_date = ?, recurrence_type = ?, recurrence_config = ?, recurrence_until = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
         [
           title || existingTask.title,
@@ -289,6 +365,9 @@ export const updateTask = async (
           important !== undefined ? important : existingTask.important,
           timeValue,
           dueDateValue,
+          recurrenceTypeValue,
+          recurrenceConfigValue,
+          recurrenceUntilValue,
           now,
           id,
           userId,
@@ -443,6 +522,13 @@ export const toggleTaskCompletion = async (
       );
 
       updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
+    }
+
+    // Recurring task just completed → generate its next occurrence right away
+    // (the cron sweep is only a safety net for tasks that are never explicitly
+    // completed). Best-effort: never fails the completion response.
+    if (updatedTask?.completed && updatedTask.recurrence_type && updatedTask.recurrence_type !== 'none') {
+      await generateNextOccurrenceIfRecurring(id);
     }
 
     res.json(updatedTask);

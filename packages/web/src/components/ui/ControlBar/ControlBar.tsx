@@ -8,10 +8,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ClipboardEvent, DragEvent } from 'react';
 import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple } from '@phosphor-icons/react';
+import { Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import type { RecurrenceType } from '@jarvi/shared';
 import { Button } from '../Button';
 import { Chip } from '../Chip';
-import { TaskDatePicker, PriorityPicker, CategoryPicker } from '../../features/tasks';
+import { TaskDatePicker, PriorityPicker, CategoryPicker, FrequencyPicker, type FrequencyValue } from '../../features/tasks';
 import { useCategories, type Category } from '../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
 import { useKeyboardOffset } from '../../../hooks/useKeyboardOffset';
@@ -23,6 +25,7 @@ import {
   filesToPendingAttachments,
   toChatAttachmentPayload,
 } from '../../../utils/chatAttachments';
+import { formatFrequencyChip } from '../../../lib/recurrence';
 import { toast } from '../Sonner';
 import { AttachmentViewer } from '../AttachmentViewer';
 import styles from './ControlBar.module.css';
@@ -34,6 +37,9 @@ export interface TaskCreationData {
   time?: string;
   category?: string;
   priority?: 'low' | 'medium' | 'high';
+  recurrence_type?: RecurrenceType;
+  recurrence_config?: string;
+  recurrence_until?: string | null;
 }
 
 export interface ControlBarProps {
@@ -88,17 +94,20 @@ export function ControlBar({
   const [category, setCategory] = useState<string>('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | undefined>(undefined);
   const [isDefaultDate, setIsDefaultDate] = useState(false);
+  const [frequency, setFrequency] = useState<FrequencyValue>({ recurrenceType: 'none', recurrenceConfig: null });
 
   // Popover states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
+  const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const priorityChipRef = useRef<HTMLDivElement>(null);
+  const frequencyChipRef = useRef<HTMLDivElement>(null);
 
   const handleSwitchToTask = useCallback(() => {
     if (trialExpired) return;
@@ -119,9 +128,11 @@ export function ControlBar({
     setCategory('');
     setPriority(undefined);
     setIsDefaultDate(false);
+    setFrequency({ recurrenceType: 'none', recurrenceConfig: null });
     setShowDatePicker(false);
     setShowCategoryPicker(false);
     setShowPriorityPicker(false);
+    setShowFrequencyPicker(false);
   }, []);
 
   // Focus title input when entering task mode
@@ -283,6 +294,9 @@ export function ControlBar({
       time: dueTime || undefined,
       category: category || undefined,
       priority,
+      recurrence_type: frequency.recurrenceType,
+      recurrence_config: frequency.recurrenceConfig ? JSON.stringify(frequency.recurrenceConfig) : undefined,
+      recurrence_until: frequency.recurrenceConfig?.until.type === 'onDate' ? frequency.recurrenceConfig.until.date : undefined,
     };
 
     const createdTask = await onCreateTask?.(taskData);
@@ -341,6 +355,22 @@ export function ControlBar({
       .replace('.', '')
       .replace(/^./, (s) => s.toUpperCase());
     return dueTime ? `${day} ${month} ${dueTime}` : `${day} ${month}`;
+  };
+
+  const handleFrequencyChange = (next: FrequencyValue) => {
+    setFrequency(next);
+    // Recurrence needs a starting due date to anchor to — default to today
+    // when the user configures a frequency before picking a date.
+    if (next.recurrenceType !== 'none' && !dueDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setDueDate(today);
+      setIsDefaultDate(true);
+    }
+  };
+
+  const handleFrequencyClear = () => {
+    setFrequency({ recurrenceType: 'none', recurrenceConfig: null });
   };
 
   const handleCategorySelect = (cat: Category) => setCategory(cat.name);
@@ -490,9 +520,23 @@ export function ControlBar({
                     icon={<Fire weight="regular" />}
                     size="medium"
                     interactive
+                    iconOnly
                     active={!!priority || showPriorityPicker}
                     onClick={() => setShowPriorityPicker(true)}
                     onClear={priority ? () => setPriority(undefined) : undefined}
+                  />
+                </div>
+
+                <div ref={frequencyChipRef} style={{ display: 'inline-flex' }}>
+                  <Chip
+                    label={formatFrequencyChip(frequency.recurrenceType, frequency.recurrenceConfig) || 'Recorrência'}
+                    icon={<Repeat size={16} />}
+                    size="medium"
+                    interactive
+                    iconOnly
+                    active={frequency.recurrenceType !== 'none' || showFrequencyPicker}
+                    onClick={() => setShowFrequencyPicker(true)}
+                    onClear={frequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
                   />
                 </div>
               </div>
@@ -632,6 +676,15 @@ export function ControlBar({
         selectedPriority={priority}
         onPrioritySelect={(p) => setPriority(p)}
         anchorRef={priorityChipRef}
+      />
+
+      <FrequencyPicker
+        isOpen={showFrequencyPicker}
+        onClose={() => setShowFrequencyPicker(false)}
+        anchorRef={frequencyChipRef}
+        value={frequency}
+        onChange={handleFrequencyChange}
+        baseDate={dueDate || undefined}
       />
 
       {viewingPromptAttachment && (

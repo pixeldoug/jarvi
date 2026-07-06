@@ -266,6 +266,9 @@ export function Tasks() {
           completed: taskData.completed ?? prev.completed,
           due_date: taskData.dueDate !== undefined ? taskData.dueDate : prev.due_date,
           time: taskData.time !== undefined ? taskData.time : prev.time,
+          recurrence_type: taskData.recurrence_type !== undefined ? taskData.recurrence_type : prev.recurrence_type,
+          recurrence_config: taskData.recurrence_config !== undefined ? taskData.recurrence_config : prev.recurrence_config,
+          recurrence_until: taskData.recurrence_until !== undefined ? taskData.recurrence_until : prev.recurrence_until,
         };
       });
     }
@@ -603,6 +606,9 @@ export function Tasks() {
         dueDate: taskData.dueDate || '',
         important: false,
         time: taskData.time || '',
+        recurrence_type: taskData.recurrence_type,
+        recurrence_config: taskData.recurrence_config,
+        recurrence_until: taskData.recurrence_until,
       });
       return createdTask;
     } catch (error) {
@@ -680,6 +686,7 @@ export function Tasks() {
       later: 'Calendário',
       noDate: 'Sem data',
       overdue: 'Vencidas',
+      recurring: 'Recorrentes',
       completed: 'Concluídas',
     };
     return listNames[listType] || 'Tarefas';
@@ -776,6 +783,8 @@ export function Tasks() {
           return !!task.due_date;
         case 'noDate':
           return !task.due_date && !task.completed;
+        case 'recurring':
+          return !!task.recurrence_type && task.recurrence_type !== 'none' && !task.completed;
         case 'completed':
           return task.completed;
         default:

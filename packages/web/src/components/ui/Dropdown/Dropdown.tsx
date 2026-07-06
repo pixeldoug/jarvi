@@ -8,7 +8,7 @@
  * Node: 40000504-20845
  */
 
-import { useRef, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './Dropdown.module.css';
 
@@ -29,8 +29,16 @@ export interface DropdownProps {
   width?: number | string;
   /** Horizontal alignment relative to anchor */
   align?: 'left' | 'right' | 'center';
-  /** Vertical position preference */
-  position?: 'top' | 'bottom' | 'auto';
+  /**
+   * Vertical position preference.
+   * - `auto`: prefers below the anchor, falls back above if there's no room.
+   * - `auto-top`: prefers above the anchor (matching the chip pickers —
+   *   TaskDatePicker/PriorityPicker/CategoryPicker), falls back below if
+   *   there's no room. Combined with the content-resize repositioning
+   *   below, this makes the dropdown grow upward as fields are added
+   *   instead of drifting past the bottom of the viewport.
+   */
+  position?: 'top' | 'bottom' | 'auto' | 'auto-top';
   /** Additional CSS classes */
   className?: string;
   /** Gap between anchor and dropdown */
@@ -69,23 +77,26 @@ export function Dropdown({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [calculatedPosition, setCalculatedPosition] = useState<Position | null>(null);
 
-  // Calculate dropdown position
-  useEffect(() => {
-    if (!isOpen || !anchorRef?.current) {
-      setCalculatedPosition(null);
-      return;
-    }
+  const updatePosition = useCallback(() => {
+    if (!anchorRef?.current) return;
 
-    const updatePosition = () => {
-      if (!anchorRef?.current) return;
+    const anchorRect = anchorRef.current.getBoundingClientRect();
+    const dropdownWidth = typeof width === 'number' ? width : dropdownRef.current?.offsetWidth || 256;
+    const dropdownHeight = dropdownRef.current?.offsetHeight || 200;
+    const margin = 16;
 
-      const anchorRect = anchorRef.current.getBoundingClientRect();
-      const dropdownWidth = typeof width === 'number' ? width : dropdownRef.current?.offsetWidth || 256;
-      const dropdownHeight = dropdownRef.current?.offsetHeight || 200;
-      const margin = 16;
+    // Calculate vertical position
+    let top: number;
 
-      // Calculate vertical position
-      let top: number;
+    if (position === 'auto-top') {
+      // Prefer above the anchor (matching TaskDatePicker/PriorityPicker/
+      // CategoryPicker's hand-rolled positioning), falling back below only
+      // if there's no room above.
+      top = anchorRect.top - dropdownHeight - gap;
+      if (top < margin) {
+        top = anchorRect.bottom + gap;
+      }
+    } else {
       const spaceBelow = window.innerHeight - anchorRect.bottom - margin;
       const spaceAbove = anchorRect.top - margin;
 
@@ -99,35 +110,43 @@ export function Dropdown({
         // Default to below if neither fits well
         top = anchorRect.bottom + gap;
       }
+    }
 
-      // Calculate horizontal position based on alignment
-      let left: number;
-      switch (align) {
-        case 'right':
-          left = anchorRect.right - dropdownWidth;
-          break;
-        case 'center':
-          left = anchorRect.left + (anchorRect.width - dropdownWidth) / 2;
-          break;
-        case 'left':
-        default:
-          left = anchorRect.left;
-          break;
-      }
+    // Calculate horizontal position based on alignment
+    let left: number;
+    switch (align) {
+      case 'right':
+        left = anchorRect.right - dropdownWidth;
+        break;
+      case 'center':
+        left = anchorRect.left + (anchorRect.width - dropdownWidth) / 2;
+        break;
+      case 'left':
+      default:
+        left = anchorRect.left;
+        break;
+    }
 
-      // Adjust horizontally if goes off screen
-      if (left + dropdownWidth > window.innerWidth - margin) {
-        left = window.innerWidth - dropdownWidth - margin;
-      }
-      if (left < margin) {
-        left = margin;
-      }
+    // Adjust horizontally if goes off screen
+    if (left + dropdownWidth > window.innerWidth - margin) {
+      left = window.innerWidth - dropdownWidth - margin;
+    }
+    if (left < margin) {
+      left = margin;
+    }
 
-      // Ensure doesn't go off screen vertically
-      top = Math.max(margin, Math.min(top, window.innerHeight - dropdownHeight - margin));
+    // Ensure doesn't go off screen vertically
+    top = Math.max(margin, Math.min(top, window.innerHeight - dropdownHeight - margin));
 
-      setCalculatedPosition({ top, left });
-    };
+    setCalculatedPosition({ top, left });
+  }, [anchorRef, width, align, position, gap]);
+
+  // Calculate dropdown position
+  useEffect(() => {
+    if (!isOpen || !anchorRef?.current) {
+      setCalculatedPosition(null);
+      return;
+    }
 
     // Calculate immediately
     updatePosition();
@@ -144,7 +163,23 @@ export function Dropdown({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [isOpen, anchorRef, width, align, position, gap]);
+  }, [isOpen, anchorRef, updatePosition]);
+
+  // Recalculate whenever the dropdown's own content resizes — e.g. a picker
+  // revealing extra fields as the user makes a selection — so it grows in
+  // whichever direction was already chosen (see `auto-top`) instead of
+  // drifting past the viewport edge.
+  const hasCalculatedPosition = calculatedPosition !== null;
+  useEffect(() => {
+    if (!isOpen || !hasCalculatedPosition || typeof ResizeObserver === 'undefined') return;
+    const node = dropdownRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver(() => updatePosition());
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [isOpen, hasCalculatedPosition, updatePosition]);
 
   // Handle click outside
   useEffect(() => {

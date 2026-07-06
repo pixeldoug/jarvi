@@ -24,6 +24,8 @@ export interface ChipProps {
   disabled?: boolean;
   /** Whether the chip is interactive (clickable) */
   interactive?: boolean;
+  /** When true, renders only the icon in a square button (width === height), hiding the label */
+  iconOnly?: boolean;
   /** Click handler */
   onClick?: () => void;
   /** Clear handler - shows X button when defined */
@@ -40,6 +42,7 @@ export function Chip({
   active = false,
   disabled = false,
   interactive = false,
+  iconOnly = false,
   onClick,
   onClear,
   className = '',
@@ -52,6 +55,7 @@ export function Chip({
     active && styles.active,
     disabled && styles.disabled,
     onClear && styles.hasClear,
+    iconOnly && styles.iconOnly,
     className,
   ].filter(Boolean).join(' ');
 
@@ -74,9 +78,11 @@ export function Chip({
       onClick={interactive ? handleClick : undefined}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive && !disabled ? 0 : undefined}
+      aria-label={iconOnly ? label : undefined}
+      title={iconOnly ? label : undefined}
     >
       {icon && <span className={styles.icon}>{icon}</span>}
-      <span className={styles.label}>{label}</span>
+      {!iconOnly && <span className={styles.label}>{label}</span>}
       {onClear && (
         <span 
           className={styles.clearButton}

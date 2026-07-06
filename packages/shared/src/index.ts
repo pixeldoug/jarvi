@@ -13,3 +13,9 @@ export * from './design-tokens/core';
 
 // Export platform-specific tokens
 export * from './design-tokens/platforms/web';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export * from './types/recurrence';
