@@ -28,7 +28,7 @@ import {
   RecurrenceType,
   TIME_OF_DAY_DEFAULTS,
   WEEKDAYS_DAYS_OF_WEEK,
-} from '@jarvi/shared';
+} from '../types/recurrence';
 
 export interface RecurrenceTaskRow {
   id: string;

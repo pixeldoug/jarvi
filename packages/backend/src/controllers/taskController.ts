@@ -3,7 +3,7 @@ import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitizeTimeString } from '../utils/taskTime';
 import { generateNextOccurrenceIfRecurring } from '../services/recurrenceService';
-import { RecurrenceType } from '@jarvi/shared';
+import { RecurrenceType } from '../types/recurrence';
 
 const VALID_RECURRENCE_TYPES: RecurrenceType[] = [
   'none',
