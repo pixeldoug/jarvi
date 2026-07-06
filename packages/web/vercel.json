@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "cd ../shared && npm run build && cd ../web && npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
   "installCommand": "npm install",

@@ -436,7 +436,7 @@ export function FrequencyPicker({
     const current = custom.daysOfWeek ?? [];
     const isSelected = current.includes(day);
     if (isSelected && current.length <= 1) return; // always keep at least 1 selected
-    const next = isSelected ? current.filter((d) => d !== day) : [...current, day];
+    const next = isSelected ? current.filter((d: number) => d !== day) : [...current, day];
     patchConfig({ custom: { ...custom, daysOfWeek: next } });
   };
 
@@ -499,7 +499,7 @@ export function FrequencyPicker({
                   const current = config.daysOfWeek ?? [];
                   const isSelected = current.includes(day);
                   if (isSelected && current.length <= 1) return;
-                  const next = isSelected ? current.filter((d) => d !== day) : [...current, day];
+                  const next = isSelected ? current.filter((d: number) => d !== day) : [...current, day];
                   patchConfig({ daysOfWeek: next });
                 }}
                 isOpen={openField === 'weekdays'}

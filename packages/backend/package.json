@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
+    "build": "cd ../shared && npm run build && cd ../backend && tsc",
     "start": "node dist/index.js",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
     "stripe:listen": "stripe listen --forward-to localhost:3001/webhooks/stripe",

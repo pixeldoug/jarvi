@@ -80,8 +80,8 @@ export function formatFrequencyChip(
     case 'weekly': {
       const daysOfWeek = config?.daysOfWeek?.length ? config.daysOfWeek : [];
       if (daysOfWeek.length === 0) return 'Semanalmente';
-      const sorted = [...new Set(daysOfWeek)].sort((a, b) => a - b);
-      return sorted.map((day) => WEEKDAY_SHORT_PT[day]).join(', ');
+      const sorted = [...new Set(daysOfWeek)].sort((a: number, b: number) => a - b);
+      return sorted.map((day: number) => WEEKDAY_SHORT_PT[day]).join(', ');
     }
 
     case 'monthly': {
@@ -93,7 +93,7 @@ export function formatFrequencyChip(
       const custom = config?.custom;
       if (!custom) return 'Personalizado';
       const interval = Math.max(1, custom.interval || 1);
-      const unit = CUSTOM_FREQUENCY_UNIT_PT[custom.frequency];
+      const unit = CUSTOM_FREQUENCY_UNIT_PT[custom.frequency as 'hourly' | 'daily' | 'weekly' | 'monthly'];
 
       if (interval === 1) {
         // "every 1 <unit>" reads better as the plain label ("Diariamente" etc).
