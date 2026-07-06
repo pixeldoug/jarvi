@@ -732,7 +732,7 @@ export function TaskDetailsSidebar({
             icon={<Repeat size={16} />}
             size="medium"
             interactive
-            active={showFrequencyPicker || currentFrequency.recurrenceType !== 'none'}
+            active={showFrequencyPicker}
             onClick={() => setShowFrequencyPicker((prev) => !prev)}
             onClear={currentFrequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
           />

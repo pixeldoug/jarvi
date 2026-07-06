@@ -2,7 +2,7 @@
  * TaskItem Component - Jarvi Web
  * 
  * Clean implementation based on Figma design
- * Layout: [checkbox] [date chip] [title] ... [category] [actions on hover]
+ * Layout: [checkbox] [date chip] [title] ... [app] [recurrence] [category] [actions on hover]
  */
 
 import React, { useState, useRef, memo } from 'react';
@@ -15,10 +15,13 @@ import { Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
 import { CategoryPicker } from '../CategoryPicker/CategoryPicker';
 import { TaskDatePicker } from '../TaskDatePicker/TaskDatePicker';
+import { FrequencyPicker, type FrequencyValue } from '../FrequencyPicker';
 import { useCategories } from '../../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
 import { getTaskAppSource } from '../../../../lib/taskAppSource';
 import { formatTaskDate, formatTaskDateWeekday, isToday, parseDateString } from '../../../../lib/utils';
+import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recurrence';
+import type { RecurrenceType } from '@jarvi/shared';
 import { 
   PencilSimple, 
   Trash, 
@@ -27,6 +30,7 @@ import {
   Calendar,
   FireSimple,
 } from '@phosphor-icons/react';
+import { Repeat } from 'lucide-react';
 import styles from './TaskItem.module.css';
 
 export interface TaskItemProps {
@@ -62,9 +66,11 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   const [titleValue, setTitleValue] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const dateChipRef = useRef<HTMLDivElement>(null);
+  const frequencyChipRef = useRef<HTMLDivElement>(null);
 
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -146,6 +152,58 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
     return formatTaskDate(task.due_date, task.time) || 'Definir';
   })();
 
+  // Recurrence chip label (e.g. "Diariamente", "Seg, Qua, Sex")
+  const frequencyLabel = formatFrequencyChip(task.recurrence_type, task.recurrence_config);
+  const hasRecurrence = !!task.recurrence_type && task.recurrence_type !== 'none';
+  const currentFrequency: FrequencyValue = {
+    recurrenceType: (task.recurrence_type as RecurrenceType) || 'none',
+    recurrenceConfig: parseRecurrenceConfig(task.recurrence_config),
+  };
+
+  const handleFrequencyChange = async (next: FrequencyValue) => {
+    const needsDefaultDate = next.recurrenceType !== 'none' && !task.due_date;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextDueDate = needsDefaultDate ? today.toISOString().split('T')[0] : task.due_date;
+
+    try {
+      await onUpdateTask(task.id, {
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        category: task.category,
+        completed: task.completed,
+        dueDate: nextDueDate,
+        time: task.time,
+        recurrence_type: next.recurrenceType,
+        recurrence_config: next.recurrenceConfig ? JSON.stringify(next.recurrenceConfig) : null,
+        recurrence_until:
+          next.recurrenceConfig?.until.type === 'onDate' ? next.recurrenceConfig.until.date ?? null : null,
+      }, false);
+    } catch (error) {
+      console.error('Failed to update task frequency:', error);
+    }
+  };
+
+  const handleFrequencyClear = async () => {
+    try {
+      await onUpdateTask(task.id, {
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        category: task.category,
+        completed: task.completed,
+        dueDate: task.due_date,
+        time: task.time,
+        recurrence_type: 'none',
+        recurrence_config: null,
+        recurrence_until: null,
+      }, false);
+    } catch (error) {
+      console.error('Failed to clear task frequency:', error);
+    }
+  };
+
   // Handle click on task item (but not on interactive elements)
   const handleTaskItemClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Don't trigger if clicking on interactive elements
@@ -158,7 +216,8 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
       target.closest(`.${styles.actionButton}`) ||
       target.closest(`.${styles.titleInput}`) ||
       target.closest('[data-category-chip]') ||
-      target.closest('[data-date-chip]');
+      target.closest('[data-date-chip]') ||
+      target.closest('[data-frequency-chip]');
     
     if (!isInteractiveElement && onClick) {
       onClick(task);
@@ -332,6 +391,34 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             ) : null;
           })()}
 
+          {/* Recurrence chip — hidden when details sidebar is open */}
+          {!hideCategoryChip && (
+            <div
+              ref={frequencyChipRef}
+              className={`${styles.chipWrapper} ${!hasRecurrence ? styles.chipWrapperPlaceholder : ''}`}
+              data-frequency-chip="true"
+            >
+              <Chip
+                label={frequencyLabel || 'Recorrência'}
+                icon={<Repeat size={14} />}
+                size="small"
+                interactive
+                active={showFrequencyPicker}
+                onClick={() => setShowFrequencyPicker(prev => !prev)}
+                onClear={hasRecurrence ? handleFrequencyClear : undefined}
+              />
+            </div>
+          )}
+
+          <FrequencyPicker
+            isOpen={showFrequencyPicker}
+            onClose={() => setShowFrequencyPicker(false)}
+            anchorRef={frequencyChipRef}
+            value={currentFrequency}
+            onChange={handleFrequencyChange}
+            baseDate={parseDateString(task.due_date) ?? undefined}
+          />
+
           {/* Category chip - hidden when details sidebar is open */}
           {!hideCategoryChip && (
             <div
@@ -402,6 +489,7 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
   if (prevProps.task.id !== nextProps.task.id) return false;
   if (prevProps.showInsertionLine !== nextProps.showInsertionLine) return false;
   if (prevProps.section !== nextProps.section) return false;
+  if (prevProps.hideCategoryChip !== nextProps.hideCategoryChip) return false;
   
   // Compare task properties that matter for rendering.
   // Include updated_at so a description-only save (which bumps updated_at)
@@ -414,6 +502,8 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
     prevProps.task.category !== nextProps.task.category ||
     prevProps.task.priority !== nextProps.task.priority ||
     prevProps.task.original_whatsapp_content !== nextProps.task.original_whatsapp_content ||
+    prevProps.task.recurrence_type !== nextProps.task.recurrence_type ||
+    prevProps.task.recurrence_config !== nextProps.task.recurrence_config ||
     prevProps.task.updated_at !== nextProps.task.updated_at;
   
   // If task data changed, allow re-render
