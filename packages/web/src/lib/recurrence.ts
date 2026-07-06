@@ -7,7 +7,6 @@
 import {
   RecurrenceConfig,
   RecurrenceType,
-  TIME_OF_DAY_DEFAULTS,
   WEEKDAYS_DAYS_OF_WEEK,
   type TimeOfDay,
 } from '@jarvi/shared';
@@ -135,16 +134,15 @@ export function buildDefaultRecurrenceConfig(
     case 'hourly':
       return { everyHours: 1, until };
     case 'daily':
-      return { time: '09:00', until };
+      return { until };
     case 'weekdays':
-      return { time: '09:00', daysOfWeek: WEEKDAYS_DAYS_OF_WEEK, until };
+      return { daysOfWeek: WEEKDAYS_DAYS_OF_WEEK, until };
     case 'weekly':
-      return { time: '09:00', daysOfWeek: [baseDate.getDay()], until };
+      return { daysOfWeek: [baseDate.getDay()], until };
     case 'monthly':
-      return { monthDay: baseDate.getDate(), time: TIME_OF_DAY_DEFAULTS.morning, until };
+      return { monthDay: baseDate.getDate(), until };
     case 'custom':
       return {
-        time: TIME_OF_DAY_DEFAULTS.morning,
         custom: { frequency: 'daily', interval: 1 },
         until,
       };

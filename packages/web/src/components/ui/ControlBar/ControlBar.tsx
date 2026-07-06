@@ -117,7 +117,13 @@ export function ControlBar({
     setDueDate(today);
     setIsDefaultDate(true);
     if (defaultCategory) setCategory(defaultCategory);
-  }, [defaultCategory]);
+    // Carry over whatever the user already typed in the prompt bar as the task title
+    const carriedTitle = promptText.trim();
+    if (carriedTitle) {
+      setTitle(carriedTitle);
+      setPromptText('');
+    }
+  }, [defaultCategory, promptText]);
 
   const handleSwitchToPrompt = useCallback(() => {
     setMode('prompt');
@@ -135,10 +141,17 @@ export function ControlBar({
     setShowFrequencyPicker(false);
   }, []);
 
-  // Focus title input when entering task mode
+  // Focus title input when entering task mode, placing the cursor at the end
+  // so a carried-over prompt title is ready to keep typing from.
   useEffect(() => {
     if (mode === 'task') {
-      const id = setTimeout(() => titleInputRef.current?.focus(), 200);
+      const id = setTimeout(() => {
+        const el = titleInputRef.current;
+        if (!el) return;
+        el.focus();
+        const end = el.value.length;
+        el.setSelectionRange(end, end);
+      }, 200);
       return () => clearTimeout(id);
     }
   }, [mode]);
