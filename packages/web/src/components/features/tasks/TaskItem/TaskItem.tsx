@@ -391,33 +391,35 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             ) : null;
           })()}
 
-          {/* Recurrence chip — hidden when details sidebar is open */}
-          {!hideCategoryChip && (
+          {/* Recurrence chip — only shown when task has recurrence */}
+          {!hideCategoryChip && hasRecurrence && (
             <div
               ref={frequencyChipRef}
-              className={`${styles.chipWrapper} ${!hasRecurrence ? styles.chipWrapperPlaceholder : ''}`}
+              className={styles.chipWrapper}
               data-frequency-chip="true"
             >
               <Chip
-                label={frequencyLabel || 'Recorrência'}
+                label={frequencyLabel ?? 'Recorrência'}
                 icon={<Repeat size={14} />}
                 size="small"
                 interactive
                 active={showFrequencyPicker}
                 onClick={() => setShowFrequencyPicker(prev => !prev)}
-                onClear={hasRecurrence ? handleFrequencyClear : undefined}
+                onClear={handleFrequencyClear}
               />
             </div>
           )}
 
-          <FrequencyPicker
-            isOpen={showFrequencyPicker}
-            onClose={() => setShowFrequencyPicker(false)}
-            anchorRef={frequencyChipRef}
-            value={currentFrequency}
-            onChange={handleFrequencyChange}
-            baseDate={parseDateString(task.due_date) ?? undefined}
-          />
+          {hasRecurrence && (
+            <FrequencyPicker
+              isOpen={showFrequencyPicker}
+              onClose={() => setShowFrequencyPicker(false)}
+              anchorRef={frequencyChipRef}
+              value={currentFrequency}
+              onChange={handleFrequencyChange}
+              baseDate={parseDateString(task.due_date) ?? undefined}
+            />
+          )}
 
           {/* Category chip - hidden when details sidebar is open */}
           {!hideCategoryChip && (
