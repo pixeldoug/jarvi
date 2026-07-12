@@ -17,17 +17,6 @@ import { SkillChips } from './SkillChips';
 import jarviLogo from '../../../../assets/logo/symbol.svg';
 import styles from './AIChatPanel.module.css';
 
-// Human-friendly status shown while a tool runs (the round trip the user waits
-// on). Tools without an entry fall back to the generic typing dots.
-const TOOL_STATUS_LABELS: Record<string, string> = {
-  search_tasks: 'Pesquisando suas tarefas…',
-  scan_gmail: 'Verificando seu Gmail…',
-  create_task: 'Criando tarefa…',
-  update_task: 'Atualizando tarefa…',
-  complete_task: 'Concluindo tarefa…',
-  delete_task: 'Excluindo tarefa…',
-};
-
 export interface AIChatPanelProps {
   mode: 'task' | 'general';
   taskId?: string;
@@ -72,7 +61,7 @@ export function AIChatPanel({
 }: AIChatPanelProps) {
   const { user } = useAuth();
   const { trialExpired } = useSubscription();
-  const { messages, sendMessage, isStreaming, isWaiting, reset } = useChatStream(mode, taskId);
+  const { messages, sendMessage, isStreaming, thinkingStatus, reset } = useChatStream(mode, taskId);
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [viewingAttachment, setViewingAttachment] = useState<PendingAttachment | null>(null);
@@ -238,19 +227,6 @@ export function AIChatPanel({
 
   const firstName = user?.name?.split(' ')[0] || '';
 
-  // While waiting, surface the label of the tool currently running (the last
-  // tool call on the streaming message that has no result yet).
-  const streamingMessage = messages[messages.length - 1];
-  const activeToolLabel =
-    streamingMessage?.role === 'assistant'
-      ? [...(streamingMessage.toolCalls || [])]
-          .reverse()
-          .find((tc) => !tc.result)?.toolName
-      : undefined;
-  const waitingLabel = activeToolLabel
-    ? TOOL_STATUS_LABELS[activeToolLabel]
-    : undefined;
-
   return (
     <div className={styles.panel}>
       {/* Header */}
@@ -296,23 +272,21 @@ export function AIChatPanel({
           </div>
         ) : (
           <div className={styles.messageList}>
-            {messages.map((msg) => (
-              <ChatMessage key={msg.id} message={msg} onTaskCardClick={onTaskCardClick} onListCardClick={onListCardClick} onCategoryCardClick={onCategoryCardClick} />
+            {messages.map((msg, index) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                isStreaming={isStreaming && index === messages.length - 1 && msg.role === 'assistant'}
+                thinkingStatus={
+                  isStreaming && index === messages.length - 1 && msg.role === 'assistant'
+                    ? thinkingStatus
+                    : undefined
+                }
+                onTaskCardClick={onTaskCardClick}
+                onListCardClick={onListCardClick}
+                onCategoryCardClick={onCategoryCardClick}
+              />
             ))}
-            {isStreaming && isWaiting && (
-              waitingLabel ? (
-                <div className={styles.toolStatus}>
-                  <span className={styles.toolStatusDot} />
-                  <span className={styles.toolStatusText}>{waitingLabel}</span>
-                </div>
-              ) : (
-                <div className={styles.typingIndicator}>
-                  <span />
-                  <span />
-                  <span />
-                </div>
-              )
-            )}
           </div>
         )}
       </div>

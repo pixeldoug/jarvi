@@ -22,6 +22,7 @@ import { Sidebar, ListType } from '../../components/layout/Sidebar';
 import type { SettingsPage } from '../../components/layout/Sidebar';
 import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
+import { formatRecurrenceSchedule } from '../../lib/utils';
 import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
 import { FilterPopover, DEFAULT_FILTER_STATE } from '../../components/features/tasks/FilterPopover/FilterPopover';
 import type { FilterState } from '../../components/features/tasks/FilterPopover/FilterPopover';
@@ -242,15 +243,6 @@ export function Tasks() {
     })
   );
 
-  // Simple handlers - no useCallback for now to keep it simple
-  const handleToggleCompletion = async (taskId: string) => {
-    // Update sidebar instantly as well (selectedTask is not automatically refreshed)
-    if (selectedTask?.id === taskId) {
-      setSelectedTask(prev => (prev ? { ...prev, completed: !prev.completed } : prev));
-    }
-    await toggleTaskCompletion(taskId);
-  };
-
   const handleUpdateTask = async (taskId: string, taskData: any) => {
     await updateTask(taskId, taskData, false);
     // Update selectedTask if it's the one being updated
@@ -322,15 +314,45 @@ export function Tasks() {
     }
   };
 
+  const dismissChatForTaskPanel = useCallback(() => {
+    setIsChatOpen(false);
+    setChatInitialMessage(undefined);
+    setChatInitialAttachments(undefined);
+    setExpandedFromList(false);
+  }, []);
+
   const handleEdit = (task: any) => {
-    setExpandedFromList(isChatOpen);
+    if (isChatOpen) dismissChatForTaskPanel();
     setSelectedTask(task);
   };
 
   const handleTaskClick = (task: Task) => {
-    setExpandedFromList(isChatOpen);
+    if (isChatOpen) dismissChatForTaskPanel();
     setSelectedTask(task);
     setSelectedPendingTask(null);
+  };
+
+  const handleToggleCompletion = async (taskId: string) => {
+    if (selectedTask?.id === taskId) {
+      setSelectedTask(prev => (prev ? { ...prev, completed: !prev.completed } : prev));
+    }
+
+    const nextOccurrence = await toggleTaskCompletion(taskId);
+    if (!nextOccurrence) return;
+
+    const schedule = formatRecurrenceSchedule(nextOccurrence.due_date, nextOccurrence.time);
+    const label = schedule
+      ? `Concluído! Próxima recorrência em ${schedule}.`
+      : 'Concluído! Próxima recorrência criada.';
+
+    toast.success(label, {
+      duration: 3500,
+      hasButton: true,
+      action: {
+        label: 'Visualizar',
+        onClick: () => handleTaskClick(nextOccurrence),
+      },
+    });
   };
 
   const handleDialogClose = () => {
@@ -341,6 +363,7 @@ export function Tasks() {
   };
 
   const handlePendingTaskClick = (task: PendingTask) => {
+    if (isChatOpen) dismissChatForTaskPanel();
     setSelectedPendingTask((prev) => (prev?.id === task.id ? null : task));
     setSelectedTask(null);
   };
@@ -406,12 +429,10 @@ export function Tasks() {
   const handleChatTaskCardClick = useCallback((taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
-    // Mirror handleTaskClick: when the chat is open, show the task details in
-    // the center column (with a back button) instead of leaving the chat panel.
-    setExpandedFromList(isChatOpen);
+    dismissChatForTaskPanel();
     setSelectedTask(task);
     setSelectedPendingTask(null);
-  }, [tasks, isChatOpen]);
+  }, [tasks, dismissChatForTaskPanel]);
 
   const handleChatListCardClick = useCallback((listId: string) => {
     setSelectedCustomListId(listId);

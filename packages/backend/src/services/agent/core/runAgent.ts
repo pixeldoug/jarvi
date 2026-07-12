@@ -219,6 +219,10 @@ export async function runAgent(
     const toolChoice =
       options.forceToolChoice && iteration === 0 ? 'required' : 'auto';
 
+    callbacks.onStatus?.(
+      iteration === 0 ? 'Analisando sua mensagem…' : 'Continuando a análise…',
+    );
+
     let textContent = '';
     let pendingToolCalls: Array<{ id: string; name: string; args: string }> = [];
     let finishReason: string | null = null;
@@ -254,6 +258,12 @@ export async function runAgent(
         if (!choice) continue;
 
         const delta = choice.delta;
+        const reasoningDelta = (delta as { reasoning_content?: string | null } | undefined)
+          ?.reasoning_content;
+        if (reasoningDelta) {
+          callbacks.onReasoning?.(reasoningDelta);
+        }
+
         if (delta?.content) {
           textContent += delta.content;
           callbacks.onText?.(delta.content);
@@ -304,6 +314,11 @@ export async function runAgent(
       const choice = response.choices[0];
       const message = choice?.message;
       finishReason = choice?.finish_reason ?? null;
+      const reasoningContent = (message as { reasoning_content?: string | null } | undefined)
+        ?.reasoning_content;
+      if (reasoningContent) {
+        callbacks.onReasoning?.(reasoningContent);
+      }
       textContent = message?.content?.trim() ?? '';
 
       pendingToolCalls = (message?.tool_calls ?? [])

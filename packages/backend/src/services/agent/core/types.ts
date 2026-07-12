@@ -166,6 +166,10 @@ export interface AgentContext {
 export interface AgentCallbacks {
   /** Streaming text delta. Web pipes to SSE; WhatsApp ignores (uses final text instead). */
   onText?: (delta: string) => void;
+  /** Streaming reasoning delta (models that expose `reasoning_content` in the chunk). */
+  onReasoning?: (delta: string) => void;
+  /** Human-readable progress while the agent is working (web SSE status events). */
+  onStatus?: (message: string) => void;
   /** Fired when the model decides to call a tool (before execution). */
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
   /** Fired after a tool finishes executing. */

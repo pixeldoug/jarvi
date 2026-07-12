@@ -489,9 +489,11 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
   // Don't re-render if task data is the same (compare by id and relevant fields)
   // but allow re-render if task actually changed or if editing-related props changed
   if (prevProps.task.id !== nextProps.task.id) return false;
+  if (prevProps.isActive !== nextProps.isActive) return false;
   if (prevProps.showInsertionLine !== nextProps.showInsertionLine) return false;
   if (prevProps.section !== nextProps.section) return false;
   if (prevProps.hideCategoryChip !== nextProps.hideCategoryChip) return false;
+  if (prevProps.showDayOfWeek !== nextProps.showDayOfWeek) return false;
   
   // Compare task properties that matter for rendering.
   // Include updated_at so a description-only save (which bumps updated_at)

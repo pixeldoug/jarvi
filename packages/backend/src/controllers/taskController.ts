@@ -527,11 +527,12 @@ export const toggleTaskCompletion = async (
     // Recurring task just completed → generate its next occurrence right away
     // (the cron sweep is only a safety net for tasks that are never explicitly
     // completed). Best-effort: never fails the completion response.
+    let nextOccurrence = null;
     if (updatedTask?.completed && updatedTask.recurrence_type && updatedTask.recurrence_type !== 'none') {
-      await generateNextOccurrenceIfRecurring(id);
+      nextOccurrence = await generateNextOccurrenceIfRecurring(id);
     }
 
-    res.json(updatedTask);
+    res.json({ ...updatedTask, next_occurrence: nextOccurrence });
   } catch (error) {
     console.error('Error toggling task completion:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -33,6 +33,11 @@ export interface Task {
   updated_at: string;
 }
 
+/** Response from PATCH /api/tasks/:id/toggle — may include a spawned recurrence. */
+interface ToggleTaskResponse extends Task {
+  next_occurrence?: Task | null;
+}
+
 export interface CreateTaskData {
   title: string;
   description?: string;
@@ -79,7 +84,7 @@ interface TaskContextType {
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string, showLoading?: boolean) => Promise<Task | null>;
   undoDeleteTask: (taskId: string) => Promise<boolean>;
-  toggleTaskCompletion: (taskId: string) => Promise<void>;
+  toggleTaskCompletion: (taskId: string) => Promise<Task | null>;
   reorderTasks: (reorderedTasks: Task[]) => void;
   subtasksByTaskId: Record<string, SubTask[]>;
   fetchSubTasks: (taskId: string) => Promise<void>;
@@ -361,12 +366,12 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   }, [token, deletedTasks, queryClient]);
 
-  const toggleTaskCompletion = useCallback(async (taskId: string) => {
-    if (!token) return;
+  const toggleTaskCompletion = useCallback(async (taskId: string): Promise<Task | null> => {
+    if (!token) return null;
 
     const currentTasks = queryClient.getQueryData<Task[]>(['tasks']) ?? [];
     const currentTask = currentTasks.find(task => task.id === taskId);
-    if (!currentTask) return;
+    if (!currentTask) return null;
 
     const originalCompleted = currentTask.completed;
     const newCompleted = !originalCompleted;
@@ -396,7 +401,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     });
 
     try {
-      const updatedTask = await apiClient.patch<Task>(`/api/tasks/${taskId}/toggle`);
+      const response = await apiClient.patch<ToggleTaskResponse>(`/api/tasks/${taskId}/toggle`);
+      const { next_occurrence: nextOccurrence, ...updatedTask } = response;
 
       if (updatedTask.completed && posthog) {
         posthog.capture('task_completed', {
@@ -411,9 +417,14 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       // Confirm with server data
       queryClient.setQueryData<Task[]>(['tasks'], (old) => {
-        const tasksWithUpdated = (old ?? []).map(task =>
+        let tasksWithUpdated = (old ?? []).map(task =>
           task.id === taskId ? updatedTask : task,
         );
+
+        if (nextOccurrence && !tasksWithUpdated.some(task => task.id === nextOccurrence.id)) {
+          tasksWithUpdated = sortTasks([...tasksWithUpdated, nextOccurrence]);
+        }
+
         if (updatedTask.completed) {
           const idx = tasksWithUpdated.findIndex(task => task.id === taskId);
           if (idx !== -1) {
@@ -425,12 +436,16 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         return tasksWithUpdated;
       });
 
-      // The backend generates the next occurrence synchronously when a
-      // recurring task is completed (see taskController.toggleTaskCompletion +
-      // recurrenceService). Refetch so the newly created occurrence shows up.
+      if (newCompleted && nextOccurrence) {
+        return nextOccurrence;
+      }
+
       if (newCompleted && currentTask.recurrence_type && currentTask.recurrence_type !== 'none') {
+        // Fallback: generation may have failed silently on the server
         queryClient.invalidateQueries({ queryKey: ['tasks'] });
       }
+
+      return null;
     } catch {
       // Revert optimistic update
       queryClient.setQueryData<Task[]>(['tasks'], (old) =>
@@ -438,6 +453,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
           task.id === taskId ? { ...task, completed: originalCompleted } : task,
         ),
       );
+      return null;
     }
   }, [token, queryClient, posthog, createTask]);
 

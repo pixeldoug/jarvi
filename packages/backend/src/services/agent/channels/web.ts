@@ -42,6 +42,8 @@ import type {
 
 export type SSEEvent =
   | { type: 'text'; content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'status'; message: string }
   | { type: 'tool_call'; toolName: string; toolArgs: Record<string, unknown> }
   | { type: 'tool_result'; toolName: string; success: boolean; data?: Record<string, unknown> }
   | { type: 'separator' }
@@ -84,6 +86,28 @@ const WEB_PROFILE: ChannelProfile = {
   systemPromptExtras: buildWebExtras,
 };
 
+const TOOL_STATUS_LABELS: Record<string, string> = {
+  search_tasks: 'Pesquisando suas tarefas…',
+  scan_gmail: 'Verificando seu Gmail…',
+  create_task: 'Criando tarefa…',
+  update_task: 'Atualizando tarefa…',
+  complete_task: 'Concluindo tarefa…',
+  delete_task: 'Excluindo tarefa…',
+  create_list: 'Criando lista…',
+  update_list: 'Atualizando lista…',
+  delete_list: 'Excluindo lista…',
+  show_list: 'Buscando lista…',
+  create_category: 'Criando categoria…',
+  update_category: 'Atualizando categoria…',
+  delete_category: 'Excluindo categoria…',
+  show_category: 'Buscando categoria…',
+  update_memory: 'Atualizando memória…',
+};
+
+function toolStatusLabel(toolName: string): string {
+  return TOOL_STATUS_LABELS[toolName] ?? 'Executando ação…';
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -97,11 +121,14 @@ export async function streamChat(
   onEvent: (event: SSEEvent) => void,
 ): Promise<void> {
   try {
+    onEvent({ type: 'status', message: 'Preparando contexto…' });
+
     const profileData = await getUserProfile(userId);
     const { timezone, preferredName, email, subscriptionStatus } = profileData;
     let { memory } = profileData;
 
     if (WEB_PROFILE.enableMemoryReconciliation && (await needsReconciliation(userId))) {
+      onEvent({ type: 'status', message: 'Atualizando memória…' });
       try {
         const reconciled = await reconcileMemory(userId, memory, timezone);
         if (reconciled !== memory) {
@@ -121,6 +148,7 @@ export async function streamChat(
     let focusedTaskImages: TaskImageAttachment[] = [];
 
     if (mode === 'task' && taskId) {
+      onEvent({ type: 'status', message: 'Carregando tarefa…' });
       const task = await getTaskById(taskId, userId);
       if (!task) {
         onEvent({ type: 'error', message: 'Tarefa não encontrada' });
@@ -142,6 +170,7 @@ export async function streamChat(
       };
       systemPrompt = buildTaskFocusedPrompt(task, ctx, WEB_PROFILE);
     } else {
+      onEvent({ type: 'status', message: 'Consultando suas tarefas…' });
       const [activeTasks, activeTaskCount, completedTaskCount, lists, categories] =
         await Promise.all([
           getUserActiveTasks(userId),
@@ -198,19 +227,25 @@ export async function streamChat(
       }
     }
 
+    const agentCallbacks = {
+      onText: (delta: string) => onEvent({ type: 'text', content: delta }),
+      onReasoning: (delta: string) => onEvent({ type: 'reasoning', content: delta }),
+      onStatus: (message: string) => onEvent({ type: 'status', message }),
+      onToolCall: (toolName: string, toolArgs: Record<string, unknown>) => {
+        onEvent({ type: 'status', message: toolStatusLabel(toolName) });
+        onEvent({ type: 'tool_call', toolName, toolArgs });
+      },
+      onToolResult: (toolName: string, success: boolean, data?: Record<string, unknown>) =>
+        onEvent({ type: 'tool_result', toolName, success, data }),
+      onSeparator: () => onEvent({ type: 'separator' }),
+    };
+
     let { text, toolCallNames, usage } = await runAgent(
       WEB_PROFILE,
       ctx,
       systemPrompt,
       initialMessages,
-      {
-        onText: (delta) => onEvent({ type: 'text', content: delta }),
-        onToolCall: (toolName, toolArgs) =>
-          onEvent({ type: 'tool_call', toolName, toolArgs }),
-        onToolResult: (toolName, success, data) =>
-          onEvent({ type: 'tool_result', toolName, success, data }),
-        onSeparator: () => onEvent({ type: 'separator' }),
-      },
+      agentCallbacks,
     );
     let retried = false;
 
@@ -228,14 +263,7 @@ export async function streamChat(
         ctx,
         systemPrompt,
         initialMessages,
-        {
-          onText: (delta) => onEvent({ type: 'text', content: delta }),
-          onToolCall: (toolName, toolArgs) =>
-            onEvent({ type: 'tool_call', toolName, toolArgs }),
-          onToolResult: (toolName, success, data) =>
-            onEvent({ type: 'tool_result', toolName, success, data }),
-          onSeparator: () => onEvent({ type: 'separator' }),
-        },
+        agentCallbacks,
         { forceToolChoice: true },
       );
       text = retry.text || text;

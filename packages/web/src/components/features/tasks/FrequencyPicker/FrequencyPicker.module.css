@@ -8,11 +8,14 @@
  *
  * The Dropdown component wraps children in a .content div with 8px padding.
  * We cancel it on .container and apply our own spacing (same pattern as
- * FilterPopover.module.css).
+ * FilterPopover.module.css), then restore 4px top and 8px bottom breathing
+ * room via padding.
  */
 
 .container {
   margin: calc(-1 * var(--sizes-2));
+  padding-top: var(--sizes-1);
+  padding-bottom: var(--sizes-2);
   display: flex;
   flex-direction: column;
   gap: var(--sizes-2);

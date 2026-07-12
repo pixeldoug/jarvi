@@ -53,6 +53,35 @@ export function formatTaskDate(dueDate?: string, time?: string): string | null {
 }
 
 /**
+ * Format next recurrence for toast copy — e.g. "12 Julho 14h00".
+ */
+export function formatRecurrenceSchedule(dueDate?: string, time?: string): string | null {
+  const date = parseDateString(dueDate);
+  if (!date) return null;
+
+  try {
+    const dayNum = date.getDate();
+    const monthStr = date
+      .toLocaleDateString('pt-BR', { month: 'long' })
+      .replace(/^./, (char) => char.toUpperCase());
+
+    const t = normalizeTime(time);
+    if (t) {
+      const [hoursRaw, minutesRaw] = t.split(':');
+      const hours = Number.parseInt(hoursRaw, 10);
+      const minutes = (minutesRaw ?? '00').padStart(2, '0');
+      if (!Number.isNaN(hours)) {
+        return `${dayNum} ${monthStr} ${hours}h${minutes}`;
+      }
+    }
+
+    return `${dayNum} ${monthStr}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns true if the given due date string represents today (local time).
  */
 export function isToday(dueDate?: string): boolean {

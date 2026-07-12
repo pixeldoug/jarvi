@@ -1,0 +1,120 @@
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding: 0 var(--sizes-2);
+  max-width: 100%;
+}
+
+.header {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.header:disabled {
+  cursor: default;
+}
+
+.chevron {
+  color: var(--semantic-content-primary);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chevronOpen {
+  transform: rotate(0deg);
+}
+
+.chevron:not(.chevronOpen) {
+  transform: rotate(-90deg);
+}
+
+.label {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--font-size-sm, 13px);
+  font-weight: var(--font-weight-medium, 500);
+  line-height: 1.4;
+  color: var(--semantic-content-primary);
+}
+
+.labelLive {
+  color: transparent;
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--semantic-content-primary) 18%, transparent) 0%,
+    var(--semantic-content-primary) 14%,
+    color-mix(in srgb, var(--semantic-content-primary) 18%, transparent) 32%,
+    var(--semantic-content-primary) 50%,
+    color-mix(in srgb, var(--semantic-content-primary) 18%, transparent) 68%,
+    var(--semantic-content-primary) 86%,
+    color-mix(in srgb, var(--semantic-content-primary) 18%, transparent) 100%
+  );
+  background-size: 320% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinkingShimmer 3.2s ease-in-out infinite;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding-left: calc(14px + var(--sizes-1));
+}
+
+.status {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--font-size-sm, 13px);
+  line-height: 1.45;
+  color: var(--semantic-content-primary);
+}
+
+.reasoningList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-3);
+}
+
+.reasoningSegment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  padding-left: var(--sizes-3);
+  border-left: 2px solid var(--semantic-border-subtle, rgba(0, 0, 0, 0.08));
+}
+
+.reasoningStep {
+  font-family: var(--font-font-family-font-ui);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium, 500);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--semantic-content-primary);
+}
+
+.reasoningText {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--font-size-sm, 13px);
+  line-height: 1.55;
+  color: var(--semantic-content-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@keyframes thinkingShimmer {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: -100% center;
+  }
+}

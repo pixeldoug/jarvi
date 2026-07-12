@@ -56,7 +56,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const id = Math.random().toString(36).substr(2, 9);
     const newToast: Toast = {
       id,
-      duration: 1500, // 1.5 seconds default
+      duration: 2000, // 2 seconds default
       ...toastData,
     };
 
@@ -180,7 +180,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
   useEffect(() => {
     if (animationState !== 'visible' || isDismissed) return;
 
-    const duration = toast.duration || 1500; // 1.5 seconds default
+    const duration = toast.duration || 2000; // 2 seconds default
     const interval = 16; // ~60fps
     const steps = duration / interval;
     const increment = 100 / steps;

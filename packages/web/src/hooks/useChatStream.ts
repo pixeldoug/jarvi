@@ -9,6 +9,10 @@ export interface ChatMessageData {
   content: string;
   contentAfter?: string;
   toolCalls?: ToolCallData[];
+  /** In-progress reasoning for the current agent iteration. */
+  reasoning?: string;
+  /** Completed reasoning segments from earlier iterations in this turn. */
+  reasoningSegments?: string[];
   /** Files the user attached to this message (metadata only, for display). */
   attachments?: ChatAttachmentMeta[];
 }
@@ -39,7 +43,7 @@ export interface ToolCallData {
 }
 
 interface SSEEvent {
-  type: 'text' | 'tool_call' | 'tool_result' | 'separator' | 'done' | 'error';
+  type: 'text' | 'reasoning' | 'status' | 'tool_call' | 'tool_result' | 'separator' | 'done' | 'error';
   content?: string;
   message?: string;
   toolName?: string;
@@ -51,11 +55,21 @@ interface SSEEvent {
 let messageIdCounter = 0;
 const nextId = () => `msg-${++messageIdCounter}-${Date.now()}`;
 
+function finalizeReasoningSegment(message: ChatMessageData): ChatMessageData {
+  if (!message.reasoning?.trim()) return message;
+  return {
+    ...message,
+    reasoningSegments: [...(message.reasoningSegments || []), message.reasoning],
+    reasoning: '',
+  };
+}
+
 export function useChatStream(mode: 'task' | 'general', taskId?: string) {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
@@ -82,12 +96,34 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
 
     const assistantId = nextId();
     let afterSeparator = false;
-    setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '', contentAfter: '', toolCalls: [] }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        contentAfter: '',
+        toolCalls: [],
+        reasoning: '',
+        reasoningSegments: [],
+      },
+    ]);
     setIsStreaming(true);
     setIsWaiting(true);
+    setThinkingStatus('Preparando resposta…');
 
     const controller = new AbortController();
     abortRef.current = controller;
+
+    const updateAssistant = (updater: (message: ChatMessageData) => ChatMessageData) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === assistantId ? updater(m) : m)),
+      );
+    };
+
+    const finalizeAssistantReasoning = () => {
+      updateAssistant((m) => finalizeReasoningSegment(m));
+    };
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
@@ -123,105 +159,110 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data: ')) continue;
+          const trimmedLine = line.trim();
+          if (!trimmedLine.startsWith('data: ')) continue;
 
           let event: SSEEvent;
           try {
-            event = JSON.parse(trimmed.slice(6));
+            event = JSON.parse(trimmedLine.slice(6));
           } catch {
             continue;
           }
 
           switch (event.type) {
+            case 'status':
+              if (event.message) {
+                setThinkingStatus(event.message);
+              }
+              break;
+
+            case 'reasoning':
+              setIsWaiting(false);
+              updateAssistant((m) => ({
+                ...m,
+                reasoning: (m.reasoning || '') + (event.content || ''),
+              }));
+              break;
+
             case 'text':
               setIsWaiting(false);
               if (afterSeparator) {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, contentAfter: (m.contentAfter || '') + (event.content || '') }
-                      : m,
-                  ),
-                );
+                updateAssistant((m) => ({
+                  ...m,
+                  contentAfter: (m.contentAfter || '') + (event.content || ''),
+                }));
               } else {
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: m.content + (event.content || '') }
-                      : m,
-                  ),
-                );
+                updateAssistant((m) => ({
+                  ...m,
+                  content: m.content + (event.content || ''),
+                }));
               }
               break;
 
             case 'separator':
               afterSeparator = true;
+              finalizeAssistantReasoning();
               setIsWaiting(true);
               break;
 
             case 'tool_call':
+              finalizeAssistantReasoning();
               setIsWaiting(true);
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        toolCalls: [
-                          ...(m.toolCalls || []),
-                          {
-                            toolName: event.toolName || '',
-                            toolArgs: event.toolArgs || {},
-                          },
-                        ],
-                      }
-                    : m,
-                ),
-              );
+              updateAssistant((m) => ({
+                ...m,
+                toolCalls: [
+                  ...(m.toolCalls || []),
+                  {
+                    toolName: event.toolName || '',
+                    toolArgs: event.toolArgs || {},
+                  },
+                ],
+              }));
               break;
 
             case 'tool_result':
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-                  const calls = [...(m.toolCalls || [])];
-                  let matchIdx = -1;
-                  for (let i = calls.length - 1; i >= 0; i--) {
-                    if (calls[i].toolName === event.toolName && !calls[i].result) {
-                      matchIdx = i;
-                      break;
-                    }
+              updateAssistant((m) => {
+                const calls = [...(m.toolCalls || [])];
+                let matchIdx = -1;
+                for (let i = calls.length - 1; i >= 0; i--) {
+                  if (calls[i].toolName === event.toolName && !calls[i].result) {
+                    matchIdx = i;
+                    break;
                   }
-                  if (matchIdx >= 0) {
-                    calls[matchIdx] = {
-                      ...calls[matchIdx],
-                      result: {
-                        success: event.success ?? false,
-                        data: event.data,
-                      },
-                    };
-                  }
-                  return { ...m, toolCalls: calls };
-                }),
-              );
+                }
+                if (matchIdx >= 0) {
+                  calls[matchIdx] = {
+                    ...calls[matchIdx],
+                    result: {
+                      success: event.success ?? false,
+                      data: event.data,
+                    },
+                  };
+                }
+                return { ...m, toolCalls: calls };
+              });
               break;
 
             case 'error': {
               const errorText = event.message || 'Ocorreu um erro.';
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== assistantId) return m;
-                  if (!m.content) return { ...m, content: errorText };
-                  if (afterSeparator) {
-                    return { ...m, contentAfter: (m.contentAfter || '') + (m.contentAfter ? '\n\n' : '') + `⚠️ ${errorText}` };
-                  }
-                  return { ...m, content: m.content + `\n\n⚠️ ${errorText}` };
-                }),
-              );
+              updateAssistant((m) => {
+                if (!m.content) return { ...m, content: errorText };
+                if (afterSeparator) {
+                  return {
+                    ...m,
+                    contentAfter:
+                      (m.contentAfter || '') +
+                      (m.contentAfter ? '\n\n' : '') +
+                      `⚠️ ${errorText}`,
+                  };
+                }
+                return { ...m, content: m.content + `\n\n⚠️ ${errorText}` };
+              });
               break;
             }
 
             case 'done':
+              finalizeAssistantReasoning();
               break;
           }
         }
@@ -237,8 +278,10 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
         );
       }
     } finally {
+      finalizeAssistantReasoning();
       setIsStreaming(false);
       setIsWaiting(false);
+      setThinkingStatus(null);
       abortRef.current = null;
     }
   }, [token, messages, isStreaming, mode, taskId]);
@@ -248,11 +291,12 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
     setMessages([]);
     setIsStreaming(false);
     setIsWaiting(false);
+    setThinkingStatus(null);
   }, []);
 
   const stop = useCallback(() => {
     if (abortRef.current) abortRef.current.abort();
   }, []);
 
-  return { messages, sendMessage, isStreaming, isWaiting, reset, stop };
+  return { messages, sendMessage, isStreaming, isWaiting, thinkingStatus, reset, stop };
 }

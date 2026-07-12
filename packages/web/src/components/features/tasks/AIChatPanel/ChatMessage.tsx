@@ -4,6 +4,7 @@ import type { ChatMessageData, ChatAttachmentMeta } from '../../../../hooks/useC
 import { TaskCardMessage } from './TaskCardMessage';
 import { ListCardMessage } from './ListCardMessage';
 import { CategoryCardMessage } from './CategoryCardMessage';
+import { ThinkingBlock } from './ThinkingBlock';
 import { AttachmentViewer } from '../../../ui/AttachmentViewer';
 import styles from './AIChatPanel.module.css';
 
@@ -68,12 +69,21 @@ function renderAiContent(text: string): ReactNode {
 
 interface ChatMessageProps {
   message: ChatMessageData;
+  isStreaming?: boolean;
+  thinkingStatus?: string | null;
   onTaskCardClick?: (taskId: string) => void;
   onListCardClick?: (listId: string) => void;
   onCategoryCardClick?: (categoryName: string) => void;
 }
 
-export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCategoryCardClick }: ChatMessageProps) {
+export function ChatMessage({
+  message,
+  isStreaming = false,
+  thinkingStatus,
+  onTaskCardClick,
+  onListCardClick,
+  onCategoryCardClick,
+}: ChatMessageProps) {
   const isUser = message.role === 'user';
   const [viewing, setViewing] = useState<ChatAttachmentMeta | null>(null);
 
@@ -107,6 +117,9 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
   );
 
   const attachments = message.attachments ?? [];
+  const hasReasoning =
+    Boolean(message.reasoning?.trim()) || Boolean(message.reasoningSegments?.length);
+  const showThinkingBlock = !isUser && (isStreaming || hasReasoning);
 
   return (
     <div className={`${styles.messageRow} ${isUser ? styles.messageRowUser : styles.messageRowAi}`}>
@@ -137,6 +150,15 @@ export function ChatMessage({ message, onTaskCardClick, onListCardClick, onCateg
             );
           })}
         </div>
+      )}
+
+      {showThinkingBlock && (
+        <ThinkingBlock
+          isLive={isStreaming}
+          status={thinkingStatus ?? undefined}
+          reasoning={message.reasoning}
+          reasoningSegments={message.reasoningSegments}
+        />
       )}
 
       {(!isUser || message.content) && (
