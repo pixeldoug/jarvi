@@ -228,13 +228,13 @@
   --radius-tooltip-radius: 12px;
 
   /* ===== Target Sizes (Mode) ===== */
-  --size-target-fine: 24px;
+  --size-target-fine: 28px;
   --size-target-tight: 36px;
   --size-target-compact: 40px;
   --size-target-standard: 48px;
 
   /* ===== Chip Sizes (Mode) ===== */
-  --size-chip-small-height: 24px;
+  --size-chip-small-height: 28px;
   --size-chip-medium-height: 36px;
 
   /* ===== Semantic Tokens (Light Mode) ===== */
