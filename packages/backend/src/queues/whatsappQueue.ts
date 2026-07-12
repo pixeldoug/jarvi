@@ -112,8 +112,16 @@ export const whatsappQueue = new Queue<WhatsappMessageJob>('whatsapp-messages', 
 });
 
 let whatsappWorker: Worker<WhatsappMessageJob> | null = null;
-const AGGREGATION_WINDOW_MS = Number(process.env.WHATSAPP_MESSAGE_AGGREGATION_WINDOW_MS || 2000);
-const AGGREGATION_STATE_TTL_MS = Math.max(AGGREGATION_WINDOW_MS * 6, 60_000);
+// Default 8s — forwarded/large audio webhooks from Twilio often arrive several
+// seconds after the accompanying text webhook.
+const AGGREGATION_WINDOW_MS = Number(process.env.WHATSAPP_MESSAGE_AGGREGATION_WINDOW_MS || 8000);
+// Extra grace when the burst is text-only so far: text webhooks routinely beat
+// audio media webhooks, and we must not process before late media arrives.
+const TEXT_FIRST_GRACE_MS = Number(process.env.WHATSAPP_TEXT_FIRST_GRACE_MS || 10000);
+const AGGREGATION_STATE_TTL_MS = Math.max(
+  Math.max(AGGREGATION_WINDOW_MS, TEXT_FIRST_GRACE_MS) * 6,
+  60_000,
+);
 
 // ---------------------------------------------------------------------------
 // Inbox aggregation helpers
@@ -174,7 +182,23 @@ const uniqueMediaItems = (
   return unique;
 };
 
-const scheduleProcessingJob = async (from: string): Promise<void> => {
+const computeAggregationDelay = (state: AggregatedInboxState): number => {
+  const hasMedia = state.mediaItems.length > 0;
+  const hasText = state.contents.some((item) => item.trim().length > 0);
+
+  // Text-only burst so far — hold longer for late audio/image webhooks.
+  if (hasText && !hasMedia) {
+    return TEXT_FIRST_GRACE_MS;
+  }
+
+  return AGGREGATION_WINDOW_MS;
+};
+
+const scheduleProcessingJob = async (
+  from: string,
+  state: AggregatedInboxState,
+): Promise<void> => {
+  const delay = computeAggregationDelay(state);
   const existingJob = await whatsappQueue.getJob(processJobId(from));
   if (existingJob) {
     try {
@@ -191,7 +215,7 @@ const scheduleProcessingJob = async (from: string): Promise<void> => {
     { from },
     {
       jobId: processJobId(from),
-      delay: AGGREGATION_WINDOW_MS,
+      delay,
       removeOnComplete: true,
       removeOnFail: 100,
     },
@@ -256,7 +280,7 @@ export const enqueueIncomingWhatsappMessage = async (
     AGGREGATION_STATE_TTL_MS,
   );
 
-  await scheduleProcessingJob(from);
+  await scheduleProcessingJob(from, state);
   return { isFirstInBurst };
 };
 
@@ -323,13 +347,11 @@ const processAggregatedInboxPayload = async (
     }
 
     const redis = await whatsappQueue.client;
-    const textParts: string[] = [];
+    const mediaParts: string[] = [];
+    const failedMediaLabels: string[] = [];
 
-    // Add text content from the message
-    const originalText = content?.trim() || null;
-    if (originalText) textParts.push(originalText);
-
-    // Process each media item into a text representation
+    // Transcribe/describe media first — audio usually carries the main intent;
+    // trailing text is often supplemental context (follow-up, reminders, etc.).
     for (const mediaItem of mediaItems) {
       const { url, contentType } = mediaItem;
       try {
@@ -337,16 +359,16 @@ const processAggregatedInboxPayload = async (
           await sendTextMessage(from, 'Pensando...');
           const buffer = await downloadMedia(url);
           const transcription = await transcribeAudio(buffer, contentType);
-          textParts.push(`[Áudio transcrito]: ${transcription}`);
+          mediaParts.push(`[Áudio transcrito]: ${transcription}`);
         } else if (contentType.startsWith('image/')) {
           await sendTextMessage(from, 'Pensando...');
           const buffer = await downloadMedia(url);
           const description = await analyzeImageForChat(buffer, contentType);
-          textParts.push(`[Imagem recebida]: ${description}`);
+          mediaParts.push(`[Imagem recebida]: ${description}`);
         } else if (isPdfMimeType(contentType)) {
           const buffer = await downloadMedia(url);
           const pdfText = await extractTextFromPdfBuffer(buffer);
-          if (pdfText) textParts.push(`[Documento PDF]: ${pdfText}`);
+          if (pdfText) mediaParts.push(`[Documento PDF]: ${pdfText}`);
         }
       } catch (mediaError) {
         console.error('Failed to process media item:', {
@@ -354,15 +376,31 @@ const processAggregatedInboxPayload = async (
           contentType,
           error: mediaError instanceof Error ? mediaError.message : String(mediaError),
         });
+        const label = contentType.startsWith('audio/')
+          ? 'áudio'
+          : contentType.startsWith('image/')
+            ? 'imagem'
+            : 'arquivo';
+        failedMediaLabels.push(label);
+        mediaParts.push(
+          `[${label} não processado]: não consegui baixar ou interpretar este arquivo.`,
+        );
       }
     }
+
+    const originalText = content?.trim() || null;
+    const textParts = [...mediaParts, ...(originalText ? [originalText] : [])];
 
     if (textParts.length === 0) {
       await sendTextMessage(from, 'Envie uma mensagem ou arquivo e eu te ajudo!');
       return;
     }
 
-    const userMessage = textParts.join('\n\n');
+    let userMessage = textParts.join('\n\n');
+    if (failedMediaLabels.length > 0) {
+      const uniqueFailed = [...new Set(failedMediaLabels)];
+      userMessage += `\n\n[Nota do sistema: falha ao processar ${uniqueFailed.join(' e ')} — informe o usuário se relevante.]`;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const agentResponse = await runWhatsappAgent(user.id, userMessage, redis as any, {
       whatsappPhone: from,
