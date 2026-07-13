@@ -17,6 +17,22 @@ function normalizeTime(time?: string): string {
   return trimmed;
 }
 
+/** Prefer the persisted tool result; only fall back to toolArgs when the field is absent. */
+function pickPersistedField(
+  data: Record<string, unknown> | undefined,
+  key: string,
+  args: Record<string, unknown>,
+): string {
+  if (data && key in data) {
+    const val = data[key];
+    if (val == null || String(val).trim() === '') return '';
+    return String(val);
+  }
+  const argVal = args[key];
+  if (argVal == null || String(argVal).trim() === '') return '';
+  return String(argVal);
+}
+
 function formatDueDate(raw: string): string {
   if (!raw) return '';
   // Parse YYYY-MM-DD safely (avoid timezone shifts from new Date(string))
@@ -51,12 +67,12 @@ export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps)
 
   const isDeleted = toolCall.toolName === 'delete_task';
   const taskId = String(data.id || '');
-  const title = String(data.title || toolCall.toolArgs.title || '');
+  const title = pickPersistedField(data, 'title', toolCall.toolArgs);
   const isCompleted = toolCall.toolName === 'complete_task' || Boolean(data.completed);
-  const priority = String(data.priority || toolCall.toolArgs.priority || '');
-  const dueDate = String(data.due_date || toolCall.toolArgs.due_date || '');
-  const category = String(data.category || toolCall.toolArgs.category || '');
-  const time = normalizeTime(String(data.time || toolCall.toolArgs.time || ''));
+  const priority = pickPersistedField(data, 'priority', toolCall.toolArgs);
+  const dueDate = pickPersistedField(data, 'due_date', toolCall.toolArgs);
+  const category = pickPersistedField(data, 'category', toolCall.toolArgs);
+  const time = normalizeTime(pickPersistedField(data, 'time', toolCall.toolArgs));
 
   if (!title && !isCompleted && !isDeleted) return null;
 

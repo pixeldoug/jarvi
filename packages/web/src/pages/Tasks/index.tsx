@@ -483,7 +483,8 @@ export function Tasks() {
             completed: false,
             priority: (d.priority as Task['priority']) || 'medium',
             category: (d.category as string | undefined) ?? undefined,
-            due_date: (d.due_date as string | undefined) ?? undefined,
+            due_date: d.due_date != null ? (d.due_date as string) : undefined,
+            time: d.time != null ? (d.time as string) : undefined,
             important: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -508,6 +509,7 @@ export function Tasks() {
             priority: d.priority as Task['priority'] | undefined,
             category: d.category as string | undefined,
             due_date: d.due_date as string | undefined,
+            time: d.time as string | undefined,
             completed: d.completed as boolean | undefined,
           };
           // Update query cache immediately so the list reflects changes
@@ -521,6 +523,7 @@ export function Tasks() {
                     ...(patch.priority !== undefined && { priority: patch.priority }),
                     ...(patch.category !== undefined && { category: patch.category }),
                     ...(patch.due_date !== undefined && { due_date: patch.due_date }),
+                    ...(patch.time !== undefined && { time: patch.time }),
                     ...(patch.completed !== undefined && { completed: patch.completed }),
                   }
                 : t,
@@ -536,6 +539,7 @@ export function Tasks() {
               ...(patch.priority !== undefined && { priority: patch.priority }),
               ...(patch.category !== undefined && { category: patch.category }),
               ...(patch.due_date !== undefined && { due_date: patch.due_date }),
+              ...(patch.time !== undefined && { time: patch.time }),
               ...(patch.completed !== undefined && { completed: patch.completed }),
             };
           });

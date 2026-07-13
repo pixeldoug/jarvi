@@ -274,11 +274,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     );
 
     try {
-      const requestData = {
-        ...taskData,
-        dueDate: taskData.dueDate === undefined ? null : taskData.dueDate,
-        important: taskData.important !== undefined ? taskData.important : false,
-      };
+      // Only send fields the caller explicitly set — omitting dueDate/important
+      // must not wipe existing values on the server (partial updates).
+      const requestData: UpdateTaskData = { ...taskData };
 
       const updatedTask = await apiClient.put<Task>(`/api/tasks/${taskId}`, requestData);
       queryClient.setQueryData<Task[]>(['tasks'], (old) =>

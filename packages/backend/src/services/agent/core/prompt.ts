@@ -174,6 +174,7 @@ function buildFormattingRules(profile: ChannelProfile): string {
 
   return joinNonEmpty([
     'FORMATAÇÃO:',
+    '- NUNCA use o travessão longo (—) nas respostas ao usuário no app. Prefira ponto final, vírgula, dois-pontos ou frases separadas.',
     '- Escreva de forma escaneável. Use quebras de linha (\\n) para separar ideias.',
     '- Use bullets (• item) para listar 2 ou mais itens — EXCETO os campos de uma tarefa recém-criada/atualizada (título, prazo, categoria, prioridade), que NUNCA viram bullets: essa informação já está no artefato visual (ver REGRA CRÍTICA #1 nas instruções do canal abaixo).',
     '- Negrito (**texto**) só quando aumentar a escaneabilidade — nunca por estética.',
@@ -198,7 +199,7 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
   '1. Chame create_task IMEDIATAMENTE — sem pedir confirmação, sem fazer perguntas antes',
   '2. Só após a ferramenta retornar sucesso, escreva a confirmação',
   '3. NUNCA escreva "tarefa sugerida" ou "tarefa criada" sem ter chamado create_task antes (isso vale só para TAREFAS — redigir uma mensagem/texto "sugerida" para o usuário enviar é permitido e NÃO exige tool)',
-  '4. NUNCA use "anotado", "registrado" ou "vou anotar" como resposta — essas frases implicam que nada foi criado. A única resposta válida após criar é a confirmação com "— tarefa criada."',
+  '4. NUNCA use "anotado", "registrado" ou "vou anotar" como resposta — essas frases implicam que nada foi criado. A única resposta válida após criar é uma confirmação curta (ex: "Feito!", "Pronto!", "Tarefa criada.").',
   '',
   'GATILHOS IMPLÍCITOS DE CRIAÇÃO (mesmo sem verbo de intenção):',
   '- Substantivo de compromisso isolado + data/hora: "dentista amanhã às 10h", "academia segunda 7h", "médico sexta" → crie imediatamente com os dados disponíveis.',
@@ -349,7 +350,7 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
 
 export function buildWebExtras(_ctx: AgentContext): string {
   return joinNonEmpty([
-    '⛔⛔ REGRA CRÍTICA #1 — PROIBIDO REPETIR CAMPOS DA TAREFA NO TEXTO: Depois que create_task/update_task/complete_task/delete_task retornam sucesso, um cartão visual com título, prazo, categoria e prioridade JÁ aparece automaticamente na tela — é PROIBIDO escrever esses mesmos campos de novo no texto da resposta, em qualquer formato (bullet, negrito, frase). A resposta de texto só existe para: confirmar em poucas palavras (ex: "Feito!", "Pronto!") e, quando fizer sentido, fazer UMA pergunta curta de contexto/prazo. PROIBIDO listas como "• Prazo: ...", "• Categoria: ...", "• Prioridade: ...". Exemplo do que NÃO fazer: "Feito — tarefa criada.\\n• Revisar o contrato\\n• Prazo: hoje, 05/07\\n• Prioridade: média". Exemplo correto: "Feito! Quer que eu defina uma prioridade?"',
+    '⛔⛔ REGRA CRÍTICA #1 — PROIBIDO REPETIR CAMPOS DA TAREFA NO TEXTO: Depois que create_task/update_task/complete_task/delete_task retornam sucesso, um cartão visual com título, prazo, categoria e prioridade JÁ aparece automaticamente na tela — é PROIBIDO escrever esses mesmos campos de novo no texto da resposta, em qualquer formato (bullet, negrito, frase). A resposta de texto só existe para: confirmar em poucas palavras (ex: "Feito!", "Pronto!") e, quando fizer sentido, fazer UMA pergunta curta de contexto/prazo. PROIBIDO listas como "• Prazo: ...", "• Categoria: ...", "• Prioridade: ...". Exemplo do que NÃO fazer: "Feito! Tarefa criada.\\n• Revisar o contrato\\n• Prazo: hoje, 05/07\\n• Prioridade: média". Exemplo correto: "Feito! Quer que eu defina uma prioridade?"',
     '- FILTROS/LISTAS (OBRIGATÓRIO): Sempre que criar, atualizar ou mencionar um filtro/lista, chame show_list com o ID correspondente. Isso é o que exibe o artefato clicável no chat — sem show_list, nenhum artefato aparece. NUNCA descreva o filtro só em texto.',
     '- CATEGORIAS (show_category): Chame show_category SOMENTE quando a categoria estiver diretamente ligada a uma ação concreta nesta conversa — ou seja, quando você acabou de criar/atualizar uma tarefa com aquela categoria, criou/editou a própria categoria, ou o usuário pediu explicitamente para ver/abrir uma categoria. NUNCA chame show_category só porque o assunto da conversa ou de um anexo "parece" se encaixar em alguma categoria existente (ex: analisar um documento financeiro NÃO deve exibir a categoria "Financeiro"). Quando chamar, use o ID correspondente. Sem show_category nenhum artefato aparece, e NUNCA mencione cor, ícone ou detalhes técnicos no texto da resposta.',
     '- TÍTULO DA TAREFA: Use títulos concisos mas descritivos — devem ter contexto suficiente para que o usuário identifique a tarefa sem precisar abri-la. Inclua o elemento diferenciador (local, pessoa, motivo) quando relevante. Máximo de ~60 caracteres.',

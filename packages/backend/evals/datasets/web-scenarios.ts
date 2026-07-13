@@ -82,7 +82,7 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     // (OBRIGATÓRIO)" rule explicitly forbids repeating the task title in the
     // confirmation text ("o artefato já comunica tudo isso") — the task-card
     // artifact is what shows the title, not the chat text.
-    idealOutput: 'Feito — tarefa criada (sem categoria, já que nenhuma das existentes se encaixa).',
+    idealOutput: 'Feito! Tarefa criada (sem categoria, já que nenhuma das existentes se encaixa).',
     tags: ['web', 'task-creation', 'category', 'no-invent'],
   },
 
@@ -158,7 +158,7 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     ],
     mustContain: ['relatório'],
     idealOutput:
-      'Feito — prioridade da tarefa "Entregar relatório trimestral" aumentada para alta (a tarefa vence amanhã).',
+      'Feito! Prioridade da tarefa "Entregar relatório trimestral" aumentada para alta (a tarefa vence amanhã).',
     tags: ['web', 'task-update', 'priority', 'tool-calling'],
   },
 
@@ -238,7 +238,7 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     // card carry the title, the same "don't repeat what the card already
     // shows" pattern create_task follows explicitly.
     mustContain: ['amanhã'],
-    idealOutput: 'Feito — reagendei para amanhã.',
+    idealOutput: 'Feito! Reagendei para amanhã.',
     tags: ['web', 'overdue', 'reschedule', 'tool-calling'],
   },
 ];
