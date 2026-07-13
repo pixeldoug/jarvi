@@ -195,7 +195,10 @@ export function Sidebar({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceCollapsed]);
 
-  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const collapsedProfileButtonRef = useRef<HTMLButtonElement>(null);
+  const expandedProfileButtonRef = useRef<HTMLButtonElement>(null);
+  const profileButtonRef =
+    isCollapsed && !isMobile ? collapsedProfileButtonRef : expandedProfileButtonRef;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -292,7 +295,7 @@ export function Sidebar({
       <div className={styles.collapsedPanel}>
         {/* Avatar button */}
         <button
-          ref={profileButtonRef}
+          ref={collapsedProfileButtonRef}
           className={styles.collapsedAvatarButton}
           onClick={() => setIsDropdownOpen((v) => !v)}
           type="button"
@@ -403,7 +406,7 @@ export function Sidebar({
           {/* User row */}
           <div className={styles.userRow}>
             <SidebarUserMenu
-              ref={profileButtonRef}
+              ref={expandedProfileButtonRef}
               src={userAvatar}
               name={userName}
               plan={planLabel}
@@ -557,9 +560,10 @@ export function Sidebar({
         isOpen={isDropdownOpen}
         onClose={() => setIsDropdownOpen(false)}
         anchorRef={profileButtonRef}
-        align={isCollapsed ? 'right' : 'left'}
+        align="left"
         width={isMobile ? 240 : 200}
-        gap={8}
+        gap={isCollapsed && !isMobile ? 6 : 8}
+        offsetX={isCollapsed && !isMobile ? 2 : 0}
       >
         {isMobile ? (
           <>

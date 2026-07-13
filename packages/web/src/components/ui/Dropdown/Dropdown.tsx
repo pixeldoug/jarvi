@@ -43,6 +43,10 @@ export interface DropdownProps {
   className?: string;
   /** Gap between anchor and dropdown */
   gap?: number;
+  /** Extra horizontal offset applied after alignment (px) */
+  offsetX?: number;
+  /** Extra vertical offset applied after position calculation (px) */
+  offsetY?: number;
   /** Force dropdown token theme */
   forceTheme?: 'light' | 'dark';
   /**
@@ -71,6 +75,8 @@ export function Dropdown({
   position = 'auto',
   className = '',
   gap = 8,
+  offsetX = 0,
+  offsetY = 0,
   forceTheme,
   disableOutsideIgnoreCheck = false,
 }: DropdownProps) {
@@ -127,6 +133,9 @@ export function Dropdown({
         break;
     }
 
+    left += offsetX;
+    top += offsetY;
+
     // Adjust horizontally if goes off screen
     if (left + dropdownWidth > window.innerWidth - margin) {
       left = window.innerWidth - dropdownWidth - margin;
@@ -139,7 +148,7 @@ export function Dropdown({
     top = Math.max(margin, Math.min(top, window.innerHeight - dropdownHeight - margin));
 
     setCalculatedPosition({ top, left });
-  }, [anchorRef, width, align, position, gap]);
+  }, [anchorRef, width, align, position, gap, offsetX, offsetY]);
 
   // Calculate dropdown position
   useEffect(() => {
