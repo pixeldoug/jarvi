@@ -13,7 +13,7 @@ import {
   Trash,
   UploadSimple,
 } from '@phosphor-icons/react';
-import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, KeyboardEvent } from 'react';
+import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, KeyboardEvent, MouseEvent } from 'react';
 import styles from './RichTextEditor.module.css';
 import { Button } from '../Button/Button';
 import { EditorToolbar } from './EditorToolbar';
@@ -566,6 +566,16 @@ export function RichTextEditor({
     void addFilesAsAttachments(files);
   }, [addFilesAsAttachments, readOnly]);
 
+  const handleEditorAreaClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    if (readOnly || !editor) return;
+    // Clicking the padding/empty space around the ProseMirror content used to
+    // do nothing (registered as a dead click). Forward the click into the
+    // editor so anywhere in the description box places the cursor.
+    if (editor.isFocused) return;
+    if (e.defaultPrevented) return;
+    editor.chain().focus().run();
+  }, [editor, readOnly]);
+
   const handleSaveClick = useCallback(() => {
     if (!onSave) return;
     void Promise.resolve(onSave());
@@ -607,7 +617,7 @@ export function RichTextEditor({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
-        <div className={styles.editorArea} onPaste={handlePaste} data-has-actions={!readOnly && (onSave || onCancel)}>
+        <div className={styles.editorArea} onPaste={handlePaste} onClick={handleEditorAreaClick} data-has-actions={!readOnly && (onSave || onCancel)}>
           <EditorContent editor={editor} />
         </div>
         {!readOnly && (onSave || onCancel) && (

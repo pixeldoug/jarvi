@@ -8,7 +8,6 @@ import {
   RecurrenceConfig,
   RecurrenceType,
   WEEKDAYS_DAYS_OF_WEEK,
-  type TimeOfDay,
 } from '@jarvi/shared';
 
 export const WEEKDAY_SHORT_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -21,13 +20,6 @@ export const REPEAT_OPTION_LABELS_PT: Record<RecurrenceType, string> = {
   weekly: 'Semanalmente',
   monthly: 'Mensalmente',
   custom: 'Personalizado',
-};
-
-export const TIME_OF_DAY_LABELS_PT: Record<TimeOfDay, string> = {
-  morning: 'Manhã',
-  afternoon: 'Tarde',
-  evening: 'Noite',
-  night: 'Madrugada',
 };
 
 const CUSTOM_FREQUENCY_UNIT_PT: Record<'hourly' | 'daily' | 'weekly' | 'monthly', [string, string]> = {
