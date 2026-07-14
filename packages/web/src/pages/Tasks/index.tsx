@@ -503,16 +503,20 @@ export function Tasks() {
         }
         case 'update_task': {
           const updatedId = d.id as string;
+          const attachmentsForUpdate = pendingChatAttachmentsRef.current;
+          let description = d.description as string | undefined;
+          if (description !== undefined && attachmentsForUpdate.length > 0) {
+            description = mergeAttachmentsIntoDescription(description, attachmentsForUpdate);
+          }
           const patch = {
             title: d.title as string | undefined,
-            description: d.description as string | undefined,
+            description,
             priority: d.priority as Task['priority'] | undefined,
             category: d.category as string | undefined,
             due_date: d.due_date as string | undefined,
             time: d.time as string | undefined,
             completed: d.completed as boolean | undefined,
           };
-          // Update query cache immediately so the list reflects changes
           queryClient.setQueryData<Task[]>(['tasks'], (old) =>
             (old ?? []).map((t) =>
               t.id === updatedId
@@ -529,7 +533,6 @@ export function Tasks() {
                 : t,
             ),
           );
-          // Also update the open sidebar immediately
           setSelectedTask((prev) => {
             if (!prev || prev.id !== updatedId) return prev;
             return {
@@ -543,6 +546,12 @@ export function Tasks() {
               ...(patch.completed !== undefined && { completed: patch.completed }),
             };
           });
+          if (attachmentsForUpdate.length > 0 && description) {
+            void updateTask(updatedId, { description }, false).catch((err) =>
+              console.error('Failed to persist AI task attachments after update:', err),
+            );
+            pendingChatAttachmentsRef.current = [];
+          }
           break;
         }
         case 'complete_task':

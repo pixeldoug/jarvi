@@ -1,18 +1,9 @@
 /**
  * Minimal Markdown → ProseMirror (TipTap) document converter.
  *
- * The AI agent returns task descriptions as Markdown. The task `description`
- * field is rendered by the `RichTextEditor`, which only renders structure when
- * the content is a ProseMirror doc (a plain string is treated as text/HTML, so
- * `##`, `-`, `- [ ]` would show up literally). This converter maps the common
- * Markdown subset the agent produces onto the editor's schema (StarterKit +
- * TaskList/TaskItem) so AI-created tasks render with real headings, lists and
- * checklists — similar to the structured descriptions seen in tools like Linear.
- *
- * Intentionally focused (not a full CommonMark parser): headings, bullet /
- * ordered lists, task checklists, blockquotes, bold / italic / inline code.
- *
- * Keep in sync with `packages/backend/src/utils/markdownToTiptapDoc.ts`.
+ * Keep in sync with `packages/web/src/utils/markdownToTiptapDoc.ts`.
+ * Duplicated here (not imported from `@jarvi/shared`) because Railway's
+ * backend build only copies `packages/backend` into the deploy context.
  */
 
 export interface PMNode {
@@ -30,7 +21,6 @@ export interface PMDoc {
 
 const INLINE_TOKEN = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*|_[^_\s][^_]*_)/g;
 
-/** Parses inline marks (bold, italic, code) within a single line of text. */
 function parseInline(text: string): PMNode[] {
   if (!text) return [];
   const parts = text.split(INLINE_TOKEN).filter((s) => s !== '' && s !== undefined);
@@ -51,7 +41,6 @@ function parseInline(text: string): PMNode[] {
     }
   }
 
-  // ProseMirror disallows empty text nodes.
   return nodes.filter((n) => n.type !== 'text' || (n.text && n.text.length > 0));
 }
 
@@ -144,8 +133,6 @@ export function markdownToTiptapDoc(markdown: string): PMDoc {
       continue;
     }
 
-    // Plain paragraph: gather consecutive non-structural lines, joined by
-    // hard breaks so multi-line paragraphs keep their layout.
     const paraLines: string[] = [];
     while (i < lines.length) {
       const t = lines[i].trim();

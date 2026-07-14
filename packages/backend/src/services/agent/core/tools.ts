@@ -21,6 +21,7 @@ import {
 } from '../../gmailService';
 import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
+import { mergeAgentDescriptionUpdate } from './taskDescriptionMerge';
 import {
   getTaskById,
   getUserCategories,
@@ -88,7 +89,8 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           title: { type: 'string' },
           description: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
-            description: 'Descrição, ou null para limpar',
+            description:
+              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Pode reescrever o texto para incorporar informações novas, mas deve manter todas as informações relevantes que já existiam. Anexos da tarefa são preservados automaticamente pelo sistema. Use null para limpar apenas quando não houver anexos.',
           },
           priority: {
             anyOf: [
@@ -612,23 +614,31 @@ async function executeUpdateTask(
     'time',
     'category',
   ] as const) {
-    if (args[key] !== undefined) {
+    if (args[key] === undefined) continue;
+
+    if (key === 'description') {
+      const merged = mergeAgentDescriptionUpdate(task.description, args[key]);
+      if (merged.skip) continue;
       fields.push(`${key} = ${ph()}`);
-      if (key === 'time') {
-        values.push(sanitizeTimeString(args[key]));
-      } else if (key === 'category') {
-        // Allow clearing (null), but snap any non-null value to an existing
-        // category so the agent can't introduce free-text drift.
-        const normalized = normalizeNullableField(args[key]);
-        if (normalized === null) {
-          values.push(null);
-        } else {
-          if (!existingCategories) existingCategories = await getUserCategories(ctx.userId);
-          values.push(resolveExistingCategoryName(String(normalized), existingCategories));
-        }
+      values.push(merged.value);
+      continue;
+    }
+
+    fields.push(`${key} = ${ph()}`);
+    if (key === 'time') {
+      values.push(sanitizeTimeString(args[key]));
+    } else if (key === 'category') {
+      // Allow clearing (null), but snap any non-null value to an existing
+      // category so the agent can't introduce free-text drift.
+      const normalized = normalizeNullableField(args[key]);
+      if (normalized === null) {
+        values.push(null);
       } else {
-        values.push(normalizeNullableField(args[key]));
+        if (!existingCategories) existingCategories = await getUserCategories(ctx.userId);
+        values.push(resolveExistingCategoryName(String(normalized), existingCategories));
       }
+    } else {
+      values.push(normalizeNullableField(args[key]));
     }
   }
 
