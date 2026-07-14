@@ -1,4 +1,10 @@
 import type { ChatAttachment } from '../hooks/useChatStream';
+import {
+  dataUrlInfo,
+  dataUrlToBase64,
+  imageFileToDataUrl,
+  readFileAsDataUrl,
+} from './imageCompression';
 import { markdownToTiptapDoc } from './markdownToTiptapDoc';
 
 /** Max number of files that can ride along with a single chat message. */
@@ -13,17 +19,26 @@ export interface PendingAttachment extends ChatAttachment {
 }
 
 /** Reads a File into base64, stripping the `data:<mime>;base64,` prefix. */
-export function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+export async function readFileAsBase64(file: File): Promise<string> {
+  return dataUrlToBase64(await readFileAsDataUrl(file));
+}
+
+/** Encodes a file for upload — images are resized/re-encoded to bound API cost. */
+async function encodeFileForUpload(
+  file: File,
+): Promise<{ data: string; mimeType: string; size: number }> {
+  if (file.type.startsWith('image/')) {
+    const dataUrl = await imageFileToDataUrl(file);
+    const { mimeType, size } = dataUrlInfo(dataUrl);
+    return { data: dataUrlToBase64(dataUrl), mimeType, size };
+  }
+
+  const data = await readFileAsBase64(file);
+  return {
+    data,
+    mimeType: file.type || 'application/octet-stream',
+    size: file.size,
+  };
 }
 
 /**
@@ -37,13 +52,16 @@ export async function filesToPendingAttachments(
   if (!accepted.length) return [];
 
   return Promise.all(
-    accepted.map(async (file) => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      size: file.size,
-      data: await readFileAsBase64(file),
-    })),
+    accepted.map(async (file) => {
+      const encoded = await encodeFileForUpload(file);
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: file.name,
+        mimeType: encoded.mimeType,
+        size: encoded.size,
+        data: encoded.data,
+      };
+    }),
   );
 }
 

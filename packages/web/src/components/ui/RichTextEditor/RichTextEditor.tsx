@@ -20,6 +20,11 @@ import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandExtension } from './SlashCommandMenu';
 import { AttachmentRefNode } from './AttachmentRefNode';
 import { AttachmentViewer, AttachmentFileIcon } from '../AttachmentViewer';
+import {
+  dataUrlInfo,
+  imageFileToDataUrl,
+  readFileAsDataUrl,
+} from '../../../utils/imageCompression';
 
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -217,81 +222,7 @@ function serializeWithAttachments(
 }
 
 function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => resolve(e.target?.result as string);
-    reader.onerror = () => reject(new Error(`Cannot read ${file.name}`));
-    reader.readAsDataURL(file);
-  });
-}
-
-// Image compression on upload. Without this, attachments store the ORIGINAL
-// image inline as base64 (data URL) inside the task description, bloating the
-// database, every API payload, and the LLM context. Resizing + re-encoding
-// keeps quality good for screen/preview/vision while cutting size massively.
-const MAX_IMAGE_DIMENSION = 1600;
-const IMAGE_COMPRESSION_QUALITY = 0.9;
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    // NOTE: `document.createElement('img')` (not `new Image()`) because this
-    // file imports TipTap's `Image` node, which shadows the DOM constructor.
-    const img = document.createElement('img');
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Cannot decode image'));
-    img.src = src;
-  });
-}
-
-/**
- * Resize/re-encode an image file into a (smaller) data URL. Falls back to the
- * raw data URL on any failure, and never re-encodes animated GIFs (canvas would
- * flatten them to a single frame).
- */
-async function imageFileToDataUrl(file: File): Promise<string> {
-  const rawDataUrl = await readFileAsBase64(file);
-
-  if (!file.type.startsWith('image/') || file.type === 'image/gif') {
-    return rawDataUrl;
-  }
-
-  try {
-    const img = await loadImage(rawDataUrl);
-    const largestSide = Math.max(img.width, img.height);
-    const scale = Math.min(1, MAX_IMAGE_DIMENSION / largestSide);
-    const targetW = Math.max(1, Math.round(img.width * scale));
-    const targetH = Math.max(1, Math.round(img.height * scale));
-
-    const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return rawDataUrl;
-    ctx.drawImage(img, 0, 0, targetW, targetH);
-
-    // Prefer WebP (best ratio for screenshots); browsers without WebP export
-    // return a PNG data URL, which we still accept (resize alone already helps).
-    let encoded = canvas.toDataURL('image/webp', IMAGE_COMPRESSION_QUALITY);
-    if (!encoded.startsWith('data:image/webp')) {
-      encoded = canvas.toDataURL('image/png');
-    }
-
-    // Keep whichever is smaller — never grow the payload.
-    return encoded.length < rawDataUrl.length ? encoded : rawDataUrl;
-  } catch {
-    return rawDataUrl;
-  }
-}
-
-/** Derive the MIME type and approximate byte size from a base64 data URL. */
-function dataUrlInfo(dataUrl: string): { mimeType: string; size: number } {
-  const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
-  const mimeType = match?.[1] ?? 'application/octet-stream';
-  const commaIdx = dataUrl.indexOf(',');
-  const base64 = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : '';
-  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
-  const size = Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
-  return { mimeType, size };
+  return readFileAsDataUrl(file);
 }
 
 // Override TaskItem to use inline styles so the flex row layout can never be
