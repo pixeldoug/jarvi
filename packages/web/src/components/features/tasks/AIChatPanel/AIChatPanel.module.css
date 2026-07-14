@@ -128,11 +128,11 @@
 
 .bubbleUser {
   max-width: 85%;
-  padding: var(--sizes-4) 18px;
-  background: var(--semantic-surface-tertiary);
+  padding: var(--sizes-35) var(--sizes-4);
+  background: var(--semantic-surface-secondary);
   color: var(--semantic-content-primary);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
 }
 
 .bubbleAi {
@@ -157,6 +157,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  letter-spacing: 0.1px;
 }
 
 .contentLine {
@@ -169,7 +170,7 @@
 
 .contentSpacer {
   display: block;
-  height: 8px;
+  height: var(--sizes-15);
 }
 
 .bulletLine {
