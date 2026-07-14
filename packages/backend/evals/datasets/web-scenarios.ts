@@ -180,10 +180,9 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     mustCallToolArgs: [
       { tool: 'update_task', arg: 'task_id', value: 'task-cartorio' },
     ],
-    mustContain: ['documento', 'descrição'],
-    mustNotContain: ['não consigo', 'erro'],
-    idealOutput:
-      'Descrição atualizada: levar o documento original e uma cópia. Pergunta curta de contexto opcional (ex. qual documento é).',
+    mustContain: ['documento'],
+    mustNotContain: ['não consigo', 'erro', 'Resumo', 'Atualização salva'],
+    idealOutput: 'Pronto, atualizei a descrição. Pergunta curta opcional se faltar um detalhe (ex. qual documento).',
     tags: ['web', 'task-mode', 'description-update', 'tool-calling'],
   },
 

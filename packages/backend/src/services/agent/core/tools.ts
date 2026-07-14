@@ -22,6 +22,7 @@ import {
 import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
 import { mergeAgentDescriptionUpdate } from './taskDescriptionMerge';
+import { prepareDescriptionForStorage } from './prepareDescriptionForStorage';
 import {
   getTaskById,
   getUserCategories,
@@ -55,7 +56,11 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
         type: 'object',
         properties: {
           title: { type: 'string', description: 'Título da tarefa (conciso e descritivo)' },
-          description: { type: 'string', description: 'Descrição ou detalhes adicionais' },
+          description: {
+            type: 'string',
+            description:
+              'Descrição ou detalhes adicionais em Markdown. Segunda pessoa ("você"), nunca "o usuário". Use datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem" — o texto é relido dias depois.',
+          },
           priority: {
             type: 'string',
             enum: ['low', 'medium', 'high'],
@@ -90,7 +95,7 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           description: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
             description:
-              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Pode reescrever o texto para incorporar informações novas, mas deve manter todas as informações relevantes que já existiam. Anexos da tarefa são preservados automaticamente pelo sistema. Use null para limpar apenas quando não houver anexos.',
+              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Segunda pessoa ("você"), nunca "o usuário". Reescreva o documento inteiro de forma coerente: preserve fatos em Contexto/Atualizações, mas reavalie Próximos passos para refletir só ações ainda pendentes. Anexos da tarefa são preservados automaticamente pelo sistema. Use datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Use null para limpar apenas quando não houver anexos.',
           },
           priority: {
             anyOf: [
@@ -411,7 +416,9 @@ async function executeCreateTask(
   const title = String(args.title || '').trim();
   if (!title) return { success: false, message: 'title é obrigatório' };
 
-  const description = args.description ? String(args.description) : null;
+  const description = args.description
+    ? prepareDescriptionForStorage(String(args.description), ctx.timezone)
+    : null;
   const priority = args.priority ? String(args.priority) : null;
   const dueDate = args.due_date ? String(args.due_date) : null;
   // Deterministic safety net: if the model failed to extract the time, try to
@@ -617,7 +624,7 @@ async function executeUpdateTask(
     if (args[key] === undefined) continue;
 
     if (key === 'description') {
-      const merged = mergeAgentDescriptionUpdate(task.description, args[key]);
+      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone);
       if (merged.skip) continue;
       fields.push(`${key} = ${ph()}`);
       values.push(merged.value);

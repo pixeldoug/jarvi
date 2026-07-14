@@ -7,6 +7,7 @@
  */
 
 import { markdownToTiptapDoc } from '../../../utils/markdownToTiptapDoc';
+import { prepareDescriptionForStorage } from './prepareDescriptionForStorage';
 import { parseTaskDescription } from './taskDescription';
 
 function hasProtectedAttachments(raw: string | null | undefined): boolean {
@@ -40,6 +41,7 @@ export interface DescriptionMergeResult {
 export function mergeAgentDescriptionUpdate(
   existingRaw: string | null | undefined,
   incomingRaw: unknown,
+  timezone = 'America/Sao_Paulo',
 ): DescriptionMergeResult {
   if (incomingRaw === undefined) return { value: null, skip: true };
 
@@ -50,7 +52,7 @@ export function mergeAgentDescriptionUpdate(
     return { value: null, skip: false };
   }
 
-  const incoming = String(incomingRaw).trim();
+  const incoming = prepareDescriptionForStorage(String(incomingRaw).trim(), timezone);
   if (!incoming) return { value: null, skip: true };
 
   const attachments = extractAttachments(existingRaw);
