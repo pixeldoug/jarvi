@@ -223,6 +223,11 @@
   min-height: 0;
   overflow-y: auto;
   padding: 0 16px 0 0;
+  cursor: text;
+}
+
+.wrapper.readOnly .editorArea {
+  cursor: default;
 }
 
 .editorArea[data-has-actions="true"] {
