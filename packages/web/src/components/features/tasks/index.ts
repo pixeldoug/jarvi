@@ -20,6 +20,8 @@ export { CategoryPicker } from './CategoryPicker';
 export type { CategoryPickerProps, Category } from './CategoryPicker';
 export { FrequencyPicker } from './FrequencyPicker';
 export type { FrequencyPickerProps, FrequencyValue } from './FrequencyPicker';
+export { ReminderPicker } from './ReminderPicker';
+export type { ReminderPickerProps } from './ReminderPicker';
 
 export { PendingTaskCard } from './PendingTasks/PendingTaskCard';
 export { PendingTaskDetailsSidebar } from './PendingTasks/PendingTaskDetailsSidebar';

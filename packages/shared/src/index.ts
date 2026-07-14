@@ -19,3 +19,4 @@ export * from './design-tokens/platforms/web';
 // ============================================================================
 
 export * from './types/recurrence';
+export * from './types/reminder';

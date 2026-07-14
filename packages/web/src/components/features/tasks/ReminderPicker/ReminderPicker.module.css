@@ -1,0 +1,287 @@
+/**
+ * ReminderPicker — Figma nodes 40001735:27116 (empty), 40001735:27169 (filled)
+ */
+
+.container {
+  margin: calc(-1 * var(--sizes-2));
+  padding-top: var(--sizes-2);
+  padding-bottom: var(--sizes-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--sizes-1) var(--sizes-3);
+  width: 100%;
+}
+
+.headerTitle {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+/* ── Filled: configured reminder rows ─────────────────────────────────────── */
+
+.summaryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  padding: 0 var(--sizes-2);
+  width: 100%;
+}
+
+.summaryCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+  height: 48px;
+  padding: 0 var(--sizes-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--semantic-border-primary);
+  background-color: var(--semantic-surface-secondary);
+}
+
+.summaryContent {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  min-width: 0;
+}
+
+.summaryIcon {
+  flex-shrink: 0;
+  color: var(--semantic-content-secondary);
+}
+
+.summaryLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.summaryDeleteButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-button-icon-radius, 16px);
+  background-color: var(--component-button-ghost-bg-default);
+  color: var(--component-button-ghost-content-default);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.summaryDeleteButton:hover {
+  background-color: var(--component-button-ghost-bg-hover);
+  color: var(--component-button-ghost-content-hover);
+}
+
+/* ── Draft section (border-top when filled) ───────────────────────────────── */
+
+.draftSection {
+  display: flex;
+  flex-direction: column;
+  padding: 0 var(--sizes-2);
+  width: 100%;
+}
+
+.container:has(.summaryList) .draftSection {
+  padding-top: var(--sizes-2);
+  border-top: 1px solid var(--semantic-border-primary);
+}
+
+.draftCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-0-5);
+  padding: 0 var(--sizes-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--semantic-border-primary);
+  background-color: var(--semantic-surface-secondary);
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+  height: 48px;
+  width: 100%;
+}
+
+.rowLabel {
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.rowTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-1);
+  min-width: 0;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 var(--sizes-2) 0 var(--sizes-3);
+  border: none;
+  border-radius: var(--sizes-4);
+  background-color: var(--component-button-ghost-bg-default);
+  color: var(--component-button-ghost-content-default);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rowTrigger:hover {
+  background-color: var(--component-button-ghost-bg-hover);
+  color: var(--component-button-ghost-content-hover);
+}
+
+.rowTriggerOpen,
+.rowTriggerOpen:hover {
+  background-color: var(--component-button-ghost-bg-active);
+  color: var(--component-button-ghost-content-active);
+}
+
+.rowTriggerValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+}
+
+.rowTriggerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: inherit;
+  transition: transform 0.15s ease;
+}
+
+.rowTriggerIconOpen {
+  transform: rotate(180deg);
+}
+
+.quandoOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: calc(-1 * var(--sizes-2));
+  padding: var(--sizes-1);
+}
+
+.customPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  padding: var(--sizes-2) 0 var(--sizes-3);
+  border-top: 1px solid var(--semantic-border-primary);
+}
+
+.customTabs {
+  display: flex;
+  gap: 4px;
+}
+
+.customTab {
+  flex: 1;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.customTabActive {
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+}
+
+.customFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.absoluteFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sizes-2);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--typography-label-md-font-size, 13px);
+  font-weight: var(--typography-label-md-font-weight, 500);
+  color: var(--semantic-content-secondary);
+}
+
+.select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.select:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-brand-primary-500) 40%, transparent);
+  outline-offset: 1px;
+}
+
+.applyButton {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.applyButton:hover {
+  background: var(--semantic-surface-tertiary);
+}

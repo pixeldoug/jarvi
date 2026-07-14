@@ -21,7 +21,7 @@ export interface TextInputProps {
   /** Input name */
   name?: string;
   /** Input type */
-  type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'date' | 'search';
+  type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'date' | 'time' | 'search';
   /** Placeholder text */
   placeholder?: string;
   /** Controlled value */

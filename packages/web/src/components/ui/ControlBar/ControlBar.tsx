@@ -7,13 +7,13 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ClipboardEvent, DragEvent } from 'react';
-import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple } from '@phosphor-icons/react';
+import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple, Bell } from '@phosphor-icons/react';
 import { Repeat } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import type { RecurrenceType } from '@jarvi/shared';
+import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Button } from '../Button';
 import { Chip } from '../Chip';
-import { TaskDatePicker, PriorityPicker, CategoryPicker, FrequencyPicker, type FrequencyValue } from '../../features/tasks';
+import { TaskDatePicker, PriorityPicker, CategoryPicker, FrequencyPicker, ReminderPicker, type FrequencyValue } from '../../features/tasks';
 import { useCategories, type Category } from '../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
 import { useKeyboardOffset } from '../../../hooks/useKeyboardOffset';
@@ -26,6 +26,7 @@ import {
   toChatAttachmentPayload,
 } from '../../../utils/chatAttachments';
 import { formatFrequencyChip } from '../../../lib/recurrence';
+import { formatRemindersChipLabel } from '../../../lib/reminders';
 import { toast } from '../Sonner';
 import { AttachmentViewer } from '../AttachmentViewer';
 import styles from './ControlBar.module.css';
@@ -40,6 +41,7 @@ export interface TaskCreationData {
   recurrence_type?: RecurrenceType;
   recurrence_config?: string;
   recurrence_until?: string | null;
+  reminders?: TaskReminderDraft[];
 }
 
 export interface ControlBarProps {
@@ -95,12 +97,14 @@ export function ControlBar({
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | undefined>(undefined);
   const [isDefaultDate, setIsDefaultDate] = useState(false);
   const [frequency, setFrequency] = useState<FrequencyValue>({ recurrenceType: 'none', recurrenceConfig: null });
+  const [reminders, setReminders] = useState<TaskReminderDraft[]>([]);
 
   // Popover states
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -108,6 +112,7 @@ export function ControlBar({
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const priorityChipRef = useRef<HTMLDivElement>(null);
   const frequencyChipRef = useRef<HTMLDivElement>(null);
+  const reminderChipRef = useRef<HTMLDivElement>(null);
 
   const handleSwitchToTask = useCallback(() => {
     if (trialExpired) return;
@@ -135,10 +140,12 @@ export function ControlBar({
     setPriority(undefined);
     setIsDefaultDate(false);
     setFrequency({ recurrenceType: 'none', recurrenceConfig: null });
+    setReminders([]);
     setShowDatePicker(false);
     setShowCategoryPicker(false);
     setShowPriorityPicker(false);
     setShowFrequencyPicker(false);
+    setShowReminderPicker(false);
   }, []);
 
   // Focus title input when entering task mode, placing the cursor at the end
@@ -310,6 +317,7 @@ export function ControlBar({
       recurrence_type: frequency.recurrenceType,
       recurrence_config: frequency.recurrenceConfig ? JSON.stringify(frequency.recurrenceConfig) : undefined,
       recurrence_until: frequency.recurrenceConfig?.until.type === 'onDate' ? frequency.recurrenceConfig.until.date : undefined,
+      reminders: reminders.length > 0 ? reminders : undefined,
     };
 
     const createdTask = await onCreateTask?.(taskData);
@@ -552,6 +560,19 @@ export function ControlBar({
                     onClear={frequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
                   />
                 </div>
+
+                <div ref={reminderChipRef} style={{ display: 'inline-flex' }}>
+                  <Chip
+                    label={formatRemindersChipLabel(reminders)}
+                    icon={<Bell weight="regular" />}
+                    size="medium"
+                    interactive
+                    iconOnly
+                    active={reminders.length > 0 || showReminderPicker}
+                    onClick={() => setShowReminderPicker(true)}
+                    onClear={reminders.length > 0 ? () => setReminders([]) : undefined}
+                  />
+                </div>
               </div>
 
               <div className={styles.taskActions}>
@@ -698,6 +719,16 @@ export function ControlBar({
         value={frequency}
         onChange={handleFrequencyChange}
         baseDate={dueDate || undefined}
+      />
+
+      <ReminderPicker
+        isOpen={showReminderPicker}
+        onClose={() => setShowReminderPicker(false)}
+        anchorRef={reminderChipRef}
+        reminders={reminders}
+        onChange={setReminders}
+        taskDueDate={dueDate}
+        taskDueTime={dueTime}
       />
 
       {viewingPromptAttachment && (

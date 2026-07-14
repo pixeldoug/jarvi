@@ -177,6 +177,8 @@ export function Tasks() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedPendingTask, setSelectedPendingTask] = useState<PendingTask | null>(null);
   const [expandedFromList, setExpandedFromList] = useState(false);
+  /** Keeps task details in the center column after closing task-mode chat (split view). */
+  const [taskPinnedInCenter, setTaskPinnedInCenter] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMode, setChatMode] = useState<'task' | 'general'>('general');
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
@@ -319,6 +321,7 @@ export function Tasks() {
     setChatInitialMessage(undefined);
     setChatInitialAttachments(undefined);
     setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
   }, []);
 
   const handleEdit = (task: any) => {
@@ -359,6 +362,7 @@ export function Tasks() {
     setSelectedTask(null);
     setSelectedPendingTask(null);
     setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
     setIsChatOpen(false);
   };
 
@@ -375,6 +379,7 @@ export function Tasks() {
   const handleTaskDetailsCenterClose = useCallback(() => {
     setSelectedTask(null);
     setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
     if (chatMode === 'task') {
       setIsChatOpen(false);
     }
@@ -387,6 +392,7 @@ export function Tasks() {
       setIsMobileChatOverlayOpen(true);
     } else {
       setExpandedFromList(false);
+      setTaskPinnedInCenter(true);
       setChatMode('task');
       setIsChatOpen(true);
     }
@@ -399,6 +405,7 @@ export function Tasks() {
   const handleOpenChatGeneral = useCallback((text?: string, attachments?: ChatAttachment[]) => {
     setChatMode('general');
     setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
     if (text || (attachments && attachments.length > 0)) {
       // Force a fresh panel so the initial message is always sent cleanly
       setChatKey((k) => k + 1);
@@ -1512,15 +1519,21 @@ export function Tasks() {
     );
   }), []);
 
-  // Show task details in center when: task-mode chat is open, OR user opened a task from the list while chat was active
-  const showTaskInCenter = isChatOpen && !!selectedTask && (chatMode === 'task' || expandedFromList);
+  // Show task details in center when: task-mode chat is open, user expanded from list,
+  // or user closed chat after opening it from a task (split view → task-only center).
+  const showTaskInCenter =
+    !!selectedTask &&
+    (taskPinnedInCenter || expandedFromList || (isChatOpen && chatMode === 'task'));
+
+  const hasRightPanelContent =
+    isChatOpen || !!selectedPendingTask || (!!selectedTask && !showTaskInCenter);
 
   // Compute right sidebar content based on chat/task selection state.
   // Wrapped in AnimatePresence so swapping between task details and chat
   // plays a coordinated slide: details exits left, chat enters from right.
   const panelTransition = { duration: 0.32, ease: [0.4, 0, 0.2, 1] } as const;
 
-  const computedRightSidebar = (isChatOpen || !!selectedTask || !!selectedPendingTask) ? (
+  const computedRightSidebar = hasRightPanelContent ? (
     <AnimatePresence mode="wait" initial={false}>
       {isChatOpen ? (
         <motion.div
@@ -1645,7 +1658,7 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
-        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        rightSidebarAsSheet={hasRightPanelContent}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1670,7 +1683,7 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
-        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        rightSidebarAsSheet={hasRightPanelContent}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1696,7 +1709,7 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
-        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        rightSidebarAsSheet={hasRightPanelContent}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1760,7 +1773,7 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
-        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        rightSidebarAsSheet={hasRightPanelContent}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1816,7 +1829,7 @@ export function Tasks() {
         headerActions={headerActions}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
-        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        rightSidebarAsSheet={hasRightPanelContent}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1901,7 +1914,7 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         onOpenTaskDetails={handleTaskClick}
         rightSidebar={computedRightSidebar}
-        rightSidebarAsSheet={isChatOpen || !!selectedTask || !!selectedPendingTask}
+        rightSidebarAsSheet={hasRightPanelContent}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
