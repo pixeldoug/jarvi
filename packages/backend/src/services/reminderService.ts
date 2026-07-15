@@ -9,12 +9,13 @@ import { v4 as uuidv4 } from 'uuid';
 import type {
   CreateTaskReminderInput,
   RelativeReminderOffset,
+  RelativeReminderOffsetUnit,
   ReminderChannel,
   ReminderStatus,
   TaskReminder,
   TaskReminderDraft,
   TaskReminderSchedule,
-} from '@jarvi/shared';
+} from '../types/reminder';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { getDateTimeForTimezone } from './agent/core/time';
 import { sendTextMessage } from './whatsappService';
@@ -121,7 +122,7 @@ const addDaysToIsoDate = (isoDate: string, days: number): string => {
 };
 
 const offsetToMs = (offset: RelativeReminderOffset): number => {
-  const unitMs = {
+  const unitMs: Record<RelativeReminderOffsetUnit, number> = {
     minutes: 60_000,
     hours: 3_600_000,
     days: 86_400_000,
