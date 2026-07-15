@@ -254,6 +254,22 @@ const createTables = async (): Promise<void> => {
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
     );`,
 
+    `CREATE TABLE IF NOT EXISTS task_reminders (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      schedule_type TEXT NOT NULL,
+      config TEXT NOT NULL,
+      timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+      trigger_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      status TEXT NOT NULL DEFAULT 'pending',
+      sent_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );`,
+
     `CREATE TABLE IF NOT EXISTS pending_tasks (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -281,7 +297,9 @@ const createTables = async (): Promise<void> => {
     `CREATE INDEX IF NOT EXISTS idx_tasks_user_completed_due ON tasks (user_id, completed, due_date);`,
     `CREATE INDEX IF NOT EXISTS idx_tasks_user_category ON tasks (user_id, category);`,
     // Powers the recurrence sweep's "which tasks need their next occurrence generated" query.
-    `CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_sweep ON tasks (recurrence_type, completed, due_date);`
+    `CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_sweep ON tasks (recurrence_type, completed, due_date);`,
+    `CREATE INDEX IF NOT EXISTS idx_task_reminders_trigger ON task_reminders (status, trigger_at);`,
+    `CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders (task_id);`,
   ];
   
   if (isPostgres) {
@@ -736,6 +754,43 @@ const runMigrations = async (): Promise<void> => {
         // Table already exists, ignore
       }
 
+      // Migration: Create task_reminders table for existing databases
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS task_reminders (
+          id TEXT PRIMARY KEY,
+          task_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          schedule_type TEXT NOT NULL,
+          config TEXT NOT NULL,
+          timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+          trigger_at TIMESTAMP,
+          status TEXT NOT NULL DEFAULT 'pending',
+          sent_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
+      try {
+        await client.query(
+          'CREATE INDEX IF NOT EXISTS idx_task_reminders_trigger ON task_reminders (status, trigger_at)'
+        );
+      } catch (e) {
+        // Index already exists, ignore
+      }
+
+      try {
+        await client.query(
+          'CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders (task_id)'
+        );
+      } catch (e) {
+        // Index already exists, ignore
+      }
+
       // Migration: Create onboarding_leads table for existing databases
       try {
         await client.query(`CREATE TABLE IF NOT EXISTS onboarding_leads (
@@ -1061,6 +1116,43 @@ const runMigrations = async (): Promise<void> => {
       )`);
     } catch (e) {
       // Table already exists, ignore
+    }
+
+    // Migration: Create task_reminders table for existing SQLite databases
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS task_reminders (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        schedule_type TEXT NOT NULL,
+        config TEXT NOT NULL,
+        timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+        trigger_at DATETIME,
+        status TEXT NOT NULL DEFAULT 'pending',
+        sent_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    try {
+      await db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_task_reminders_trigger ON task_reminders (status, trigger_at)'
+      );
+    } catch (e) {
+      // Index already exists, ignore
+    }
+
+    try {
+      await db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders (task_id)'
+      );
+    } catch (e) {
+      // Index already exists, ignore
     }
 
     // Migration: Create onboarding_leads table for existing SQLite databases

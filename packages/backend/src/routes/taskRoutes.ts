@@ -9,6 +9,7 @@ import {
 import { authenticateToken } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/requireSubscription';
 import subTaskRouter from './subTaskRoutes';
+import reminderRouter from './reminderRoutes';
 
 const router = Router();
 
@@ -21,5 +22,8 @@ router.patch('/:id/toggle', authenticateToken, requireActiveSubscription, toggle
 
 // Sub-task routes nested under tasks
 router.use('/:taskId/subtasks', subTaskRouter);
+
+// Reminder routes nested under tasks
+router.use('/:taskId/reminders', reminderRouter);
 
 export default router;

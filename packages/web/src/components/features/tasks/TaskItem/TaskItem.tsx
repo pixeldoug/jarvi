@@ -29,8 +29,8 @@ import {
   Hash,
   Calendar,
   FireSimple,
+  Repeat,
 } from '@phosphor-icons/react';
-import { Repeat } from 'lucide-react';
 import styles from './TaskItem.module.css';
 
 export interface TaskItemProps {
@@ -257,7 +257,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
               >
                 <Chip
                   label={dateLabel}
-                  icon={!task.due_date ? <Calendar weight="regular" /> : undefined}
+                  icon={!task.due_date ? <Calendar size={16} weight="regular" /> : undefined}
                   interactive
                   active={showDatePicker}
                   onClick={() => setShowDatePicker(prev => !prev)}
@@ -400,7 +400,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             >
               <Chip
                 label={frequencyLabel ?? 'Recorrência'}
-                icon={<Repeat size={14} />}
+                icon={<Repeat size={16} weight="regular" />}
                 size="small"
                 interactive
                 active={showFrequencyPicker}
@@ -430,7 +430,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             >
               <Chip 
                 label={task.category || 'Categoria'}
-                icon={task.category ? undefined : <Hash weight="regular" />}
+                icon={task.category ? undefined : <Hash size={16} weight="regular" />}
                 size="small"
                 interactive
                 active={showCategoryPicker}

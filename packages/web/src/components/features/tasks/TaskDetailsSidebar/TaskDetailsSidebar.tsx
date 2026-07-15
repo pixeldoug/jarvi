@@ -6,10 +6,9 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash, Sparkle, ArrowLeft } from '@phosphor-icons/react';
-import { Repeat } from 'lucide-react';
-import type { RecurrenceType } from '@jarvi/shared';
-import { Task } from '../../../../contexts/TaskContext';
+import { X, Calendar, Hash, Fire, Trash, Sparkle, ArrowLeft, Bell, Repeat } from '@phosphor-icons/react';
+import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
+import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
 import { TaskCheckbox } from '../TaskCheckbox';
@@ -17,9 +16,12 @@ import { TaskDatePicker } from '../TaskDatePicker';
 import { PriorityPicker, type Priority } from '../PriorityPicker';
 import { CategoryPicker } from '../CategoryPicker';
 import { FrequencyPicker, type FrequencyValue } from '../FrequencyPicker';
+import { ReminderPicker } from '../ReminderPicker';
 import { Button, Chip } from '../../../ui';
 import { parseDateString } from '../../../../lib/utils';
 import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recurrence';
+import { formatRemindersChipLabel } from '../../../../lib/reminders';
+import { toast } from '../../../ui/Sonner';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
 import styles from './TaskDetailsSidebar.module.css';
 
@@ -50,6 +52,8 @@ export function TaskDetailsSidebar({
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
+  const { remindersByTaskId, fetchReminders, replaceReminders } = useTasks();
+  const reminders = task ? (remindersByTaskId[task.id] ?? []) : [];
   const [title, setTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -69,6 +73,7 @@ export function TaskDetailsSidebar({
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
+  const [showReminderPicker, setShowReminderPicker] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [isTitleMultiLine, setIsTitleMultiLine] = useState(false);
@@ -77,6 +82,7 @@ export function TaskDetailsSidebar({
   const priorityChipRef = useRef<HTMLDivElement>(null);
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const frequencyChipRef = useRef<HTMLDivElement>(null);
+  const reminderChipRef = useRef<HTMLDivElement>(null);
 
   // Update local state when task changes
   useEffect(() => {
@@ -129,6 +135,26 @@ export function TaskDetailsSidebar({
     prevTaskRef.current = task;
     prevTaskIdRef.current = task.id;
   }, [task, isEditingTitle]);
+
+  useEffect(() => {
+    if (!task?.id || !isOpen) return;
+    void fetchReminders(task.id);
+  }, [task?.id, isOpen, fetchReminders]);
+
+  const handleRemindersChange = useCallback(async (nextReminders: TaskReminderDraft[]) => {
+    if (!task) return;
+
+    try {
+      await replaceReminders(task.id, nextReminders);
+    } catch (error) {
+      console.error('Failed to save reminders:', error);
+      toast.error('Não foi possível salvar os lembretes.');
+    }
+  }, [task, replaceReminders]);
+
+  const handleRemindersClear = useCallback(() => {
+    void handleRemindersChange([]);
+  }, [handleRemindersChange]);
 
   const updateTitleLayout = useCallback(() => {
     if (isEditingTitle) {
@@ -405,6 +431,7 @@ export function TaskDetailsSidebar({
       setShowPriorityPicker(false);
       setShowCategoryPicker(false);
       setShowFrequencyPicker(false);
+      setShowReminderPicker(false);
     }
   }, [isOpen]);
 
@@ -718,7 +745,7 @@ export function TaskDetailsSidebar({
         <div ref={dateChipRef} style={{ display: 'inline-flex' }}>
           <Chip
             label={formatDateChip()}
-            icon={<Calendar weight="regular" />}
+            icon={<Calendar size={16} weight="regular" />}
             size="medium"
             interactive
             active={showDatePicker || !!selectedDate || !!selectedTime}
@@ -740,7 +767,7 @@ export function TaskDetailsSidebar({
         <div ref={categoryChipRef} style={{ display: 'inline-flex' }}>
           <Chip
             label={task.category || 'Categoria'}
-            icon={<Hash weight="regular" />}
+            icon={<Hash size={16} weight="regular" />}
             size="medium"
             interactive
             active={showCategoryPicker || !!task.category}
@@ -763,7 +790,7 @@ export function TaskDetailsSidebar({
         <div ref={priorityChipRef} style={{ display: 'inline-flex' }}>
           <Chip
             label={task.priority ? (priorityLabels[task.priority] || task.priority) : 'Prioridade'}
-            icon={<Fire weight="regular" />}
+            icon={<Fire size={16} weight="regular" />}
             size="medium"
             interactive
             active={showPriorityPicker || !!task.priority}
@@ -784,7 +811,7 @@ export function TaskDetailsSidebar({
         <div ref={frequencyChipRef} style={{ display: 'inline-flex' }}>
           <Chip
             label={formatFrequencyChip(currentFrequency.recurrenceType, currentFrequency.recurrenceConfig) || 'Recorrência'}
-            icon={<Repeat size={16} />}
+            icon={<Repeat size={16} weight="regular" />}
             size="medium"
             interactive
             active={showFrequencyPicker}
@@ -801,6 +828,28 @@ export function TaskDetailsSidebar({
           value={currentFrequency}
           onChange={handleFrequencyChange}
           baseDate={selectedDate || undefined}
+        />
+
+        <div ref={reminderChipRef} style={{ display: 'inline-flex' }}>
+          <Chip
+            label={formatRemindersChipLabel(reminders)}
+            icon={<Bell size={16} weight="regular" />}
+            size="medium"
+            interactive
+            active={reminders.length > 0 || showReminderPicker}
+            onClick={() => setShowReminderPicker((prev) => !prev)}
+            onClear={reminders.length > 0 ? handleRemindersClear : undefined}
+          />
+        </div>
+
+        <ReminderPicker
+          isOpen={showReminderPicker}
+          onClose={() => setShowReminderPicker(false)}
+          anchorRef={reminderChipRef}
+          reminders={reminders}
+          onChange={handleRemindersChange}
+          taskDueDate={selectedDate}
+          taskDueTime={selectedTime}
         />
       </div>
       </div>

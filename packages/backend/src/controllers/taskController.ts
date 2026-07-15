@@ -3,6 +3,12 @@ import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitizeTimeString } from '../utils/taskTime';
 import { generateNextOccurrenceIfRecurring } from '../services/recurrenceService';
+import {
+  cancelPendingRemindersForTask,
+  createRemindersForTask,
+  parseReminderDrafts,
+  rescheduleRemindersForTask,
+} from '../services/reminderService';
 import { RecurrenceType } from '../types/recurrence';
 
 const VALID_RECURRENCE_TYPES: RecurrenceType[] = [
@@ -45,6 +51,7 @@ export const createTask = async (
       recurrence_type,
       recurrence_config,
       recurrence_until,
+      reminders,
     } = req.body;
     const userId = req.user?.id; // Will come from auth middleware
     
@@ -125,6 +132,11 @@ export const createTask = async (
       );
 
       newTask = await db.get('SELECT * FROM tasks WHERE id = ?', [taskId]);
+    }
+
+    const reminderInputs = parseReminderDrafts(reminders);
+    if (reminderInputs.length > 0) {
+      await createRemindersForTask(taskId, userId, reminderInputs);
     }
 
     res.status(201).json(newTask);
@@ -320,8 +332,6 @@ export const updateTask = async (
         client.release();
       }
     } else {
-      // SQLite
-      console.log('Using SQLite for updateTask');
       const db = getDatabase();
       
       // Check if task exists and belongs to user
@@ -376,6 +386,18 @@ export const updateTask = async (
 
       updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
       console.log('Updated task result:', updatedTask);
+    }
+
+    const scheduleChanged =
+      dueDate !== undefined ||
+      time !== undefined ||
+      completed !== undefined;
+    if (scheduleChanged && updatedTask) {
+      if (updatedTask.completed) {
+        await cancelPendingRemindersForTask(id);
+      } else {
+        await rescheduleRemindersForTask(id);
+      }
     }
 
     res.json(updatedTask);
@@ -530,6 +552,12 @@ export const toggleTaskCompletion = async (
     let nextOccurrence = null;
     if (updatedTask?.completed && updatedTask.recurrence_type && updatedTask.recurrence_type !== 'none') {
       nextOccurrence = await generateNextOccurrenceIfRecurring(id);
+    }
+
+    if (updatedTask?.completed) {
+      await cancelPendingRemindersForTask(id);
+    } else if (existingTask?.completed && !updatedTask?.completed) {
+      await rescheduleRemindersForTask(id);
     }
 
     res.json({ ...updatedTask, next_occurrence: nextOccurrence });

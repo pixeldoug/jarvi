@@ -1,5 +1,5 @@
 /**
- * ReminderPicker — Figma nodes 40001735:27116 (empty), 40001735:27169 (filled)
+ * ReminderPicker — Figma nodes 40001738:13758 (empty), 40001735:27169 (filled)
  */
 
 .container {
@@ -45,7 +45,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sizes-2);
-  height: 48px;
+  height: 56px;
   padding: 0 var(--sizes-3);
   border-radius: var(--radius-sm);
   border: 1px solid var(--semantic-border-primary);
@@ -54,14 +54,23 @@
 
 .summaryContent {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--sizes-2);
   min-width: 0;
 }
 
 .summaryIcon {
   flex-shrink: 0;
+  margin-top: 5px;
   color: var(--semantic-content-secondary);
+}
+
+.summaryText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
 }
 
 .summaryLabel {
@@ -73,6 +82,18 @@
   font-weight: var(--typography-label-md-font-weight);
   line-height: var(--typography-label-md-line-height);
   letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.summaryChannel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  letter-spacing: var(--typography-label-sm-letter-spacing);
   color: var(--semantic-content-secondary);
 }
 
@@ -110,14 +131,24 @@
   border-top: 1px solid var(--semantic-border-primary);
 }
 
-.draftCard {
+.draftRows {
   display: flex;
   flex-direction: column;
-  gap: var(--sizes-0-5);
+  gap: var(--sizes-2);
+  width: 100%;
+}
+
+.rowCard {
+  display: flex;
+  flex-direction: column;
   padding: 0 var(--sizes-3);
   border-radius: var(--radius-sm);
   border: 1px solid var(--semantic-border-primary);
   background-color: var(--semantic-surface-secondary);
+}
+
+.rowCardStacked {
+  gap: 2px;
 }
 
 .row {
@@ -153,7 +184,7 @@
   height: 40px;
   padding: 0 var(--sizes-2) 0 var(--sizes-3);
   border: none;
-  border-radius: var(--sizes-4);
+  border-radius: var(--radius-button-radius, 16px);
   background-color: var(--component-button-ghost-bg-default);
   color: var(--component-button-ghost-content-default);
   cursor: pointer;

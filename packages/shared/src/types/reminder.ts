@@ -2,10 +2,11 @@
  * Task reminder types — JAR-14
  *
  * Reminders are independent entities linked to a task.
- * Channel is WhatsApp for now; timezone follows the user's current timezone at scheduling time.
+ * Channels: WhatsApp message or phone call (voice); timezone follows the user's
+ * current timezone at scheduling time.
  */
 
-export type ReminderChannel = 'whatsapp';
+export type ReminderChannel = 'whatsapp' | 'call';
 
 export type ReminderStatus =
   | 'pending'
@@ -54,3 +55,40 @@ export type TaskReminderDraft =
       /** 0 = Sunday … 6 = Saturday; required when frequency is weekly */
       weekday?: number;
     };
+
+/** Persisted reminder schedule (API / database). */
+export type TaskReminderSchedule =
+  | {
+      type: 'relative';
+      offset: RelativeReminderOffset;
+    }
+  | {
+      type: 'absolute';
+      /** ISO 8601 local datetime string (YYYY-MM-DDTHH:mm) */
+      scheduledAt: string;
+    }
+  | {
+      type: 'recurring';
+      time: string;
+      frequency: RecurringReminderFrequency;
+      weekday?: number;
+    };
+
+export interface TaskReminder {
+  id: string;
+  taskId: string;
+  userId: string;
+  channel: ReminderChannel;
+  schedule: TaskReminderSchedule;
+  status: ReminderStatus;
+  /** UTC ISO timestamp for the next fire time, or null when not schedulable. */
+  triggerAt: string | null;
+  timezone: string;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateTaskReminderInput = {
+  channel: ReminderChannel;
+} & TaskReminderSchedule;

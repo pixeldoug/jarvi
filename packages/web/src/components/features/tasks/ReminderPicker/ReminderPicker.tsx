@@ -1,7 +1,7 @@
 /**
  * ReminderPicker — JAR-14
  *
- * Empty: Figma node 40001735:27116
+ * Empty: Figma node 40001738:13758
  * Filled: Figma node 40001735:27169
  */
 
@@ -10,6 +10,7 @@ import type { TaskReminderDraft } from '@jarvi/shared';
 import { SecondaryButton, Dropdown } from '../../../ui';
 import {
   createDefaultReminderDraft,
+  hasDuplicateReminder,
   isConfiguredReminder,
   taskHasSchedule,
 } from '../../../../lib/reminders';
@@ -40,12 +41,18 @@ export function ReminderPicker({
 }: ReminderPickerProps) {
   const canUseRelative = taskHasSchedule(taskDueDate, taskDueTime);
   const [draft, setDraft] = useState<TaskReminderDraft>(() => createDefaultReminderDraft());
+  const [channelConfirmed, setChannelConfirmed] = useState(false);
 
   const configured = reminders.filter(isConfiguredReminder);
+  const canAdd =
+    isConfiguredReminder(draft) &&
+    channelConfirmed &&
+    !hasDuplicateReminder(configured, draft);
 
   useEffect(() => {
     if (!isOpen) return;
     setDraft(createDefaultReminderDraft());
+    setChannelConfirmed(false);
   }, [isOpen]);
 
   const handleRemove = (id: string) => {
@@ -53,9 +60,10 @@ export function ReminderPicker({
   };
 
   const handleAddReminder = () => {
-    if (!isConfiguredReminder(draft)) return;
+    if (!canAdd) return;
     onChange([...configured, draft]);
     setDraft(createDefaultReminderDraft());
+    setChannelConfirmed(false);
   };
 
   if (!isOpen || !anchorRef) return null;
@@ -71,7 +79,7 @@ export function ReminderPicker({
       forceTheme="dark"
       className={className}
       buttonSection={
-        <SecondaryButton size="small" fullWidth onClick={handleAddReminder}>
+        <SecondaryButton size="small" fullWidth disabled={!canAdd} onClick={handleAddReminder}>
           Adicionar lembrete
         </SecondaryButton>
       }
@@ -98,7 +106,10 @@ export function ReminderPicker({
             key={draft.id}
             draft={draft}
             canUseRelative={canUseRelative}
+            taskDueDate={taskDueDate}
+            channelConfirmed={channelConfirmed}
             onChange={setDraft}
+            onChannelConfirm={setChannelConfirmed}
           />
         </div>
       </div>

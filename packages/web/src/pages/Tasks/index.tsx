@@ -650,6 +650,7 @@ export function Tasks() {
         recurrence_type: taskData.recurrence_type,
         recurrence_config: taskData.recurrence_config,
         recurrence_until: taskData.recurrence_until,
+        reminders: taskData.reminders,
       });
       return createdTask;
     } catch (error) {

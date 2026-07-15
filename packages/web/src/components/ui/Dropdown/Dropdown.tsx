@@ -49,6 +49,8 @@ export interface DropdownProps {
   offsetY?: number;
   /** Force dropdown token theme */
   forceTheme?: 'light' | 'dark';
+  /** Portal z-index (default 1000; use higher for nested dropdowns) */
+  zIndex?: number;
   /**
    * When true, the outside-click handler closes even if the click target is
    * inside a [data-dialog-outside-click-ignore] ancestor. Use this for
@@ -78,6 +80,7 @@ export function Dropdown({
   offsetX = 0,
   offsetY = 0,
   forceTheme,
+  zIndex = 1000,
   disableOutsideIgnoreCheck = false,
 }: DropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -263,7 +266,7 @@ export function Dropdown({
           top: `${calculatedPosition.top}px`,
           left: `${calculatedPosition.left}px`,
           width: dropdownWidth,
-          zIndex: 1000,
+          zIndex,
         }}
         role="menu"
         aria-orientation="vertical"

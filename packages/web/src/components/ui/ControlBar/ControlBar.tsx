@@ -7,8 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ClipboardEvent, DragEvent } from 'react';
-import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple, Bell } from '@phosphor-icons/react';
-import { Repeat } from 'lucide-react';
+import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple, Bell, Repeat } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Button } from '../Button';
@@ -506,7 +505,7 @@ export function ControlBar({
                 <div ref={dateChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
                     label={formatDateChip()}
-                    icon={<CalendarDots weight="regular" />}
+                    icon={<CalendarDots size={16} weight="regular" />}
                     size="medium"
                     interactive
                     active={showDatePicker || (!isDefaultDate && !!dueDate) || !!dueTime}
@@ -518,7 +517,7 @@ export function ControlBar({
                 <div ref={categoryChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
                     label={category || 'Categoria'}
-                    icon={<Hash weight="regular" />}
+                    icon={<Hash size={16} weight="regular" />}
                     size="medium"
                     interactive
                     active={!!category || showCategoryPicker}
@@ -538,7 +537,7 @@ export function ControlBar({
                         ? 'Baixa'
                         : 'Prioridade'
                     }
-                    icon={<Fire weight="regular" />}
+                    icon={<Fire size={16} weight="regular" />}
                     size="medium"
                     interactive
                     iconOnly
@@ -551,7 +550,7 @@ export function ControlBar({
                 <div ref={frequencyChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
                     label={formatFrequencyChip(frequency.recurrenceType, frequency.recurrenceConfig) || 'Recorrência'}
-                    icon={<Repeat size={16} />}
+                    icon={<Repeat size={16} weight="regular" />}
                     size="medium"
                     interactive
                     iconOnly
@@ -564,7 +563,7 @@ export function ControlBar({
                 <div ref={reminderChipRef} style={{ display: 'inline-flex' }}>
                   <Chip
                     label={formatRemindersChipLabel(reminders)}
-                    icon={<Bell weight="regular" />}
+                    icon={<Bell size={16} weight="regular" />}
                     size="medium"
                     interactive
                     iconOnly

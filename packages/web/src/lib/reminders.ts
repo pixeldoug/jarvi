@@ -1,4 +1,9 @@
-import type { RelativeReminderOffset, TaskReminderDraft } from '@jarvi/shared';
+import type {
+  RelativeReminderOffset,
+  ReminderChannel,
+  TaskReminder,
+  TaskReminderDraft,
+} from '@jarvi/shared';
 
 export interface RelativeReminderPreset {
   id: string;
@@ -77,6 +82,48 @@ function formatRecurringLabel(reminder: Extract<TaskReminderDraft, { type: 'recu
   return `Toda ${weekday} às ${reminder.time}`;
 }
 
+const CHANNEL_LABELS: Record<ReminderChannel, string> = {
+  whatsapp: 'Whatsapp',
+  call: 'Ligação',
+};
+
+/** Channels shown in the destination picker (Figma dropdown order). */
+export const REMINDER_CHANNEL_OPTIONS: ReminderChannel[] = ['call', 'whatsapp'];
+
+export function formatChannelLabel(channel: ReminderChannel): string {
+  return CHANNEL_LABELS[channel];
+}
+
+export function formatChannelOptionLabel(channel: ReminderChannel): string {
+  return CHANNEL_LABELS[channel];
+}
+
+export function formatCustomDateLabel(date: Date): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const selected = new Date(date);
+  selected.setHours(0, 0, 0, 0);
+
+  if (selected.getTime() === today.getTime()) return 'Hoje';
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (selected.getTime() === tomorrow.getTime()) return 'Amanhã';
+
+  const day = date.getDate();
+  const month = date
+    .toLocaleDateString('pt-BR', { month: 'short' })
+    .replace('.', '')
+    .replace(/^./, (s) => s.toUpperCase());
+
+  return `${day} ${month} ${date.getFullYear()}`;
+}
+
+export function dateToIsoDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function formatReminderLabel(reminder: TaskReminderDraft): string {
   if (reminder.type === 'unset') return 'Definir';
 
@@ -127,6 +174,91 @@ export function isConfiguredReminder(
   return reminder.type !== 'unset';
 }
 
-export function taskHasSchedule(dueDate: Date | null | undefined, dueTime?: string): boolean {
-  return Boolean(dueDate || dueTime);
+export type ConfiguredReminder = Exclude<TaskReminderDraft, { type: 'unset' }>;
+
+export function areRemindersEqual(a: ConfiguredReminder, b: ConfiguredReminder): boolean {
+  if (a.channel !== b.channel || a.type !== b.type) return false;
+
+  if (a.type === 'relative' && b.type === 'relative') {
+    return (
+      a.offset.amount === b.offset.amount &&
+      a.offset.unit === b.offset.unit &&
+      a.offset.direction === b.offset.direction
+    );
+  }
+
+  if (a.type === 'absolute' && b.type === 'absolute') {
+    return a.scheduledAt === b.scheduledAt;
+  }
+
+  if (a.type === 'recurring' && b.type === 'recurring') {
+    return (
+      a.frequency === b.frequency &&
+      a.time === b.time &&
+      a.weekday === b.weekday
+    );
+  }
+
+  return false;
+}
+
+export function hasDuplicateReminder(
+  reminders: ConfiguredReminder[],
+  candidate: ConfiguredReminder,
+): boolean {
+  return reminders.some((reminder) => areRemindersEqual(reminder, candidate));
+}
+
+/** Relative reminders need a task due time as reference (date alone is not enough). */
+export function taskHasSchedule(_dueDate: Date | null | undefined, dueTime?: string): boolean {
+  return Boolean(dueTime?.trim());
+}
+
+export function taskReminderToDraft(reminder: TaskReminder): ConfiguredReminder {
+  const base = { id: reminder.id, channel: reminder.channel };
+
+  if (reminder.schedule.type === 'relative') {
+    return { ...base, type: 'relative', offset: reminder.schedule.offset };
+  }
+
+  if (reminder.schedule.type === 'absolute') {
+    return { ...base, type: 'absolute', scheduledAt: reminder.schedule.scheduledAt };
+  }
+
+  return {
+    ...base,
+    type: 'recurring',
+    time: reminder.schedule.time,
+    frequency: reminder.schedule.frequency,
+    weekday: reminder.schedule.weekday,
+  };
+}
+
+export function configuredReminderToApiPayload(reminder: ConfiguredReminder): Record<string, unknown> {
+  if (reminder.type === 'relative') {
+    return {
+      id: reminder.id,
+      channel: reminder.channel,
+      type: 'relative',
+      offset: reminder.offset,
+    };
+  }
+
+  if (reminder.type === 'absolute') {
+    return {
+      id: reminder.id,
+      channel: reminder.channel,
+      type: 'absolute',
+      scheduledAt: reminder.scheduledAt,
+    };
+  }
+
+  return {
+    id: reminder.id,
+    channel: reminder.channel,
+    type: 'recurring',
+    time: reminder.time,
+    frequency: reminder.frequency,
+    weekday: reminder.weekday,
+  };
 }

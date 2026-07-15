@@ -5,7 +5,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { io } from 'socket.io-client';
 import { toast } from '../components/ui/Sonner';
-import type { RecurrenceType } from '@jarvi/shared';
+import type { RecurrenceType, TaskReminder, TaskReminderDraft } from '@jarvi/shared';
+import {
+  configuredReminderToApiPayload,
+  type ConfiguredReminder,
+  taskReminderToDraft,
+} from '../lib/reminders';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -49,6 +54,7 @@ export interface CreateTaskData {
   recurrence_type?: RecurrenceType;
   recurrence_config?: string;
   recurrence_until?: string | null;
+  reminders?: TaskReminderDraft[];
 }
 
 export interface UpdateTaskData {
@@ -92,6 +98,9 @@ interface TaskContextType {
   updateSubTask: (taskId: string, subtaskId: string, title: string) => Promise<void>;
   toggleSubTask: (taskId: string, subtaskId: string) => Promise<void>;
   deleteSubTask: (taskId: string, subtaskId: string) => Promise<void>;
+  remindersByTaskId: Record<string, ConfiguredReminder[]>;
+  fetchReminders: (taskId: string) => Promise<void>;
+  replaceReminders: (taskId: string, reminders: TaskReminderDraft[]) => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -137,6 +146,7 @@ const sortTasks = (tasks: Task[]): Task[] => {
 
 export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const [subtasksByTaskId, setSubtasksByTaskId] = useState<Record<string, SubTask[]>>({});
+  const [remindersByTaskId, setRemindersByTaskId] = useState<Record<string, ConfiguredReminder[]>>({});
   const [deletedTasks, setDeletedTasks] = useState<{ task: Task; deletedAt: number; originalIndex: number }[]>(() => {
     try {
       const stored = localStorage.getItem('jarvi_deleted_tasks');
@@ -242,6 +252,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         ...taskData,
         dueDate: taskData.dueDate,
         important: taskData.important || false,
+        reminders: taskData.reminders,
       }),
     onSuccess: (newTask) => {
       queryClient.setQueryData<Task[]>(['tasks'], (old) =>
@@ -303,6 +314,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     queryClient.setQueryData<Task[]>(['tasks'], (old) =>
       (old ?? []).filter(task => task.id !== taskId),
     );
+
+    setRemindersByTaskId((prev) => {
+      if (!(taskId in prev)) return prev;
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
 
     setDeletedTasks(prev => [...prev, { task: taskToDelete, deletedAt: Date.now(), originalIndex }]);
     return taskToDelete;
@@ -525,6 +543,47 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   }, [token, fetchSubTasks]);
 
+  // ── Reminder functions ────────────────────────────────────────────────────
+
+  const fetchReminders = useCallback(async (taskId: string) => {
+    if (!token) return;
+    try {
+      const data = await apiClient.get<TaskReminder[]>(`/api/tasks/${taskId}/reminders`);
+      setRemindersByTaskId((prev) => ({
+        ...prev,
+        [taskId]: data.map(taskReminderToDraft),
+      }));
+    } catch {
+      /* ignore */
+    }
+  }, [token]);
+
+  const replaceReminders = useCallback(async (taskId: string, reminders: TaskReminderDraft[]) => {
+    if (!token) throw new Error('No authentication token');
+
+    const configured = reminders.filter(
+      (reminder): reminder is ConfiguredReminder => reminder.type !== 'unset',
+    );
+
+    setRemindersByTaskId((prev) => ({
+      ...prev,
+      [taskId]: configured,
+    }));
+
+    try {
+      const saved = await apiClient.put<TaskReminder[]>(`/api/tasks/${taskId}/reminders`, {
+        reminders: configured.map(configuredReminderToApiPayload),
+      });
+      setRemindersByTaskId((prev) => ({
+        ...prev,
+        [taskId]: saved.map(taskReminderToDraft),
+      }));
+    } catch (error) {
+      await fetchReminders(taskId);
+      throw error;
+    }
+  }, [token, fetchReminders]);
+
   const value: TaskContextType = {
     tasks,
     isLoading,
@@ -542,6 +601,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     updateSubTask,
     toggleSubTask,
     deleteSubTask,
+    remindersByTaskId,
+    fetchReminders,
+    replaceReminders,
   };
 
   return (

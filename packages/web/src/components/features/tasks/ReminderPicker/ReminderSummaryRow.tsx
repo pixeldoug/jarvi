@@ -1,10 +1,10 @@
 /**
- * Configured reminder — Figma filled row (node 40001735:27173)
+ * Configured reminder — Figma filled row (node 40001738:13842)
  */
 
 import { Bell, Trash } from '@phosphor-icons/react';
 import type { TaskReminderDraft } from '@jarvi/shared';
-import { formatReminderLabel } from '../../../../lib/reminders';
+import { formatChannelLabel, formatReminderLabel } from '../../../../lib/reminders';
 import styles from './ReminderPicker.module.css';
 
 export interface ReminderSummaryRowProps {
@@ -17,7 +17,10 @@ export function ReminderSummaryRow({ reminder, onRemove }: ReminderSummaryRowPro
     <div className={styles.summaryCard}>
       <div className={styles.summaryContent}>
         <Bell size={16} weight="regular" className={styles.summaryIcon} aria-hidden />
-        <span className={styles.summaryLabel}>{formatReminderLabel(reminder)}</span>
+        <div className={styles.summaryText}>
+          <span className={styles.summaryLabel}>{formatReminderLabel(reminder)}</span>
+          <span className={styles.summaryChannel}>{formatChannelLabel(reminder.channel)}</span>
+        </div>
       </div>
       <button
         type="button"
