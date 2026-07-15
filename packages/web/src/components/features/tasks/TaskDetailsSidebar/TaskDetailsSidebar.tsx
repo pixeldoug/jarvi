@@ -70,6 +70,8 @@ export function TaskDetailsSidebar({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const [isTitleMultiLine, setIsTitleMultiLine] = useState(false);
   const skipTitleBlurSaveRef = useRef(false);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const priorityChipRef = useRef<HTMLDivElement>(null);
@@ -127,6 +129,52 @@ export function TaskDetailsSidebar({
     prevTaskRef.current = task;
     prevTaskIdRef.current = task.id;
   }, [task, isEditingTitle]);
+
+  const updateTitleLayout = useCallback(() => {
+    if (isEditingTitle) {
+      setIsTitleMultiLine(false);
+      return;
+    }
+
+    const el = titleRef.current;
+    if (!el) {
+      setIsTitleMultiLine(false);
+      return;
+    }
+
+    const computed = window.getComputedStyle(el);
+    const lineHeight = parseFloat(computed.lineHeight);
+    if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const lineRects = Array.from(range.getClientRects()).filter((rect) => rect.height > 0);
+
+    if (lineRects.length > 1) {
+      setIsTitleMultiLine(true);
+      return;
+    }
+
+    // Fallback: ignore title padding so single-line titles stay centered.
+    const paddingTop = parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = parseFloat(computed.paddingBottom) || 0;
+    const textHeight = el.scrollHeight - paddingTop - paddingBottom;
+    setIsTitleMultiLine(textHeight > lineHeight + 1);
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => updateTitleLayout());
+    return () => cancelAnimationFrame(frame);
+  }, [title, task?.title, updateTitleLayout]);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el || isEditingTitle) return;
+
+    const observer = new ResizeObserver(() => updateTitleLayout());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isEditingTitle, task?.id, updateTitleLayout]);
 
   const handleDescriptionChange = useCallback((json: string) => {
     setDescription(json);
@@ -566,14 +614,21 @@ export function TaskDetailsSidebar({
     variant === 'expanded' && styles.expanded,
   ].filter(Boolean).join(' ');
 
+  const headerClasses = [
+    styles.header,
+    isTitleMultiLine && styles.headerMultiLine,
+  ].filter(Boolean).join(' ');
+
   return (
     <div 
       className={sidebarClasses}
       role="complementary"
       aria-label="Detalhes da tarefa"
     >
+      {/* Header + chips grouped as in Figma task details */}
+      <div className={styles.topSection}>
       {/* Header: Checkbox + Title + Action Buttons (same flex row) */}
-      <div className={styles.header}>
+      <div className={headerClasses}>
         {showBackButton && (
           <Button
             variant="secondary"
@@ -631,7 +686,7 @@ export function TaskDetailsSidebar({
               tabIndex={0}
               aria-label="Editar título da tarefa"
             >
-              <h2 className={styles.title}>{title || task.title}</h2>
+              <h2 ref={titleRef} className={styles.title}>{title || task.title}</h2>
             </div>
           )}
         </div>
@@ -747,6 +802,7 @@ export function TaskDetailsSidebar({
           onChange={handleFrequencyChange}
           baseDate={selectedDate || undefined}
         />
+      </div>
       </div>
 
       {/* Description - Rich Text Editor */}

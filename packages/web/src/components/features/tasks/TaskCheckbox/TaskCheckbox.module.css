@@ -31,9 +31,9 @@
 
 /* Medium size variant for TaskDetailsSidebar */
 .checkbox.medium {
-  width: var(--sizes-7);
-  height: var(--sizes-7);
-  border-radius: 9px;
+  width: var(--sizes-6);
+  height: var(--sizes-6);
+  border-radius: 8px;
 }
 
 /* Large size variant */
