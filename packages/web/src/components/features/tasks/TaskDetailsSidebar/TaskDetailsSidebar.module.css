@@ -15,18 +15,19 @@
   overflow-y: auto;
 }
 
-/* Expanded variant: fills the center column.
-   Padding is intentionally 0 — the parent .main container
-   already provides the outer inset (32px top, 48px horizontal). */
+/* Expanded variant: renders as its own floating card (see
+   Tasks.module.css .centerPanelCard for the surface/shadow/radius), so it
+   needs its own inset padding rather than relying on an outer container. */
 .sidebar.expanded {
-  padding: 0;
+  padding: 0 0 var(--sizes-16) var(--sizes-10);
+  overflow-x: hidden;
 }
 
 /* Top block: title row + metadata chips */
 .topSection {
   display: flex;
   flex-direction: column;
-  gap: var(--sizes-4);
+  gap: var(--sizes-7);
   flex-shrink: 0;
 }
 
@@ -46,7 +47,7 @@
 /* Checkbox + Title (takes all remaining space) */
 .titleContainer {
   display: flex;
-  gap: var(--sizes-2);
+  gap: var(--sizes-25);
   align-items: center;
   flex: 1;
   min-width: 0;
@@ -59,6 +60,10 @@
 .titleContainer > button {
   margin-top: 0;
   flex-shrink: 0;
+}
+
+.sidebar.expanded .titleContainer {
+  padding-top: var(--sizes-8);
 }
 
 /* Action buttons (AI + Close) */

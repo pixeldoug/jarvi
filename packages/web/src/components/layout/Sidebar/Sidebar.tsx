@@ -150,8 +150,9 @@ export function Sidebar({
   forceCollapsed,
 }: SidebarProps) {
   const { isMobile, close: closeMobileSidebar } = useMobileSidebar();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const prevCollapsedRef = useRef<boolean>(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isHoverExpanded, setIsHoverExpanded] = useState(false);
+  const prevCollapsedRef = useRef<boolean>(true);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(() => customLists.length > 0);
 
@@ -197,8 +198,12 @@ export function Sidebar({
 
   const collapsedProfileButtonRef = useRef<HTMLButtonElement>(null);
   const expandedProfileButtonRef = useRef<HTMLButtonElement>(null);
+
+  const isDesktopCollapsed =
+    !isMobile && (forceCollapsed || (isCollapsed && !isHoverExpanded));
+
   const profileButtonRef =
-    isCollapsed && !isMobile ? collapsedProfileButtonRef : expandedProfileButtonRef;
+    isDesktopCollapsed ? collapsedProfileButtonRef : expandedProfileButtonRef;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -285,11 +290,54 @@ export function Sidebar({
     closeMobileSidebar();
   };
 
+  const isSidebarLocked = !isMobile && !isCollapsed;
+
+  const handleSidebarLockToggle = () => {
+    if (isMobile) {
+      closeMobileSidebar();
+      return;
+    }
+    setIsCollapsed((prev) => !prev);
+  };
+
+  const sidebarToggleLabel = isMobile
+    ? 'Fechar menu'
+    : isSidebarLocked
+      ? 'Recolher menu'
+      : 'Fixar menu expandido';
+
+  const handleSidebarMouseEnter = () => {
+    if (!isMobile && !forceCollapsed) setIsHoverExpanded(true);
+  };
+
+  const handleSidebarMouseLeave = () => {
+    if (!isMobile) setIsHoverExpanded(false);
+  };
+
+  const renderSidebarToggleButton = () => (
+    <span className={styles.sidebarToggleWrap}>
+      <Button
+        variant="ghost"
+        size="small"
+        icon={SidebarSimple}
+        iconPosition="icon-only"
+        iconWeight={isSidebarLocked ? 'fill' : 'regular'}
+        active={isSidebarLocked}
+        onClick={handleSidebarLockToggle}
+        aria-label={sidebarToggleLabel}
+        aria-pressed={!isMobile ? isSidebarLocked : undefined}
+      />
+    </span>
+  );
+
   // ── Single root — animates between expanded / collapsed via CSS ─────────────
   return (
     <div
       className={styles.sidebar}
-      data-collapsed={(isCollapsed && !isMobile) || undefined}
+      data-collapsed={isDesktopCollapsed || undefined}
+      data-locked={isSidebarLocked || undefined}
+      onMouseEnter={handleSidebarMouseEnter}
+      onMouseLeave={handleSidebarMouseLeave}
     >
       {/* ── Collapsed panel (absolutely fills root, fades in when collapsed) ── */}
       <div className={styles.collapsedPanel}>
@@ -303,18 +351,6 @@ export function Sidebar({
         >
           <Avatar src={userAvatar} name={userName} size="medium" />
         </button>
-
-        {/* Expand toggle */}
-        <Tooltip label="Expandir" position="right" showDelay={300}>
-          <Button
-            variant="ghost"
-            size="medium"
-            icon={SidebarSimple}
-            iconPosition="icon-only"
-            onClick={() => setIsCollapsed(false)}
-            aria-label="Expandir sidebar"
-          />
-        </Tooltip>
 
         {/* Nav items — icon only */}
         <div className={styles.collapsedNavList}>
@@ -414,14 +450,9 @@ export function Sidebar({
               onClick={() => setIsDropdownOpen((v) => !v)}
             />
 
-            <Button
-              variant="ghost"
-              size="small"
-              icon={SidebarSimple}
-              iconPosition="icon-only"
-              onClick={() => (isMobile ? closeMobileSidebar() : setIsCollapsed(true))}
-              aria-label={isMobile ? 'Fechar menu' : 'Recolher sidebar'}
-            />
+            <Tooltip label={sidebarToggleLabel} position="bottom" showDelay={300}>
+              {renderSidebarToggleButton()}
+            </Tooltip>
           </div>
 
           {/* Pro CTA */}
@@ -562,8 +593,8 @@ export function Sidebar({
         anchorRef={profileButtonRef}
         align="left"
         width={isMobile ? 240 : 200}
-        gap={isCollapsed && !isMobile ? 6 : 8}
-        offsetX={isCollapsed && !isMobile ? 2 : 0}
+        gap={isDesktopCollapsed ? 6 : 8}
+        offsetX={isDesktopCollapsed ? 2 : 0}
       >
         {isMobile ? (
           <>

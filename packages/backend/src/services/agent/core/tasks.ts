@@ -29,7 +29,7 @@ const ACTIVE_TASK_ORDERING = `
 `;
 
 const TASK_COLUMNS =
-  'id, user_id, title, description, completed, priority, category, due_date, time, created_at';
+  'id, user_id, title, description, completed, priority, category, due_date, time, recurrence_type, recurrence_config, recurrence_until, created_at';
 
 export interface TaskBuckets {
   overdue: TaskRow[];
@@ -378,6 +378,30 @@ export function safeParseCategoryNames(raw: unknown): string[] {
 // Prompt formatters
 // ---------------------------------------------------------------------------
 
+function formatRecurrenceSummary(t: TaskRow): string | null {
+  const type = (t.recurrence_type ?? 'none').toLowerCase();
+  if (!type || type === 'none') return null;
+
+  if (type === 'monthly') {
+    try {
+      const config = t.recurrence_config ? JSON.parse(t.recurrence_config) : null;
+      if (config?.monthDay) return `recorrente mensal dia ${config.monthDay}`;
+    } catch {
+      // ignore malformed config
+    }
+    return 'recorrente mensal';
+  }
+
+  const labels: Record<string, string> = {
+    daily: 'recorrente diária',
+    weekdays: 'recorrente dias úteis',
+    weekly: 'recorrente semanal',
+    hourly: 'recorrente por hora',
+    custom: 'recorrente personalizada',
+  };
+  return labels[type] ?? `recorrente ${type}`;
+}
+
 /**
  * Render a single task as a prompt-friendly line. ALWAYS includes `time` when
  * present, and ALWAYS tags VENCIDA / HORÁRIO JÁ PASSOU when applicable so the
@@ -392,6 +416,8 @@ export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): str
   if (timeStr) parts.push(`às ${timeStr}`);
   if (t.priority) parts.push(`prioridade ${t.priority}`);
   if (t.category) parts.push(`cat: ${t.category}`);
+  const recurrence = formatRecurrenceSummary(t);
+  if (recurrence) parts.push(recurrence);
   if (t.description?.trim()) {
     const descSummary = summarizeTaskDescription(t.description);
     if (descSummary) parts.push(`desc: ${truncateForPrompt(descSummary)}`);
@@ -421,6 +447,8 @@ export function formatTaskIndexLine(t: TaskRow): string {
   if (timeStr) parts.push(`às ${timeStr}`);
   if ((t.priority ?? '').toLowerCase() === 'high') parts.push('prioridade high');
   if (t.category) parts.push(`cat: ${t.category}`);
+  const recurrence = formatRecurrenceSummary(t);
+  if (recurrence) parts.push(recurrence);
   parts.push(`id: ${t.id}`);
   return `  - ${parts.join(' | ')}`;
 }

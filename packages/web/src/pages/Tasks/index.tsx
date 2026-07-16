@@ -4,7 +4,7 @@
  * Main tasks page with categorized sections and drag-and-drop support
  */
 
-import { useState, useMemo, useCallback, memo, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, memo, useEffect, useRef, type ReactNode } from 'react';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { MOBILE_BREAKPOINT } from '../../components/layout/MainLayout/MainLayout';
 import { BottomSheet } from '../../components/ui';
@@ -1031,6 +1031,8 @@ export function Tasks() {
     // Returning to the all-view: restore every section to its default open state
     if (listType === 'all') {
       setOpenSections(ALL_SECTIONS_OPEN);
+      // Chat forces the sidebar collapsed; closing it restores the pinned state.
+      if (isChatOpen) dismissChatForTaskPanel();
     }
     setSelectedList(listType);
     setSelectedCustomListId(null);
@@ -1371,6 +1373,19 @@ export function Tasks() {
     }
   }, [tasks, updateTask, reorderTasks]);
 
+  // Show task details in center when: task-mode chat is open, user expanded from list,
+  // or user closed chat after opening it from a task (split view → task-only center).
+  const showTaskInCenter =
+    !!selectedTask &&
+    (taskPinnedInCenter || expandedFromList || (isChatOpen && chatMode === 'task'));
+
+  const hasRightPanelContent =
+    isChatOpen || !!selectedPendingTask || (!!selectedTask && !showTaskInCenter);
+
+  /** Disable Framer layout on list items while the right panel is open — otherwise
+   *  items slide when the main column shrinks to make room for the sidebar. */
+  const taskLayoutAnimationsEnabled = !hasRightPanelContent;
+
   // ============================================================================
   // DROPPABLE SECTION COMPONENT
   // ============================================================================
@@ -1469,7 +1484,7 @@ export function Tasks() {
                       duration: 0.25,
                       ease: [0.4, 0, 0.2, 1],
                     }}
-                    layout
+                    layout={taskLayoutAnimationsEnabled}
                   >
                     <TaskItem
                       task={task}
@@ -1518,16 +1533,18 @@ export function Tasks() {
         {content}
       </Collapsible>
     );
-  }), []);
+  }), [taskLayoutAnimationsEnabled]);
 
-  // Show task details in center when: task-mode chat is open, user expanded from list,
-  // or user closed chat after opening it from a task (split view → task-only center).
-  const showTaskInCenter =
-    !!selectedTask &&
-    (taskPinnedInCenter || expandedFromList || (isChatOpen && chatMode === 'task'));
+  /** Snapshot kept through exit animation so the panel can slide out before unmounting. */
+  const [centerPanelTask, setCenterPanelTask] = useState<Task | null>(null);
 
-  const hasRightPanelContent =
-    isChatOpen || !!selectedPendingTask || (!!selectedTask && !showTaskInCenter);
+  useEffect(() => {
+    if (showTaskInCenter && selectedTask) {
+      setCenterPanelTask(selectedTask);
+    }
+  }, [showTaskInCenter, selectedTask]);
+
+  const isCenterPanelActive = showTaskInCenter || centerPanelTask !== null;
 
   // Compute right sidebar content based on chat/task selection state.
   // Wrapped in AnimatePresence so swapping between task details and chat
@@ -1600,29 +1617,56 @@ export function Tasks() {
     </AnimatePresence>
   ) : undefined;
 
-  // Task details rendered in the center column when chat is open alongside a task.
-  // Slides in from the right to create the illusion of "moving" from the right panel.
-  const taskDetailsInCenter = showTaskInCenter ? (
-    <motion.div
-      key="task-details-center"
-      style={{ width: '100%', height: '100%' }}
-      initial={{ opacity: 0, x: '18%' }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={panelTransition}
+  // Two-layer "stack of cards" host for the task center view.
+  // Layer 0 (base) — the list, always mounted; recedes (scale + dim) like a
+  // card pushed back in a deck. Layer 1 (card) — task details as its own
+  // floating card (surface + shadow, see Tasks.module.css) sliding over it.
+  // Only each layer's wrapper moves — inner content never animates on its own.
+  const renderCenterPanelHost = (content: ReactNode) => (
+    <div
+      className={[styles.centerPanelHost, isCenterPanelActive && styles.centerPanelHostLocked]
+        .filter(Boolean)
+        .join(' ')}
     >
-      <TaskDetailsSidebar
-        isOpen={true}
-        task={selectedTask}
-        onClose={handleTaskDetailsCenterClose}
-        onUpdateTask={handleUpdateTask}
-        onToggleCompletion={handleToggleCompletion}
-        onDelete={handleDeleteTask}
-        onOpenChat={handleOpenChatFromTask}
-        variant="expanded"
-        showBackButton={expandedFromList}
-      />
-    </motion.div>
-  ) : null;
+      <motion.div
+        className={[styles.baseLayer, isCenterPanelActive && styles.baseLayerLocked]
+          .filter(Boolean)
+          .join(' ')}
+        animate={{
+          scale: showTaskInCenter ? 0.97 : 1,
+          opacity: showTaskInCenter ? 0.55 : 1,
+        }}
+        transition={panelTransition}
+      >
+        {content}
+      </motion.div>
+
+      <AnimatePresence initial={false} onExitComplete={() => setCenterPanelTask(null)}>
+        {showTaskInCenter && centerPanelTask && (
+          <motion.div
+            key="task-details-center"
+            className={styles.centerPanelCard}
+            initial={{ x: 60 }}
+            animate={{ x: 0 }}
+            exit={{ x: 60 }}
+            transition={panelTransition}
+          >
+            <TaskDetailsSidebar
+              isOpen={true}
+              task={centerPanelTask}
+              onClose={handleTaskDetailsCenterClose}
+              onUpdateTask={handleUpdateTask}
+              onToggleCompletion={handleToggleCompletion}
+              onDelete={handleDeleteTask}
+              onOpenChat={handleOpenChatFromTask}
+              variant="expanded"
+              showCloseButton={!isChatOpen}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 
   // Mobile: second BottomSheet for task-context chat, overlaid on top of task details.
   // Uses createPortal internally, so it can live here and be included in every return branch.
@@ -1665,10 +1709,11 @@ export function Tasks() {
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
         hideHeader
+        fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
-        {showTaskInCenter ? taskDetailsInCenter : <div className={styles.loading}>Carregando tarefas...</div>}
+        {renderCenterPanelHost(<div className={styles.loading}>Carregando tarefas...</div>)}
       </MainLayout>
       {mobileChatOverlay}
     </>);
@@ -1690,10 +1735,11 @@ export function Tasks() {
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
         hideHeader={true}
+        fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
-        {showTaskInCenter ? taskDetailsInCenter : <div className={styles.error}>Erro: {error}</div>}
+        {renderCenterPanelHost(<div className={styles.error}>Erro: {error}</div>)}
       </MainLayout>
       {mobileChatOverlay}
     </>);
@@ -1715,11 +1761,12 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={showTaskInCenter}
+        hideHeader={isCenterPanelActive}
+        fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
-        {showTaskInCenter ? taskDetailsInCenter : (
+        {renderCenterPanelHost(
           <div className={styles.content}>
             {weekViewData.map(({ dateStr, label, isPast, tasks: dayTasks }) => {
               const isOpen = weekSectionOpen[dateStr] ?? true;
@@ -1784,7 +1831,7 @@ export function Tasks() {
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
-        {showTaskInCenter ? taskDetailsInCenter : (
+        {renderCenterPanelHost(
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <CalendarView
               tasks={calendarDatedTasks}
@@ -1835,11 +1882,12 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={showTaskInCenter}
+        hideHeader={isCenterPanelActive}
+        fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
-        {showTaskInCenter ? taskDetailsInCenter : <div className={styles.content}>
+        {renderCenterPanelHost(<div className={styles.content}>
           <div className={styles.sectionContent}>
             {incompleteSimpleViewTasks.length > 0 ? (
               incompleteSimpleViewTasks.map((task) => (
@@ -1898,7 +1946,7 @@ export function Tasks() {
               </div>
             </Collapsible>
           )}
-        </div>}
+        </div>)}
       </MainLayout>
       {mobileChatOverlay}
     </>);
@@ -1920,11 +1968,12 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={showTaskInCenter}
+        hideHeader={isCenterPanelActive}
+        fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
       >
-      {showTaskInCenter ? taskDetailsInCenter : <DndContext
+      {renderCenterPanelHost(<DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
         onDragStart={handleDragStart}
@@ -2179,7 +2228,7 @@ export function Tasks() {
             </div>
           ) : null}
         </DragOverlay>
-      </DndContext>}
+      </DndContext>)}
     </MainLayout>
     {mobileChatOverlay}
   </>);

@@ -36,11 +36,11 @@
   border-radius: 8px;
 }
 
-/* Large size variant */
+/* Large size variant — task details header */
 .checkbox.large {
-  width: var(--size-target-tight);
-  height: var(--size-target-tight);
-  border-radius: var(--radius-sm);
+  width: var(--sizes-7);
+  height: var(--sizes-7);
+  border-radius: var(--sizes-25);
 }
 
 .checkbox:hover {
@@ -84,8 +84,8 @@
 
 /* Large icon size */
 .checkbox.large .icon {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
 .checked:hover .icon {

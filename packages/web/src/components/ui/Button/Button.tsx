@@ -56,6 +56,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: 'small' | 'medium';
   icon?: PhosphorIcon;
   iconPosition?: 'none' | 'left' | 'right' | 'icon-only';
+  iconWeight?: IconProps['weight'];
   fullWidth?: boolean;
   disabled?: boolean;
   loading?: boolean;
@@ -77,6 +78,7 @@ export function Button({
   size = 'medium',
   icon: Icon,
   iconPosition = 'none',
+  iconWeight = 'regular',
   fullWidth = false,
   disabled = false,
   loading = false,
@@ -127,7 +129,7 @@ export function Button({
       size={iconSize}
         className={styles.icon}
         aria-hidden="true"
-        weight="regular"
+        weight={iconWeight}
       />
     );
   };

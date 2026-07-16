@@ -130,14 +130,29 @@ export function Tooltip({
 
   useEffect(() => {
     if (!isVisible) return;
-    requestAnimationFrame(updatePosition);
+
+    const recalculate = () => requestAnimationFrame(updatePosition);
+    recalculate();
+
     window.addEventListener('scroll', updatePosition, true);
     window.addEventListener('resize', updatePosition);
+
+    const tooltipEl = tooltipRef.current;
+    const triggerEl = triggerRef.current;
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recalculate) : null;
+
+    if (resizeObserver) {
+      if (tooltipEl) resizeObserver.observe(tooltipEl);
+      if (triggerEl) resizeObserver.observe(triggerEl);
+    }
+
     return () => {
       window.removeEventListener('scroll', updatePosition, true);
       window.removeEventListener('resize', updatePosition);
+      resizeObserver?.disconnect();
     };
-  }, [isVisible, updatePosition]);
+  }, [isVisible, label, updatePosition]);
 
   useEffect(() => () => {
     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);

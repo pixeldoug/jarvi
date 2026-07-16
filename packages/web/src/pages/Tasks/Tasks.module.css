@@ -10,6 +10,50 @@
   gap: var(--sizes-8);
 }
 
+/*
+ * Two-layer "stack of cards" host for the task center view.
+ *
+ * Layer 0 (.baseLayer) — the list/calendar/etc. Always mounted; recedes
+ * (scale + dim) while a task card is open, like a card pushed back in a deck.
+ * Layer 1 (.centerPanelCard) — the task details, a literal floating card
+ * with its own surface, radius and elevation, sliding in/out over layer 0.
+ */
+.centerPanelHost {
+  position: relative;
+  min-height: 0;
+}
+
+/* Only constrained while a task card is mounted/animating — otherwise the
+   list lays out naturally and .mainBody handles its own scroll as before. */
+.centerPanelHostLocked {
+  height: 100%;
+  overflow: hidden;
+}
+
+.baseLayer {
+  transform-origin: 50% 0%;
+  will-change: transform, opacity;
+}
+
+.baseLayerLocked {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.centerPanelCard {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--semantic-surface-primary);
+  border-radius: 18px;
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  will-change: transform;
+}
+
 /* Empty state should span the full available width, cancelling the
    .mainBody right padding (and the .sectionContent left offset when nested). */
 .emptyStateFull {

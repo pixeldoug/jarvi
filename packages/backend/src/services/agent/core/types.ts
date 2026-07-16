@@ -22,6 +22,9 @@ export interface TaskRow {
   category?: string | null;
   due_date?: string | Date | null;
   time?: string | Date | null;
+  recurrence_type?: string | null;
+  recurrence_config?: string | null;
+  recurrence_until?: string | null;
   created_at: string | Date;
 }
 

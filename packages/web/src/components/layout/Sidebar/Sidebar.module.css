@@ -313,6 +313,12 @@
   box-shadow: none !important;
 }
 
+/* Sidebar lock toggle */
+.sidebarToggleWrap {
+  position: relative;
+  display: inline-flex;
+}
+
 /* Smooth corners — enhancement para Chrome 133+ / Safari 18+ */
 @supports (corner-shape: squircle) {
   .sidebar {

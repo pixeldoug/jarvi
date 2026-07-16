@@ -33,6 +33,15 @@ import {
   searchUserTasks,
 } from './tasks';
 import { formatDueDateLabel } from './time';
+import {
+  applyRemindersToTask,
+  RECURRENCE_TOOL_PROPERTIES,
+  REMINDERS_TOOL_PROPERTY,
+  sanitizeRecurrenceType,
+  sanitizeRecurrenceUntil,
+  serializeRecurrenceConfig,
+} from './taskRecurrenceReminder';
+import { rescheduleRemindersForTask } from '../../reminderService';
 import type {
   AgentContext,
   ChannelProfile,
@@ -77,6 +86,8 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
               'Horário no formato HH:MM (24h). SEMPRE extraia e converta horários ditos pelo usuário: "13h30"→"13:30", "9h"→"09:00", "9h45"→"09:45", "às 14h"→"14:00", "1h30 da tarde"→"13:30", "meio-dia"→"12:00", "meia-noite"→"00:00". NÃO confunda com durações ("em 2h", "por 3h").',
           },
           category: { type: 'string', description: 'Categoria da tarefa' },
+          ...RECURRENCE_TOOL_PROPERTIES,
+          ...REMINDERS_TOOL_PROPERTY,
         },
         required: ['title'],
       },
@@ -117,6 +128,13 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
             anyOf: [{ type: 'string' }, { type: 'null' }],
             description: 'Categoria, ou null para limpar',
           },
+          recurrence_type: RECURRENCE_TOOL_PROPERTIES.recurrence_type,
+          recurrence_config: RECURRENCE_TOOL_PROPERTIES.recurrence_config,
+          recurrence_until: {
+            anyOf: [{ type: 'string' }, { type: 'null' }],
+            description: 'Data final da recorrência (YYYY-MM-DD), ou null para remover.',
+          },
+          reminders: REMINDERS_TOOL_PROPERTY.reminders,
         },
         required: ['task_id'],
       },
@@ -434,11 +452,33 @@ async function executeCreateTask(
     existingCategories,
   );
 
+  const recurrenceType = sanitizeRecurrenceType(args.recurrence_type);
+  const recurrenceConfig = serializeRecurrenceConfig(
+    args.recurrence_config,
+    recurrenceType,
+    dueDate,
+  );
+  const recurrenceUntil = sanitizeRecurrenceUntil(args.recurrence_until);
+
   const source = profile.id === 'whatsapp' ? 'whatsapp' : 'manual';
   const originalContent = profile.id === 'whatsapp' ? (ctx.originalUserMessage ?? null) : null;
 
   return executeCreateTaskAsActive(
-    { title, description, priority, dueDate, time, category, now, source, originalContent },
+    {
+      title,
+      description,
+      priority,
+      dueDate,
+      time,
+      category,
+      recurrenceType,
+      recurrenceConfig,
+      recurrenceUntil,
+      reminders: args.reminders,
+      now,
+      source,
+      originalContent,
+    },
     ctx,
   );
 }
@@ -450,6 +490,10 @@ interface CreateTaskInput {
   dueDate: string | null;
   time: string | null;
   category: string | null;
+  recurrenceType?: string;
+  recurrenceConfig?: string | null;
+  recurrenceUntil?: string | null;
+  reminders?: unknown;
   now: string;
   source?: string;
   originalContent?: string | null;
@@ -460,23 +504,69 @@ async function executeCreateTaskAsActive(
   ctx: AgentContext,
 ): Promise<ToolExecutionResult> {
   const taskId = uuidv4();
-  const { title, description, priority, dueDate, time, category, now } = input;
+  const {
+    title,
+    description,
+    priority,
+    dueDate,
+    time,
+    category,
+    recurrenceType = 'none',
+    recurrenceConfig = null,
+    recurrenceUntil = null,
+    reminders,
+    now,
+  } = input;
   const source = input.source ?? 'manual';
   const originalContent = input.originalContent ?? null;
 
   if (isPostgreSQL()) {
     await getPool().query(
-      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, now, now],
+      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, recurrence_type, recurrence_config, recurrence_until, source, original_whatsapp_content, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      [
+        taskId,
+        ctx.userId,
+        title,
+        description,
+        priority,
+        category,
+        dueDate,
+        time,
+        recurrenceType,
+        recurrenceConfig,
+        recurrenceUntil,
+        source,
+        originalContent,
+        now,
+        now,
+      ],
     );
   } else {
     await getDatabase().run(
-      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, source, original_whatsapp_content, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [taskId, ctx.userId, title, description, priority, category, dueDate, time, source, originalContent, now, now],
+      `INSERT INTO tasks (id, user_id, title, description, priority, category, due_date, time, recurrence_type, recurrence_config, recurrence_until, source, original_whatsapp_content, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        taskId,
+        ctx.userId,
+        title,
+        description,
+        priority,
+        category,
+        dueDate,
+        time,
+        recurrenceType,
+        recurrenceConfig,
+        recurrenceUntil,
+        source,
+        originalContent,
+        now,
+        now,
+      ],
     );
   }
+
+  await applyRemindersToTask(taskId, ctx.userId, reminders, 'create');
 
   if (source === 'whatsapp' && hasIO()) {
     getIO().to(`user:${ctx.userId}`).emit('task:created', { id: taskId, source });
@@ -500,6 +590,7 @@ async function executeCreateTaskAsActive(
       due_date: dueDate,
       time,
       category,
+      recurrence_type: recurrenceType,
       due_label: dueLabel,
     },
   };
@@ -613,14 +704,19 @@ async function executeUpdateTask(
   };
 
   let existingCategories: CategoryRow[] | null = null;
-  for (const key of [
+  const fieldKeys = [
     'title',
     'description',
     'priority',
     'due_date',
     'time',
     'category',
-  ] as const) {
+    'recurrence_type',
+    'recurrence_config',
+    'recurrence_until',
+  ] as const;
+
+  for (const key of fieldKeys) {
     if (args[key] === undefined) continue;
 
     if (key === 'description') {
@@ -628,6 +724,31 @@ async function executeUpdateTask(
       if (merged.skip) continue;
       fields.push(`${key} = ${ph()}`);
       values.push(merged.value);
+      continue;
+    }
+
+    if (key === 'recurrence_type') {
+      fields.push(`${key} = ${ph()}`);
+      values.push(sanitizeRecurrenceType(args[key]));
+      continue;
+    }
+
+    if (key === 'recurrence_config') {
+      const recurrenceType = sanitizeRecurrenceType(
+        args.recurrence_type !== undefined ? args.recurrence_type : task.recurrence_type,
+      );
+      const dueForConfig =
+        args.due_date !== undefined
+          ? normalizeNullableField(args.due_date) as string | null
+          : normalizeTaskDueDate(task.due_date);
+      fields.push(`${key} = ${ph()}`);
+      values.push(serializeRecurrenceConfig(args[key], recurrenceType, dueForConfig));
+      continue;
+    }
+
+    if (key === 'recurrence_until') {
+      fields.push(`${key} = ${ph()}`);
+      values.push(sanitizeRecurrenceUntil(normalizeNullableField(args[key])));
       continue;
     }
 
@@ -649,18 +770,49 @@ async function executeUpdateTask(
     }
   }
 
-  if (!fields.length) return { success: true, data: { id: taskId } };
+  if (!fields.length && args.reminders === undefined) return { success: true, data: { id: taskId } };
 
-  fields.push(`updated_at = ${ph()}`);
-  values.push(now);
-  values.push(taskId);
-  values.push(ctx.userId);
+  if (fields.length) {
+    fields.push(`updated_at = ${ph()}`);
+    values.push(now);
+    values.push(taskId);
+    values.push(ctx.userId);
 
-  const sql = `UPDATE tasks SET ${fields.join(', ')} WHERE id = ${ph()} AND user_id = ${ph()}`;
-  if (isPostgreSQL()) {
-    await getPool().query(sql, values);
-  } else {
-    await getDatabase().run(sql, values);
+    const sql = `UPDATE tasks SET ${fields.join(', ')} WHERE id = ${ph()} AND user_id = ${ph()}`;
+    if (isPostgreSQL()) {
+      await getPool().query(sql, values);
+    } else {
+      await getDatabase().run(sql, values);
+    }
+  }
+
+  if (args.reminders !== undefined) {
+    await applyRemindersToTask(taskId, ctx.userId, args.reminders, 'replace');
+  } else if (
+    fields.some((f) => f.startsWith('due_date') || f.startsWith('time'))
+  ) {
+    await rescheduleRemindersForTask(taskId);
+  }
+
+  // When recurrence_type changes without an explicit config, rebuild defaults.
+  if (args.recurrence_type !== undefined && args.recurrence_config === undefined) {
+    const recurrenceType = sanitizeRecurrenceType(args.recurrence_type);
+    const dueForConfig =
+      args.due_date !== undefined
+        ? (normalizeNullableField(args.due_date) as string | null)
+        : normalizeTaskDueDate(task.due_date);
+    const configJson = serializeRecurrenceConfig(null, recurrenceType, dueForConfig);
+    if (isPostgreSQL()) {
+      await getPool().query(
+        'UPDATE tasks SET recurrence_config = $1 WHERE id = $2 AND user_id = $3',
+        [configJson, taskId, ctx.userId],
+      );
+    } else {
+      await getDatabase().run(
+        'UPDATE tasks SET recurrence_config = ? WHERE id = ? AND user_id = ?',
+        [configJson, taskId, ctx.userId],
+      );
+    }
   }
 
   const updated = await getTaskById(taskId, ctx.userId);

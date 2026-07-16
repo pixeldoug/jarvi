@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash, Sparkle, ArrowLeft, Bell, Repeat } from '@phosphor-icons/react';
+import { X, Calendar, Hash, Fire, Trash, Sparkle, Bell, Repeat } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -35,8 +35,8 @@ export interface TaskDetailsSidebarProps {
   onOpenChat?: () => void;
   /** Layout variant: sidebar (right panel) or expanded (center column) */
   variant?: 'sidebar' | 'expanded';
-  /** Show back button in expanded mode (only when opened from the task list while chat is open) */
-  showBackButton?: boolean;
+  /** Show close (X) in expanded mode — e.g. after the user closes task-mode chat */
+  showCloseButton?: boolean;
 }
 
 export function TaskDetailsSidebar({
@@ -48,7 +48,7 @@ export function TaskDetailsSidebar({
   onDelete,
   onOpenChat,
   variant = 'sidebar',
-  showBackButton = false,
+  showCloseButton = false,
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -237,13 +237,14 @@ export function TaskDetailsSidebar({
           setTitleDraft(title || task?.title || '');
           return;
         }
+        if (variant === 'expanded' && !showCloseButton) return;
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose, isEditingTitle, title, task]);
+  }, [isOpen, onClose, isEditingTitle, title, task, variant, showCloseButton]);
 
   const handleTitleClick = () => {
     setIsEditingTitle(true);
@@ -656,21 +657,12 @@ export function TaskDetailsSidebar({
       <div className={styles.topSection}>
       {/* Header: Checkbox + Title + Action Buttons (same flex row) */}
       <div className={headerClasses}>
-        {showBackButton && (
-          <Button
-            variant="secondary"
-            icon={ArrowLeft}
-            iconPosition="icon-only"
-            onClick={onClose}
-            aria-label="Voltar para lista de tarefas"
-          />
-        )}
         <div className={styles.titleContainer}>
           <TaskCheckbox
             checked={task.completed}
             onChange={handleToggleCompletionClick}
             ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
-            size={variant === 'expanded' ? 'large' : 'medium'}
+            size="large"
           />
           {isEditingTitle ? (
             <input
@@ -718,9 +710,9 @@ export function TaskDetailsSidebar({
           )}
         </div>
 
-        {variant !== 'expanded' && (
+        {(variant !== 'expanded' || showCloseButton) && (
           <div className={styles.headerActions}>
-            {onOpenChat && (
+            {onOpenChat && (variant !== 'expanded' || showCloseButton) && (
               <Button
                 variant="secondary"
                 icon={Sparkle}
@@ -734,7 +726,7 @@ export function TaskDetailsSidebar({
               icon={X}
               iconPosition="icon-only"
               onClick={onClose}
-              aria-label="Fechar sidebar"
+              aria-label={variant === 'expanded' ? 'Voltar para lista de tarefas' : 'Fechar sidebar'}
             />
           </div>
         )}
@@ -814,7 +806,7 @@ export function TaskDetailsSidebar({
             icon={<Repeat size={16} weight="regular" />}
             size="medium"
             interactive
-            active={showFrequencyPicker}
+            active={showFrequencyPicker || currentFrequency.recurrenceType !== 'none'}
             onClick={() => setShowFrequencyPicker((prev) => !prev)}
             onClear={currentFrequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
           />
