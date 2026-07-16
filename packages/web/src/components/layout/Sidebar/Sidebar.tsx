@@ -405,15 +405,8 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Collapsed footer: compact ThemeToggle + action buttons */}
+        {/* Collapsed footer: action buttons + compact ThemeToggle last */}
         <div className={styles.collapsedFooter}>
-          <Tooltip
-            label={isLight ? 'Ativar modo escuro' : 'Ativar modo claro'}
-            position="right"
-            showDelay={300}
-          >
-            <ThemeToggle compact />
-          </Tooltip>
           <Tooltip label="Sugerir ideias" position="right" showDelay={300}>
             <button
               type="button"
@@ -431,6 +424,13 @@ export function Sidebar({
             >
               <Bug size={20} />
             </button>
+          </Tooltip>
+          <Tooltip
+            label={isLight ? 'Ativar modo escuro' : 'Ativar modo claro'}
+            position="right"
+            showDelay={300}
+          >
+            <ThemeToggle compact />
           </Tooltip>
         </div>
       </div>

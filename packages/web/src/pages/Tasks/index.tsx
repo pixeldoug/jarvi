@@ -1622,14 +1622,24 @@ export function Tasks() {
   // card pushed back in a deck. Layer 1 (card) — task details as its own
   // floating card (surface + shadow, see Tasks.module.css) sliding over it.
   // Only each layer's wrapper moves — inner content never animates on its own.
-  const renderCenterPanelHost = (content: ReactNode) => (
+  const renderCenterPanelHost = (
+    content: ReactNode,
+    options?: { fullHeight?: boolean },
+  ) => (
     <div
-      className={[styles.centerPanelHost, isCenterPanelActive && styles.centerPanelHostLocked]
+      className={[
+        styles.centerPanelHost,
+        options?.fullHeight && styles.centerPanelHostFullHeight,
+        isCenterPanelActive && styles.centerPanelHostLocked,
+      ]
         .filter(Boolean)
         .join(' ')}
     >
       <motion.div
-        className={[styles.baseLayer, isCenterPanelActive && styles.baseLayerLocked]
+        className={[
+          styles.baseLayer,
+          (isCenterPanelActive || options?.fullHeight) && styles.baseLayerLocked,
+        ]
           .filter(Boolean)
           .join(' ')}
         animate={{
@@ -1832,7 +1842,7 @@ export function Tasks() {
         defaultTaskCategory={contextTaskCategory}
       >
         {renderCenterPanelHost(
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className={styles.centerPanelCalendarContent}>
             <CalendarView
               tasks={calendarDatedTasks}
               undatedTasks={calendarUndatedTasks}
@@ -1849,7 +1859,8 @@ export function Tasks() {
             }}
             onDeleteTask={handleDeleteTask}
           />
-          </div>
+          </div>,
+          { fullHeight: true },
         )}
       </MainLayout>
       {mobileChatOverlay}
