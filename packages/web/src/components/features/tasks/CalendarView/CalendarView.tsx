@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, type DragEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { CaretLeft, CaretRight, FireSimple, PencilSimple, Plus, Trash, WhatsappLogo } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, FireSimple, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import type { Task } from '../../../../contexts/TaskContext';
 import { Button, Chip } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
@@ -324,13 +324,7 @@ function CalendarTaskPill({
           </button>
         )}
       </div>
-      {task.original_whatsapp_content ? (
-        <WhatsappLogo
-          weight="fill"
-          className={styles.whatsappIcon}
-          aria-hidden="true"
-        />
-      ) : task.priority && (
+      {task.priority && (
         <FireSimple
           weight="fill"
           className={`${styles.priorityIcon} ${task.completed ? styles.priorityIconDisabled : ''}`}

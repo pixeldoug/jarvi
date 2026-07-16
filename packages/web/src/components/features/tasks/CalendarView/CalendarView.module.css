@@ -334,13 +334,6 @@
   color: var(--semantic-content-negative);
 }
 
-.whatsappIcon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  color: #25D366;
-}
-
 .priorityIconDisabled {
   color: var(--semantic-content-disabled);
 }
