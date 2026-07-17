@@ -98,6 +98,25 @@ export const sendVerificationCode = async (to: string, code: string): Promise<vo
   });
 };
 
+// Approved Utility template ("task_reminder") — works both inside and outside
+// the 24h customer-service window, unlike sendTextMessage's freeform body.
+const TASK_REMINDER_TEMPLATE_SID = 'HX76262ae53884f71f46e7dd767ea26188';
+
+export const sendReminderTemplateMessage = async (
+  to: string,
+  taskTitle: string,
+  scheduleLabel: string,
+): Promise<void> => {
+  const client = getTwilioClient();
+
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid: TASK_REMINDER_TEMPLATE_SID,
+    contentVariables: JSON.stringify({ '1': taskTitle, '2': scheduleLabel }),
+  });
+};
+
 export const downloadMedia = async (mediaUrl: string): Promise<Buffer> => {
   const { accountSid, authToken } = getTwilioCredentials();
   const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');

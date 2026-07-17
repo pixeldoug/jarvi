@@ -18,7 +18,7 @@ import type {
 } from '../types/reminder';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { getDateTimeForTimezone } from './agent/core/time';
-import { sendTextMessage } from './whatsappService';
+import { sendReminderTemplateMessage } from './whatsappService';
 import { initiateReminderCall } from './voiceService';
 import { sanitizeTimeString } from '../utils/taskTime';
 
@@ -618,21 +618,20 @@ const fetchUserDeliveryInfo = async (userId: string): Promise<UserDeliveryRow | 
   );
 };
 
-const buildReminderMessage = (task: ReminderTaskRow): string => {
-  const lines = ['🔔 *Lembrete de tarefa*', '', `📌 *${task.title}*`];
+/** Builds the `{{2}}` variable for the "task_reminder" WhatsApp template — never empty. */
+const buildReminderScheduleLabel = (task: ReminderTaskRow): string => {
+  const parts: string[] = [];
 
-  if (task.due_date) {
-    const dueDate = normalizeDueDate(task.due_date);
-    if (dueDate) {
-      const [y, m, d] = dueDate.split('-');
-      lines.push(`📅 ${d}/${m}/${y}`);
-    }
+  const dueDate = normalizeDueDate(task.due_date);
+  if (dueDate) {
+    const [y, m, d] = dueDate.split('-');
+    parts.push(`📅 ${d}/${m}/${y}`);
   }
 
   const time = sanitizeTimeString(task.time);
-  if (time) lines.push(`⏰ ${time}`);
+  if (time) parts.push(`⏰ ${time}`);
 
-  return lines.join('\n');
+  return parts.length > 0 ? parts.join(' ') : 'Sem data definida';
 };
 
 const MONTH_NAMES_PT_BR = [
@@ -749,7 +748,7 @@ const deliverReminder = async (row: ReminderRow, task: ReminderTaskRow): Promise
     if (row.channel === 'call') {
       await initiateReminderCall(user.whatsapp_phone, row.id);
     } else {
-      await sendTextMessage(user.whatsapp_phone, buildReminderMessage(task));
+      await sendReminderTemplateMessage(user.whatsapp_phone, task.title, buildReminderScheduleLabel(task));
     }
   } catch (error) {
     console.error(`[reminderService] Failed to deliver ${row.channel} reminder:`, {
