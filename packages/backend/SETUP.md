@@ -85,6 +85,12 @@ Para produção:
 | `SLACK_BOT_TOKEN` | Token do bot Slack para enviar/atualizar mensagens | `xoxb-...` |
 | `SLACK_SIGNING_SECRET` | Secret para validar assinatura das ações interativas do Slack | `abc123...` |
 | `SLACK_APPROVAL_CHANNEL_ID` | Canal onde os pedidos de aprovação serão enviados | `C0123456789` |
+| `TWILIO_ACCOUNT_SID` | SID da conta Twilio (WhatsApp + Ligação) | `AC...` |
+| `TWILIO_AUTH_TOKEN` | Auth token Twilio (envio de mensagens/chamadas + validação de assinatura de webhooks) | `...` |
+| `TWILIO_WHATSAPP_NUMBER` | Número do sender de WhatsApp | `+55XXXXXXXXXXX` |
+| `TWILIO_WEBHOOK_URL` | URL do webhook inbound de WhatsApp (validação de assinatura) | `https://SEU_BACKEND/api/webhooks/whatsapp` |
+| `TWILIO_VOICE_NUMBER` | Número Twilio com capacidade de voz usado para lembretes por Ligação. Opcional — sem ele, cai para `TWILIO_WHATSAPP_NUMBER` (útil só em dev/teste, pois o sender de WhatsApp normalmente não tem voz habilitada) | `+55XXXXXXXXXXX` |
+| `BACKEND_PUBLIC_URL` | URL pública HTTPS do backend, usada para montar as URLs de TwiML/status callback que o Twilio busca ao processar uma Ligação de lembrete | `https://SEU_BACKEND` |
 
 ## 💳 Stripe - Configuração de Pagamentos
 

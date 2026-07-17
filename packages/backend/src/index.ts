@@ -17,6 +17,7 @@ import webhookRoutes from './routes/webhookRoutes';
 import userRoutes from './routes/userRoutes';
 import earlyAccessRoutes from './routes/earlyAccessRoutes';
 import whatsappRoutes from './routes/whatsappRoutes';
+import voiceRoutes from './routes/voiceRoutes';
 import pendingTaskRoutes from './routes/pendingTaskRoutes';
 import aiRoutes from './routes/aiRoutes';
 import gmailRoutes from './routes/gmailRoutes';
@@ -127,6 +128,7 @@ app.use(
   webhookRoutes
 );
 app.use('/api/webhooks/whatsapp', express.urlencoded({ extended: false }), whatsappRoutes);
+app.use('/api/webhooks/voice', express.urlencoded({ extended: false }), voiceRoutes);
 
 app.use(express.json({ limit: '75mb' }));
 app.use(limiter);

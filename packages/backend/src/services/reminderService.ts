@@ -19,6 +19,7 @@ import type {
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { getDateTimeForTimezone } from './agent/core/time';
 import { sendTextMessage } from './whatsappService';
+import { initiateReminderCall } from './voiceService';
 import { sanitizeTimeString } from '../utils/taskTime';
 
 const FALLBACK_TIMEZONE = 'America/Sao_Paulo';
@@ -363,6 +364,22 @@ const fetchTaskById = async (taskId: string): Promise<ReminderTaskRow | null> =>
   );
 };
 
+const fetchReminderRowById = async (reminderId: string): Promise<ReminderRow | null> => {
+  if (isPostgreSQL()) {
+    const result = await getPool().query<ReminderRow>(
+      'SELECT * FROM task_reminders WHERE id = $1',
+      [reminderId],
+    );
+    return result.rows[0] ?? null;
+  }
+
+  return (
+    (await getDatabase().get<ReminderRow>('SELECT * FROM task_reminders WHERE id = ?', [
+      reminderId,
+    ])) ?? null
+  );
+};
+
 export async function listRemindersForTask(
   taskId: string,
   userId: string,
@@ -618,6 +635,57 @@ const buildReminderMessage = (task: ReminderTaskRow): string => {
   return lines.join('\n');
 };
 
+const MONTH_NAMES_PT_BR = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
+
+/** Natural-language pt-BR sentence spoken by the Twilio Voice call. */
+const buildReminderVoiceMessage = (task: ReminderTaskRow): string => {
+  const parts = [`Olá! Aqui é a Jarvi com um lembrete da sua tarefa: ${task.title}.`];
+
+  const dueDate = normalizeDueDate(task.due_date);
+  if (dueDate) {
+    const [, m, d] = dueDate.split('-');
+    parts.push(`Data prevista: dia ${Number(d)} de ${MONTH_NAMES_PT_BR[Number(m) - 1] ?? m}.`);
+  }
+
+  const time = sanitizeTimeString(task.time);
+  if (time) {
+    const [hh, mm] = time.split(':');
+    const minutePart = Number(mm) > 0 ? ` e ${Number(mm)} minutos` : '';
+    parts.push(`Horário: ${Number(hh)} horas${minutePart}.`);
+  }
+
+  parts.push('Abra o aplicativo Jarvi para ver mais detalhes.');
+  return parts.join(' ');
+};
+
+/**
+ * Resolves the spoken message for a reminder call. Called by the Twilio
+ * Voice webhook once the call connects — looked up by `reminderId` alone
+ * since the request is authenticated via Twilio's request signature.
+ */
+export async function getReminderCallMessage(reminderId: string): Promise<string | null> {
+  const reminder = await fetchReminderRowById(reminderId);
+  if (!reminder) return null;
+
+  const task = await fetchTaskById(reminder.task_id);
+  if (!task) return null;
+
+  return buildReminderVoiceMessage(task);
+}
+
 const markReminderSent = async (
   reminderId: string,
   nextTriggerAt: string | null,
@@ -672,20 +740,19 @@ const deliverReminder = async (row: ReminderRow, task: ReminderTaskRow): Promise
     return;
   }
 
-  if (row.channel === 'call') {
-    await markReminderSkipped(row.id, 'call channel not implemented yet');
-    return;
-  }
-
   if (!user.whatsapp_phone || !user.whatsapp_verified) {
-    await markReminderSkipped(row.id, 'whatsapp not linked');
+    await markReminderSkipped(row.id, `${row.channel} channel requires a verified phone number`);
     return;
   }
 
   try {
-    await sendTextMessage(user.whatsapp_phone, buildReminderMessage(task));
+    if (row.channel === 'call') {
+      await initiateReminderCall(user.whatsapp_phone, row.id);
+    } else {
+      await sendTextMessage(user.whatsapp_phone, buildReminderMessage(task));
+    }
   } catch (error) {
-    console.error('[reminderService] Failed to send reminder:', {
+    console.error(`[reminderService] Failed to deliver ${row.channel} reminder:`, {
       reminderId: row.id,
       error: error instanceof Error ? error.message : String(error),
     });

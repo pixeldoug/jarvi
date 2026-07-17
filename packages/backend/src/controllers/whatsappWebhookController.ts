@@ -14,59 +14,17 @@
  * the message content.
  */
 import { Request, Response } from 'express';
-import twilio from 'twilio';
 import {
   enqueueIncomingWhatsappMessage,
   processIncomingWhatsappMessageDirect,
 } from '../queues/whatsappQueue';
 import { sendTextMessage } from '../services/whatsappService';
+import { hasValidTwilioSignature } from '../utils/twilioSignature';
 
 const normalizeWhatsappPhone = (value: string): string => {
   const cleaned = value.replace('whatsapp:', '').trim();
   const digits = cleaned.replace(/\D/g, '');
   return digits ? `+${digits}` : '';
-};
-
-const getValidationUrls = (req: Request): string[] => {
-  const urls = new Set<string>();
-  const configuredWebhookUrl = process.env.TWILIO_WEBHOOK_URL?.trim();
-  const host = req.get('host');
-  const path = req.originalUrl;
-
-  if (configuredWebhookUrl) {
-    urls.add(configuredWebhookUrl);
-  }
-
-  if (host) {
-    urls.add(`${req.protocol}://${host}${path}`);
-    urls.add(`https://${host}${path}`);
-    urls.add(`http://${host}${path}`);
-  }
-
-  return Array.from(urls);
-};
-
-const hasValidTwilioSignature = (
-  req: Request,
-  signature: string,
-  authToken: string,
-): boolean => {
-  const candidateUrls = getValidationUrls(req);
-
-  for (const url of candidateUrls) {
-    if (twilio.validateRequest(authToken, signature, url, req.body)) {
-      return true;
-    }
-  }
-
-  console.warn('Twilio signature validation failed', {
-    host: req.get('host') || null,
-    originalUrl: req.originalUrl,
-    attemptedUrls: candidateUrls,
-    hasConfiguredWebhookUrl: Boolean(process.env.TWILIO_WEBHOOK_URL),
-  });
-
-  return false;
 };
 
 export const receiveMessage = async (req: Request, res: Response): Promise<void> => {
@@ -83,7 +41,7 @@ export const receiveMessage = async (req: Request, res: Response): Promise<void>
     return;
   }
 
-  if (!hasValidTwilioSignature(req, signature, authToken)) {
+  if (!hasValidTwilioSignature(req, signature, authToken, process.env.TWILIO_WEBHOOK_URL)) {
     res.sendStatus(401);
     return;
   }
