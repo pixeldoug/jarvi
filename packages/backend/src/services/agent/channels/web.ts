@@ -12,10 +12,7 @@ import type { ChatCompletionMessageParam } from 'openai/resources/chat/completio
 import {
   extractMemoryPostResponse,
   getUserProfile,
-  markReconciled,
-  needsReconciliation,
-  persistMemory,
-  reconcileMemory,
+  triggerMemoryReconciliation,
 } from '../core/memory';
 import { buildSystemPrompt, buildTaskFocusedPrompt, buildWebExtras } from '../core/prompt';
 import { runAgent, isRateLimitError, isRequestTooLargeError } from '../core/runAgent';
@@ -124,21 +121,16 @@ export async function streamChat(
     onEvent({ type: 'status', message: 'Preparando contexto…' });
 
     const profileData = await getUserProfile(userId);
-    const { timezone, preferredName, email, subscriptionStatus } = profileData;
-    let { memory } = profileData;
+    const { timezone, preferredName, email, subscriptionStatus, memory } = profileData;
 
-    if (WEB_PROFILE.enableMemoryReconciliation && (await needsReconciliation(userId))) {
-      onEvent({ type: 'status', message: 'Atualizando memória…' });
-      try {
-        const reconciled = await reconcileMemory(userId, memory, timezone);
-        if (reconciled !== memory) {
-          memory = reconciled;
-          await persistMemory(userId, reconciled);
-        }
-        await markReconciled(userId);
-      } catch {
-        // ignore reconciliation failures
-      }
+    // Fallback trigger: reconciliation normally already ran when the user
+    // entered the platform (login/session restore). This is fire-and-forget
+    // and never blocks the response — it just catches long-lived tabs that
+    // never hit those touchpoints. The current turn always proceeds with
+    // whatever `memory` was already loaded above, even if a reconciliation
+    // is now running in the background.
+    if (WEB_PROFILE.enableMemoryReconciliation) {
+      triggerMemoryReconciliation(userId);
     }
 
     let ctx: AgentContext;

@@ -194,25 +194,46 @@ export async function extractMemoryPostResponse(
 // ---------------------------------------------------------------------------
 
 const RECONCILIATION_INTERVAL_MS = 20 * 60 * 60 * 1000; // 20h — fires once per day with buffer
+// Safety net only: bounds how long a claim can block retries if the process
+// that won it crashes mid-reconciliation. `last_reconciled_at` (the 20h gate
+// above) is what actually prevents re-running once a cycle succeeds.
+const CLAIM_STALE_MS = 2 * 60 * 1000;
 
-export async function needsReconciliation(userId: string): Promise<boolean> {
+/**
+ * Atomically claims the right to reconcile this user's memory: a single
+ * `UPDATE` that only succeeds when the user is actually due (per
+ * `last_reconciled_at`) and no other in-flight claim is still fresh. Safe to
+ * call from multiple concurrent triggers (two tabs, login immediately
+ * followed by a profile fetch, the chat fallback, etc.) — only the caller
+ * that wins the row update proceeds to run the LLM reconciliation.
+ */
+async function tryClaimReconciliation(userId: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const reconciledCutoff = new Date(Date.now() - RECONCILIATION_INTERVAL_MS).toISOString();
+  const claimCutoff = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
+
   try {
-    let lastReconciled: string | null = null;
     if (isPostgreSQL()) {
       const result = await getPool().query(
-        'SELECT last_reconciled_at FROM users WHERE id = $1',
-        [userId],
+        `UPDATE users
+         SET reconciliation_started_at = $1
+         WHERE id = $2
+           AND (last_reconciled_at IS NULL OR last_reconciled_at < $3)
+           AND (reconciliation_started_at IS NULL OR reconciliation_started_at < $4)`,
+        [nowIso, userId, reconciledCutoff, claimCutoff],
       );
-      lastReconciled = result.rows[0]?.last_reconciled_at ?? null;
-    } else {
-      const row = await getDatabase().get<{ last_reconciled_at?: string }>(
-        'SELECT last_reconciled_at FROM users WHERE id = ?',
-        [userId],
-      );
-      lastReconciled = row?.last_reconciled_at ?? null;
+      return (result.rowCount ?? 0) > 0;
     }
-    if (!lastReconciled) return true;
-    return Date.now() - new Date(lastReconciled).getTime() > RECONCILIATION_INTERVAL_MS;
+
+    const result = await getDatabase().run(
+      `UPDATE users
+       SET reconciliation_started_at = ?
+       WHERE id = ?
+         AND (last_reconciled_at IS NULL OR last_reconciled_at < ?)
+         AND (reconciliation_started_at IS NULL OR reconciliation_started_at < ?)`,
+      [nowIso, userId, reconciledCutoff, claimCutoff],
+    );
+    return (result.changes ?? 0) > 0;
   } catch {
     return false;
   }
@@ -294,4 +315,34 @@ Regras:
   } catch {
     return currentMemory;
   }
+}
+
+/**
+ * Fire-and-forget entry point for daily memory reconciliation. Intended to
+ * be called from any "user is active" touchpoint (login, session restore,
+ * chat) WITHOUT awaiting it — it never throws and does not return a promise
+ * callers need to handle. Internally it claims the reconciliation slot
+ * atomically so concurrent triggers (multiple tabs, login immediately
+ * followed by a profile fetch, the chat fallback, etc.) never run the LLM
+ * reconciliation twice for the same cycle.
+ */
+export function triggerMemoryReconciliation(userId: string): void {
+  void (async () => {
+    try {
+      const claimed = await tryClaimReconciliation(userId);
+      if (!claimed) return;
+
+      const { memory, timezone } = await getUserProfile(userId);
+      const reconciled = await reconcileMemory(userId, memory, timezone);
+      if (reconciled !== memory) {
+        await persistMemory(userId, reconciled);
+      }
+      await markReconciled(userId);
+    } catch (error) {
+      console.error('[Memory reconciliation] failed:', {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  })();
 }

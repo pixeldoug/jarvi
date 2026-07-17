@@ -910,6 +910,14 @@ const runMigrations = async (): Promise<void> => {
         // Column already exists, ignore
       }
 
+      // Migration: Add reconciliation_started_at column to users (claim lock
+      // used to avoid duplicate concurrent memory reconciliation runs)
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS reconciliation_started_at TIMESTAMP');
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
       // Migration: Add position column to categories for user-defined ordering
       try {
         await client.query('ALTER TABLE categories ADD COLUMN IF NOT EXISTS position INTEGER');
@@ -1270,6 +1278,14 @@ const runMigrations = async (): Promise<void> => {
     // Migration: Add last_reconciled_at column to users
     try {
       await db.exec('ALTER TABLE users ADD COLUMN last_reconciled_at DATETIME');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Migration: Add reconciliation_started_at column to users (claim lock
+    // used to avoid duplicate concurrent memory reconciliation runs)
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN reconciliation_started_at DATETIME');
     } catch (e) {
       // Column already exists, ignore
     }

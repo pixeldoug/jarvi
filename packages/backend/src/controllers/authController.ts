@@ -11,6 +11,7 @@ import { generateOtpFromToken } from '../utils/otp';
 import { sendMetaEvent, getClientIp } from '../services/metaCapiService';
 import { identifyServer, captureServer } from '../services/posthogService';
 import { notifyNewAccountCreated, persistOnboardingLead } from './earlyAccessController';
+import { triggerMemoryReconciliation } from '../services/agent/core/memory';
 
 const firstNameOf = (fullName?: string | null): string | undefined =>
   (fullName || '').trim().split(/\s+/)[0] || undefined;
@@ -440,6 +441,11 @@ export const googleAuth = async (
         hasPassword: !!user.has_password,
       },
     });
+
+    // Fire-and-forget: the user just entered the platform, so this is a good
+    // moment to lazily catch up on daily memory reconciliation without
+    // making any request (chat included) pay for it later.
+    triggerMemoryReconciliation(user.id);
   } catch (error) {
     // Log error without exposing sensitive details
     console.error('Google auth error:', {
@@ -681,6 +687,11 @@ export const login = async (
         hasPassword: !!user.has_password,
       },
     });
+
+    // Fire-and-forget: the user just entered the platform, so this is a good
+    // moment to lazily catch up on daily memory reconciliation without
+    // making any request (chat included) pay for it later.
+    triggerMemoryReconciliation(user.id);
   } catch (error) {
     // Log error without exposing sensitive details
     console.error('Login error:', {
@@ -735,6 +746,11 @@ export const getProfile = async (
       authProvider: user.auth_provider || 'email',
       hasPassword: !!user.has_password,
     });
+
+    // Fire-and-forget: this endpoint is called on every app mount/session
+    // restore, so it's a good moment to lazily catch up on daily memory
+    // reconciliation without making chat pay for it later.
+    triggerMemoryReconciliation(userId);
   } catch (error) {
     // Log error without exposing sensitive details
     console.error('Get profile error:', {
