@@ -279,9 +279,21 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const updateTask = useCallback(async (taskId: string, taskData: UpdateTaskData, _showLoading?: boolean) => {
     if (!token) return;
 
-    // Optimistic update
+    // Optimistic update — map API payload keys (dueDate) onto Task model keys (due_date).
+    // Spreading taskData raw would leave `dueDate` on the cache object while `due_date`
+    // stayed stale, so live readers (e.g. chat artifacts) missed the new date.
     queryClient.setQueryData<Task[]>(['tasks'], (old) =>
-      (old ?? []).map(task => task.id === taskId ? { ...task, ...taskData } : task),
+      (old ?? []).map((task) => {
+        if (task.id !== taskId) return task;
+        const { dueDate, ...rest } = taskData;
+        return {
+          ...task,
+          ...rest,
+          ...(dueDate !== undefined
+            ? { due_date: dueDate === '' || dueDate == null ? undefined : dueDate }
+            : {}),
+        };
+      }),
     );
 
     try {

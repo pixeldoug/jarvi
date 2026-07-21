@@ -72,6 +72,7 @@ interface ChatMessageProps {
   isStreaming?: boolean;
   thinkingStatus?: string | null;
   onTaskCardClick?: (taskId: string) => void;
+  onToggleTaskCompletion?: (taskId: string) => void;
   onListCardClick?: (listId: string) => void;
   onCategoryCardClick?: (categoryName: string) => void;
 }
@@ -81,6 +82,7 @@ export function ChatMessage({
   isStreaming = false,
   thinkingStatus,
   onTaskCardClick,
+  onToggleTaskCompletion,
   onListCardClick,
   onCategoryCardClick,
 }: ChatMessageProps) {
@@ -172,7 +174,12 @@ export function ChatMessage({
       )}
 
       {visibleTaskToolCalls.map((tc, i) => (
-        <TaskCardMessage key={`${message.id}-tc-${i}`} toolCall={tc} onTaskClick={onTaskCardClick} />
+        <TaskCardMessage
+          key={`${message.id}-tc-${i}`}
+          toolCall={tc}
+          onTaskClick={onTaskCardClick}
+          onToggleCompletion={onToggleTaskCompletion}
+        />
       ))}
 
       {shouldSummarizeTaskUpdates && (

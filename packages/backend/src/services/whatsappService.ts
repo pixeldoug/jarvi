@@ -100,7 +100,7 @@ export const sendVerificationCode = async (to: string, code: string): Promise<vo
 
 // Approved Utility template ("task_reminder") — works both inside and outside
 // the 24h customer-service window, unlike sendTextMessage's freeform body.
-const TASK_REMINDER_TEMPLATE_SID = 'HX76262ae53884f71f46e7dd767ea26188';
+const TASK_REMINDER_TEMPLATE_SID = 'HX76262ae33884f71f46e7dd767ea26188';
 
 export const sendReminderTemplateMessage = async (
   to: string,

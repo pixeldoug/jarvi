@@ -618,14 +618,18 @@ const fetchUserDeliveryInfo = async (userId: string): Promise<UserDeliveryRow | 
   );
 };
 
-/** Builds the `{{2}}` variable for the "task_reminder" WhatsApp template — never empty. */
+/**
+ * Builds the `{{2}}` variable for the "task_reminder" WhatsApp template — never empty.
+ * No leading calendar emoji here: the approved template body already prefixes this
+ * variable with "🗓️ Agendado para:", so adding one would show two calendar icons.
+ */
 const buildReminderScheduleLabel = (task: ReminderTaskRow): string => {
   const parts: string[] = [];
 
   const dueDate = normalizeDueDate(task.due_date);
   if (dueDate) {
     const [y, m, d] = dueDate.split('-');
-    parts.push(`📅 ${d}/${m}/${y}`);
+    parts.push(`${d}/${m}/${y}`);
   }
 
   const time = sanitizeTimeString(task.time);

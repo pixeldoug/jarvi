@@ -11,6 +11,7 @@ import {
   replaceRemindersForTask,
   rescheduleRemindersForTask,
 } from '../../reminderService';
+import type { TaskReminder } from '../../../types/reminder';
 
 const VALID_RECURRENCE_TYPES: RecurrenceType[] = [
   'none',
@@ -87,17 +88,29 @@ export async function applyRemindersToTask(
   userId: string,
   reminders: unknown,
   mode: 'create' | 'replace',
-): Promise<void> {
-  if (reminders === undefined) return;
+): Promise<TaskReminder[]> {
+  if (reminders === undefined) return [];
 
   const inputs = parseReminderDrafts(reminders);
   if (mode === 'create') {
-    if (inputs.length > 0) await createRemindersForTask(taskId, userId, inputs);
-    return;
+    if (inputs.length === 0) return [];
+    return createRemindersForTask(taskId, userId, inputs);
   }
 
-  await replaceRemindersForTask(taskId, userId, inputs);
+  const created = await replaceRemindersForTask(taskId, userId, inputs);
   await rescheduleRemindersForTask(taskId);
+  return created;
+}
+
+/** Compact summary for tool results so the model can verify reminders were saved. */
+export function summarizeRemindersForTool(reminders: TaskReminder[]): Array<Record<string, unknown>> {
+  return reminders.map((r) => ({
+    id: r.id,
+    channel: r.channel,
+    schedule: r.schedule,
+    status: r.status,
+    trigger_at: r.triggerAt,
+  }));
 }
 
 /** Tool schema fragment — shared by create_task and update_task. */
@@ -145,11 +158,15 @@ export const REMINDERS_TOOL_PROPERTY = {
   reminders: {
     type: 'array',
     description:
-      'Lembretes da tarefa. Para avisar no dia do vencimento de tarefa recorrente mensal, use type=relative com offset { amount: 0, unit: "days", direction: "before" } e channel whatsapp. Para "1 dia antes": amount=1. Para lembrete diário/semanal fixo: type=recurring com frequency daily/weekly.',
+      'Avisos que o usuário RECEBE (WhatsApp ou ligação). Obrigatório quando pedirem "me lembre/me avisa". NÃO use isto no lugar de due_date ou recurrence_*. Ex.: "me lembre dia 5 de cada mês" → relative no vencimento + channel whatsapp (e time na tarefa). "me avisa 1 dia antes" → offset amount=1. Lembrete diário/semanal fixo → type=recurring com frequency daily/weekly.',
     items: {
       type: 'object',
       properties: {
-        channel: { type: 'string', enum: ['whatsapp', 'call'], description: 'Canal de entrega.' },
+        channel: {
+          type: 'string',
+          enum: ['whatsapp', 'call'],
+          description: 'Canal de entrega. Default whatsapp se o usuário não especificar.',
+        },
         type: { type: 'string', enum: ['relative', 'absolute', 'recurring'] },
         offset: {
           type: 'object',

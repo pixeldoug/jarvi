@@ -220,7 +220,7 @@ export function MainLayout({
         </aside>
 
         {/* Main Content */}
-        <main className={styles.main}>
+        <main className={`${styles.main}${fullHeightContent ? ` ${styles.mainSolid}` : ''}`}>
           {/* Mobile-only top bar with the sidebar toggle (hidden on desktop via CSS) */}
           <div className={styles.mobileTopBar}>
             <Button

@@ -28,6 +28,10 @@
 .centerPanelHostLocked {
   height: 100%;
   overflow: hidden;
+  /* Opaque fill under the card's border-radius cutouts so the dimmed
+     baseLayer / wallpaper never composites through the corners. */
+  background: var(--semantic-surface-primary);
+  border-radius: 18px;
 }
 
 /* Calendar view: mainBody scroll is disabled — height must flow down to
@@ -64,10 +68,10 @@
   inset: 0;
   z-index: 1;
   background: var(--semantic-surface-primary);
-  border-radius: 18px;
-  box-shadow:
-    0 24px 48px -12px rgba(0, 0, 0, 0.18),
-    0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Radius/clip owned by .centerPanelHostLocked — a second rounded edge plus
+     outer drop-shadow was ghosting against the glass gradient + wallpaper. */
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   will-change: transform;
 }

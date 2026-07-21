@@ -30,6 +30,8 @@ export interface AIChatPanelProps {
   initialAttachments?: ChatAttachment[];
   /** Called when the user clicks a task card artifact inside the chat */
   onTaskCardClick?: (taskId: string) => void;
+  /** Called when the user toggles completion on a task card artifact */
+  onToggleTaskCompletion?: (taskId: string) => void;
   /** Called when the user clicks a list/filter card artifact inside the chat */
   onListCardClick?: (listId: string) => void;
   /** Called when the user clicks a category card artifact inside the chat */
@@ -54,6 +56,7 @@ export function AIChatPanel({
   initialMessage,
   initialAttachments,
   onTaskCardClick,
+  onToggleTaskCompletion,
   onListCardClick,
   onCategoryCardClick,
   onAttachToTask,
@@ -283,6 +286,7 @@ export function AIChatPanel({
                     : undefined
                 }
                 onTaskCardClick={onTaskCardClick}
+                onToggleTaskCompletion={onToggleTaskCompletion}
                 onListCardClick={onListCardClick}
                 onCategoryCardClick={onCategoryCardClick}
               />

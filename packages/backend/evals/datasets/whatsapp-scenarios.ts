@@ -20,7 +20,7 @@ import {
 /**
  * Gold-standard WhatsApp task-creation confirmation, mirroring the mandatory
  * format in `buildWhatsappExtras` (prompt.ts): bold title + 🗓️, a due-date
- * line (or none, for undated tasks), then a short reminder ask.
+ * line (or none, for undated tasks), then a short prazo ask when undated.
  *
  * Deliberately describes the date the way the USER phrased it ("sexta às
  * 16h") rather than the resolved YYYY-MM-DD/weekday label: the exact
@@ -35,7 +35,7 @@ import {
 function waConfirmation(
   title: string,
   dateAsUserSaidIt: string | null,
-  reminderHint = 'Jarvi oferece um lembrete adequado ao tipo de compromisso e pergunta se o usuário quer um prazo.',
+  reminderHint = 'Jarvi sugere um prazo adequado ao tipo de compromisso e pergunta se o usuário quer definir uma data.',
 ): string {
   return dateAsUserSaidIt
     ? `Salvo! Tarefa "${title}" criada, com o compromisso marcado para ${dateAsUserSaidIt}. ${reminderHint}`
@@ -185,7 +185,7 @@ export const SCENARIOS: EvalScenario[] = [
     mustCallTool: ['create_task'],
     mustNotContain: ['Esta semana', 'Prioridade média', '📋', '✅', 'sem data'],
     idealOutput:
-      'Salvo! Tarefa "Renovar o passaporte" criada, sem data informada. Jarvi sugere um lembrete com antecedência adequada (ex.: 30 dias antes) e pergunta se o usuário quer definir um prazo.',
+      'Salvo! Tarefa "Renovar o passaporte" criada, sem data informada. Jarvi sugere um prazo com antecedência adequada (ex.: 30 dias antes) e pergunta se o usuário quer definir uma data.',
     tags: ['task-creation', 'no-date'],
   },
   {

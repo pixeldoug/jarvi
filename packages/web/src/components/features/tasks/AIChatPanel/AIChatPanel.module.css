@@ -109,6 +109,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--sizes-2);
+  position: relative;
+}
+
+/* Lift the whole message while the artifact menu is open so the
+   dropdown can paint over messages below without covering the title. */
+.messageRow:has(.taskCardExtra:hover),
+.messageRow:has(.taskCardExtra:focus-within) {
+  z-index: 5;
 }
 
 .messageRowUser {
@@ -207,20 +215,32 @@
 /* ---- Task card (inline) ---- */
 
 .taskCard {
+  position: relative;
   background: var(--semantic-surface-secondary);
   border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-md, 12px);
+  border-radius: 20px;
   padding: var(--sizes-3) var(--sizes-4);
-  max-width: 85%;
+  max-width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: var(--sizes-2);
+  margin-bottom: 16px;
+  overflow: visible;
 }
 
 .taskCardHeader {
   display: flex;
   align-items: center;
   gap: var(--sizes-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.taskCardHeader .taskCardTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .taskCardCheck {
@@ -246,11 +266,141 @@
   color: var(--semantic-content-tertiary);
 }
 
-.taskCardChips {
+.taskCardMeta {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: var(--sizes-15);
-  padding-left: 28px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.taskCardExtra {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  z-index: 1;
+}
+
+.taskCardExtra:hover,
+.taskCardExtra:focus-within {
+  z-index: 30;
+}
+
+/* Invisible bridge so the pointer can move from trigger → menu without closing */
+.taskCardExtra::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.taskCardExtraTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--size-chip-medium-height, 36px);
+  padding: 0 10px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-chip-radius, 16px);
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-secondary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: 1;
+  cursor: default;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.taskCardExtra:hover .taskCardExtraTrigger,
+.taskCardExtra:focus-within .taskCardExtraTrigger {
+  background: var(--semantic-surface-tertiary, var(--semantic-surface-secondary));
+  border-color: var(--color-brand-primary-300);
+  color: var(--semantic-content-primary);
+}
+
+.taskCardDropdown {
+  /* Open below the trigger so the task title stays visible above */
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  max-width: min(320px, 70vw);
+  width: max-content;
+  padding: var(--sizes-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-md, 16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s ease;
+}
+
+/* Keep open while hovering trigger or the menu itself */
+.taskCardExtra:hover .taskCardDropdown,
+.taskCardExtra:focus-within .taskCardDropdown {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.taskCardDropdownRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sizes-2);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 12px);
+  color: var(--semantic-content-primary);
+}
+
+.taskCardDropdownIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--semantic-content-secondary);
+}
+
+.taskCardDropdownIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.taskCardDropdownText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.taskCardDropdownKind {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size, 11px);
+  font-weight: 500;
+  line-height: var(--typography-label-sm-line-height, 16px);
+  color: var(--semantic-content-tertiary);
+}
+
+.taskCardDropdownLabel {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: 500;
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-primary);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .taskCardClickable {

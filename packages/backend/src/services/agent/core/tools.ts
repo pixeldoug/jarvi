@@ -40,6 +40,7 @@ import {
   sanitizeRecurrenceType,
   sanitizeRecurrenceUntil,
   serializeRecurrenceConfig,
+  summarizeRemindersForTool,
 } from './taskRecurrenceReminder';
 import { rescheduleRemindersForTask } from '../../reminderService';
 import type {
@@ -566,7 +567,7 @@ async function executeCreateTaskAsActive(
     );
   }
 
-  await applyRemindersToTask(taskId, ctx.userId, reminders, 'create');
+  const savedReminders = await applyRemindersToTask(taskId, ctx.userId, reminders, 'create');
 
   if (source === 'whatsapp' && hasIO()) {
     getIO().to(`user:${ctx.userId}`).emit('task:created', { id: taskId, source });
@@ -592,6 +593,8 @@ async function executeCreateTaskAsActive(
       category,
       recurrence_type: recurrenceType,
       due_label: dueLabel,
+      reminders_count: savedReminders.length,
+      reminders: summarizeRemindersForTool(savedReminders),
     },
   };
 }
@@ -786,8 +789,10 @@ async function executeUpdateTask(
     }
   }
 
+  let savedReminders: ReturnType<typeof summarizeRemindersForTool> | undefined;
   if (args.reminders !== undefined) {
-    await applyRemindersToTask(taskId, ctx.userId, args.reminders, 'replace');
+    const created = await applyRemindersToTask(taskId, ctx.userId, args.reminders, 'replace');
+    savedReminders = summarizeRemindersForTool(created);
   } else if (
     fields.some((f) => f.startsWith('due_date') || f.startsWith('time'))
   ) {
@@ -816,9 +821,15 @@ async function executeUpdateTask(
   }
 
   const updated = await getTaskById(taskId, ctx.userId);
+  const data: Record<string, unknown> =
+    (updated as unknown as Record<string, unknown>) || { id: taskId };
+  if (savedReminders !== undefined) {
+    data.reminders_count = savedReminders.length;
+    data.reminders = savedReminders;
+  }
   return {
     success: true,
-    data: (updated as unknown as Record<string, unknown>) || { id: taskId },
+    data,
   };
 }
 

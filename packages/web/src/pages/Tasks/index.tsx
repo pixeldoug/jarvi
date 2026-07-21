@@ -325,12 +325,21 @@ export function Tasks() {
   }, []);
 
   const handleEdit = (task: any) => {
-    if (isChatOpen) dismissChatForTaskPanel();
+    // Keep an open chat on the right; open task details in the center column.
+    if (isChatOpen) {
+      setExpandedFromList(false);
+      setTaskPinnedInCenter(true);
+    }
     setSelectedTask(task);
   };
 
   const handleTaskClick = (task: Task) => {
-    if (isChatOpen) dismissChatForTaskPanel();
+    // Keep an open chat on the right; open task details in the center column
+    // (over the list) instead of replacing the conversation panel.
+    if (isChatOpen) {
+      setExpandedFromList(false);
+      setTaskPinnedInCenter(true);
+    }
     setSelectedTask(task);
     setSelectedPendingTask(null);
   };
@@ -436,10 +445,20 @@ export function Tasks() {
   const handleChatTaskCardClick = useCallback((taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
-    dismissChatForTaskPanel();
+    if (chatMode === 'task') {
+      // Task-scoped chat: the panel's taskId is derived from selectedTask, so
+      // switching it here would silently re-target the ongoing conversation.
+      // Exit the chat first, as before, when the card points to another task.
+      dismissChatForTaskPanel();
+    } else {
+      // General chat: keep it open on the right and show the referenced task
+      // in the center column (split view), same as the task-mode chat layout.
+      setExpandedFromList(false);
+      setTaskPinnedInCenter(true);
+    }
     setSelectedTask(task);
     setSelectedPendingTask(null);
-  }, [tasks, dismissChatForTaskPanel]);
+  }, [tasks, chatMode, dismissChatForTaskPanel]);
 
   const handleChatListCardClick = useCallback((listId: string) => {
     setSelectedCustomListId(listId);
@@ -1572,6 +1591,7 @@ export function Tasks() {
             initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
             initialAttachments={chatMode === 'general' ? chatInitialAttachments : undefined}
             onTaskCardClick={handleChatTaskCardClick}
+            onToggleTaskCompletion={handleToggleCompletion}
             onListCardClick={handleChatListCardClick}
             onCategoryCardClick={handleChatCategoryCardClick}
             onAttachToTask={handleChatAttachToTask}
@@ -1670,7 +1690,9 @@ export function Tasks() {
               onDelete={handleDeleteTask}
               onOpenChat={handleOpenChatFromTask}
               variant="expanded"
-              showCloseButton={!isChatOpen}
+              // Hide back only for task-mode chat split; with general chat open,
+              // keep a way to return to the list without closing the conversation.
+              showCloseButton={!(isChatOpen && chatMode === 'task')}
             />
           </motion.div>
         )}
@@ -1695,6 +1717,7 @@ export function Tasks() {
         onClose={handleCloseMobileChatOverlay}
         onTaskMutated={handleChatTaskMutated}
         onTaskCardClick={handleChatTaskCardClick}
+        onToggleTaskCompletion={handleToggleCompletion}
         onListCardClick={handleChatListCardClick}
         onCategoryCardClick={handleChatCategoryCardClick}
         onAttachToTask={handleChatAttachToTask}
