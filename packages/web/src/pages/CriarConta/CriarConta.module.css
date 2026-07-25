@@ -428,6 +428,12 @@
   gap: var(--sizes-6);
 }
 
+.credentialsFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
 .dividerContainer {
   display: flex;
   align-items: center;

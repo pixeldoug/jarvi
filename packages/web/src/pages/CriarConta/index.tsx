@@ -16,12 +16,10 @@ import styles from './CriarConta.module.css';
 // TYPES
 // ============================================================================
 
-type InterviewAvailability = 'yes' | 'no' | 'later' | null;
-type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type StepIndex = 0 | 1 | 2 | 3 | 4;
 type SelectionField =
   | 'trackingMethods'
-  | 'painPoints'
-  | 'desiredCapabilities';
+  | 'painPoints';
 
 interface Option {
   value: string;
@@ -35,12 +33,7 @@ interface OnboardingFormData {
   trackingMethodsOther: string;
   painPoints: string[];
   painPointsOther: string;
-  desiredCapabilities: string[];
-  desiredCapabilitiesOther: string;
   idealOutcomeText: string;
-  interviewAvailability: InterviewAvailability;
-  contactValue: string;
-  wantsBroadcastUpdates: boolean;
 }
 
 type ValidationErrorField =
@@ -50,11 +43,7 @@ type ValidationErrorField =
   | 'trackingMethodsOther'
   | 'painPoints'
   | 'painPointsOther'
-  | 'desiredCapabilities'
-  | 'desiredCapabilitiesOther'
   | 'idealOutcomeText'
-  | 'interviewAvailability'
-  | 'contactValue'
   | 'form';
 
 interface StepValidationError {
@@ -67,17 +56,13 @@ interface StepValidationError {
 // ============================================================================
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const WHATSAPP_REGEX = /^\+?\d{10,15}$/;
-const BASE_FORM_STEPS = 6;
+const BASE_FORM_STEPS = 4;
 
 const STEP_NAMES: Record<number, string> = {
   0: 'name',
   1: 'tracking_methods',
   2: 'pain_points',
-  3: 'desired_capabilities',
-  4: 'ideal_outcome',
-  5: 'interview_availability',
-  6: 'broadcast_updates',
+  3: 'ideal_outcome',
 };
 
 const TRACKING_METHOD_OPTIONS: Option[] = [
@@ -101,23 +86,6 @@ const PAIN_POINT_OPTIONS: Option[] = [
   { value: 'other', label: 'Outros' },
 ];
 
-const DESIRED_CAPABILITY_OPTIONS: Option[] = [
-  { value: 'organize-fast', label: 'Organizar tudo que eu preciso fazer em segundos' },
-  { value: 'give-clarity', label: 'Me ajudar a dar mais clareza ao que preciso fazer' },
-  { value: 'auto-organize-week', label: 'Organizar minha semana automaticamente' },
-  { value: 'decide-what-first', label: 'Me ajudar a priorizar o que fazer primeiro' },
-  { value: 'ideas-to-plan', label: 'Transformar ideias e projetos em planos claros' },
-  { value: 'suggest-next-steps', label: 'Sugerir próximos passos' },
-  { value: 'extract-from-email-notes', label: 'Extrair tarefas de ferramentas externas' },
-  { value: 'other', label: 'Outra coisa' },
-];
-
-const INTERVIEW_OPTIONS: Option[] = [
-  { value: 'yes', label: 'Sim' },
-  { value: 'no', label: 'Não' },
-  { value: 'later', label: 'Talvez mais tarde' },
-];
-
 const INITIAL_DATA: OnboardingFormData = {
   name: '',
   email: '',
@@ -125,12 +93,7 @@ const INITIAL_DATA: OnboardingFormData = {
   trackingMethodsOther: '',
   painPoints: [],
   painPointsOther: '',
-  desiredCapabilities: [],
-  desiredCapabilitiesOther: '',
   idealOutcomeText: '',
-  interviewAvailability: null,
-  contactValue: '',
-  wantsBroadcastUpdates: false,
 };
 
 // ============================================================================
@@ -139,10 +102,6 @@ const INITIAL_DATA: OnboardingFormData = {
 
 function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
-}
-
-function normalizeWhatsapp(value: string): string {
-  return value.trim().replace(/[^\d+]/g, '');
 }
 
 interface TrafficAttribution {
@@ -199,8 +158,6 @@ function buildMemorySeed(data: OnboardingFormData): string {
   if (tracking.length) lines.push(`Hoje você registra tarefas usando: ${formatList(tracking)}.`);
   const pain = getLabelsFromSelection(PAIN_POINT_OPTIONS, data.painPoints, data.painPointsOther);
   if (pain.length) lines.push(`Os principais desafios atuais são: ${formatList(pain)}.`);
-  const caps = getLabelsFromSelection(DESIRED_CAPABILITY_OPTIONS, data.desiredCapabilities, data.desiredCapabilitiesOther);
-  if (caps.length) lines.push(`Você espera que a Jarvi ajude com: ${formatList(caps)}.`);
   if (data.idealOutcomeText.trim()) lines.push(`Resultado ideal para você: ${data.idealOutcomeText.trim()}`);
   return lines.length > 0 ? lines.join('\n') : 'Conte um pouco sobre sua rotina para a Jarvi te ajudar melhor.';
 }
@@ -218,20 +175,6 @@ function getStepError(step: StepIndex, data: OnboardingFormData): StepValidation
   if (step === 2) {
     if (!data.painPoints.length) return { field: 'painPoints', message: 'Selecione ao menos um desafio.' };
     if (data.painPoints.includes('other') && !data.painPointsOther.trim()) return { field: 'painPointsOther', message: 'Descreva o que entra em "Outros".' };
-    return null;
-  }
-  if (step === 3) {
-    if (!data.desiredCapabilities.length) return { field: 'desiredCapabilities', message: 'Selecione ao menos uma opção.' };
-    if (data.desiredCapabilities.includes('other') && !data.desiredCapabilitiesOther.trim()) return { field: 'desiredCapabilitiesOther', message: 'Descreva o que entra em "Outra coisa".' };
-    return null;
-  }
-  if (step === 5) {
-    if (!data.interviewAvailability) return { field: 'interviewAvailability', message: 'Escolha uma opção para seguir.' };
-    if (data.interviewAvailability === 'yes') {
-      if (!data.contactValue.trim()) return { field: 'contactValue', message: 'Informe um WhatsApp ou email para contato.' };
-      const isValid = EMAIL_REGEX.test(normalizeEmail(data.contactValue)) || WHATSAPP_REGEX.test(normalizeWhatsapp(data.contactValue));
-      if (!isValid) return { field: 'contactValue', message: 'Use um WhatsApp com DDI ou email válido.' };
-    }
     return null;
   }
   return null;
@@ -371,7 +314,7 @@ export function CriarConta() {
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
-  const ACCOUNT_STEP: StepIndex = 7;
+  const ACCOUNT_STEP: StepIndex = 4;
   const showAccountStep = step === ACCOUNT_STEP;
 
   useEffect(() => {
@@ -379,19 +322,15 @@ export function CriarConta() {
     trackPixel('InitiateCheckout');
   }, []);
 
-  const normalizedWhatsappContact = normalizeWhatsapp(formData.contactValue);
-  const shouldShowBroadcastStep =
-    formData.interviewAvailability === 'yes' && WHATSAPP_REGEX.test(normalizedWhatsappContact);
-  const isFinalStep = step === (shouldShowBroadcastStep ? 6 : 5);
-  const totalFormSteps = shouldShowBroadcastStep ? BASE_FORM_STEPS + 1 : BASE_FORM_STEPS;
+  const isFinalStep = step === 3;
+  const totalFormSteps = BASE_FORM_STEPS;
 
   const generatedMemory = useMemo(
     () => buildMemorySeed(formData),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       formData.name, formData.trackingMethods, formData.trackingMethodsOther,
-      formData.painPoints, formData.painPointsOther, formData.desiredCapabilities,
-      formData.desiredCapabilitiesOther, formData.idealOutcomeText,
+      formData.painPoints, formData.painPointsOther, formData.idealOutcomeText,
     ]
   );
 
@@ -423,7 +362,6 @@ export function CriarConta() {
       if (value !== 'other' || next.includes('other')) return nextState;
       if (field === 'trackingMethods') nextState.trackingMethodsOther = '';
       if (field === 'painPoints') nextState.painPointsOther = '';
-      if (field === 'desiredCapabilities') nextState.desiredCapabilitiesOther = '';
       return nextState;
     });
   };
@@ -432,33 +370,23 @@ export function CriarConta() {
   // informado. No fluxo Google, o email pode ir vazio: o backend sobrescreve
   // com o email já verificado do token.
   const buildOnboardingPayload = (emailArg: string) => {
-    const normalizedContact = formData.contactValue.trim();
-    const normalizedEmailContact = normalizeEmail(normalizedContact);
-    const normalizedWhatsapp = normalizeWhatsapp(normalizedContact);
-    const contactType = EMAIL_REGEX.test(normalizedEmailContact)
-      ? 'email'
-      : WHATSAPP_REGEX.test(normalizedWhatsapp)
-        ? 'whatsapp'
-        : null;
-
     return {
-      flowVersion: 'web-onboarding-v1',
+      flowVersion: 'web-onboarding-v2',
       source: 'web-onboarding',
       name: formData.name.trim(),
       email: normalizeEmail(emailArg),
       trackingMethods: formData.trackingMethods,
       painPoints: formData.painPoints,
-      desiredCapabilities: formData.desiredCapabilities,
+      desiredCapabilities: [],
       otherDetails: {
         trackingMethods: formData.trackingMethodsOther.trim() || undefined,
         painPoints: formData.painPointsOther.trim() || undefined,
-        desiredCapabilities: formData.desiredCapabilitiesOther.trim() || undefined,
       },
       idealOutcomeText: formData.idealOutcomeText.trim(),
-      interviewAvailability: formData.interviewAvailability,
-      contactValue: formData.interviewAvailability === 'yes' ? normalizedContact : '',
-      contactType: formData.interviewAvailability === 'yes' ? contactType : null,
-      wantsBroadcastUpdates: formData.wantsBroadcastUpdates,
+      interviewAvailability: 'no',
+      contactValue: '',
+      contactType: null,
+      wantsBroadcastUpdates: false,
       memorySeedText: generatedMemory,
       ...getTrafficAttribution(),
     };
@@ -613,40 +541,42 @@ export function CriarConta() {
             <Divider />
           </div>
 
-          <div className={styles.fieldBlock}>
-            <input
-              className={styles.input}
-              value={formData.email}
-              onChange={(e) => {
-                updateField('email', e.target.value);
-                if (accountError) setAccountError(null);
-              }}
-              placeholder="Digite seu email..."
-              autoComplete="email"
-              inputMode="email"
-              aria-label="Email"
-            />
-          </div>
+          <div className={styles.credentialsFields}>
+            <div className={styles.fieldBlock}>
+              <input
+                className={styles.input}
+                value={formData.email}
+                onChange={(e) => {
+                  updateField('email', e.target.value);
+                  if (accountError) setAccountError(null);
+                }}
+                placeholder="Digite seu email..."
+                autoComplete="email"
+                inputMode="email"
+                aria-label="Email"
+              />
+            </div>
 
-          <div className={styles.fieldBlock}>
-            <PasswordInput
-              id="account-password"
-              name="password"
-              label=""
-              autoComplete="new-password"
-              required
-              value={accountPassword}
-              onChange={(e) => {
-                setAccountPassword(e.target.value);
-                if (accountError) setAccountError(null);
-              }}
-              placeholder="Mínimo de 8 caracteres"
-              showStrengthMeter
-              minStrength={2}
-              onStrengthChange={setAccountPasswordStrength}
-              userInputs={[normalizeEmail(formData.email), formData.name]}
-              helperText="Mínimo de 8 caracteres"
-            />
+            <div className={styles.fieldBlock}>
+              <PasswordInput
+                id="account-password"
+                name="password"
+                label=""
+                autoComplete="new-password"
+                required
+                value={accountPassword}
+                onChange={(e) => {
+                  setAccountPassword(e.target.value);
+                  if (accountError) setAccountError(null);
+                }}
+                placeholder="Mínimo de 8 caracteres"
+                showStrengthMeter
+                minStrength={2}
+                onStrengthChange={setAccountPasswordStrength}
+                userInputs={[normalizeEmail(formData.email), formData.name]}
+                helperText="Mínimo de 8 caracteres"
+              />
+            </div>
           </div>
 
           {accountError && <p className={styles.errorMessage}>{accountError}</p>}
@@ -772,36 +702,6 @@ export function CriarConta() {
       return (
         <>
           <div className={styles.questionBlock}>
-            <h1>Quais dessas opções você gostaria que a Jarvi fizesse?</h1>
-            {hasError('desiredCapabilities') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
-          </div>
-          <SelectionChecklist
-            options={DESIRED_CAPABILITY_OPTIONS}
-            selectedValues={formData.desiredCapabilities}
-            onToggle={(v) => toggleSelection('desiredCapabilities', v)}
-            compact={formData.desiredCapabilities.includes('other')}
-          />
-          {formData.desiredCapabilities.includes('other') && (
-            <div className={styles.fieldBlock}>
-              {hasError('desiredCapabilitiesOther') && errorMessage && (
-                <label className={`${styles.label} ${styles.labelError}`}>{errorMessage}</label>
-              )}
-              <input
-                className={getInputClass('desiredCapabilitiesOther')}
-                value={formData.desiredCapabilitiesOther}
-                onChange={(e) => updateField('desiredCapabilitiesOther', e.target.value)}
-                placeholder="Descreva o que você espera..."
-              />
-            </div>
-          )}
-        </>
-      );
-    }
-
-    if (step === 4) {
-      return (
-        <>
-          <div className={styles.questionBlock}>
             <h1>Como seria a Jarvi ideal para você no dia a dia?</h1>
           </div>
           <div className={styles.fieldBlock}>
@@ -815,73 +715,6 @@ export function CriarConta() {
               placeholder="Conte em uma ou duas frases. Sua resposta ajuda muito a melhorar o produto."
             />
           </div>
-        </>
-      );
-    }
-
-    if (step === 5) {
-      return (
-        <>
-          <div className={styles.questionBlock}>
-            <h1>Topa conversar com a gente para melhorar o app?</h1>
-            {hasError('interviewAvailability') && errorMessage && <p className={styles.questionError}>{errorMessage}</p>}
-          </div>
-          <div className={styles.chipContainer}>
-            {INTERVIEW_OPTIONS.map((opt) => {
-              const isSelected = formData.interviewAvailability === opt.value;
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={isSelected ? styles.chipActive : styles.chip}
-                  onClick={() => updateField('interviewAvailability', opt.value as InterviewAvailability)}
-                  aria-pressed={isSelected}
-                >
-                  <span>{opt.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          {formData.interviewAvailability === 'yes' && (
-            <div className={styles.fieldBlock}>
-              <label
-                className={`${styles.label} ${hasError('contactValue') ? styles.labelError : ''}`}
-                htmlFor="contactInput"
-              >
-                {hasError('contactValue') && errorMessage ? errorMessage : 'Qual o seu WhatsApp?'}
-              </label>
-              <input
-                id="contactInput"
-                className={getInputClass('contactValue')}
-                value={formData.contactValue}
-                onChange={(e) => updateField('contactValue', e.target.value)}
-                placeholder="Digite aqui..."
-                autoComplete="tel"
-              />
-            </div>
-          )}
-        </>
-      );
-    }
-
-    if (step === 6) {
-      return (
-        <>
-          <div className={styles.questionBlock}>
-            <h1>Último passo antes de criar sua conta</h1>
-            <p>Quer receber novidades e melhorias da Jarvi no WhatsApp? Sem spam. Só o que importa.</p>
-          </div>
-          <button
-            type="button"
-            className={styles.checkboxRow}
-            onClick={() => updateField('wantsBroadcastUpdates', !formData.wantsBroadcastUpdates)}
-            aria-pressed={formData.wantsBroadcastUpdates}
-          >
-            <span className={formData.wantsBroadcastUpdates ? styles.checkboxActive : styles.checkbox} aria-hidden="true">
-              {formData.wantsBroadcastUpdates ? <Check size={14} weight="bold" /> : null}
-            </span>
-            <span className={styles.checkboxRowText}>Sim, receber atualizações no WhatsApp</span>
-          </button>
         </>
       );
     }

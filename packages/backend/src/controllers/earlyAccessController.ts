@@ -67,12 +67,15 @@ const getOtherDetails = (value: unknown): Record<string, unknown> => {
 };
 
 const getWizardValidationError = (payload: NormalizedWizardPayload): string | null => {
+  const isSimplifiedWebOnboarding = payload.flowVersion === 'web-onboarding-v2';
   if (!payload.name) return 'Nome é obrigatório';
   if (!payload.email) return 'Email é obrigatório';
   if (!EMAIL_REGEX.test(payload.email)) return 'Formato de email inválido';
   if (payload.trackingMethods.length === 0) return 'Selecione ao menos uma forma de registro';
   if (payload.painPoints.length === 0) return 'Selecione ao menos um desafio atual';
-  if (payload.desiredCapabilities.length === 0) return 'Selecione ao menos uma expectativa';
+  if (!isSimplifiedWebOnboarding && payload.desiredCapabilities.length === 0) {
+    return 'Selecione ao menos uma expectativa';
+  }
   if (!payload.memorySeedText) return 'Texto de memória inicial é obrigatório';
 
   if (payload.trackingMethods.includes('other') && !payload.trackingMethodsOther) {
@@ -94,6 +97,8 @@ const getWizardValidationError = (payload: NormalizedWizardPayload): string | nu
 
 const parseWizardPayload = (rawPayload: Record<string, unknown>): NormalizedWizardPayload | null => {
   const otherDetails = getOtherDetails(rawPayload.otherDetails);
+  const flowVersion = sanitizeString(rawPayload.flowVersion, 80) || 'figma-onboarding-v1';
+  const isSimplifiedWebOnboarding = flowVersion === 'web-onboarding-v2';
   const email = normalizeEmail(sanitizeString(rawPayload.email, 255));
   const name = sanitizeString(rawPayload.name, 120);
   const areas = parseStringArray(rawPayload.areas);
@@ -106,7 +111,9 @@ const parseWizardPayload = (rawPayload: Record<string, unknown>): NormalizedWiza
   const interviewAvailabilityRaw = rawPayload.interviewAvailability;
   const interviewAvailability = isInterviewAvailability(interviewAvailabilityRaw)
     ? interviewAvailabilityRaw
-    : null;
+    : isSimplifiedWebOnboarding
+      ? 'no'
+      : null;
 
   if (!interviewAvailability) return null;
 
@@ -139,7 +146,7 @@ const parseWizardPayload = (rawPayload: Record<string, unknown>): NormalizedWiza
     wantsBroadcastUpdates: parseBoolean(rawPayload.wantsBroadcastUpdates),
     memorySeedText,
     source: sanitizeString(rawPayload.source, 80) || 'marketing-onboarding',
-    flowVersion: sanitizeString(rawPayload.flowVersion, 80) || 'figma-onboarding-v1',
+    flowVersion,
   };
 };
 

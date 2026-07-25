@@ -172,7 +172,13 @@ export const Login: React.FC = () => {
               <button 
                 type="button"
                 className={styles.footerLink}
-                onClick={toggleMode}
+                onClick={() => {
+                  if (isLogin) {
+                    navigate('/criar-conta');
+                    return;
+                  }
+                  toggleMode();
+                }}
               >
                 {isLogin ? 'Criar conta' : 'Entrar'}
               </button>
