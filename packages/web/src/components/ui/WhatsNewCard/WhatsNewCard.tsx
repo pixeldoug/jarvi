@@ -111,11 +111,11 @@ export function WhatsNewCard({
 }: WhatsNewCardProps) {
   const cardClasses = [styles.card, className].filter(Boolean).join(' ');
   const isWelcome = variant === 'welcome';
-  const resolvedEyebrow = eyebrow ?? (isWelcome ? 'Vamos começar?' : 'Conecte seu Whatsapp');
+  const resolvedEyebrow = eyebrow ?? (isWelcome ? 'Seja bem-vindo!' : 'Conecte seu Whatsapp');
   const resolvedHeading =
     heading ??
     (isWelcome
-      ? 'Conecte a Jarvi no seu Whatsapp'
+      ? 'Comece conectando a Jarvi no seu Whatsapp'
       : 'Sua experiência fica muito melhor com a Jarvi no Whatsapp');
   const resolvedBodyLabel = bodyLabel ?? (isWelcome ? 'Depois de disso, você poderá' : null);
   const resolvedFeatures = features ?? (isWelcome ? WELCOME_FEATURES : FLOATING_FEATURES);
