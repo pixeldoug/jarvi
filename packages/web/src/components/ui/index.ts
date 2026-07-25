@@ -52,6 +52,12 @@ export {
   type CardProps,
 } from './Card';
 
+export {
+  WhatsNewCard,
+  type WhatsNewCardFeature,
+  type WhatsNewCardProps,
+} from './WhatsNewCard';
+
 
 // ============================================================================
 // FORM COMPONENTS

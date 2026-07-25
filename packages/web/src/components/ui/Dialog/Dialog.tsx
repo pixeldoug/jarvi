@@ -32,6 +32,8 @@ export interface DialogProps {
   forceTheme?: 'light' | 'dark';
   /** Additional CSS classes for the dialog content wrapper */
   contentClassName?: string;
+  /** Additional CSS classes for the full-screen overlay */
+  overlayClassName?: string;
 }
 
 export function Dialog({
@@ -44,6 +46,7 @@ export function Dialog({
   showCloseButton = true,
   forceTheme,
   contentClassName = '',
+  overlayClassName = '',
 }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -110,9 +113,10 @@ export function Dialog({
     className,
   ].filter(Boolean).join(' ');
   const contentClasses = [styles.content, contentClassName].filter(Boolean).join(' ');
+  const overlayClasses = [styles.overlay, overlayClassName].filter(Boolean).join(' ');
 
   return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true" data-theme={forceTheme}>
+    <div className={overlayClasses} role="dialog" aria-modal="true" data-theme={forceTheme}>
       <div ref={dialogRef} className={dialogClasses}>
         {/* Close Button */}
         {showCloseButton && (

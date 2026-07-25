@@ -144,6 +144,64 @@
   flex-shrink: 0;
 }
 
+.whatsNewModalOverlay {
+  align-items: center !important;
+  padding: var(--sizes-6) !important;
+}
+
+.whatsNewModal {
+  width: 640px !important;
+  max-width: min(calc(100% - var(--sizes-8)), 584px) !important;
+  max-height: calc(100vh - var(--sizes-12)) !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow-y: auto;
+  background: transparent !important;
+  box-shadow: none !important;
+  scrollbar-width: thin;
+}
+
+.whatsNewModalContent {
+  display: block !important;
+  overflow: visible !important;
+}
+
+.whatsNewFloatingCard {
+  position: fixed;
+  left: var(--sizes-9);
+  bottom: var(--sizes-6);
+  z-index: 1000;
+  width: min(384px, calc(100vw - 80px));
+}
+
+@media (max-width: 520px) {
+  .whatsNewModalOverlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .whatsNewModal {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 90vh;
+    height: 90dvh;
+    max-height: 90vh !important;
+    max-height: 90dvh !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+  }
+
+  .whatsNewModalContent {
+    height: 100%;
+  }
+
+  .whatsNewFloatingCard {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+
 /* Section group (with SidebarGroupHeader): gap between header and list */
 .groupSection {
   display: flex;

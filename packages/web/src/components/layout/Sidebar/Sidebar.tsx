@@ -25,12 +25,13 @@ import {
   Lightbulb,
   Repeat,
 } from '@phosphor-icons/react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { Avatar } from '../../ui/Avatar/Avatar';
 import { Button } from '../../ui/Button/Button';
 import { ListItem } from '../../ui/ListItem/ListItem';
-import { Dropdown, Tooltip, Divider, BottomSheet } from '../../ui';
+import { Dialog, Dropdown, Tooltip, Divider, BottomSheet, WhatsNewCard } from '../../ui';
 import {
   SettingsDialog,
   SettingsPageContent,
@@ -133,6 +134,63 @@ const NAV_ITEMS: Array<{ id: ListType; label: string; icon: typeof Checks }> = [
   { id: 'recurring', label: 'Recorrentes', icon: Repeat },
 ];
 
+type WhatsAppPromoPlacement = 'hidden' | 'modal' | 'floating';
+
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+const whatsAppPromoPlacementRequests = new Map<
+  string,
+  Promise<WhatsAppPromoPlacement>
+>();
+
+const getWhatsAppPromoPlacement = (
+  userId: string,
+  token: string
+): Promise<WhatsAppPromoPlacement> => {
+  const existingRequest = whatsAppPromoPlacementRequests.get(userId);
+  if (existingRequest) return existingRequest;
+
+  const request = fetch(`${API_URL}/api/users/whatsapp-promo/impression`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error('Não foi possível carregar a promoção do WhatsApp');
+      }
+
+      const data = (await response.json()) as { placement?: WhatsAppPromoPlacement };
+      return data.placement === 'modal' || data.placement === 'floating'
+        ? data.placement
+        : 'hidden';
+    })
+    .catch((error) => {
+      whatsAppPromoPlacementRequests.delete(userId);
+      throw error;
+    });
+
+  whatsAppPromoPlacementRequests.set(userId, request);
+  return request;
+};
+
+const dismissWhatsAppPromo = async (userId: string, token: string): Promise<void> => {
+  const response = await fetch(`${API_URL}/api/users/whatsapp-promo/dismiss`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('Não foi possível ocultar a promoção do WhatsApp');
+  }
+
+  whatsAppPromoPlacementRequests.set(userId, Promise.resolve('hidden'));
+};
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 export function Sidebar({
@@ -150,11 +208,13 @@ export function Sidebar({
   forceCollapsed,
 }: SidebarProps) {
   const { isMobile, close: closeMobileSidebar } = useMobileSidebar();
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHoverExpanded, setIsHoverExpanded] = useState(false);
-  const prevCollapsedRef = useRef<boolean>(true);
+  const prevCollapsedRef = useRef<boolean>(false);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(() => customLists.length > 0);
+  const [whatsAppPromoPlacement, setWhatsAppPromoPlacement] =
+    useState<WhatsAppPromoPlacement>('hidden');
 
   useEffect(() => {
     if (categories.length > 0) setIsCategoriesExpanded(true);
@@ -207,11 +267,59 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { subscription, daysLeftInTrial } = useSubscription();
   const { isLight } = useTheme();
 
   const showProCta = subscription?.status !== 'active';
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      const previewPlacement = new URLSearchParams(location.search).get('whatsappPromo');
+      if (
+        previewPlacement === 'modal' ||
+        previewPlacement === 'floating' ||
+        previewPlacement === 'hidden'
+      ) {
+        setWhatsAppPromoPlacement(previewPlacement);
+        return;
+      }
+    }
+
+    if (!token || !user?.id) {
+      setWhatsAppPromoPlacement('hidden');
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadWhatsAppPromoPlacement = async () => {
+      try {
+        const placement = await getWhatsAppPromoPlacement(user.id, token);
+        if (!cancelled) setWhatsAppPromoPlacement(placement);
+      } catch (error) {
+        console.error('Error loading WhatsApp promo placement:', error);
+        if (!cancelled) setWhatsAppPromoPlacement('hidden');
+      }
+    };
+
+    void loadWhatsAppPromoPlacement();
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search, token, user?.id]);
+
+  useEffect(() => {
+    const handleWhatsAppLinkChange = (event: Event) => {
+      const linked = (event as CustomEvent<{ linked?: boolean }>).detail?.linked;
+      setWhatsAppPromoPlacement(linked === false ? 'floating' : 'hidden');
+    };
+
+    window.addEventListener('jarvi:whatsapp-link-changed', handleWhatsAppLinkChange);
+    return () => {
+      window.removeEventListener('jarvi:whatsapp-link-changed', handleWhatsAppLinkChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (location.pathname === '/settings') {
@@ -617,6 +725,50 @@ export function Sidebar({
           </>
         )}
       </Dropdown>
+
+      {/* First impression: centered modal with overlay */}
+      <Dialog
+        isOpen={whatsAppPromoPlacement === 'modal'}
+        onClose={() => setWhatsAppPromoPlacement('hidden')}
+        width="md"
+        showCloseButton={false}
+        className={styles.whatsNewModal}
+        contentClassName={styles.whatsNewModalContent}
+        overlayClassName={styles.whatsNewModalOverlay}
+      >
+        <WhatsNewCard
+          variant="welcome"
+          onAction={() => {
+            setWhatsAppPromoPlacement('hidden');
+            openSettings('apps');
+          }}
+          onSecondaryAction={() => setWhatsAppPromoPlacement('hidden')}
+        />
+      </Dialog>
+
+      {/* Later sessions: floating card without an overlay */}
+      {whatsAppPromoPlacement === 'floating' &&
+        createPortal(
+          <div className={styles.whatsNewFloatingCard}>
+            <WhatsNewCard
+              onClose={() => setWhatsAppPromoPlacement('hidden')}
+              onAction={() => {
+                setWhatsAppPromoPlacement('hidden');
+                openSettings('apps');
+              }}
+              onSecondaryAction={() => {
+                setWhatsAppPromoPlacement('hidden');
+                if (user?.id && token) {
+                  void dismissWhatsAppPromo(user.id, token).catch((error) => {
+                    console.error('Error dismissing WhatsApp promo:', error);
+                    whatsAppPromoPlacementRequests.delete(user.id);
+                  });
+                }
+              }}
+            />
+          </div>,
+          document.body
+        )}
 
       {/* Desktop: full settings modal */}
       <SettingsDialog

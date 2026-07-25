@@ -535,6 +535,146 @@ router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Respon
 });
 
 /**
+ * POST /api/users/whatsapp-promo/impression
+ * Resolves the WhatsApp promo placement and records its first impression.
+ */
+router.post('/whatsapp-promo/impression', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    let user:
+      | {
+          whatsapp_verified?: boolean | number | null;
+          whatsapp_promo_seen_at?: string | null;
+          whatsapp_promo_dismissed_at?: string | null;
+        }
+      | undefined;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT whatsapp_verified, whatsapp_promo_seen_at, whatsapp_promo_dismissed_at
+         FROM users
+         WHERE id = $1`,
+        [userId]
+      );
+      user = result.rows[0];
+    } else {
+      const db = getDatabase();
+      user = await db.get(
+        `SELECT whatsapp_verified, whatsapp_promo_seen_at, whatsapp_promo_dismissed_at
+         FROM users
+         WHERE id = ?`,
+        [userId]
+      );
+    }
+
+    if (!user) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    const linked = Boolean(user.whatsapp_verified);
+    const hasSeenPromo = Boolean(user.whatsapp_promo_seen_at);
+    const hasDismissedPromo = Boolean(user.whatsapp_promo_dismissed_at);
+    const now = new Date().toISOString();
+
+    if (linked || hasDismissedPromo) {
+      if (!hasSeenPromo) {
+        if (isPostgreSQL()) {
+          await getPool().query(
+            `UPDATE users
+             SET whatsapp_promo_seen_at = COALESCE(whatsapp_promo_seen_at, $1)
+             WHERE id = $2`,
+            [now, userId]
+          );
+        } else {
+          await getDatabase().run(
+            `UPDATE users
+             SET whatsapp_promo_seen_at = COALESCE(whatsapp_promo_seen_at, ?)
+             WHERE id = ?`,
+            [now, userId]
+          );
+        }
+      }
+
+      res.json({ placement: 'hidden' });
+      return;
+    }
+
+    if (hasSeenPromo) {
+      res.json({ placement: 'floating' });
+      return;
+    }
+
+    let claimedFirstImpression = false;
+    if (isPostgreSQL()) {
+      const result = await getPool().query(
+        `UPDATE users
+         SET whatsapp_promo_seen_at = $1
+         WHERE id = $2 AND whatsapp_promo_seen_at IS NULL
+         RETURNING id`,
+        [now, userId]
+      );
+      claimedFirstImpression = result.rowCount === 1;
+    } else {
+      const result = await getDatabase().run(
+        `UPDATE users
+         SET whatsapp_promo_seen_at = ?
+         WHERE id = ? AND whatsapp_promo_seen_at IS NULL`,
+        [now, userId]
+      );
+      claimedFirstImpression = result.changes === 1;
+    }
+
+    res.json({ placement: claimedFirstImpression ? 'modal' : 'floating' });
+  } catch (error) {
+    console.error('Error resolving WhatsApp promo placement:', error);
+    res.status(500).json({ error: 'Erro ao carregar promoção do WhatsApp' });
+  }
+});
+
+/**
+ * POST /api/users/whatsapp-promo/dismiss
+ * Permanently dismisses the floating WhatsApp promo for the current user.
+ */
+router.post('/whatsapp-promo/dismiss', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    if (isPostgreSQL()) {
+      await getPool().query(
+        `UPDATE users
+         SET whatsapp_promo_dismissed_at = COALESCE(whatsapp_promo_dismissed_at, $1)
+         WHERE id = $2`,
+        [now, userId]
+      );
+    } else {
+      await getDatabase().run(
+        `UPDATE users
+         SET whatsapp_promo_dismissed_at = COALESCE(whatsapp_promo_dismissed_at, ?)
+         WHERE id = ?`,
+        [now, userId]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error dismissing WhatsApp promo:', error);
+    res.status(500).json({ error: 'Erro ao ocultar promoção do WhatsApp' });
+  }
+});
+
+/**
  * POST /api/users/whatsapp-link/request
  * Generates verification code and sends it via WhatsApp.
  */

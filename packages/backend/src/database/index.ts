@@ -70,6 +70,8 @@ const createTables = async (): Promise<void> => {
       whatsapp_verified ${booleanType} DEFAULT FALSE,
       whatsapp_link_code TEXT,
       whatsapp_link_code_expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      whatsapp_promo_seen_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      whatsapp_promo_dismissed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       avatar_explicitly_removed ${booleanType} DEFAULT FALSE,
       preferred_name TEXT,
       created_at ${timestampType},
@@ -1018,6 +1020,25 @@ const runMigrations = async (): Promise<void> => {
         // Column already exists, ignore
       }
 
+      // Existing users should not receive the first-access modal. New users
+      // leave this nullable and get the modal on their first authenticated visit.
+      try {
+        await client.query('ALTER TABLE users ADD COLUMN whatsapp_promo_seen_at TIMESTAMP');
+        await client.query(
+          'UPDATE users SET whatsapp_promo_seen_at = CURRENT_TIMESTAMP WHERE whatsapp_promo_seen_at IS NULL'
+        );
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      try {
+        await client.query(
+          'ALTER TABLE users ADD COLUMN IF NOT EXISTS whatsapp_promo_dismissed_at TIMESTAMP'
+        );
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
       // Migration: Create processed_webhook_events table for Stripe webhook idempotency.
       // Stripe may deliver the same event_id multiple times (e.g. after retries); we
       // record each one so handlers don't double-apply state changes.
@@ -1386,6 +1407,23 @@ const runMigrations = async (): Promise<void> => {
     // Migration: Add trial_extended flag to users (SQLite)
     try {
       await db.exec('ALTER TABLE users ADD COLUMN trial_extended BOOLEAN DEFAULT FALSE');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    // Existing users should not receive the first-access modal. New users
+    // leave this nullable and get the modal on their first authenticated visit.
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN whatsapp_promo_seen_at DATETIME');
+      await db.exec(
+        'UPDATE users SET whatsapp_promo_seen_at = CURRENT_TIMESTAMP WHERE whatsapp_promo_seen_at IS NULL'
+      );
+    } catch (e) {
+      // Column already exists, ignore
+    }
+
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN whatsapp_promo_dismissed_at DATETIME');
     } catch (e) {
       // Column already exists, ignore
     }

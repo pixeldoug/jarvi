@@ -2,10 +2,10 @@
  * AppsPage - SettingsDialog
  *
  * Apps tab: integrations list + per-app connection sub-pages.
- * WhatsApp and Gmail are available; all other apps show "Em breve".
+ * WhatsApp and Gmail are available; all other apps remain disabled.
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
- * Nodes: 40001300-917 (list), 40001302-3829 / 40001305-4219 / 40001305-4296 (WA flow)
+ * Nodes: 40001780-29397 (list), 40001302-3829 / 40001305-4219 / 40001305-4296 (WA flow)
  */
 
 import { useEffect, useState } from 'react';
@@ -32,56 +32,42 @@ const APPS: AppDefinition[] = [
   {
     id: 'whatsapp',
     name: 'Whatsapp',
-    description:
-      'Transforme mensagens em tarefas automaticamente. Envie textos, áudios ou arquivos e a Jarvi organiza tudo para você.',
+    description: 'Interaja com a Jarvi no seu whatsapp.',
     icon: '/icons/apps/whatsapp.svg',
     available: true,
   },
   {
     id: 'gmail',
     name: 'Gmail',
-    description:
-      'Transforme e-mails em tarefas acionáveis. Centralize suas demandas e nunca perca um follow-up importante.',
+    description: 'Deixe a Jarvi te ajudar com seus emails do Google.',
     icon: '/icons/apps/gmail.svg',
     available: true,
   },
   {
     id: 'outlook-mail',
     name: 'Outlook Mail',
-    description:
-      'Converta e-mails em tarefas com contexto. A Jarvi entende suas mensagens e organiza suas prioridades.',
+    description: 'Deixe a Jarvi te ajudar com seus emails do Outlook.',
     icon: '/icons/apps/outlook.svg',
     available: false,
   },
   {
     id: 'google-calendar',
     name: 'Google Calendar',
-    description:
-      'Conecte sua agenda para transformar compromissos em tarefas e manter tudo sincronizado com sua rotina.',
+    description: 'Compartilhe sua agenda do Google com a Jarvi.',
     icon: '/icons/apps/google-calendar.svg',
-    available: false,
-  },
-  {
-    id: 'outlook-calendar',
-    name: 'Outlook Calendar',
-    description:
-      'Reúna os eventos do seu calendário do Outlook e as tarefas para um planejamento mais claro e melhor gerenciamento do tempo.',
-    icon: '/icons/apps/outlook.svg',
     available: false,
   },
   {
     id: 'alexa',
     name: 'Alexa',
-    description:
-      'Crie tarefas por comando de voz. Basta falar com a Alexa e a Jarvi cuida do resto.',
+    description: 'Use a Alexa para conversar com a Jarvi.',
     icon: '/icons/apps/alexa.svg',
     available: false,
   },
   {
     id: 'siri',
     name: 'Siri',
-    description:
-      'Transforme mensagens em tarefas automaticamente. Envie textos, áudios ou arquivos e a Jarvi organiza tudo para você.',
+    description: 'Use a Siri para conversar com a Jarvi.',
     icon: '/icons/apps/siri.png',
     available: false,
   },
@@ -169,15 +155,19 @@ function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
             </div>
 
             <div className={styles.integrationActions}>
-              {app.available ? (
-                <Button variant="secondary" size="small" onClick={() => onConnect(app.id)}>
-                  Conectar
-                </Button>
-              ) : (
-                <span className={styles.comingSoonPill} aria-disabled="true">
-                  Em breve
-                </span>
-              )}
+              <Button
+                variant="secondary"
+                size="small"
+                disabled={!app.available}
+                onClick={() => onConnect(app.id)}
+                aria-label={
+                  app.available
+                    ? `Conectar ${app.name}`
+                    : `${app.name} ainda não está disponível`
+                }
+              >
+                Conectar
+              </Button>
             </div>
           </li>
         ))}
@@ -325,6 +315,9 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
       setLinkedPhone(typeof data.phone === 'string' ? data.phone : linkedPhone);
       setVerificationCode('');
       setWhatsappState('connected');
+      window.dispatchEvent(
+        new CustomEvent('jarvi:whatsapp-link-changed', { detail: { linked: true } })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao validar código');
     } finally {
@@ -352,6 +345,9 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
       setPhone('');
       setVerificationCode('');
       setWhatsappState('initial');
+      window.dispatchEvent(
+        new CustomEvent('jarvi:whatsapp-link-changed', { detail: { linked: false } })
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao desvincular WhatsApp');
     } finally {
