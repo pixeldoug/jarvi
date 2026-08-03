@@ -119,12 +119,12 @@ export const RECURRENCE_TOOL_PROPERTIES = {
     type: 'string',
     enum: ['none', 'hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'custom'],
     description:
-      'Tipo de recorrência da tarefa. Use "monthly" com monthDay no recurrence_config para "todo dia X de cada mês". Use "none" para remover recorrência.',
+      'Tipo de recorrência da tarefa. OBRIGATÓRIO sempre que o usuário pedir repetição — NUNCA omita quando pedirem recorrência. Use "monthly" com monthDay no recurrence_config para "todo dia X de cada mês". Use "daily" para "todo dia". Use "weekly" com daysOfWeek para dias específicos. Use "none" para tarefa única ou para remover recorrência.',
   },
   recurrence_config: {
     type: 'object',
     description:
-      'Configuração da recorrência. Sempre inclua until: { type: "never" } salvo se o usuário pedir data de término. monthly: { monthDay: 15, until: { type: "never" } }. weekly: { daysOfWeek: [1], until: { type: "never" } } (0=Dom…6=Sáb). daily/weekdays: { until: { type: "never" } }.',
+      'Configuração da recorrência. OBRIGATÓRIO junto com recurrence_type (nunca um sem o outro quando há recorrência). Sempre inclua until: { type: "never" } salvo se o usuário pedir data de término. monthly: { monthDay: 15, until: { type: "never" } }. weekly: { daysOfWeek: [1], until: { type: "never" } } (0=Dom…6=Sáb). daily/weekdays: { until: { type: "never" } }.',
     properties: {
       monthDay: { type: 'number', description: 'Dia do mês (1-31), obrigatório para monthly.' },
       daysOfWeek: {
