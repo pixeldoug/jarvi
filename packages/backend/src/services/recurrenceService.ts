@@ -40,11 +40,15 @@ export interface RecurrenceTaskRow {
   category: string | null;
   important: boolean | number | null;
   time: string | null;
-  due_date: string | null;
+  /**
+   * Opaque calendar date. SQLite returns `YYYY-MM-DD` (or ISO) strings;
+   * node-pg returns JS `Date` for TIMESTAMP columns — callers must normalize.
+   */
+  due_date: string | Date | null;
   completed: boolean | number;
   recurrence_type: string | null;
-  recurrence_config: string | null;
-  recurrence_until: string | null;
+  recurrence_config: string | RecurrenceConfig | null;
+  recurrence_until: string | Date | null;
   recurrence_parent_id: string | null;
   recurrence_next_task_id: string | null;
 }
@@ -61,8 +65,32 @@ interface NextOccurrence {
 // a separate "HH:MM").
 // ---------------------------------------------------------------------------
 
-const toUtcDate = (dateStr: string): Date => {
-  const datePart = dateStr.slice(0, 10);
+/**
+ * Normalize DB date values to `YYYY-MM-DD`.
+ * Postgres/node-pg hands back `Date` for TIMESTAMP columns; SQLite hands back
+ * strings. Without this, `toUtcDate` throws `dateStr.slice is not a function`
+ * in production and the error is swallowed by generateNextOccurrenceIfRecurring.
+ */
+const toDateOnlyString = (value: string | Date | null | undefined): string | null => {
+  if (value == null || value === '') return null;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  const match = String(value).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+};
+
+const toUtcDate = (dateInput: string | Date): Date => {
+  const datePart = toDateOnlyString(dateInput);
+  if (!datePart) {
+    throw new Error(`Invalid due_date for recurrence: ${String(dateInput)}`);
+  }
   const [y, m, d] = datePart.split('-').map(Number);
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1));
 };
@@ -85,8 +113,9 @@ const clampMonthDay = (year: number, monthIndex0: number, day: number): number =
   return Math.min(Math.max(day, 1), daysInMonth);
 };
 
-const parseConfig = (raw: string | null): RecurrenceConfig | null => {
+const parseConfig = (raw: string | RecurrenceConfig | null): RecurrenceConfig | null => {
   if (!raw) return null;
+  if (typeof raw === 'object') return raw;
   try {
     return JSON.parse(raw) as RecurrenceConfig;
   } catch {
@@ -94,9 +123,17 @@ const parseConfig = (raw: string | null): RecurrenceConfig | null => {
   }
 };
 
+const serializeConfig = (raw: string | RecurrenceConfig | null): string | null => {
+  if (raw == null) return null;
+  return typeof raw === 'string' ? raw : JSON.stringify(raw);
+};
+
 const isUntilReached = (config: RecurrenceConfig | null, candidateDueDate: string): boolean => {
   if (!config?.until || config.until.type !== 'onDate' || !config.until.date) return false;
-  return candidateDueDate.slice(0, 10) > config.until.date.slice(0, 10);
+  const untilDate = toDateOnlyString(config.until.date);
+  const candidate = toDateOnlyString(candidateDueDate);
+  if (!untilDate || !candidate) return false;
+  return candidate > untilDate;
 };
 
 /** Advances `base` by whole hours, correctly rolling the date over midnight. */
@@ -169,10 +206,12 @@ const addMonths = (base: Date, months: number, monthDay: number): Date => {
 export function computeNextOccurrence(task: RecurrenceTaskRow): NextOccurrence | null {
   const recurrenceType = (task.recurrence_type || 'none') as RecurrenceType;
   if (recurrenceType === 'none') return null;
-  if (!task.due_date) return null;
+
+  const dueDateOnly = toDateOnlyString(task.due_date);
+  if (!dueDateOnly) return null;
 
   const config = parseConfig(task.recurrence_config);
-  const base = toUtcDate(task.due_date);
+  const base = toUtcDate(dueDateOnly);
   let result: NextOccurrence;
 
   switch (recurrenceType) {
@@ -268,6 +307,8 @@ export async function generateNextOccurrenceForTask(
   const newTaskId = uuidv4();
   const now = new Date().toISOString();
   const seriesRootId = task.recurrence_parent_id || task.id;
+  const recurrenceConfigValue = serializeConfig(task.recurrence_config);
+  const recurrenceUntilValue = toDateOnlyString(task.recurrence_until);
 
   if (isPostgreSQL()) {
     const pool = getPool();
@@ -293,8 +334,8 @@ export async function generateNextOccurrenceForTask(
           next.time,
           next.dueDate,
           task.recurrence_type,
-          task.recurrence_config,
-          task.recurrence_until,
+          recurrenceConfigValue,
+          recurrenceUntilValue,
           seriesRootId,
           now,
           now,
@@ -332,8 +373,8 @@ export async function generateNextOccurrenceForTask(
       next.time,
       next.dueDate,
       task.recurrence_type,
-      task.recurrence_config,
-      task.recurrence_until,
+      recurrenceConfigValue,
+      recurrenceUntilValue,
       seriesRootId,
       now,
       now,
