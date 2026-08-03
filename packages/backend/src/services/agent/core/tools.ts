@@ -43,6 +43,7 @@ import {
   summarizeRemindersForTool,
 } from './taskRecurrenceReminder';
 import { rescheduleRemindersForTask } from '../../reminderService';
+import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
 import type {
   AgentContext,
   ChannelProfile,
@@ -592,6 +593,7 @@ async function executeCreateTaskAsActive(
       time,
       category,
       recurrence_type: recurrenceType,
+      recurrence_config: recurrenceConfig,
       due_label: dueLabel,
       reminders_count: savedReminders.length,
       reminders: summarizeRemindersForTool(savedReminders),
@@ -857,6 +859,15 @@ async function executeCompleteTask(
       [now, taskId, ctx.userId],
     );
   }
+
+  // Generate the next occurrence immediately for recurring tasks, mirroring
+  // what taskController.toggleTaskCompletion does on the REST path. Without
+  // this, completing a recurring task via the agent would leave the series
+  // stalled until the next hourly cron sweep.
+  if (existing?.recurrence_type && existing.recurrence_type !== 'none') {
+    await generateNextOccurrenceIfRecurring(taskId);
+  }
+
   return {
     success: true,
     data: { id: taskId, title: existing?.title ?? null, completed: true },
