@@ -51,6 +51,16 @@ const FAILURE_BREAKER_WINDOW_MS =
 const MAX_DELIVERIES_PER_DAY = Number(process.env.REMINDER_MAX_DELIVERIES_PER_DAY || 200);
 
 /**
+ * How late a reminder may be delivered. Past this, the moment it was meant to
+ * announce has gone by and sending it is worse than useless — the user pays for
+ * a message or call about something already in the past. It also bounds the
+ * damage of a row that becomes due retroactively (a restart, a clock jump, or a
+ * reminder created for a time that has already passed).
+ */
+const MAX_DELIVERY_DELAY_MS =
+  Number(process.env.REMINDER_MAX_DELIVERY_DELAY_MINUTES || 15) * 60_000;
+
+/**
  * Twilio error codes that will never succeed on retry: bad template reference,
  * malformed template variables, unreachable/unsubscribed recipient, sender not
  * allowed. Retrying these only repeats the charge.
@@ -359,6 +369,34 @@ const rowToReminder = (row: ReminderRow): TaskReminder | null => {
   };
 };
 
+/**
+ * Stable identity for a reminder: two reminders with the same channel and the
+ * same schedule are the same reminder, regardless of row id. Used to reconcile
+ * the client's list against what is already stored — the client generates a
+ * fresh draft id on every edit, so row ids cannot be matched on.
+ */
+const scheduleIdentity = (schedule: TaskReminderSchedule): string => {
+  if (schedule.type === 'relative') {
+    const { amount, unit, direction } = schedule.offset;
+    return `relative:${amount}:${unit}:${direction}`;
+  }
+  if (schedule.type === 'absolute') {
+    return `absolute:${schedule.scheduledAt}`;
+  }
+  return `recurring:${schedule.time}:${schedule.frequency}:${schedule.weekday ?? ''}`;
+};
+
+const identityKey = (channel: ReminderChannel, schedule: TaskReminderSchedule): string =>
+  `${channel}|${scheduleIdentity(schedule)}`;
+
+const rowIdentityKey = (row: ReminderRow): string | null => {
+  const schedule = parseScheduleConfig(row.schedule_type, row.config);
+  return schedule ? identityKey(row.channel as ReminderChannel, schedule) : null;
+};
+
+const inputIdentityKey = (input: CreateTaskReminderInput): string =>
+  identityKey(input.channel, input);
+
 const scheduleToStorage = (
   schedule: TaskReminderSchedule,
 ): { scheduleType: string; config: string } => {
@@ -555,6 +593,24 @@ const fetchReminderRowById = async (reminderId: string): Promise<ReminderRow | n
   );
 };
 
+const fetchReminderRowsForTask = async (
+  taskId: string,
+  userId: string,
+): Promise<ReminderRow[]> => {
+  if (isPostgreSQL()) {
+    const result = await getPool().query<ReminderRow>(
+      'SELECT * FROM task_reminders WHERE task_id = $1 AND user_id = $2 ORDER BY created_at ASC',
+      [taskId, userId],
+    );
+    return result.rows;
+  }
+
+  return (await getDatabase().all(
+    'SELECT * FROM task_reminders WHERE task_id = ? AND user_id = ? ORDER BY created_at ASC',
+    [taskId, userId],
+  )) as ReminderRow[];
+};
+
 export async function listRemindersForTask(
   taskId: string,
   userId: string,
@@ -562,20 +618,7 @@ export async function listRemindersForTask(
   const task = await fetchTaskForUser(taskId, userId);
   if (!task) return [];
 
-  let rows: ReminderRow[] = [];
-  if (isPostgreSQL()) {
-    const result = await getPool().query<ReminderRow>(
-      'SELECT * FROM task_reminders WHERE task_id = $1 AND user_id = $2 ORDER BY created_at ASC',
-      [taskId, userId],
-    );
-    rows = result.rows;
-  } else {
-    rows = (await getDatabase().all(
-      'SELECT * FROM task_reminders WHERE task_id = ? AND user_id = ? ORDER BY created_at ASC',
-      [taskId, userId],
-    )) as ReminderRow[];
-  }
-
+  const rows = await fetchReminderRowsForTask(taskId, userId);
   return rows.map(rowToReminder).filter((r): r is TaskReminder => r !== null);
 }
 
@@ -655,6 +698,24 @@ export async function createRemindersForTask(
   return created;
 }
 
+const deleteReminderById = async (reminderId: string): Promise<void> => {
+  if (isPostgreSQL()) {
+    await getPool().query('DELETE FROM task_reminders WHERE id = $1', [reminderId]);
+  } else {
+    await getDatabase().run('DELETE FROM task_reminders WHERE id = ?', [reminderId]);
+  }
+};
+
+/**
+ * Reconciles the stored reminders against the list the client just submitted.
+ *
+ * The client sends the whole list on every edit and has no notion of delivery
+ * state, so a delete-and-recreate would resurrect already-delivered reminders
+ * as fresh `scheduled` rows with a `trigger_at` in the past — the next
+ * scheduler tick then re-sends them, and the user is billed again for a
+ * message or call they already received. Matching on identity keeps
+ * `status`/`sent_at` intact, so only genuinely new reminders are ever armed.
+ */
 export async function replaceRemindersForTask(
   taskId: string,
   userId: string,
@@ -663,19 +724,40 @@ export async function replaceRemindersForTask(
   const task = await fetchTaskForUser(taskId, userId);
   if (!task) throw new Error('Task not found');
 
-  if (isPostgreSQL()) {
-    await getPool().query('DELETE FROM task_reminders WHERE task_id = $1 AND user_id = $2', [
-      taskId,
-      userId,
-    ]);
-  } else {
-    await getDatabase().run('DELETE FROM task_reminders WHERE task_id = ? AND user_id = ?', [
-      taskId,
-      userId,
-    ]);
+  const existingRows = await fetchReminderRowsForTask(taskId, userId);
+
+  // Several rows can share one identity (the same reminder added twice), so
+  // each incoming input consumes at most one of them.
+  const survivorsByKey = new Map<string, ReminderRow[]>();
+  for (const row of existingRows) {
+    const key = rowIdentityKey(row);
+    if (!key) continue;
+    const bucket = survivorsByKey.get(key);
+    if (bucket) bucket.push(row);
+    else survivorsByKey.set(key, [row]);
   }
 
-  return createRemindersForTask(taskId, userId, inputs);
+  const keptRowIds = new Set<string>();
+  const toInsert: CreateTaskReminderInput[] = [];
+
+  for (const input of inputs) {
+    const match = survivorsByKey.get(inputIdentityKey(input))?.shift();
+    if (match) keptRowIds.add(match.id);
+    else toInsert.push(input);
+  }
+
+  for (const row of existingRows) {
+    if (!keptRowIds.has(row.id)) await deleteReminderById(row.id);
+  }
+
+  if (toInsert.length > 0) {
+    const timezone = await getUserTimezone(userId);
+    for (const input of toInsert) {
+      await insertReminder(taskId, userId, input, timezone, task);
+    }
+  }
+
+  return listRemindersForTask(taskId, userId);
 }
 
 export async function deleteReminder(
@@ -704,12 +786,31 @@ export async function deleteReminder(
   return true;
 }
 
+const setReminderSchedule = async (
+  reminderId: string,
+  triggerAt: string | null,
+  status: ReminderStatus,
+): Promise<void> => {
+  const now = new Date().toISOString();
+
+  if (isPostgreSQL()) {
+    await getPool().query(
+      'UPDATE task_reminders SET trigger_at = $1, status = $2, updated_at = $3 WHERE id = $4',
+      [triggerAt, status, now, reminderId],
+    );
+  } else {
+    await getDatabase().run(
+      'UPDATE task_reminders SET trigger_at = ?, status = ?, updated_at = ? WHERE id = ?',
+      [triggerAt, status, now, reminderId],
+    );
+  }
+};
+
 export async function rescheduleRemindersForTask(taskId: string): Promise<void> {
   const task = await fetchTaskById(taskId);
   if (!task) return;
 
   const timezone = await getUserTimezone(task.user_id);
-  const now = new Date().toISOString();
 
   let rows: ReminderRow[] = [];
   if (isPostgreSQL()) {
@@ -738,17 +839,7 @@ export async function rescheduleRemindersForTask(taskId: string): Promise<void> 
         ? 'scheduled'
         : 'pending';
 
-    if (isPostgreSQL()) {
-      await getPool().query(
-        'UPDATE task_reminders SET trigger_at = $1, status = $2, updated_at = $3 WHERE id = $4',
-        [triggerAt, status, now, row.id],
-      );
-    } else {
-      await getDatabase().run(
-        'UPDATE task_reminders SET trigger_at = ?, status = ?, updated_at = ? WHERE id = ?',
-        [triggerAt, status, now, row.id],
-      );
-    }
+    await setReminderSchedule(row.id, triggerAt, status);
   }
 }
 
@@ -1033,6 +1124,79 @@ const deliverReminder = async (
 // Scheduler
 // ---------------------------------------------------------------------------
 
+/**
+ * Takes reminders that are past their delivery window out of the queue so the
+ * sweep below never pays to deliver them.
+ *
+ * All timestamp comparisons stay in SQL: `trigger_at` is a naive TIMESTAMP on
+ * PostgreSQL, so reading it back into a JS `Date` would reinterpret it in the
+ * server's local zone and shift the comparison by the UTC offset.
+ *
+ * Recurring reminders roll forward to their next occurrence — missing one
+ * morning must not silently disable every morning after it.
+ */
+const closeOutStaleReminders = async (staleBefore: string): Promise<number> => {
+  let staleRecurring: ReminderRow[] = [];
+  if (isPostgreSQL()) {
+    const result = await getPool().query<ReminderRow>(
+      `SELECT * FROM task_reminders
+       WHERE status IN ('pending', 'scheduled')
+         AND trigger_at IS NOT NULL
+         AND trigger_at < $1
+         AND schedule_type = 'recurring'`,
+      [staleBefore],
+    );
+    staleRecurring = result.rows;
+  } else {
+    staleRecurring = (await getDatabase().all(
+      `SELECT * FROM task_reminders
+       WHERE status IN ('pending', 'scheduled')
+         AND trigger_at IS NOT NULL
+         AND trigger_at < ?
+         AND schedule_type = 'recurring'`,
+      [staleBefore],
+    )) as ReminderRow[];
+  }
+
+  for (const row of staleRecurring) {
+    const schedule = parseScheduleConfig(row.schedule_type, row.config);
+    if (schedule?.type !== 'recurring') {
+      await markReminderSkipped(row.id, 'invalid recurring schedule config');
+      continue;
+    }
+
+    const nextTriggerAt = computeRecurringTriggerAt(schedule, row.timezone || FALLBACK_TIMEZONE);
+    await setReminderSchedule(row.id, nextTriggerAt, nextTriggerAt ? 'scheduled' : 'pending');
+  }
+
+  let oneShotClosed = 0;
+  if (isPostgreSQL()) {
+    const result = await getPool().query(
+      `UPDATE task_reminders
+       SET status = 'skipped', updated_at = $1
+       WHERE status IN ('pending', 'scheduled')
+         AND trigger_at IS NOT NULL
+         AND trigger_at < $2
+         AND schedule_type <> 'recurring'`,
+      [new Date().toISOString(), staleBefore],
+    );
+    oneShotClosed = result.rowCount ?? 0;
+  } else {
+    const result = await getDatabase().run(
+      `UPDATE task_reminders
+       SET status = 'skipped', updated_at = ?
+       WHERE status IN ('pending', 'scheduled')
+         AND trigger_at IS NOT NULL
+         AND trigger_at < ?
+         AND schedule_type <> 'recurring'`,
+      [new Date().toISOString(), staleBefore],
+    );
+    oneShotClosed = result.changes ?? 0;
+  }
+
+  return staleRecurring.length + oneShotClosed;
+};
+
 export async function processDueReminders(): Promise<{
   processed: number;
   sent: number;
@@ -1049,7 +1213,18 @@ export async function processDueReminders(): Promise<{
     return { processed: 0, sent: 0, failed: 0 };
   }
 
-  const nowIso = new Date().toISOString();
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const staleBefore = new Date(now - MAX_DELIVERY_DELAY_MS).toISOString();
+
+  const staleCount = await closeOutStaleReminders(staleBefore);
+  if (staleCount > 0) {
+    console.warn(
+      `[reminderService] ${staleCount} reminder(s) were past the ` +
+        `${Math.round(MAX_DELIVERY_DELAY_MS / 60_000)}min delivery window and were not sent.`,
+    );
+  }
+
   let dueRows: ReminderRow[] = [];
 
   if (isPostgreSQL()) {
@@ -1060,8 +1235,9 @@ export async function processDueReminders(): Promise<{
        WHERE r.status IN ('pending', 'scheduled')
          AND r.trigger_at IS NOT NULL
          AND r.trigger_at <= $1
+         AND r.trigger_at >= $2
          AND t.completed = FALSE`,
-      [nowIso],
+      [nowIso, staleBefore],
     );
     dueRows = result.rows;
   } else {
@@ -1072,8 +1248,9 @@ export async function processDueReminders(): Promise<{
        WHERE r.status IN ('pending', 'scheduled')
          AND r.trigger_at IS NOT NULL
          AND r.trigger_at <= ?
+         AND r.trigger_at >= ?
          AND t.completed = 0`,
-      [nowIso],
+      [nowIso, staleBefore],
     )) as ReminderRow[];
   }
 
