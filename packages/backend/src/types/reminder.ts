@@ -14,7 +14,9 @@ export type ReminderStatus =
   | 'scheduled'
   | 'sent'
   | 'cancelled'
-  | 'skipped';
+  | 'skipped'
+  /** Delivery gave up: permanent provider error, or retry budget exhausted. */
+  | 'failed';
 
 export type RelativeReminderOffsetUnit = 'minutes' | 'hours' | 'days';
 

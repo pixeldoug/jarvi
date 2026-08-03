@@ -26,6 +26,178 @@ const FALLBACK_TIMEZONE = 'America/Sao_Paulo';
 const VALID_CHANNELS: ReminderChannel[] = ['whatsapp', 'call'];
 const ACTIVE_STATUSES: ReminderStatus[] = ['pending', 'scheduled'];
 
+// ---------------------------------------------------------------------------
+// Delivery guardrails
+//
+// Every WhatsApp message and voice call costs money, and Twilio bills a
+// processing fee even for messages it rejects. The scheduler below runs every
+// minute over the same due rows, so an undeliverable reminder must be pushed
+// out of the due window on its first failure — otherwise it is retried ~1440
+// times a day, billed each time, until someone notices.
+// ---------------------------------------------------------------------------
+
+/** Attempts allowed for a *transient* failure before the reminder is failed. */
+const MAX_DELIVERY_ATTEMPTS = Number(process.env.REMINDER_MAX_DELIVERY_ATTEMPTS || 3);
+
+/** Delay applied after attempt N (index N-1) before the row becomes due again. */
+const RETRY_BACKOFF_MINUTES = [5, 15, 60];
+
+/** Failures within the window that trip the breaker and halt all deliveries. */
+const FAILURE_BREAKER_THRESHOLD = Number(process.env.REMINDER_FAILURE_BREAKER_THRESHOLD || 20);
+const FAILURE_BREAKER_WINDOW_MS =
+  Number(process.env.REMINDER_FAILURE_BREAKER_WINDOW_MINUTES || 10) * 60_000;
+
+/** Hard ceiling on paid deliveries per UTC day, regardless of what is due. */
+const MAX_DELIVERIES_PER_DAY = Number(process.env.REMINDER_MAX_DELIVERIES_PER_DAY || 200);
+
+/**
+ * Twilio error codes that will never succeed on retry: bad template reference,
+ * malformed template variables, unreachable/unsubscribed recipient, sender not
+ * allowed. Retrying these only repeats the charge.
+ */
+const PERMANENT_PROVIDER_ERROR_CODES = new Set([
+  21211, // invalid 'To' number
+  21408, // permission to send to this region not enabled
+  21606, // 'From' number not a valid sender
+  21610, // recipient unsubscribed
+  21612, // recipient not reachable on this channel
+  21655, // ContentSid not found / not usable
+  21656, // ContentVariables invalid for the template
+  21659, // 'From' number not owned by the account
+  63003, // channel could not find the 'To' address
+  63007, // channel could not find the 'From' address
+  63016, // freeform message outside the customer-service window
+]);
+
+type DeliveryOutcome = 'delivered' | 'skipped' | 'retrying' | 'failed' | 'blocked';
+
+interface ProviderErrorShape {
+  code?: unknown;
+  status?: unknown;
+  message?: unknown;
+}
+
+/**
+ * Transient means "worth paying for another attempt": network blips, Twilio 5xx
+ * and rate limiting. Everything else is treated as permanent so the default for
+ * an unrecognized 4xx is to stop spending rather than to keep retrying.
+ */
+const isTransientProviderError = (error: unknown): boolean => {
+  const { code, status } = (error ?? {}) as ProviderErrorShape;
+
+  const numericCode = typeof code === 'number' ? code : Number(code);
+  if (Number.isFinite(numericCode) && PERMANENT_PROVIDER_ERROR_CODES.has(numericCode)) {
+    return false;
+  }
+
+  const numericStatus = typeof status === 'number' ? status : Number(status);
+  if (Number.isFinite(numericStatus) && numericStatus >= 400 && numericStatus < 500) {
+    return numericStatus === 429;
+  }
+
+  // No HTTP status at all (DNS failure, socket hang up, thrown TypeError) or a
+  // 5xx: retry, but always bounded by MAX_DELIVERY_ATTEMPTS.
+  return true;
+};
+
+const describeProviderError = (error: unknown): string => {
+  const { code, status, message } = (error ?? {}) as ProviderErrorShape;
+  const parts: string[] = [];
+  if (code !== undefined && code !== null) parts.push(`code=${String(code)}`);
+  if (status !== undefined && status !== null) parts.push(`status=${String(status)}`);
+  parts.push(error instanceof Error ? error.message : String(message ?? error));
+  return parts.join(' ').slice(0, 500);
+};
+
+// --- Circuit breaker -------------------------------------------------------
+
+let recentFailureTimestamps: number[] = [];
+let breakerTrippedAt: number | null = null;
+let breakerTripReason: string | null = null;
+let breakerLastLogAt = 0;
+const BREAKER_LOG_INTERVAL_MS = 15 * 60_000;
+
+/**
+ * Stays tripped until the process restarts or `resetReminderDeliveryBreaker` is
+ * called. This is deliberate: a silent auto-reset would let a systemic failure
+ * resume burning credit on the next tick.
+ */
+const isBreakerTripped = (): boolean => breakerTrippedAt !== null;
+
+const tripBreaker = (reason: string): void => {
+  if (breakerTrippedAt !== null) return;
+  breakerTrippedAt = Date.now();
+  breakerTripReason = reason;
+  breakerLastLogAt = Date.now();
+  console.error(
+    `[reminderService] CRITICAL: reminder delivery halted — ${reason}. ` +
+      'No further reminders will be delivered until the service is restarted or the breaker is reset.',
+  );
+};
+
+const registerDeliveryFailure = (): void => {
+  const now = Date.now();
+  recentFailureTimestamps = recentFailureTimestamps.filter(
+    (ts) => now - ts < FAILURE_BREAKER_WINDOW_MS,
+  );
+  recentFailureTimestamps.push(now);
+
+  if (recentFailureTimestamps.length >= FAILURE_BREAKER_THRESHOLD) {
+    tripBreaker(
+      `${recentFailureTimestamps.length} delivery failures in the last ` +
+        `${Math.round(FAILURE_BREAKER_WINDOW_MS / 60_000)} minutes`,
+    );
+  }
+};
+
+/** Clears the breaker and the failure window. Intended for ops/tests. */
+export function resetReminderDeliveryBreaker(): void {
+  breakerTrippedAt = null;
+  breakerTripReason = null;
+  recentFailureTimestamps = [];
+  breakerLastLogAt = 0;
+}
+
+export function getReminderDeliveryHealth(): {
+  breakerTripped: boolean;
+  trippedAt: string | null;
+  reason: string | null;
+  recentFailures: number;
+  deliveriesToday: number;
+  dailyLimit: number;
+} {
+  return {
+    breakerTripped: isBreakerTripped(),
+    trippedAt: breakerTrippedAt ? new Date(breakerTrippedAt).toISOString() : null,
+    reason: breakerTripReason,
+    recentFailures: recentFailureTimestamps.length,
+    deliveriesToday: dailyDeliveryCount,
+    dailyLimit: MAX_DELIVERIES_PER_DAY,
+  };
+}
+
+// --- Daily spend ceiling ---------------------------------------------------
+
+let dailyDeliveryDate = '';
+let dailyDeliveryCount = 0;
+
+/**
+ * Counts every *attempted* delivery, not just the successful ones: a rejected
+ * message is still billed, so the ceiling has to cover failures too.
+ */
+const claimDailyDeliverySlot = (): boolean => {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today !== dailyDeliveryDate) {
+    dailyDeliveryDate = today;
+    dailyDeliveryCount = 0;
+  }
+
+  if (dailyDeliveryCount >= MAX_DELIVERIES_PER_DAY) return false;
+
+  dailyDeliveryCount += 1;
+  return true;
+};
+
 export interface ReminderTaskRow {
   id: string;
   user_id: string;
@@ -46,6 +218,9 @@ interface ReminderRow {
   trigger_at: string | null;
   status: string;
   sent_at: string | null;
+  attempt_count: number | null;
+  last_error: string | null;
+  last_attempt_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -696,21 +871,96 @@ const markReminderSent = async (
 ): Promise<void> => {
   const now = new Date().toISOString();
 
+  // Reset the attempt budget so a recurring reminder that hit a transient blip
+  // once does not carry that count into its next occurrence.
   if (isPostgreSQL()) {
     await getPool().query(
       `UPDATE task_reminders
-       SET status = $1, trigger_at = $2, sent_at = $3, updated_at = $4
+       SET status = $1, trigger_at = $2, sent_at = $3, updated_at = $4,
+           attempt_count = 0, last_error = NULL
        WHERE id = $5`,
       [nextStatus, nextTriggerAt, now, now, reminderId],
     );
   } else {
     await getDatabase().run(
       `UPDATE task_reminders
-       SET status = ?, trigger_at = ?, sent_at = ?, updated_at = ?
+       SET status = ?, trigger_at = ?, sent_at = ?, updated_at = ?,
+           attempt_count = 0, last_error = NULL
        WHERE id = ?`,
       [nextStatus, nextTriggerAt, now, now, reminderId],
     );
   }
+};
+
+/**
+ * Records a delivery failure and takes the row out of the due window.
+ *
+ * Permanent provider errors and an exhausted attempt budget end in `failed`
+ * (never retried). A transient error pushes `trigger_at` forward with a
+ * backoff, so at most MAX_DELIVERY_ATTEMPTS charges can ever be incurred for
+ * one reminder occurrence.
+ */
+const recordDeliveryFailure = async (row: ReminderRow, error: unknown): Promise<DeliveryOutcome> => {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const attempt = (row.attempt_count ?? 0) + 1;
+  const transient = isTransientProviderError(error);
+  const detail = describeProviderError(error);
+  const retryable = transient && attempt < MAX_DELIVERY_ATTEMPTS;
+
+  registerDeliveryFailure();
+
+  if (retryable) {
+    const backoffMinutes =
+      RETRY_BACKOFF_MINUTES[attempt - 1] ?? RETRY_BACKOFF_MINUTES[RETRY_BACKOFF_MINUTES.length - 1];
+    const nextTriggerAt = new Date(now.getTime() + backoffMinutes * 60_000).toISOString();
+
+    console.warn(
+      `[reminderService] Delivery attempt ${attempt}/${MAX_DELIVERY_ATTEMPTS} failed for reminder ` +
+        `${row.id} (${row.channel}); retrying in ${backoffMinutes}min: ${detail}`,
+    );
+
+    if (isPostgreSQL()) {
+      await getPool().query(
+        `UPDATE task_reminders
+         SET trigger_at = $1, attempt_count = $2, last_error = $3, last_attempt_at = $4, updated_at = $5
+         WHERE id = $6`,
+        [nextTriggerAt, attempt, detail, nowIso, nowIso, row.id],
+      );
+    } else {
+      await getDatabase().run(
+        `UPDATE task_reminders
+         SET trigger_at = ?, attempt_count = ?, last_error = ?, last_attempt_at = ?, updated_at = ?
+         WHERE id = ?`,
+        [nextTriggerAt, attempt, detail, nowIso, nowIso, row.id],
+      );
+    }
+
+    return 'retrying';
+  }
+
+  console.error(
+    `[reminderService] Giving up on reminder ${row.id} (${row.channel}) after ${attempt} attempt(s) — ` +
+      `${transient ? 'retry budget exhausted' : 'permanent provider error'}: ${detail}`,
+  );
+
+  if (isPostgreSQL()) {
+    await getPool().query(
+      `UPDATE task_reminders
+       SET status = 'failed', attempt_count = $1, last_error = $2, last_attempt_at = $3, updated_at = $4
+       WHERE id = $5`,
+      [attempt, detail, nowIso, nowIso, row.id],
+    );
+  } else {
+    await getDatabase().run(
+      `UPDATE task_reminders
+       SET status = 'failed', attempt_count = ?, last_error = ?, last_attempt_at = ?, updated_at = ?
+       WHERE id = ?`,
+      [attempt, detail, nowIso, nowIso, row.id],
+    );
+  }
+
+  return 'failed';
 };
 
 const markReminderSkipped = async (reminderId: string, reason: string): Promise<void> => {
@@ -730,22 +980,31 @@ const markReminderSkipped = async (reminderId: string, reason: string): Promise<
   }
 };
 
-const deliverReminder = async (row: ReminderRow, task: ReminderTaskRow): Promise<void> => {
+const deliverReminder = async (
+  row: ReminderRow,
+  task: ReminderTaskRow,
+): Promise<DeliveryOutcome> => {
   const schedule = parseScheduleConfig(row.schedule_type, row.config);
   if (!schedule) {
     await markReminderSkipped(row.id, 'invalid schedule config');
-    return;
+    return 'skipped';
   }
 
   const user = await fetchUserDeliveryInfo(row.user_id);
   if (!user) {
     await markReminderSkipped(row.id, 'user not found');
-    return;
+    return 'skipped';
   }
 
   if (!user.whatsapp_phone || !user.whatsapp_verified) {
     await markReminderSkipped(row.id, `${row.channel} channel requires a verified phone number`);
-    return;
+    return 'skipped';
+  }
+
+  // Claimed before the provider call because a rejected send is billed too.
+  if (!claimDailyDeliverySlot()) {
+    tripBreaker(`daily delivery ceiling of ${MAX_DELIVERIES_PER_DAY} reached`);
+    return 'blocked';
   }
 
   try {
@@ -755,11 +1014,7 @@ const deliverReminder = async (row: ReminderRow, task: ReminderTaskRow): Promise
       await sendReminderTemplateMessage(user.whatsapp_phone, task.title, buildReminderScheduleLabel(task));
     }
   } catch (error) {
-    console.error(`[reminderService] Failed to deliver ${row.channel} reminder:`, {
-      reminderId: row.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return;
+    return recordDeliveryFailure(row, error);
   }
 
   const timezone = user.timezone || row.timezone || FALLBACK_TIMEZONE;
@@ -767,17 +1022,33 @@ const deliverReminder = async (row: ReminderRow, task: ReminderTaskRow): Promise
   if (schedule.type === 'recurring') {
     const nextTriggerAt = computeRecurringTriggerAt(schedule, timezone);
     await markReminderSent(row.id, nextTriggerAt, nextTriggerAt ? 'scheduled' : 'sent');
-    return;
+    return 'delivered';
   }
 
   await markReminderSent(row.id, null, 'sent');
+  return 'delivered';
 };
 
 // ---------------------------------------------------------------------------
 // Scheduler
 // ---------------------------------------------------------------------------
 
-export async function processDueReminders(): Promise<{ processed: number; sent: number }> {
+export async function processDueReminders(): Promise<{
+  processed: number;
+  sent: number;
+  failed: number;
+}> {
+  if (isBreakerTripped()) {
+    if (Date.now() - breakerLastLogAt >= BREAKER_LOG_INTERVAL_MS) {
+      breakerLastLogAt = Date.now();
+      console.error(
+        `[reminderService] Delivery still halted (${breakerTripReason}). ` +
+          'Reminders are queued but not being sent.',
+      );
+    }
+    return { processed: 0, sent: 0, failed: 0 };
+  }
+
   const nowIso = new Date().toISOString();
   let dueRows: ReminderRow[] = [];
 
@@ -807,6 +1078,7 @@ export async function processDueReminders(): Promise<{ processed: number; sent: 
   }
 
   let sent = 0;
+  let failed = 0;
   for (const row of dueRows) {
     const task = await fetchTaskById(row.task_id);
     if (!task || task.completed) {
@@ -814,11 +1086,16 @@ export async function processDueReminders(): Promise<{ processed: number; sent: 
       continue;
     }
 
-    await deliverReminder(row, task);
-    sent += 1;
+    const outcome = await deliverReminder(row, task);
+    if (outcome === 'delivered') sent += 1;
+    if (outcome === 'failed' || outcome === 'retrying') failed += 1;
+
+    // The ceiling or breaker fired mid-batch: stop instead of walking the rest
+    // of the queue and taking a charge for each one.
+    if (outcome === 'blocked' || isBreakerTripped()) break;
   }
 
-  return { processed: dueRows.length, sent };
+  return { processed: dueRows.length, sent, failed };
 }
 
 let scheduledTask: cron.ScheduledTask | null = null;
@@ -828,9 +1105,11 @@ export function startReminderScheduler(): cron.ScheduledTask {
 
   scheduledTask = cron.schedule('* * * * *', () => {
     processDueReminders()
-      .then(({ processed, sent }) => {
+      .then(({ processed, sent, failed }) => {
         if (processed > 0) {
-          console.log(`[reminderService] Processed ${processed} reminder(s), sent ${sent}.`);
+          console.log(
+            `[reminderService] Processed ${processed} reminder(s), sent ${sent}, failed ${failed}.`,
+          );
         }
       })
       .catch((error) => {

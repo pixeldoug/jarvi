@@ -267,6 +267,9 @@ const createTables = async (): Promise<void> => {
       trigger_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       status TEXT NOT NULL DEFAULT 'pending',
       sent_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      last_attempt_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       created_at ${timestampType},
       updated_at ${timestampType},
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
@@ -793,6 +796,22 @@ const runMigrations = async (): Promise<void> => {
         // Index already exists, ignore
       }
 
+      // Migration: Add delivery-attempt tracking to task_reminders. Without a
+      // persisted attempt counter a failing delivery is retried by the
+      // every-minute scheduler forever, which bills one provider fee per retry.
+      const reminderAttemptMigrations = [
+        'ALTER TABLE task_reminders ADD COLUMN IF NOT EXISTS attempt_count INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE task_reminders ADD COLUMN IF NOT EXISTS last_error TEXT',
+        'ALTER TABLE task_reminders ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP',
+      ];
+      for (const migration of reminderAttemptMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
       // Migration: Create onboarding_leads table for existing databases
       try {
         await client.query(`CREATE TABLE IF NOT EXISTS onboarding_leads (
@@ -1182,6 +1201,22 @@ const runMigrations = async (): Promise<void> => {
       );
     } catch (e) {
       // Index already exists, ignore
+    }
+
+    // Migration: Add delivery-attempt tracking to task_reminders. Without a
+    // persisted attempt counter a failing delivery is retried by the
+    // every-minute scheduler forever, which bills one provider fee per retry.
+    const reminderAttemptMigrationsSqlite = [
+      'ALTER TABLE task_reminders ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE task_reminders ADD COLUMN last_error TEXT',
+      'ALTER TABLE task_reminders ADD COLUMN last_attempt_at DATETIME',
+    ];
+    for (const migration of reminderAttemptMigrationsSqlite) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
     }
 
     // Migration: Create onboarding_leads table for existing SQLite databases
