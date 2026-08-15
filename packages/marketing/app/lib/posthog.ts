@@ -1,6 +1,7 @@
 'use client';
 
 import posthog from 'posthog-js';
+import { filterThirdPartyExceptions } from './posthogFilters';
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 
@@ -19,6 +20,7 @@ if (typeof window !== 'undefined' && isValidKey && !posthog.__loaded) {
     capture_pageview: false,
     capture_pageleave: true,
     persistence: 'localStorage+cookie',
+    before_send: filterThirdPartyExceptions,
   });
   posthog.register({ platform: 'marketing' });
 }
