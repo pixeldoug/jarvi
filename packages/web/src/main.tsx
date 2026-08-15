@@ -5,6 +5,7 @@ import App from './App';
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
 import { initMetaPixel } from './lib/metaPixel';
+import { filterThirdPartyExceptions } from './lib/posthogFilters';
 
 const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
 
@@ -17,6 +18,7 @@ if (posthogKey) {
     capture_pageview: true,
     capture_pageleave: true,
     persistence: 'localStorage+cookie',
+    before_send: filterThirdPartyExceptions,
   });
   posthog.register({ platform: 'app' });
 }
