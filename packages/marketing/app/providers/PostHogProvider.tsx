@@ -3,15 +3,22 @@
 import { posthog } from '../lib/posthog';
 import { PostHogProvider as PHProvider, usePostHog } from 'posthog-js/react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect, Suspense } from 'react';
+import { useEffect, useRef, Suspense } from 'react';
 
 function PostHogPageView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const ph = usePostHog();
+  const skippedInitial = useRef(false);
 
   useEffect(() => {
     if (!pathname || !ph) return;
+    // First pageview is captured in posthog.init `loaded` so it isn't delayed
+    // by React hydration / Suspense around searchParams.
+    if (!skippedInitial.current) {
+      skippedInitial.current = true;
+      return;
+    }
     let url = window.origin + pathname;
     if (searchParams?.toString()) {
       url += `?${searchParams.toString()}`;

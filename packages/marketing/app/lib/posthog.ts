@@ -1,6 +1,7 @@
 'use client';
 
 import posthog from 'posthog-js';
+import { dropInAppBrowserExceptions } from './dropInAppBrowserExceptions';
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 
@@ -19,6 +20,11 @@ if (typeof window !== 'undefined' && isValidKey && !posthog.__loaded) {
     capture_pageview: false,
     capture_pageleave: true,
     persistence: 'localStorage+cookie',
+    cross_subdomain_cookie: true,
+    before_send: dropInAppBrowserExceptions,
+    loaded: (ph) => {
+      ph.capture('$pageview', { $current_url: window.location.href });
+    },
   });
   posthog.register({ platform: 'marketing' });
 }
