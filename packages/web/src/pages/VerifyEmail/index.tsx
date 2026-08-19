@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Logo } from '../../components/ui';
+import { trackRegistrationCompleted } from '../../lib/openaiPixel';
 import styles from './VerifyEmail.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -37,6 +38,8 @@ export const VerifyEmail: React.FC = () => {
         if (!response.ok) {
           throw new Error(data.error || 'Erro ao verificar email');
         }
+
+        trackRegistrationCompleted();
 
         setStatus('success');
         setMessage(data.message || 'Email verificado com sucesso!');

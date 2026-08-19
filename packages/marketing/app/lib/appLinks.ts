@@ -10,6 +10,7 @@ const ATTRIBUTION_KEYS = [
   'fbclid',
   'gclid',
   'ttclid',
+  'oppref',
   'utm_source',
   'utm_medium',
   'utm_campaign',

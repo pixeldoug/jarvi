@@ -5,6 +5,10 @@ import { PostHogProvider } from './providers/PostHogProvider';
 import { MetaPixelProvider } from './providers/MetaPixelProvider';
 import { SITE_URL } from './lib/site';
 import { getMetaPixelBootstrapScript } from './lib/metaPixelBootstrap';
+import {
+  DEFAULT_OPENAI_PIXEL_ID,
+  getOpenAiPixelBootstrapScript,
+} from './lib/openaiPixelBootstrap';
 import './styles/globals.css';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -17,6 +21,10 @@ const metaPixelBootstrap =
   META_PIXEL_ID && /^\d+$/.test(META_PIXEL_ID)
     ? getMetaPixelBootstrapScript(META_PIXEL_ID)
     : '';
+
+const OPENAI_PIXEL_ID =
+  process.env.NEXT_PUBLIC_OPENAI_PIXEL_ID?.trim() || DEFAULT_OPENAI_PIXEL_ID;
+const openaiPixelBootstrap = getOpenAiPixelBootstrapScript(OPENAI_PIXEL_ID);
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -74,6 +82,11 @@ export default function RootLayout({
               />
             </noscript>
           </>
+        ) : null}
+        {openaiPixelBootstrap ? (
+          <Script id="openai-pixel" strategy="beforeInteractive">
+            {openaiPixelBootstrap}
+          </Script>
         ) : null}
         <MetaPixelProvider>
           <PostHogProvider>{children}</PostHogProvider>
