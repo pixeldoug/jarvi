@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button, Logo, OtpInput } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
+import { trackRegistrationCompleted } from '../../lib/openaiPixel';
 import styles from './VerifyPending.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -55,6 +56,8 @@ export const VerifyPending: React.FC = () => {
       if (!response.ok) {
         throw new Error(data.error || 'Erro ao verificar código');
       }
+
+      trackRegistrationCompleted(data.user?.id ? `cr_${data.user.id}` : undefined);
 
       // Auto-login: salva token e redireciona para a home
       if (data.token) {
