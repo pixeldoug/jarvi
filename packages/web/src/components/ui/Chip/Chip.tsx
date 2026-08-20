@@ -28,10 +28,14 @@ export interface ChipProps {
   iconOnly?: boolean;
   /** Click handler */
   onClick?: () => void;
+  /** Optional node after the label (e.g. a disclosure caret) */
+  trailing?: ReactNode;
   /** Clear handler - shows X button when defined */
   onClear?: () => void;
   /** Additional CSS classes */
   className?: string;
+  'aria-expanded'?: boolean;
+  'aria-controls'?: string;
 }
 
 export function Chip({
@@ -44,8 +48,11 @@ export function Chip({
   interactive = false,
   iconOnly = false,
   onClick,
+  trailing,
   onClear,
   className = '',
+  'aria-expanded': ariaExpanded,
+  'aria-controls': ariaControls,
 }: ChipProps) {
   const chipClasses = [
     styles.chip,
@@ -80,9 +87,14 @@ export function Chip({
       tabIndex={interactive && !disabled ? 0 : undefined}
       aria-label={iconOnly ? label : undefined}
       title={iconOnly ? label : undefined}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
     >
       {icon && <span className={styles.icon}>{icon}</span>}
       {!iconOnly && <span className={styles.label}>{label}</span>}
+      {trailing && !iconOnly && (
+        <span className={styles.trailing}>{trailing}</span>
+      )}
       {onClear && (
         <span 
           className={styles.clearButton}

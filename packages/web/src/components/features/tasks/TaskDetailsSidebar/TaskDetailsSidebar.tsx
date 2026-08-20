@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash, Sparkle, Bell, Repeat, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
+import { X, Calendar, Hash, Fire, Sparkle, Bell, Repeat, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -23,6 +23,7 @@ import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recu
 import { formatRemindersChipLabel } from '../../../../lib/reminders';
 import { toast } from '../../../ui/Sonner';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
+import { TaskDetailsFooter } from './TaskDetailsFooter';
 import styles from './TaskDetailsSidebar.module.css';
 
 export interface TaskDetailsSidebarProps {
@@ -877,47 +878,15 @@ export function TaskDetailsSidebar({
           onChange={handleDescriptionChange}
           onBlur={handleDescriptionSave}
           placeholder="Adicione uma descrição. Digite / para comandos rápidos."
+          metaEnd={
+            <TaskDetailsFooter
+              task={task}
+              onDelete={onDelete ? handleDeleteClick : undefined}
+            />
+          }
         />
       </div>
-
-
-      {/* Footer: Creation Timestamp */}
-      <div className={styles.footer}>
-        <span className={styles.timestamp}>
-          Criada em {formatTaskCreationDate(task)}
-        </span>
-      </div>
-
-      {/* Delete Button */}
-      {onDelete && (
-        <Button
-          variant="ghost"
-          icon={Trash}
-          iconPosition="icon-only"
-          onClick={handleDeleteClick}
-          aria-label="Excluir tarefa"
-          className={styles.deleteButton}
-        />
-      )}
     </div>
   );
-}
-
-// Helper function to format creation date
-function formatTaskCreationDate(task: Task): string {
-  try {
-    const date = new Date(task.created_at);
-    const day = date.getDate();
-    const month = date.toLocaleDateString('pt-BR', { month: 'short' })
-      .replace('.', '')
-      .replace(/^./, str => str.toUpperCase());
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    
-    return `${day} ${month} ${year} · ${hours}:${minutes}`;
-  } catch {
-    return 'Data desconhecida';
-  }
 }
 
