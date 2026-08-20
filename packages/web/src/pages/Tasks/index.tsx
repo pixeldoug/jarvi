@@ -394,6 +394,16 @@ export function Tasks() {
     }
   }, [chatMode]);
 
+  const handleExpandTaskDetails = useCallback(() => {
+    setExpandedFromList(true);
+    setTaskPinnedInCenter(false);
+  }, []);
+
+  const handleCollapseTaskDetails = useCallback(() => {
+    setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
+  }, []);
+
   const handleOpenChatFromTask = useCallback(() => {
     if (isMobile) {
       // On mobile: open chat as a second overlay on top of task details
@@ -1631,6 +1641,7 @@ export function Tasks() {
             onToggleCompletion={handleToggleCompletion}
             onDelete={handleDeleteTask}
             onOpenChat={handleOpenChatFromTask}
+            onExpand={handleExpandTaskDetails}
           />
         </motion.div>
       ) : null}
@@ -1689,6 +1700,7 @@ export function Tasks() {
               onToggleCompletion={handleToggleCompletion}
               onDelete={handleDeleteTask}
               onOpenChat={handleOpenChatFromTask}
+              onCollapse={!(isChatOpen && chatMode === 'task') ? handleCollapseTaskDetails : undefined}
               variant="expanded"
               // Hide back only for task-mode chat split; with general chat open,
               // keep a way to return to the list without closing the conversation.

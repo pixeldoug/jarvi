@@ -66,7 +66,7 @@
   padding-top: var(--sizes-8);
 }
 
-/* Action buttons (AI + Close) */
+/* Action buttons (expand/collapse + AI + Close) */
 .headerActions {
   display: flex;
   gap: var(--sizes-1);

@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash, Sparkle, Bell, Repeat } from '@phosphor-icons/react';
+import { X, Calendar, Hash, Fire, Trash, Sparkle, Bell, Repeat, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -33,6 +33,10 @@ export interface TaskDetailsSidebarProps {
   onToggleCompletion: (taskId: string) => Promise<void>;
   onDelete?: (taskId: string) => void | Promise<void>;
   onOpenChat?: () => void;
+  /** Expand the sidebar details into the center full view */
+  onExpand?: () => void;
+  /** Collapse the center full view back into the sidebar */
+  onCollapse?: () => void;
   /** Layout variant: sidebar (right panel) or expanded (center column) */
   variant?: 'sidebar' | 'expanded';
   /** Show close (X) in expanded mode — e.g. after the user closes task-mode chat */
@@ -47,6 +51,8 @@ export function TaskDetailsSidebar({
   onToggleCompletion,
   onDelete,
   onOpenChat,
+  onExpand,
+  onCollapse,
   variant = 'sidebar',
   showCloseButton = false,
 }: TaskDetailsSidebarProps) {
@@ -712,6 +718,24 @@ export function TaskDetailsSidebar({
 
         {(variant !== 'expanded' || showCloseButton) && (
           <div className={styles.headerActions}>
+            {variant === 'sidebar' && onExpand && (
+              <Button
+                variant="ghost"
+                icon={ArrowsOutSimple}
+                iconPosition="icon-only"
+                onClick={onExpand}
+                aria-label="Expandir para tela cheia"
+              />
+            )}
+            {variant === 'expanded' && onCollapse && (
+              <Button
+                variant="ghost"
+                icon={ArrowsInSimple}
+                iconPosition="icon-only"
+                onClick={onCollapse}
+                aria-label="Recolher para a sidebar"
+              />
+            )}
             {onOpenChat && (variant !== 'expanded' || showCloseButton) && (
               <Button
                 variant="secondary"
