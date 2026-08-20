@@ -149,9 +149,9 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   integracoes: true,
   vencidas: false,
   hoje: true,
-  amanha: false,
+  amanha: true,
   'esta-semana': false,
-  'proxima-semana': false,
+  'proxima-semana': true,
   'mais-tarde': false,
   'algum-dia': false,
   'sem-data': false,
@@ -393,6 +393,16 @@ export function Tasks() {
       setIsChatOpen(false);
     }
   }, [chatMode]);
+
+  const handleExpandTaskDetails = useCallback(() => {
+    setExpandedFromList(true);
+    setTaskPinnedInCenter(false);
+  }, []);
+
+  const handleCollapseTaskDetails = useCallback(() => {
+    setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
+  }, []);
 
   const handleOpenChatFromTask = useCallback(() => {
     if (isMobile) {
@@ -1631,6 +1641,7 @@ export function Tasks() {
             onToggleCompletion={handleToggleCompletion}
             onDelete={handleDeleteTask}
             onOpenChat={handleOpenChatFromTask}
+            onExpand={handleExpandTaskDetails}
           />
         </motion.div>
       ) : null}
@@ -1689,6 +1700,7 @@ export function Tasks() {
               onToggleCompletion={handleToggleCompletion}
               onDelete={handleDeleteTask}
               onOpenChat={handleOpenChatFromTask}
+              onCollapse={!(isChatOpen && chatMode === 'task') ? handleCollapseTaskDetails : undefined}
               variant="expanded"
               // Hide back only for task-mode chat split; with general chat open,
               // keep a way to return to the list without closing the conversation.
@@ -2158,7 +2170,7 @@ export function Tasks() {
             tasks={categorizedTasks.proximaSemana}
             emptyMessage="Nenhuma tarefa para a próxima semana"
             sectionId="proxima-semana"
-            defaultOpen={false}
+            defaultOpen={true}
             isOpen={openSections['proxima-semana']}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'proxima-semana': isOpen }))}
             onToggleCompletion={handleToggleCompletion}

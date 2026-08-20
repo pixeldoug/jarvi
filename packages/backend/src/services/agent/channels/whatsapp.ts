@@ -142,6 +142,7 @@ export const runWhatsappAgent = async (
 
   const ctx: AgentContext = {
     userId,
+    email,
     preferredName,
     timezone,
     memory,
