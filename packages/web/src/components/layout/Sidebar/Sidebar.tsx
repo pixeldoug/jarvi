@@ -47,6 +47,8 @@ import { ThemeToggle } from '../../ui/ThemeToggle';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignOut, Gear } from '@phosphor-icons/react';
+import { FeedbackDialog } from '../../features/feedback/FeedbackDialog';
+import type { FeedbackKind } from '../../../lib/posthogFeedback';
 import styles from './Sidebar.module.css';
 
 // ── Re-exported task navigation constants ─────────────────────────────────────
@@ -270,6 +272,7 @@ export function Sidebar({
   const { user, token, logout } = useAuth();
   const { subscription, daysLeftInTrial } = useSubscription();
   const { isLight } = useTheme();
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind | null>(null);
 
   const showProCta = subscription?.status !== 'active';
 
@@ -520,6 +523,7 @@ export function Sidebar({
               type="button"
               className={styles.footerBugButton}
               aria-label="Sugerir ideias"
+              onClick={() => setFeedbackKind('ideas')}
             >
               <Lightbulb size={20} />
             </button>
@@ -529,6 +533,7 @@ export function Sidebar({
               type="button"
               className={styles.footerBugButton}
               aria-label="Reportar problema"
+              onClick={() => setFeedbackKind('report')}
             >
               <Bug size={20} />
             </button>
@@ -677,6 +682,7 @@ export function Sidebar({
                 type="button"
                 className={styles.footerBugButton}
                 aria-label="Sugerir ideias"
+                onClick={() => setFeedbackKind('ideas')}
               >
                 <Lightbulb size={20} />
               </button>
@@ -686,6 +692,7 @@ export function Sidebar({
                 type="button"
                 className={styles.footerBugButton}
                 aria-label="Reportar problema"
+                onClick={() => setFeedbackKind('report')}
               >
                 <Bug size={20} />
               </button>
@@ -769,6 +776,12 @@ export function Sidebar({
           </div>,
           document.body
         )}
+
+      <FeedbackDialog
+        kind={feedbackKind}
+        isOpen={feedbackKind !== null}
+        onClose={() => setFeedbackKind(null)}
+      />
 
       {/* Desktop: full settings modal */}
       <SettingsDialog
