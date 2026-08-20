@@ -149,9 +149,9 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   integracoes: true,
   vencidas: false,
   hoje: true,
-  amanha: false,
+  amanha: true,
   'esta-semana': false,
-  'proxima-semana': false,
+  'proxima-semana': true,
   'mais-tarde': false,
   'algum-dia': false,
   'sem-data': false,
@@ -2158,7 +2158,7 @@ export function Tasks() {
             tasks={categorizedTasks.proximaSemana}
             emptyMessage="Nenhuma tarefa para a próxima semana"
             sectionId="proxima-semana"
-            defaultOpen={false}
+            defaultOpen={true}
             isOpen={openSections['proxima-semana']}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'proxima-semana': isOpen }))}
             onToggleCompletion={handleToggleCompletion}

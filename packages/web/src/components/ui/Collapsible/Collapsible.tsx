@@ -79,7 +79,7 @@ export function Collapsible({
   const collapsibleClasses = [styles.collapsible, className].filter(Boolean).join(' ');
   const iconClasses = [
     styles.toggleIcon,
-    (!isOpen || disabled) && styles.toggleIconClosed,
+    !isOpen && styles.toggleIconClosed,
     disabled && styles.toggleIconDisabled,
   ].filter(Boolean).join(' ');
   const buttonClasses = [
