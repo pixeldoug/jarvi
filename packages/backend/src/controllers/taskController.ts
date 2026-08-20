@@ -10,6 +10,7 @@ import {
   rescheduleRemindersForTask,
 } from '../services/reminderService';
 import { RecurrenceType } from '../types/recurrence';
+import { recordTaskCreated } from '../services/taskTelemetry';
 
 const VALID_RECURRENCE_TYPES: RecurrenceType[] = [
   'none',
@@ -138,6 +139,17 @@ export const createTask = async (
     if (reminderInputs.length > 0) {
       await createRemindersForTask(taskId, userId, reminderInputs);
     }
+
+    recordTaskCreated({
+      email: req.user?.email ?? '',
+      source: 'web',
+      taskId,
+      priority: newTask?.priority ?? priority ?? null,
+      hasDueDate: !!(newTask?.due_date ?? dueDate),
+      hasCategory: !!(newTask?.category ?? category),
+      isImportant: !!(newTask?.important ?? important),
+      hasRecurrence: (newTask?.recurrence_type ?? sanitizedRecurrenceType) !== 'none',
+    });
 
     res.status(201).json(newTask);
   } catch (error) {

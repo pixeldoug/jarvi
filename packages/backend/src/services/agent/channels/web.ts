@@ -150,6 +150,7 @@ export async function streamChat(
       focusedTaskImages = parseTaskDescription(task.description).images;
       ctx = {
         userId,
+        email,
         preferredName,
         timezone,
         memory,
@@ -179,6 +180,7 @@ export async function streamChat(
 
       ctx = {
         userId,
+        email,
         preferredName,
         timezone,
         memory,

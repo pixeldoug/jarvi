@@ -44,6 +44,7 @@ import {
 } from './taskRecurrenceReminder';
 import { rescheduleRemindersForTask } from '../../reminderService';
 import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
+import { recordTaskCreated } from '../../taskTelemetry';
 import type {
   AgentContext,
   ChannelProfile,
@@ -573,6 +574,16 @@ async function executeCreateTaskAsActive(
   if (source === 'whatsapp' && hasIO()) {
     getIO().to(`user:${ctx.userId}`).emit('task:created', { id: taskId, source });
   }
+
+  recordTaskCreated({
+    email: ctx.email ?? '',
+    source: source === 'whatsapp' ? 'whatsapp' : 'agent_web',
+    taskId,
+    priority,
+    hasDueDate: !!dueDate,
+    hasCategory: !!category,
+    hasRecurrence: recurrenceType !== 'none',
+  });
 
   // Deterministic, trustworthy date label (e.g. "Terça-feira, 16/05 às 17h00")
   // so the WhatsApp confirmation can echo it verbatim instead of letting the
