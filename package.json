@@ -9,6 +9,8 @@
   "scripts": {
     "dev:web": "cd packages/web && npm run dev",
     "dev:marketing": "cd packages/marketing && npm run dev",
+    "dev:handbook": "npm run dev -w @jarvi/handbook",
+    "build:handbook": "npm run build -w @jarvi/handbook",
     "dev:mobile": "cd packages/mobile && npm start",
     "mobile:ios": "cd packages/mobile && npm run ios",
     "mobile:android": "cd packages/mobile && npm run android",

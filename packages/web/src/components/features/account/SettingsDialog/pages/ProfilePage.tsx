@@ -17,9 +17,7 @@ import {
 } from '../../../../ui';
 import { GoogleLogin } from '../../../auth';
 import type { SelectOption } from '../../../../ui';
-import { DisconnectGoogleDialog } from '../DisconnectGoogleDialog';
-import { ChangePasswordDialog } from '../ChangePasswordDialog';
-import { DeleteAccountDialog } from '../DeleteAccountDialog';
+import type { SettingsProfileOverlay } from '../settingsOverlays';
 import styles from '../SettingsDialog.module.css';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
@@ -59,8 +57,12 @@ const TIMEZONES: SelectOption[] = [
   { value: 'Australia/Sydney',                label: 'Sydney (UTC+10/+11)' },
 ];
 
-export function ProfilePage() {
-  const { user, updateUser, token, linkGoogleAccount, logout } = useAuth();
+export function ProfilePage({
+  onOpenProfileOverlay,
+}: {
+  onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
+}) {
+  const { user, updateUser, token, linkGoogleAccount } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(user?.name || '');
@@ -72,10 +74,6 @@ export function ProfilePage() {
 
   const [timezone, setTimezone] = useState('America/Sao_Paulo');
   const [timezoneSaving, setTimezoneSaving] = useState(false);
-
-  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
-  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
-  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const isGoogleUser = user?.authProvider === 'google';
   const isEmailUser = user?.authProvider === 'email';
@@ -259,12 +257,7 @@ export function ProfilePage() {
   };
 
   const handleDeleteAccount = () => {
-    setDeleteAccountOpen(true);
-  };
-
-  const handleAccountDeleted = () => {
-    setDeleteAccountOpen(false);
-    logout();
+    onOpenProfileOverlay?.('delete');
   };
 
   return (
@@ -365,14 +358,10 @@ export function ProfilePage() {
             <div className={styles.googleButtonWrapper}>
               <GoogleLogin
                 buttonText="Desconectar Google"
-                onClick={() => setDisconnectDialogOpen(true)}
+                onClick={() => onOpenProfileOverlay?.('disconnect')}
               />
             </div>
           </div>
-          <DisconnectGoogleDialog
-            isOpen={disconnectDialogOpen}
-            onClose={() => setDisconnectDialogOpen(false)}
-          />
         </>
       )}
 
@@ -388,15 +377,11 @@ export function ProfilePage() {
               </p>
             </div>
             <div>
-              <Button variant="secondary" onClick={() => setChangePasswordOpen(true)}>
+              <Button variant="secondary" onClick={() => onOpenProfileOverlay?.('password')}>
                 Alterar senha
               </Button>
             </div>
           </div>
-          <ChangePasswordDialog
-            isOpen={changePasswordOpen}
-            onClose={() => setChangePasswordOpen(false)}
-          />
 
           <Divider />
           <div className={styles.section}>
@@ -431,12 +416,6 @@ export function ProfilePage() {
           </p>
         </div>
       </div>
-
-      <DeleteAccountDialog
-        isOpen={deleteAccountOpen}
-        onClose={() => setDeleteAccountOpen(false)}
-        onDeleted={handleAccountDeleted}
-      />
     </>
   );
 }

@@ -29,6 +29,9 @@ import { AppearancePage } from './pages/AppearancePage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { FiltersPage } from './pages/FiltersPage';
 import styles from './SettingsDialog.module.css';
+import type { SettingsProfileOverlay } from './settingsOverlays';
+
+export type { SettingsProfileOverlay } from './settingsOverlays';
 
 // ============================================================================
 // TYPES
@@ -75,6 +78,7 @@ export function SettingsPageContent({
   page,
   onClose,
   hideHeader = false,
+  onOpenProfileOverlay,
 }: {
   page: SettingsPage;
   onClose: () => void;
@@ -84,9 +88,10 @@ export function SettingsPageContent({
    * in its own sticky header instead.
    */
   hideHeader?: boolean;
+  onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
 }) {
   switch (page) {
-    case 'profile':    return <ProfilePage />;
+    case 'profile':    return <ProfilePage onOpenProfileOverlay={onOpenProfileOverlay} />;
     case 'payments':   return <PaymentsPage onClose={onClose} />;
     case 'apps':       return <AppsPage hideHeader={hideHeader} />;
     case 'memory':     return <MemoryPage />;
@@ -108,9 +113,15 @@ export interface SettingsDialogProps {
   onClose: () => void;
   /** Page to show when the dialog opens (defaults to 'profile') */
   initialPage?: SettingsPage;
+  onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
 }
 
-export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: SettingsDialogProps) {
+export function SettingsDialog({
+  isOpen,
+  onClose,
+  initialPage = 'profile',
+  onOpenProfileOverlay,
+}: SettingsDialogProps) {
   const [activePage, setActivePage] = useState<SettingsPage>(initialPage);
 
   useEffect(() => {
@@ -162,7 +173,11 @@ export function SettingsDialog({ isOpen, onClose, initialPage = 'profile' }: Set
             <h1 className={styles.pageHeader}>{activeItem?.label}</h1>
           )}
 
-          <SettingsPageContent page={activePage} onClose={onClose} />
+          <SettingsPageContent
+            page={activePage}
+            onClose={onClose}
+            onOpenProfileOverlay={onOpenProfileOverlay}
+          />
         </main>
       </div>
     </Dialog>

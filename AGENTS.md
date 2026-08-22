@@ -4,17 +4,27 @@
 
 ### Architecture
 
-Jarvi is an npm workspaces monorepo with 5 packages:
+Jarvi is an npm workspaces monorepo with 6 packages:
 
 | Package | Path | Dev command | Port |
 |---------|------|-------------|------|
 | Backend (Express + TS) | `packages/backend` | `npm run dev:backend` | 3001 |
 | Web (React + Vite) | `packages/web` | `npm run dev:web` | 3000 |
 | Marketing (Next.js) | `packages/marketing` | `npm run dev:marketing` | 3002 |
+| Handbook (VitePress) | `packages/handbook` | `npm run dev:handbook` | 3003 |
 | Mobile (Expo) | `packages/mobile` | `npm run dev:mobile` | 8081 |
 | Shared (types/tokens) | `packages/shared` | `npm run build:shared` | N/A |
 
 Run backend + web together: `npm run dev` from the root.
+
+### Documentation (orchestrator-agnostic)
+
+Do not put product doctrine only in `.cursor/rules`. Markdown in git is the source of truth. The VitePress site (`npm run dev:handbook`, port 3003) is a **view** of those files — do not treat the URL as canonical.
+
+- Handbook (what Jarvi is, why we decided X): [docs/README.md](docs/README.md)
+- Web UI — read [packages/web/compliance.md](packages/web/compliance.md) before changing UI in `packages/web`
+- Marketing UI — [packages/marketing/compliance.md](packages/marketing/compliance.md) (stub; do not import web Dialog rules)
+- Mobile UI — [packages/mobile/compliance.md](packages/mobile/compliance.md) (stub; do not import web Dialog rules)
 
 ### Environment variables
 
