@@ -14,6 +14,11 @@ const nextConfig = {
       { source: '/termos', destination: '/termos-de-uso', permanent: true },
       { source: '/privacy', destination: '/politica-de-privacidade', permanent: true },
       { source: '/terms', destination: '/termos-de-uso', permanent: true },
+      {
+        source: '/early-access',
+        destination: 'https://app.jarvi.life/criar-conta',
+        permanent: false,
+      },
     ];
   },
   async rewrites() {
