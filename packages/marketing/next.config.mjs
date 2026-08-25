@@ -8,6 +8,15 @@ const nextConfig = {
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   // Required so PostHog's reverse-proxy paths (with/without trailing slash) work.
   skipTrailingSlashRedirect: true,
+  async redirects() {
+    return [
+      {
+        source: '/early-access',
+        destination: 'https://app.jarvi.life/criar-conta',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     // Same-origin reverse proxy for PostHog ingestion, to dodge ad/privacy
     // blockers that block us.i.posthog.com. Mirrors the web app's vercel.json.

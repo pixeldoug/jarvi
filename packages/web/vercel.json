@@ -15,7 +15,7 @@
     },
     {
       "source": "/api/:match*",
-      "destination": "https://jarvi-staging.up.railway.app/api/:match*"
+      "destination": "https://jarvi-production.up.railway.app/api/:match*"
     },
     {
       "source": "/:path*",
