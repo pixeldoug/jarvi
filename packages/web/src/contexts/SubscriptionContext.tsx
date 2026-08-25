@@ -60,16 +60,28 @@ interface SubscriptionProviderProps {
 }
 
 export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const queryClient = useQueryClient();
   const lastRefreshAt = useRef(0);
-  const [trialGateDismissed, setTrialGateDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(TRIAL_GATE_DISMISSED_KEY) === '1';
-    } catch {
-      return false;
+  const [trialGateDismissed, setTrialGateDismissed] = useState(false);
+
+  const dismissedStorageKey = user?.id
+    ? `${TRIAL_GATE_DISMISSED_KEY}:${user.id}`
+    : TRIAL_GATE_DISMISSED_KEY;
+
+  useEffect(() => {
+    if (!user?.id) {
+      setTrialGateDismissed(false);
+      return;
     }
-  });
+    try {
+      const perUser = localStorage.getItem(dismissedStorageKey) === '1';
+      const legacy = localStorage.getItem(TRIAL_GATE_DISMISSED_KEY) === '1';
+      setTrialGateDismissed(perUser || legacy);
+    } catch {
+      setTrialGateDismissed(false);
+    }
+  }, [user?.id, dismissedStorageKey]);
 
   const query = useQuery<SubscriptionStatus>({
     queryKey: ['subscription', token],
@@ -145,11 +157,14 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   const dismissTrialGate = useCallback(() => {
     setTrialGateDismissed(true);
     try {
+      if (user?.id) {
+        localStorage.setItem(`${TRIAL_GATE_DISMISSED_KEY}:${user.id}`, '1');
+      }
       localStorage.setItem(TRIAL_GATE_DISMISSED_KEY, '1');
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [user?.id]);
 
   const value: SubscriptionContextType = {
     subscription: subscription ?? null,

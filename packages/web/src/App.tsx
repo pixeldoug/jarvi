@@ -43,12 +43,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  return (
-    <>
-      {children}
-      <TrialExpiredGate />
-    </>
-  );
+  return <>{children}</>;
 };
 
 // App Routes Component
@@ -62,8 +57,10 @@ const AppRoutes: React.FC = () => {
 
 function AppSwitch() {
   const location = useLocation();
+  const { user, isLoading } = useAuth();
 
   return (
+    <>
     <Routes location={location}>
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
@@ -169,6 +166,8 @@ function AppSwitch() {
       />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    {user && !isLoading && <TrialExpiredGate />}
+    </>
   );
 }
 
