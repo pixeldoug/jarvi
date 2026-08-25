@@ -1,0 +1,14 @@
+{
+  "name": "@jarvi/handbook",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev --port 3003",
+    "build": "vitepress build",
+    "preview": "vitepress preview --port 3003"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}

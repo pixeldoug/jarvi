@@ -649,7 +649,7 @@ export function ControlBar({
                 onChange={(e) => setPromptText(e.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 onPaste={handlePromptPaste}
-                placeholder="Como posso te ajudar?"
+                placeholder="O que você tem em mente?"
                 className={styles.promptInput}
                 disabled={trialExpired}
               />

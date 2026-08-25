@@ -9,17 +9,15 @@ import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
-import {
-  Trash,
-  UploadSimple,
-} from '@phosphor-icons/react';
-import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, KeyboardEvent } from 'react';
+import { UploadSimple } from '@phosphor-icons/react';
+import { useEffect, useRef, useCallback, useState, DragEvent, ClipboardEvent, type ReactNode } from 'react';
 import styles from './RichTextEditor.module.css';
 import { Button } from '../Button/Button';
 import { EditorToolbar } from './EditorToolbar';
 import { SlashCommandExtension } from './SlashCommandMenu';
 import { AttachmentRefNode } from './AttachmentRefNode';
-import { AttachmentViewer, AttachmentFileIcon } from '../AttachmentViewer';
+import { AttachmentViewer } from '../AttachmentViewer';
+import { AttachmentSection, formatAttachmentDate } from './AttachmentSection';
 import {
   dataUrlInfo,
   imageFileToDataUrl,
@@ -57,104 +55,6 @@ function isImageFile(file: File): boolean {
   return file.type.startsWith('image/');
 }
 
-function formatAttachmentDate(date: Date): string {
-  const day = date.getDate();
-  const month = date.toLocaleDateString('pt-BR', { month: 'short' })
-    .replace('.', '')
-    .replace(/^./, s => s.toUpperCase());
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const mins = String(date.getMinutes()).padStart(2, '0');
-  return `${day} ${month} ${year}, ${hours}:${mins}`;
-}
-
-function AttachmentPreviewContent({ attachment }: { attachment: AttachmentFile }) {
-  if (attachment.mimeType.startsWith('image/')) {
-    return (
-      <img
-        src={attachment.previewUrl}
-        alt={`${attachment.name}${attachment.ext}`}
-        className={styles.previewImage}
-      />
-    );
-  }
-  if (attachment.mimeType.startsWith('video/')) {
-    return (
-      <video
-        src={attachment.previewUrl}
-        className={styles.previewVideo}
-        muted
-        preload="metadata"
-      />
-    );
-  }
-  return (
-    <div className={styles.previewIcon}>
-      <AttachmentFileIcon mimeType={attachment.mimeType} />
-      {attachment.ext && <span className={styles.previewExtBadge}>{attachment.ext.replace('.', '').toUpperCase()}</span>}
-    </div>
-  );
-}
-
-function AttachmentCard({
-  attachment,
-  onRemove,
-  onOpen,
-}: {
-  attachment: AttachmentFile;
-  onRemove: (id: string) => void;
-  onOpen: (attachment: AttachmentFile) => void;
-}) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Prevent opening viewer when clicking the delete button
-    if ((e.target as HTMLElement).closest('button')) return;
-    onOpen(attachment);
-  };
-
-  const handleCardKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onOpen(attachment);
-    }
-  };
-
-  return (
-    <div
-      className={`${styles.attachmentCard} ${isHovered ? styles.attachmentCardHover : ''}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={handleCardClick}
-      onKeyDown={handleCardKeyDown}
-      role="button"
-      tabIndex={0}
-      aria-label={`Visualizar ${attachment.name}${attachment.ext}`}
-    >
-      <div className={styles.attachmentPreview}>
-        <AttachmentPreviewContent attachment={attachment} />
-        {isHovered && (
-          <button
-            type="button"
-            className={styles.attachmentDeleteBtn}
-            onClick={() => onRemove(attachment.id)}
-            aria-label={`Remover anexo ${attachment.name}${attachment.ext}`}
-          >
-            <Trash size={16} weight="regular" />
-          </button>
-        )}
-      </div>
-      <div className={styles.attachmentContent}>
-        <div className={styles.attachmentTitle}>
-          <span className={styles.attachmentName}>{attachment.name}</span>
-          <span className={styles.attachmentExt}>{attachment.ext}</span>
-        </div>
-        <span className={styles.attachmentDate}>{formatAttachmentDate(attachment.uploadedAt)}</span>
-      </div>
-    </div>
-  );
-}
-
 export interface RichTextEditorProps {
   content: string;
   onChange: (json: string) => void;
@@ -163,6 +63,7 @@ export interface RichTextEditorProps {
   onCancel?: () => void | Promise<void>;
   placeholder?: string;
   readOnly?: boolean;
+  metaEnd?: ReactNode;
 }
 
 interface SerializedAttachment {
@@ -289,6 +190,7 @@ export function RichTextEditor({
   onCancel,
   placeholder = 'Adicionar descrição...',
   readOnly = false,
+  metaEnd,
 }: RichTextEditorProps) {
   const onChangeRef = useRef(onChange);
   const onBlurRef = useRef(onBlur);
@@ -656,15 +558,18 @@ export function RichTextEditor({
       </div>
 
       {attachments.length > 0 && (
-        <div className={styles.attachmentsList} role="list" aria-label="Arquivos anexados">
-          {attachments.map(att => (
-            <AttachmentCard
-              key={att.id}
-              attachment={att}
-              onRemove={handleRemoveAttachment}
-              onOpen={setViewedAttachment}
-            />
-          ))}
+        <AttachmentSection
+          attachments={attachments}
+          onRemove={handleRemoveAttachment}
+          onOpen={setViewedAttachment}
+          readOnly={readOnly}
+          endSlot={metaEnd}
+        />
+      )}
+      {attachments.length === 0 && metaEnd && (
+        <div className={styles.attachmentMetaRow}>
+          <div />
+          <div className={styles.attachmentMetaEnd}>{metaEnd}</div>
         </div>
       )}
 

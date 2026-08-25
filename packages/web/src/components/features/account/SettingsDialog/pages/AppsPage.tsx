@@ -2,7 +2,7 @@
  * AppsPage - SettingsDialog
  *
  * Apps tab: integrations list + per-app connection sub-pages.
- * WhatsApp and Gmail are available; all other apps remain disabled.
+ * WhatsApp is available; all other apps remain disabled.
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
  * Nodes: 40001780-29397 (list), 40001302-3829 / 40001305-4219 / 40001305-4296 (WA flow)
@@ -41,7 +41,7 @@ const APPS: AppDefinition[] = [
     name: 'Gmail',
     description: 'Deixe a Jarvi te ajudar com seus emails do Google.',
     icon: '/icons/apps/gmail.svg',
-    available: true,
+    available: false,
   },
   {
     id: 'outlook-mail',

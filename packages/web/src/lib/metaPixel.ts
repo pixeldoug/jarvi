@@ -14,8 +14,6 @@ type FbqFn = ((...args: unknown[]) => void) & {
   queue?: unknown[];
   loaded?: boolean;
   version?: string;
-  push?: FbqFn;
-  callMethod?: (...args: unknown[]) => void;
 };
 
 declare global {
@@ -27,10 +25,70 @@ declare global {
 
 const PIXEL_ID = import.meta.env.VITE_PUBLIC_META_PIXEL_ID as string | undefined;
 
+const COOKIE_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
+
 let initialized = false;
+
+function isJarviHost(hostname: string): boolean {
+  return hostname === 'jarvi.life' || hostname.endsWith('.jarvi.life');
+}
+
+function cookieFlags(): string {
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  const domain = isJarviHost(window.location.hostname) ? '; Domain=.jarvi.life' : '';
+  return `Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}${domain}`;
+}
+
+function getCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
+function setCookie(name: string, value: string): void {
+  document.cookie = `${name}=${encodeURIComponent(value)}; ${cookieFlags()}`;
+}
+
+export interface FbCookies {
+  fbc?: string;
+  fbp?: string;
+}
+
+/**
+ * Writes `_fbc`/`_fbp` on `.jarvi.life` so the landing hop and CAPI share the
+ * same click ids. Safe to call more than once.
+ */
+function ensureMetaCookies(): FbCookies {
+  if (typeof window === 'undefined') return {};
+
+  let fbc = getCookie('_fbc');
+  let fbp = getCookie('_fbp');
+  const share = isJarviHost(window.location.hostname);
+
+  if (!fbc) {
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    if (fbclid) {
+      fbc = `fb.1.${Date.now()}.${fbclid}`;
+      setCookie('_fbc', fbc);
+    }
+  } else if (share) {
+    setCookie('_fbc', fbc);
+  }
+
+  if (!fbp) {
+    fbp = `fb.1.${Date.now()}.${Math.floor(Math.random() * 2147483647)}`;
+    setCookie('_fbp', fbp);
+  } else if (share) {
+    setCookie('_fbp', fbp);
+  }
+
+  return { fbc, fbp };
+}
 
 export function initMetaPixel(): void {
   if (initialized || typeof window === 'undefined' || !PIXEL_ID) return;
+
+  ensureMetaCookies();
 
   /* eslint-disable */
   (function (f: any, b: Document, e: string, v: string) {
@@ -51,7 +109,15 @@ export function initMetaPixel(): void {
   })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
   /* eslint-enable */
 
-  window.fbq?.('init', PIXEL_ID);
+  const initOpts = isJarviHost(window.location.hostname)
+    ? {
+        cookieDomain: 'jarvi.life',
+        cookieFlags: `domain=.jarvi.life;samesite=lax${
+          window.location.protocol === 'https:' ? ';secure' : ''
+        }`,
+      }
+    : {};
+  window.fbq?.('init', PIXEL_ID, {}, initOpts);
   window.fbq?.('track', 'PageView');
   initialized = true;
 }
@@ -70,34 +136,12 @@ export function trackPixel(eventName: string, options: TrackOptions = {}): void 
   window.fbq(method, eventName, options.params ?? {}, eventData);
 }
 
-function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : undefined;
-}
-
-export interface FbCookies {
-  fbc?: string;
-  fbp?: string;
-}
-
 /**
  * Reads the Meta first-party cookies. If `_fbc` is missing but the URL carries
- * an `fbclid`, reconstructs the `fbc` value per Meta's expected format.
+ * an `fbclid`, reconstructs the `fbc` value and persists it on `.jarvi.life`.
  */
 export function getFbCookies(): FbCookies {
-  if (typeof window === 'undefined') return {};
-  let fbc = getCookie('_fbc');
-  const fbp = getCookie('_fbp');
-
-  if (!fbc) {
-    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
-    if (fbclid) {
-      fbc = `fb.1.${Date.now()}.${fbclid}`;
-    }
-  }
-
-  return { fbc, fbp };
+  return ensureMetaCookies();
 }
 
 export function generateEventId(): string {

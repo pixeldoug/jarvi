@@ -455,6 +455,7 @@ export const googleAuth = async (
 
     res.json({
       token,
+      isNewUser,
       user: {
         id: user.id,
         email: user.email,

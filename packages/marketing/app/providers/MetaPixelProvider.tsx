@@ -1,32 +1,40 @@
 'use client';
 
-import Script from 'next/script';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
+declare global {
+  interface Window {
+    fbq?: ((...args: unknown[]) => void) & {
+      queue?: unknown[];
+      loaded?: boolean;
+      version?: string;
+    };
+    _fbq?: Window['fbq'];
+  }
+}
+
 /**
- * Meta Pixel for the marketing site (jarvi.life).
+ * SPA PageView tracker for the marketing site.
  *
- * Its main job is to capture the ad click (fbclid → `_fbc`/`_fbp` cookies) on
- * the landing domain. Because app.jarvi.life is a subdomain of jarvi.life, the
- * Pixel cookies are shared with the app, where the conversion is later sent via
- * the Conversions API.
+ * The Pixel base code, `_fbc`/`_fbp` cookies (Domain=.jarvi.life), and the
+ * first PageView are injected in the root layout before hydration. This
+ * provider only fires extra PageViews on client-side route changes.
  */
 
 const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
-declare global {
-  interface Window {
-    fbq?: (...args: unknown[]) => void;
-  }
-}
-
 function MetaPixelPageView() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const skippedInitial = useRef(false);
 
   useEffect(() => {
     if (!PIXEL_ID || typeof window === 'undefined' || !window.fbq) return;
+    if (!skippedInitial.current) {
+      skippedInitial.current = true;
+      return;
+    }
     window.fbq('track', 'PageView');
   }, [pathname, searchParams]);
 
@@ -40,18 +48,6 @@ export function MetaPixelProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Script id="meta-pixel" strategy="afterInteractive">
-        {`!function(f,b,e,v,n,t,s)
-        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t,s)}(window,document,'script',
-        'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '${PIXEL_ID}');
-        fbq('track', 'PageView');`}
-      </Script>
       <Suspense fallback={null}>
         <MetaPixelPageView />
       </Suspense>

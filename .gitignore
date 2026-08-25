@@ -13,6 +13,9 @@ out/
 # Design token audit snapshots (Estágio B da skill audit-design-token)
 .audit-snapshots/
 
+# VitePress copies of packages/*/compliance.md (canonical files stay in packages)
+docs/handbook-compliance/
+
 # Environment variables
 .env
 .env.local

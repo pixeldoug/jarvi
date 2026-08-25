@@ -258,16 +258,6 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       queryClient.setQueryData<Task[]>(['tasks'], (old) =>
         sortTasks([...(old ?? []), newTask]),
       );
-      if (posthog) {
-        posthog.capture('task_created', {
-          task_id: newTask.id,
-          priority: newTask.priority,
-          has_due_date: !!newTask.due_date,
-          has_category: !!newTask.category,
-          is_important: newTask.important || false,
-          has_recurrence: newTask.recurrence_type && newTask.recurrence_type !== 'none',
-        });
-      }
     },
   });
 

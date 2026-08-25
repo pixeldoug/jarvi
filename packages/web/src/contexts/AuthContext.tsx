@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { usePostHog } from 'posthog-js/react';
+import { trackRegistrationCompleted } from '../lib/openaiPixel';
 
 interface User {
   id: string;
@@ -197,6 +198,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           subscription_status: data.user.subscription_status ?? 'none',
         });
         posthog.capture('user_logged_in', { method: 'google' });
+      }
+
+      if (data.isNewUser) {
+        trackRegistrationCompleted(data.user?.id ? `cr_${data.user.id}` : undefined);
       }
     } catch (error) {
       console.error('Google login error:', error);

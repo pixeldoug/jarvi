@@ -1,14 +1,30 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { PostHogProvider } from './providers/PostHogProvider';
 import { MetaPixelProvider } from './providers/MetaPixelProvider';
 import { SITE_URL } from './lib/site';
+import { getMetaPixelBootstrapScript } from './lib/metaPixelBootstrap';
+import {
+  DEFAULT_OPENAI_PIXEL_ID,
+  getOpenAiPixelBootstrapScript,
+} from './lib/openaiPixelBootstrap';
 import './styles/globals.css';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
 });
+
+const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim();
+const metaPixelBootstrap =
+  META_PIXEL_ID && /^\d+$/.test(META_PIXEL_ID)
+    ? getMetaPixelBootstrapScript(META_PIXEL_ID)
+    : '';
+
+const OPENAI_PIXEL_ID =
+  process.env.NEXT_PUBLIC_OPENAI_PIXEL_ID?.trim() || DEFAULT_OPENAI_PIXEL_ID;
+const openaiPixelBootstrap = getOpenAiPixelBootstrapScript(OPENAI_PIXEL_ID);
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -51,6 +67,27 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={plusJakartaSans.className}>
+        {metaPixelBootstrap ? (
+          <>
+            <Script id="meta-pixel" strategy="beforeInteractive">
+              {metaPixelBootstrap}
+            </Script>
+            <noscript>
+              <img
+                height={1}
+                width={1}
+                style={{ display: 'none' }}
+                src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
+                alt=""
+              />
+            </noscript>
+          </>
+        ) : null}
+        {openaiPixelBootstrap ? (
+          <Script id="openai-pixel" strategy="beforeInteractive">
+            {openaiPixelBootstrap}
+          </Script>
+        ) : null}
         <MetaPixelProvider>
           <PostHogProvider>{children}</PostHogProvider>
         </MetaPixelProvider>

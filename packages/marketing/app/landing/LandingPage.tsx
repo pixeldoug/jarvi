@@ -6,6 +6,8 @@ import { usePostHog } from 'posthog-js/react';
 import styles from './LandingPage.module.css';
 import { Button } from '../components/Button/Button';
 import { CurveDivider } from '../components/CurveDivider/CurveDivider';
+import { APP_URL, withAttribution } from '../lib/appLinks';
+import { trackLead } from '../lib/metaPixelBootstrap';
 
 type FeatureKey = 'whatsapp' | 'email' | 'calendar' | 'wand' | 'cards' | 'checks';
 
@@ -88,6 +90,8 @@ export default function LandingPage() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isCtaInView, setIsCtaInView] = useState(false);
+  const [loginHref, setLoginHref] = useState(`${APP_URL}/`);
+  const [signupHref, setSignupHref] = useState(`${APP_URL}/criar-conta`);
 
   const ctaSectionRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -235,6 +239,16 @@ export default function LandingPage() {
   }, [isMobile]);
 
   useEffect(() => {
+    setLoginHref(withAttribution(`${APP_URL}/`));
+    setSignupHref(withAttribution(`${APP_URL}/criar-conta`));
+  }, []);
+
+  const handleCtaClick = (location: 'navbar' | 'cta_section') => {
+    posthog?.capture('cta_clicked', { location }, { send_instantly: true });
+    trackLead(location);
+  };
+
+  useEffect(() => {
     const section = ctaSectionRef.current;
     if (!section) return;
     const observer = new IntersectionObserver(
@@ -260,15 +274,15 @@ export default function LandingPage() {
           </div>
           <div className={styles.navActions}>
             <span className={styles.navGhostButton}>
-              <Button href="https://app.jarvi.life/" variant="ghost" size="default">
+              <Button href={loginHref} variant="ghost" size="default">
                 Login
               </Button>
             </span>
             <Button
-              href="https://app.jarvi.life/criar-conta"
+              href={signupHref}
               variant="primary"
               size="default"
-              onClick={() => posthog?.capture('cta_clicked', { location: 'navbar' })}
+              onClick={() => handleCtaClick('navbar')}
             >
               Criar conta
             </Button>
@@ -471,10 +485,10 @@ export default function LandingPage() {
           <h2>Garanta seu acesso antecipado</h2>
           <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
           <Button
-            href="https://app.jarvi.life/criar-conta"
+            href={signupHref}
             variant="primary"
             size="lg"
-            onClick={() => posthog?.capture('cta_clicked', { location: 'cta_section' })}
+            onClick={() => handleCtaClick('cta_section')}
           >
             Criar conta grátis
           </Button>
