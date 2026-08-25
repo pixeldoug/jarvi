@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { useAuth } from './AuthContext';
 import { usePostHog } from 'posthog-js/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../lib/apiClient';
+import { apiClient, ApiError } from '../lib/apiClient';
 import { io } from 'socket.io-client';
 import { toast } from '../components/ui/Sonner';
 import type { RecurrenceType, TaskReminder, TaskReminderDraft } from '@jarvi/shared';
@@ -117,6 +117,13 @@ interface TaskProviderProps {
   children: ReactNode;
 }
 
+const normalizeTask = (task: Task): Task => ({
+  ...task,
+  completed: Boolean(task.completed),
+  important: Boolean(task.important),
+  title: typeof task.title === 'string' ? task.title : '',
+});
+
 const sortTasks = (tasks: Task[]): Task[] => {
   return [...tasks].sort((a, b) => {
     if (a.due_date && b.due_date) {
@@ -203,19 +210,31 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     error: queryError,
   } = useQuery<Task[]>({
     queryKey: ['tasks'],
-    queryFn: () => apiClient.get<Task[]>('/api/tasks'),
+    queryFn: async () => {
+      try {
+        const data = await apiClient.get<Task[]>('/api/tasks');
+        const list = Array.isArray(data) ? data : [];
+        return list.map(normalizeTask);
+      } catch (err) {
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          return [];
+        }
+        throw err;
+      }
+    },
     enabled: !!token,
     select: sortTasks,
-    // Prevent aggressive background refetches from overwriting in-flight optimistic
-    // updates. With staleTime = 0 (default) a window-focus or component-remount
-    // event can race with a pending PUT and revert the cache to the pre-save value.
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    retry: (failureCount, err) => {
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) return false;
+      return failureCount < 1;
+    },
   });
 
   const tasks = tasksData ?? [];
   const isLoading = isQueryLoading;
-  const error = queryError ? 'Failed to fetch tasks' : null;
+  const error = queryError ? 'Não foi possível carregar as tarefas.' : null;
 
   const fetchTasks = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -256,14 +275,16 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       }),
     onSuccess: (newTask) => {
       queryClient.setQueryData<Task[]>(['tasks'], (old) =>
-        sortTasks([...(old ?? []), newTask]),
+        sortTasks([...(old ?? []), normalizeTask(newTask)]),
       );
     },
   });
 
   const createTask = useCallback(async (taskData: CreateTaskData, _showLoading?: boolean): Promise<Task> => {
     if (!token) throw new Error('No authentication token');
-    return createMutation.mutateAsync(taskData);
+    const title = taskData.title?.trim() ?? '';
+    if (!title) throw new Error('O título da tarefa é obrigatório');
+    return createMutation.mutateAsync({ ...taskData, title });
   }, [token, createMutation]);
 
   const updateTask = useCallback(async (taskId: string, taskData: UpdateTaskData, _showLoading?: boolean) => {
@@ -293,7 +314,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
 
       const updatedTask = await apiClient.put<Task>(`/api/tasks/${taskId}`, requestData);
       queryClient.setQueryData<Task[]>(['tasks'], (old) =>
-        sortTasks((old ?? []).map(task => task.id === taskId ? updatedTask : task)),
+        sortTasks((old ?? []).map(task => task.id === taskId ? normalizeTask(updatedTask) : task)),
       );
     } catch (err) {
       // Revert on error
@@ -436,11 +457,11 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       // Confirm with server data
       queryClient.setQueryData<Task[]>(['tasks'], (old) => {
         let tasksWithUpdated = (old ?? []).map(task =>
-          task.id === taskId ? updatedTask : task,
+          task.id === taskId ? normalizeTask(updatedTask) : task,
         );
 
         if (nextOccurrence && !tasksWithUpdated.some(task => task.id === nextOccurrence.id)) {
-          tasksWithUpdated = sortTasks([...tasksWithUpdated, nextOccurrence]);
+          tasksWithUpdated = sortTasks([...tasksWithUpdated, normalizeTask(nextOccurrence)]);
         }
 
         if (updatedTask.completed) {

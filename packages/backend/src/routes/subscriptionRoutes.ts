@@ -98,12 +98,16 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
     }
 
     const status = await getSubscriptionStatus(user.id);
+    const trialStillActive =
+      status.status === 'trialing' &&
+      !!status.trialEndsAt &&
+      status.trialEndsAt.getTime() > Date.now();
 
     res.json({
       status: status.status,
       trialEndsAt: status.trialEndsAt?.toISOString() || null,
       currentPeriodEnd: status.currentPeriodEnd?.toISOString() || null,
-      isActive: ['trialing', 'active'].includes(status.status),
+      isActive: status.status === 'active' || trialStillActive,
       trialExtended: status.trialExtended,
       planType: status.planType,
     });

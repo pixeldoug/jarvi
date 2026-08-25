@@ -1,33 +1,19 @@
 /**
  * TrialExpiredGate
  *
- * Full-screen persistent gate shown when a user's trial has expired.
- * Cannot be dismissed — the user must upgrade or use the 1-day extension.
- *
- * State 1 (trial_extended = false):
- *   "Seu trial expirou mas você não precisa parar por aqui."
- *   + ghost CTA "Experimentar por mais 1 dia grátis"
- *
- * State 2 (trial_extended = true):
- *   "Agora é hora de continuar de verdade!"
- *   No extension CTA.
- *
- * Figma (state 1): https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001403-109756
- * Figma (state 2): https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001403-109827
+ * Upsell shown when a user's trial has expired. Dismissible so a free-plan
+ * user can keep using the app; Browser Esc, overlay click, and the close
+ * control all dismiss it.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Lightning } from '@phosphor-icons/react';
+import { Lightning, X } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
 import { apiClient } from '../../../../lib/apiClient';
 import { Button, Chip } from '../../../ui';
 import styles from './TrialExpiredGate.module.css';
-
-// ============================================================================
-// PLAN DATA
-// ============================================================================
 
 const PAYMENT_URLS = {
   monthly:  import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL        || '',
@@ -71,13 +57,10 @@ const PLANS: PlanOption[] = [
   },
 ];
 
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
 export function TrialExpiredGate() {
   const { user } = useAuth();
-  const { trialExpired, trialExtended, refreshSubscription } = useSubscription();
+  const { trialExpired, trialExtended, trialGateDismissed, dismissTrialGate, refreshSubscription } =
+    useSubscription();
   const [isExtending, setIsExtending] = useState(false);
 
   const buildPaymentUrl = (baseUrl: string) => {
@@ -88,7 +71,24 @@ export function TrialExpiredGate() {
     return url.toString();
   };
 
-  if (!trialExpired) return null;
+  const visible = trialExpired && !trialGateDismissed;
+
+  useEffect(() => {
+    if (!visible) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismissTrialGate();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [visible, dismissTrialGate]);
+
+  if (!visible) return null;
 
   const handleExtendTrial = async () => {
     setIsExtending(true);
@@ -96,7 +96,6 @@ export function TrialExpiredGate() {
       await apiClient.post('/api/subscriptions/extend-trial');
       await refreshSubscription();
     } catch {
-      // If extension already used or error, just refresh — gate will update
       await refreshSubscription();
     } finally {
       setIsExtending(false);
@@ -108,19 +107,34 @@ export function TrialExpiredGate() {
     : 'Seu trial expirou mas você não precisa parar por aqui.';
 
   const body = trialExtended
-    ? 'Seu tempo extra acabou. Para continuar usando o Jarvi, escolha um plano.'
-    : 'Com o Plano Pro você continua com acesso completo ao assistente de IA, categorias, filtros e tudo mais que você estava usando.';
+    ? 'Seu tempo extra acabou. Você pode continuar no plano gratuito ou escolher um plano Pro.'
+    : 'Com o Plano Pro você continua com acesso completo ao assistente de IA. No plano gratuito você segue criando e organizando tarefas.';
 
   return createPortal(
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Trial expirado">
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Trial expirado"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) dismissTrialGate();
+      }}
+    >
       <div className={styles.card}>
-        {/* Header */}
+        <button
+          type="button"
+          className={styles.closeButton}
+          onClick={dismissTrialGate}
+          aria-label="Fechar"
+        >
+          <X size={20} weight="regular" />
+        </button>
+
         <div className={styles.header}>
           <h2 className={styles.title}>{heading}</h2>
           <p className={styles.description}>{body}</p>
         </div>
 
-        {/* Plan cards */}
         <div className={styles.plansGrid}>
           {PLANS.map((plan) => (
             <div key={plan.id} className={styles.planCard}>
@@ -158,18 +172,27 @@ export function TrialExpiredGate() {
           ))}
         </div>
 
-        {/* 1-day extension CTA — only on first expiry */}
-        {!trialExtended && (
+        <div className={styles.footerActions}>
+          {!trialExtended && (
+            <Button
+              variant="ghost"
+              size="medium"
+              iconPosition="none"
+              disabled={isExtending}
+              onClick={handleExtendTrial}
+            >
+              {isExtending ? 'Aguarde...' : 'Experimentar por mais 1 dia grátis'}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="medium"
             iconPosition="none"
-            disabled={isExtending}
-            onClick={handleExtendTrial}
+            onClick={dismissTrialGate}
           >
-            {isExtending ? 'Aguarde...' : 'Experimentar por mais 1 dia grátis'}
+            Continuar no plano gratuito
           </Button>
-        )}
+        </div>
       </div>
     </div>,
     document.body

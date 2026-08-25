@@ -8,6 +8,14 @@ const nextConfig = {
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'md', 'mdx'],
   // Required so PostHog's reverse-proxy paths (with/without trailing slash) work.
   skipTrailingSlashRedirect: true,
+  async redirects() {
+    return [
+      { source: '/privacidade', destination: '/politica-de-privacidade', permanent: true },
+      { source: '/termos', destination: '/termos-de-uso', permanent: true },
+      { source: '/privacy', destination: '/politica-de-privacidade', permanent: true },
+      { source: '/terms', destination: '/termos-de-uso', permanent: true },
+    ];
+  },
   async rewrites() {
     // Same-origin reverse proxy for PostHog ingestion, to dodge ad/privacy
     // blockers that block us.i.posthog.com. Mirrors the web app's vercel.json.

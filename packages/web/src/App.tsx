@@ -21,6 +21,7 @@ import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
 import { TrialExpiredGate } from './components/features/subscription/TrialExpiredGate/TrialExpiredGate';
+import { NotFound } from './pages/NotFound';
 
 // Lazy load pages
 const VerifyPendingPage = lazy(() => import('./pages/VerifyPending'));
@@ -107,17 +108,11 @@ function AppSwitch() {
         }
       />
 
-      {/* Protected routes */}
+      {/* Protected routes. `/` redirects to `/tasks` so Settings close/back
+          cannot remount a second Layout instance (bug 7). */}
+      <Route path="/" element={<Navigate to="/tasks" replace />} />
       <Route
         path="/settings"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/"
         element={
           <ProtectedRoute>
             <Layout />
@@ -172,6 +167,7 @@ function AppSwitch() {
           </ProtectedRoute>
         }
       />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

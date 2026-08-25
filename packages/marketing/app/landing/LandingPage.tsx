@@ -483,7 +483,7 @@ export default function LandingPage() {
           className={`${styles.ctaContent} ${isCtaInView ? `${styles.reveal} ${styles.revealDelay2}` : styles.revealHidden}`}
         >
           <h2>Garanta seu acesso antecipado</h2>
-          <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
+          <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedback</p>
           <Button
             href={signupHref}
             variant="primary"
@@ -515,6 +515,9 @@ export default function LandingPage() {
             </a>
             <a href="/politica-de-privacidade" className={styles.footerLink}>
               Política de Privacidade
+            </a>
+            <a href="/lgpd" className={styles.footerLink}>
+              LGPD
             </a>
           </div>
         </footer>

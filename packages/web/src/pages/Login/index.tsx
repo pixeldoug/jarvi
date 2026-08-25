@@ -35,14 +35,14 @@ export const Login: React.FC = () => {
     try {
       if (isLogin) {
         await login(email, password);
-        navigate('/');
+        navigate('/tasks');
       } else {
         const result = await register(email, name, password);
         if (result.pendingVerification) {
           // Redirect to verify pending page
           navigate('/verify-pending', { state: { email: result.email } });
         } else {
-          navigate('/');
+          navigate('/tasks');
         }
       }
     } catch (error: unknown) {
@@ -82,7 +82,7 @@ export const Login: React.FC = () => {
               <>
                 <GoogleLogin
                   buttonText="Entrar com Google"
-                  onSuccess={() => navigate('/')}
+                  onSuccess={() => navigate('/tasks')}
                   onError={(error) => setError(error)}
                 />
                 

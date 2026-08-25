@@ -28,6 +28,7 @@ import {
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useSubscription } from '../../../contexts/SubscriptionContext';
+import { getPlanPresentation } from '../../../lib/planPresentation';
 import { Avatar } from '../../ui/Avatar/Avatar';
 import { Button } from '../../ui/Button/Button';
 import { ListItem } from '../../ui/ListItem/ListItem';
@@ -140,6 +141,24 @@ const NAV_ITEMS: Array<{ id: ListType; label: string; icon: typeof Checks }> = [
   { id: 'recurring', label: 'Recorrentes', icon: Repeat },
 ];
 
+const SETTINGS_PARAM = 'conta';
+const SETTINGS_PAGES: SettingsPage[] = [
+  'profile',
+  'payments',
+  'apps',
+  'memory',
+  'categories',
+  'filters',
+  'appearance',
+];
+
+function parseSettingsPage(value: string | null): SettingsPage | null {
+  if (value && (SETTINGS_PAGES as string[]).includes(value)) {
+    return value as SettingsPage;
+  }
+  return null;
+}
+
 type WhatsAppPromoPlacement = 'hidden' | 'modal' | 'floating';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -214,6 +233,8 @@ export function Sidebar({
   forceCollapsed,
 }: SidebarProps) {
   const { isMobile, close: closeMobileSidebar } = useMobileSidebar();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHoverExpanded, setIsHoverExpanded] = useState(false);
   const prevCollapsedRef = useRef<boolean>(false);
@@ -243,13 +264,34 @@ export function Sidebar({
   }, [isSettingsOpen, mobileSettingsPage]);
 
   // Opens a settings page — bottom sheet on mobile, modal on desktop.
+  // History: push `?conta=` so Browser Back closes the overlay (bug 9).
+  // Switching tabs inside the dialog replaces, so Back leaves the overlay.
   const openSettings = (page: SettingsPage) => {
+    const params = new URLSearchParams(location.search);
+    const alreadyOpen =
+      params.has(SETTINGS_PARAM) ||
+      location.pathname === '/settings' ||
+      isSettingsOpen ||
+      mobileSettingsPage !== null;
+
+    params.set(SETTINGS_PARAM, page);
+    const pathname =
+      location.pathname === '/settings' || location.pathname === '/'
+        ? '/tasks'
+        : location.pathname;
+
+    navigate(
+      { pathname, search: `?${params.toString()}` },
+      { replace: alreadyOpen, state: { settingsOverlay: true } },
+    );
+
     if (isMobile) {
       setMobileSettingsPage(page);
-    } else {
-      setSettingsInitialPage(page);
-      setIsSettingsOpen(true);
+      return;
     }
+
+    setSettingsInitialPage(page);
+    setIsSettingsOpen(true);
   };
 
   useEffect(() => {
@@ -277,11 +319,10 @@ export function Sidebar({
 
   const profileButtonRef =
     isDesktopCollapsed ? collapsedProfileButtonRef : expandedProfileButtonRef;
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const { user, token, logout } = useAuth();
-  const { subscription, daysLeftInTrial } = useSubscription();
+  const { subscription } = useSubscription();
+  const planCopy = getPlanPresentation(subscription);
   const { isLight } = useTheme();
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind | null>(null);
 
@@ -336,11 +377,24 @@ export function Sidebar({
   }, []);
 
   useEffect(() => {
-    if (location.pathname === '/settings') {
-      if (isMobile) setMobileSettingsPage('profile');
-      else setIsSettingsOpen(true);
+    const params = new URLSearchParams(location.search);
+    const pageFromUrl = parseSettingsPage(params.get(SETTINGS_PARAM));
+
+    if (location.pathname === '/settings' && !pageFromUrl) {
+      navigate('/tasks?conta=profile', { replace: true });
+      return;
     }
-  }, [location.pathname, isMobile]);
+
+    if (pageFromUrl) {
+      setSettingsInitialPage(pageFromUrl);
+      if (isMobile) setMobileSettingsPage(pageFromUrl);
+      else setIsSettingsOpen(true);
+      return;
+    }
+
+    if (!isMobile) setIsSettingsOpen(false);
+    else setMobileSettingsPage(null);
+  }, [location.pathname, location.search, isMobile, navigate]);
 
   // ── Nav click handler ───────────────────────────────────────────────────────
   const handleNavClick = (listType: ListType) => {
@@ -364,12 +418,7 @@ export function Sidebar({
   // ── User info ───────────────────────────────────────────────────────────────
   const userName = user?.preferred_name || user?.name || 'Usuário';
   const userAvatar = user?.avatar;
-  const planLabel =
-    subscription?.status === 'trialing' && daysLeftInTrial !== null && daysLeftInTrial > 0
-      ? `${daysLeftInTrial} ${daysLeftInTrial === 1 ? 'dia' : 'dias'} para testar`
-      : subscription?.status === 'active'
-        ? 'Plano Pro'
-        : 'Plano Gratuito';
+  const planLabel = planCopy.sidebarLabel
 
   const handleLogout = () => {
     setIsDropdownOpen(false);
@@ -393,16 +442,37 @@ export function Sidebar({
     openSettings('filters');
   };
 
+  const closeSettingsFromUrl = () => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has(SETTINGS_PARAM) && location.pathname !== '/settings') return;
+
+    const overlayPushed = Boolean(
+      (location.state as { settingsOverlay?: boolean } | null)?.settingsOverlay,
+    );
+    if (overlayPushed && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    params.delete(SETTINGS_PARAM);
+    const search = params.toString();
+    navigate(
+      {
+        pathname: location.pathname === '/settings' || location.pathname === '/' ? '/tasks' : location.pathname,
+        search: search ? `?${search}` : '',
+      },
+      { replace: true },
+    );
+  };
+
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
-    navigate('/tasks', { replace: true });
+    closeSettingsFromUrl();
   };
 
   const handleCloseMobileSettings = () => {
     setMobileSettingsPage(null);
-    if (location.pathname === '/settings') {
-      navigate('/tasks', { replace: true });
-    }
+    closeSettingsFromUrl();
   };
 
   // Picks a settings page from the mobile user dropdown.

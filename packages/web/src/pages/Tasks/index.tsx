@@ -5,6 +5,7 @@
  */
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { MOBILE_BREAKPOINT } from '../../components/layout/MainLayout/MainLayout';
 import { BottomSheet } from '../../components/ui';
@@ -29,6 +30,7 @@ import type { FilterState } from '../../components/features/tasks/FilterPopover/
 import { TaskEmptyState } from '../../components/features/tasks/EmptyState';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { usePendingTasks } from '../../hooks/usePendingTasks';
+import { hasVisibleTaskTitle, isTaskCompleted } from '../../lib/planPresentation';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   DndContext,
@@ -141,6 +143,20 @@ function getLocalDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+const VIEW_QUERY_TO_LIST: Record<string, ListType> = {
+  calendario: 'later',
+  'sem-data': 'noDate',
+  vencidas: 'overdue',
+  recorrentes: 'recurring',
+};
+
+const LIST_TO_VIEW_QUERY: Partial<Record<ListType, string>> = {
+  later: 'calendario',
+  noDate: 'sem-data',
+  overdue: 'vencidas',
+  recurring: 'recorrentes',
+};
+
 
 // ── Module-level constants (stable, never recreated) ─────────────────────────
 
@@ -162,7 +178,11 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Tasks() {
-  const [selectedList, setSelectedList] = useState<ListType>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedList, setSelectedList] = useState<ListType>(() => {
+    const view = new URLSearchParams(window.location.search).get('view');
+    return (view && VIEW_QUERY_TO_LIST[view]) || 'all';
+  });
   const [selectedCustomListId, setSelectedCustomListId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
   const [isCreateListOpen, setIsCreateListOpen] = useState(false);
@@ -765,11 +785,11 @@ export function Tasks() {
 
   // Apply custom list/category filters (keeps the same main view structure)
   const visibleTasks = useMemo(() => {
-    let result = tasks;
+    let result = tasks.filter((t) => hasVisibleTaskTitle(t.title));
 
     if (selectedCustomListId) {
       const selectedListObj = customLists.find((l) => l.id === selectedCustomListId);
-      if (!selectedListObj) return tasks;
+      if (!selectedListObj) return result;
 
       // Apply category filter from list
       const allowed = new Set(selectedListObj.category_names || []);
@@ -794,10 +814,10 @@ export function Tasks() {
 
       // Apply show_completed filter from list
       if (selectedListObj.show_completed === false) {
-        result = result.filter((t) => !t.completed);
+        result = result.filter((t) => !isTaskCompleted(t.completed));
       }
     } else if (selectedCategoryName) {
-      result = tasks.filter((t) => t.category === selectedCategoryName);
+      result = result.filter((t) => t.category === selectedCategoryName);
     }
 
     // Apply popover filters
@@ -811,7 +831,7 @@ export function Tasks() {
       result = result.filter((t) => !!t.original_whatsapp_content);
     }
     if (!activeFilters.showCompleted) {
-      result = result.filter((t) => !t.completed);
+      result = result.filter((t) => !isTaskCompleted(t.completed));
     }
 
     return result;
@@ -825,27 +845,27 @@ export function Tasks() {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getLocalDateKey(today);
 
     return visibleTasks.filter(task => {
+      const completed = isTaskCompleted(task.completed);
       switch (selectedList) {
         case 'important':
-          return task.important === true && !task.completed;
+          return task.important === true && !completed;
         case 'overdue': {
-          if (!task.due_date || task.completed) return false;
+          if (!task.due_date || completed) return false;
           return task.due_date.split('T')[0] < todayStr;
         }
         case 'today':
-          if (!task.due_date || task.completed) return false;
+          if (!task.due_date || completed) return false;
           return task.due_date.split('T')[0] === todayStr;
         case 'tomorrow': {
           const tomorrow = new Date(today);
           tomorrow.setDate(today.getDate() + 1);
-          if (!task.due_date || task.completed) return false;
-          return task.due_date.split('T')[0] === tomorrow.toISOString().split('T')[0];
+          if (!task.due_date || completed) return false;
+          return task.due_date.split('T')[0] === getLocalDateKey(tomorrow);
         }
         case 'week': {
-          // "Esta semana" = segunda a domingo da semana atual (inclui dias passados para exibição agrupada)
           if (!task.due_date) return false;
           const { start: weekStart, end: weekEnd } = getCurrentWeekBounds(today);
           return task.due_date.split('T')[0] >= weekStart && task.due_date.split('T')[0] < weekEnd;
@@ -853,11 +873,11 @@ export function Tasks() {
         case 'later':
           return !!task.due_date;
         case 'noDate':
-          return !task.due_date && !task.completed;
+          return !task.due_date && !completed;
         case 'recurring':
-          return !!task.recurrence_type && task.recurrence_type !== 'none' && !task.completed;
+          return !!task.recurrence_type && task.recurrence_type !== 'none' && !completed;
         case 'completed':
-          return task.completed;
+          return completed;
         default:
           return true;
       }
@@ -870,7 +890,7 @@ export function Tasks() {
   );
 
   const calendarUndatedTasks = useMemo(
-    () => visibleTasks.filter((task) => !task.due_date && !task.completed),
+    () => visibleTasks.filter((task) => !task.due_date && !isTaskCompleted(task.completed)),
     [visibleTasks],
   );
 
@@ -898,11 +918,11 @@ export function Tasks() {
   const categorizedTasks = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = getLocalDateKey(today);
     
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowStr = getLocalDateKey(tomorrow);
 
     const { start: nextWeekStartStr, end: nextWeekEndStr } = getNextWeekBounds(today);
     const { start: currentWeekStartStr, end: currentWeekEndStr } = getCurrentWeekUpcomingBounds(today);
@@ -925,18 +945,7 @@ export function Tasks() {
         return;
       }
 
-      // Check if task is completed and has today's date - keep it in "hoje" section
-      if (task.completed && task.due_date) {
-        const taskDateStr = task.due_date.split('T')[0];
-        if (taskDateStr === todayStr) {
-          // Keep completed tasks with today's date in "hoje" section
-          categories.hoje.push(task);
-          return;
-        }
-      }
-
-      // Separate other completed tasks
-      if (task.completed) {
+      if (isTaskCompleted(task.completed)) {
         categories.completadas.push(task);
         return;
       }
@@ -1067,7 +1076,22 @@ export function Tasks() {
     setSelectedCustomListId(null);
     setSelectedCategoryName(null);
     setSelectedTask(null);
+
+    const params = new URLSearchParams(searchParams);
+    const view = LIST_TO_VIEW_QUERY[listType];
+    if (view) params.set('view', view);
+    else params.delete('view');
+    setSearchParams(params, { replace: true });
   };
+
+  useEffect(() => {
+    if (selectedCustomListId || selectedCategoryName) return;
+    const view = searchParams.get('view');
+    const listFromUrl = view ? VIEW_QUERY_TO_LIST[view] : 'all';
+    if (listFromUrl && listFromUrl !== selectedList) {
+      setSelectedList(listFromUrl);
+    }
+  }, [searchParams, selectedCustomListId, selectedCategoryName, selectedList]);
 
   const handleCustomListSelect = (listId: string) => {
     const isDeselecting = selectedCustomListId === listId;
@@ -1076,6 +1100,9 @@ export function Tasks() {
     setSelectedCategoryName(null);
     setSelectedCustomListId((prev) => (prev === listId ? null : listId));
     setSelectedTask(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete('view');
+    setSearchParams(params, { replace: true });
   };
 
   const handleCategorySelect = (categoryName: string) => {
@@ -1085,6 +1112,9 @@ export function Tasks() {
     setSelectedCustomListId(null);
     setSelectedCategoryName((prev) => (prev === categoryName ? null : categoryName));
     setSelectedTask(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete('view');
+    setSearchParams(params, { replace: true });
   };
 
   const allSectionsExpanded = Object.entries(openSections)
@@ -1753,7 +1783,7 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader
+        hideHeader={isCenterPanelActive}
         fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
@@ -1764,7 +1794,7 @@ export function Tasks() {
     </>);
   }
 
-  if (error) {
+  if (error && tasks.length === 0) {
     return (<>
       <MainLayout
         sidebar={sidebarNode}
@@ -1779,7 +1809,7 @@ export function Tasks() {
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
         hideControlBar={isChatOpen}
-        hideHeader={true}
+        hideHeader={isCenterPanelActive}
         fullHeightContent={isCenterPanelActive}
         mainBodyRef={mainBodyRef}
         defaultTaskCategory={contextTaskCategory}
@@ -2034,7 +2064,7 @@ export function Tasks() {
               description="Crie sua primeira tarefa para começar a organizar seu dia."
             />
           )}
-          {(isPendingTasksLoading || pendingTasksError || pendingTasks.length > 0) && (
+          {(pendingTasks.length > 0) && (
             <Collapsible
               label={pendingTasks.length > 0 ? `Integrações (${pendingTasks.length})` : 'Integrações'}
               defaultOpen={true}
@@ -2042,10 +2072,6 @@ export function Tasks() {
               onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, integracoes: isOpen }))}
             >
               <div className={styles.sectionContent}>
-                {isPendingTasksLoading && (
-                  <p className={styles.pendingSectionMessage}>Carregando sugestões...</p>
-                )}
-
                 {pendingTasksError && (
                   <p className={styles.pendingSectionError}>{pendingTasksError}</p>
                 )}

@@ -16,6 +16,7 @@
 import { Lightning } from '@phosphor-icons/react';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import { useSubscription, type PlanType } from '../../../../../contexts/SubscriptionContext';
+import { getPlanPresentation } from '../../../../../lib/planPresentation';
 import { Button, Chip, Divider } from '../../../../ui';
 import styles from '../SettingsDialog.module.css';
 
@@ -87,6 +88,7 @@ export interface PaymentsPageProps {
 export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
   const { user } = useAuth();
   const { subscription, hasActiveSubscription } = useSubscription();
+  const planCopy = getPlanPresentation(subscription);
 
   const buildPaymentUrl = (baseUrl: string) => {
     if (!baseUrl) return baseUrl;
@@ -139,26 +141,10 @@ export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
     );
   }
 
-  // ── Trial / None / Past Due / Canceled ─────────────────────────────────────
-  const getPlanInfo = () => {
-    switch (subscription?.status) {
-      case 'trialing':
-        return {
-          name: 'Gratuito',
-          description: subscription?.trialEndsAt
-            ? `Seu período de teste gratuito termina em ${formatDate(subscription.trialEndsAt)}.`
-            : null,
-        };
-      case 'past_due':
-        return { name: 'Pagamento pendente', description: 'Atualize seu método de pagamento.' };
-      case 'canceled':
-        return { name: 'Cancelado', description: 'Seu plano foi cancelado.' };
-      default:
-        return { name: 'Gratuito', description: null };
-    }
+  const planInfo = {
+    name: planCopy.paymentsName,
+    description: planCopy.paymentsDescription,
   };
-
-  const planInfo = getPlanInfo();
 
   return (
     <>

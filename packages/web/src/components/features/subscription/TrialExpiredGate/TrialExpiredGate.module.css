@@ -6,7 +6,7 @@
  */
 
 /* ============================================================================
-   OVERLAY — white blurred backdrop (non-closeable)
+   OVERLAY — blurred backdrop; dismissible via X, Esc, or click outside
    ============================================================================ */
 
 .overlay {
@@ -40,6 +40,7 @@
    ============================================================================ */
 
 .card {
+  position: relative;
   width: 100%;
   max-width: 830px;
   display: flex;
@@ -57,6 +58,34 @@
     0px 6px 8px 0px rgba(9, 9, 11, 0.05);
 
   animation: cardIn 0.25s ease-out;
+}
+
+.closeButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-round, 999px);
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  background: var(--semantic-surface-tertiary);
+  color: var(--semantic-content-primary);
+}
+
+.footerActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 @keyframes cardIn {
