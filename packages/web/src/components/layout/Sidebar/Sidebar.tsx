@@ -37,7 +37,11 @@ import {
   SettingsPageContent,
   SIDEBAR_ITEMS,
   type SettingsPage,
+  type SettingsProfileOverlay,
 } from '../../features/account/SettingsDialog/SettingsDialog';
+import { ChangePasswordDialog } from '../../features/account/SettingsDialog/ChangePasswordDialog';
+import { DisconnectGoogleDialog } from '../../features/account/SettingsDialog/DisconnectGoogleDialog';
+import { DeleteAccountDialog } from '../../features/account/SettingsDialog/DeleteAccountDialog';
 import { useMobileSidebar } from '../MainLayout/MainLayout';
 import { SidebarEmptyState } from './SidebarEmptyState';
 import { SidebarGroupHeader } from './SidebarGroupHeader';
@@ -47,6 +51,8 @@ import { ThemeToggle } from '../../ui/ThemeToggle';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignOut, Gear } from '@phosphor-icons/react';
+import { FeedbackDialog } from '../../features/feedback/FeedbackDialog';
+import type { FeedbackKind } from '../../../lib/posthogFeedback';
 import styles from './Sidebar.module.css';
 
 // ── Re-exported task navigation constants ─────────────────────────────────────
@@ -228,6 +234,13 @@ export function Sidebar({
   const [settingsInitialPage, setSettingsInitialPage] = useState<SettingsPage>('profile');
   // On mobile, settings open as a bottom sheet instead of the desktop modal.
   const [mobileSettingsPage, setMobileSettingsPage] = useState<SettingsPage | null>(null);
+  const [profileOverlay, setProfileOverlay] = useState<SettingsProfileOverlay | null>(null);
+
+  useEffect(() => {
+    if (!isSettingsOpen && mobileSettingsPage === null) {
+      setProfileOverlay(null);
+    }
+  }, [isSettingsOpen, mobileSettingsPage]);
 
   // Opens a settings page — bottom sheet on mobile, modal on desktop.
   const openSettings = (page: SettingsPage) => {
@@ -270,6 +283,7 @@ export function Sidebar({
   const { user, token, logout } = useAuth();
   const { subscription, daysLeftInTrial } = useSubscription();
   const { isLight } = useTheme();
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind | null>(null);
 
   const showProCta = subscription?.status !== 'active';
 
@@ -520,6 +534,7 @@ export function Sidebar({
               type="button"
               className={styles.footerBugButton}
               aria-label="Sugerir ideias"
+              onClick={() => setFeedbackKind('ideas')}
             >
               <Lightbulb size={20} />
             </button>
@@ -529,6 +544,7 @@ export function Sidebar({
               type="button"
               className={styles.footerBugButton}
               aria-label="Reportar problema"
+              onClick={() => setFeedbackKind('report')}
             >
               <Bug size={20} />
             </button>
@@ -677,6 +693,7 @@ export function Sidebar({
                 type="button"
                 className={styles.footerBugButton}
                 aria-label="Sugerir ideias"
+                onClick={() => setFeedbackKind('ideas')}
               >
                 <Lightbulb size={20} />
               </button>
@@ -686,6 +703,7 @@ export function Sidebar({
                 type="button"
                 className={styles.footerBugButton}
                 aria-label="Reportar problema"
+                onClick={() => setFeedbackKind('report')}
               >
                 <Bug size={20} />
               </button>
@@ -770,16 +788,23 @@ export function Sidebar({
           document.body
         )}
 
-      {/* Desktop: full settings modal */}
+      <FeedbackDialog
+        kind={feedbackKind}
+        isOpen={feedbackKind !== null}
+        onClose={() => setFeedbackKind(null)}
+      />
+
+      {/* Desktop: full settings modal (hidden while a profile child overlay is open) */}
       <SettingsDialog
-        isOpen={isSettingsOpen}
+        isOpen={isSettingsOpen && profileOverlay === null}
         onClose={handleCloseSettings}
         initialPage={settingsInitialPage}
+        onOpenProfileOverlay={setProfileOverlay}
       />
 
       {/* Mobile: single settings page in a bottom sheet */}
       <BottomSheet
-        isOpen={mobileSettingsPage !== null}
+        isOpen={mobileSettingsPage !== null && profileOverlay === null}
         onClose={handleCloseMobileSettings}
         title={SIDEBAR_ITEMS.find((item) => item.id === mobileSettingsPage)?.label}
       >
@@ -788,9 +813,27 @@ export function Sidebar({
             page={mobileSettingsPage}
             onClose={handleCloseMobileSettings}
             hideHeader
+            onOpenProfileOverlay={setProfileOverlay}
           />
         )}
       </BottomSheet>
+
+      <ChangePasswordDialog
+        isOpen={profileOverlay === 'password'}
+        onClose={() => setProfileOverlay(null)}
+      />
+      <DisconnectGoogleDialog
+        isOpen={profileOverlay === 'disconnect'}
+        onClose={() => setProfileOverlay(null)}
+      />
+      <DeleteAccountDialog
+        isOpen={profileOverlay === 'delete'}
+        onClose={() => setProfileOverlay(null)}
+        onDeleted={() => {
+          setProfileOverlay(null);
+          logout();
+        }}
+      />
     </div>
   );
 }

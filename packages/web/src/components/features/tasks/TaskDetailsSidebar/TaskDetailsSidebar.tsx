@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Trash, Sparkle, Bell, Repeat } from '@phosphor-icons/react';
+import { X, Calendar, Hash, Fire, Sparkle, Bell, Repeat, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -23,6 +23,7 @@ import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recu
 import { formatRemindersChipLabel } from '../../../../lib/reminders';
 import { toast } from '../../../ui/Sonner';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
+import { TaskDetailsFooter } from './TaskDetailsFooter';
 import styles from './TaskDetailsSidebar.module.css';
 
 export interface TaskDetailsSidebarProps {
@@ -33,6 +34,10 @@ export interface TaskDetailsSidebarProps {
   onToggleCompletion: (taskId: string) => Promise<void>;
   onDelete?: (taskId: string) => void | Promise<void>;
   onOpenChat?: () => void;
+  /** Expand the sidebar details into the center full view */
+  onExpand?: () => void;
+  /** Collapse the center full view back into the sidebar */
+  onCollapse?: () => void;
   /** Layout variant: sidebar (right panel) or expanded (center column) */
   variant?: 'sidebar' | 'expanded';
   /** Show close (X) in expanded mode — e.g. after the user closes task-mode chat */
@@ -47,6 +52,8 @@ export function TaskDetailsSidebar({
   onToggleCompletion,
   onDelete,
   onOpenChat,
+  onExpand,
+  onCollapse,
   variant = 'sidebar',
   showCloseButton = false,
 }: TaskDetailsSidebarProps) {
@@ -712,6 +719,24 @@ export function TaskDetailsSidebar({
 
         {(variant !== 'expanded' || showCloseButton) && (
           <div className={styles.headerActions}>
+            {variant === 'sidebar' && onExpand && (
+              <Button
+                variant="ghost"
+                icon={ArrowsOutSimple}
+                iconPosition="icon-only"
+                onClick={onExpand}
+                aria-label="Expandir para tela cheia"
+              />
+            )}
+            {variant === 'expanded' && onCollapse && (
+              <Button
+                variant="ghost"
+                icon={ArrowsInSimple}
+                iconPosition="icon-only"
+                onClick={onCollapse}
+                aria-label="Recolher para a sidebar"
+              />
+            )}
             {onOpenChat && (variant !== 'expanded' || showCloseButton) && (
               <Button
                 variant="secondary"
@@ -853,47 +878,15 @@ export function TaskDetailsSidebar({
           onChange={handleDescriptionChange}
           onBlur={handleDescriptionSave}
           placeholder="Adicione uma descrição. Digite / para comandos rápidos."
+          metaEnd={
+            <TaskDetailsFooter
+              task={task}
+              onDelete={onDelete ? handleDeleteClick : undefined}
+            />
+          }
         />
       </div>
-
-
-      {/* Footer: Creation Timestamp */}
-      <div className={styles.footer}>
-        <span className={styles.timestamp}>
-          Criada em {formatTaskCreationDate(task)}
-        </span>
-      </div>
-
-      {/* Delete Button */}
-      {onDelete && (
-        <Button
-          variant="ghost"
-          icon={Trash}
-          iconPosition="icon-only"
-          onClick={handleDeleteClick}
-          aria-label="Excluir tarefa"
-          className={styles.deleteButton}
-        />
-      )}
     </div>
   );
-}
-
-// Helper function to format creation date
-function formatTaskCreationDate(task: Task): string {
-  try {
-    const date = new Date(task.created_at);
-    const day = date.getDate();
-    const month = date.toLocaleDateString('pt-BR', { month: 'short' })
-      .replace('.', '')
-      .replace(/^./, str => str.toUpperCase());
-    const year = date.getFullYear();
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    
-    return `${day} ${month} ${year} · ${hours}:${minutes}`;
-  } catch {
-    return 'Data desconhecida';
-  }
 }
 

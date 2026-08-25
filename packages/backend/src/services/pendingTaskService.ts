@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sanitizeTimeString } from '../utils/taskTime';
 import { getIO, hasIO } from '../utils/ioManager';
+import { pendingSourceToAnalytics, recordTaskCreated } from './taskTelemetry';
 
 export interface PendingTaskRecord {
   id: string;
@@ -237,10 +238,21 @@ export const createTaskFromPending = async (
  */
 export const confirmPending = async (
   pendingTask: PendingTaskRecord,
+  email?: string,
 ): Promise<TaskRecord> => {
   const task = await createTaskFromPending(pendingTask);
   await setPendingTaskStatus(pendingTask.id, 'confirmed');
   emitPendingTaskUpdated(pendingTask.user_id, pendingTask.id, 'confirmed');
+  recordTaskCreated({
+    email: email ?? '',
+    source: pendingSourceToAnalytics(pendingTask.source),
+    taskId: task.id,
+    priority: task.priority,
+    hasDueDate: !!task.due_date,
+    hasCategory: !!task.category,
+    isImportant: !!task.important,
+    hasRecurrence: (task.recurrence_type ?? 'none') !== 'none',
+  });
   return task;
 };
 

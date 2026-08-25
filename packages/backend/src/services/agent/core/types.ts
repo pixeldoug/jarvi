@@ -131,6 +131,8 @@ export interface ChannelProfile {
 
 export interface AgentContext {
   userId: string;
+  /** PostHog distinct_id — the user's email. Optional so tests can omit it. */
+  email?: string;
   /** User's display name for personalization (first name only). */
   preferredName: string;
   /** IANA timezone, e.g. America/Sao_Paulo. */

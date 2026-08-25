@@ -78,7 +78,7 @@ export const confirmPendingTask = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const task = await confirmPending(pendingTask);
+    const task = await confirmPending(pendingTask, req.user?.email);
     res.status(201).json({ task, pendingTaskId: id, status: 'confirmed' });
   } catch (error) {
     console.error('Error confirming pending task:', error);

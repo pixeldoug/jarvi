@@ -5,6 +5,8 @@ import App from './App';
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
 import { initMetaPixel } from './lib/metaPixel';
+import { initOpenAiPixel } from './lib/openaiPixel';
+import { dropInAppBrowserExceptions } from './lib/dropInAppBrowserExceptions';
 
 const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
 
@@ -17,11 +19,14 @@ if (posthogKey) {
     capture_pageview: true,
     capture_pageleave: true,
     persistence: 'localStorage+cookie',
+    cross_subdomain_cookie: true,
+    before_send: dropInAppBrowserExceptions,
   });
   posthog.register({ platform: 'app' });
 }
 
 initMetaPixel();
+initOpenAiPixel();
 
 const AppWrapper = () => {
   if (posthogKey) {

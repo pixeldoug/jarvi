@@ -111,8 +111,8 @@ interface TrafficAttribution {
   referringDomain: string | null;
 }
 
-// Le a atribuicao inicial que o PostHog ja captura (sobrevive cross-subdominio
-// via cookie em .jarvi.life), para sabermos a origem do trafego no Slack.
+// Le a atribuicao inicial que o PostHog ja captura (cookie em `.jarvi.life`
+// via `cross_subdomain_cookie`), para sabermos a origem do trafego no Slack.
 function getTrafficAttribution(): TrafficAttribution {
   const read = (key: string): string | null => {
     try {
