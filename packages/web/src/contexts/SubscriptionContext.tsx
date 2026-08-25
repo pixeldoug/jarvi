@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+import { useAuth } from './AuthContext';
 import {
   getDaysLeftInTrial,
   getPlanPresentation,
@@ -59,6 +60,7 @@ interface SubscriptionProviderProps {
 }
 
 export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
+  const { token } = useAuth();
   const queryClient = useQueryClient();
   const lastRefreshAt = useRef(0);
   const [trialGateDismissed, setTrialGateDismissed] = useState(() => {
@@ -69,12 +71,9 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
   });
 
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('jarvi_token');
-
   const query = useQuery<SubscriptionStatus>({
-    queryKey: ['subscription'],
+    queryKey: ['subscription', token],
     queryFn: async () => {
-      const token = localStorage.getItem('jarvi_token');
       if (!token) return defaultSubscription;
 
       try {
@@ -84,9 +83,8 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         throw err;
       }
     },
-    enabled: hasToken,
+    enabled: !!token,
     staleTime: 60_000,
-    placeholderData: hasToken ? undefined : defaultSubscription,
   });
 
   const { data: subscription, isLoading, error: queryError } = query;
@@ -141,8 +139,8 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   // paywall flashes right after SPA login because the React Context value
   // provided to consumers (TrialExpiredGate) is still from the pre-login
   // render, where `placeholderData` returned a synthetic `status:'none'`.
-  const hasRealData = !query.isPlaceholderData && query.dataUpdatedAt > 0;
-  const trialExpired = hasToken && hasRealData && plan.isTrialExpired && !hasActiveSubscription;
+  const hasRealData = !!token && !query.isPlaceholderData && query.dataUpdatedAt > 0;
+  const trialExpired = hasRealData && plan.isTrialExpired && !hasActiveSubscription;
 
   const dismissTrialGate = useCallback(() => {
     setTrialGateDismissed(true);
