@@ -36,6 +36,22 @@ const sanitizeRecurrenceUntil = (value: unknown): string | null => {
   return trimmed;
 };
 
+const serializeTask = (row: any) => {
+  if (!row) return row;
+  return {
+    ...row,
+    completed: Boolean(row.completed),
+    important: Boolean(row.important),
+    title: typeof row.title === 'string' ? row.title : '',
+  };
+};
+
+const requireTrimmedTitle = (title: unknown): string | null => {
+  if (typeof title !== 'string') return null;
+  const trimmed = title.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
 export const createTask = async (
   req: Request,
   res: Response
@@ -64,7 +80,8 @@ export const createTask = async (
       return;
     }
 
-    if (!title) {
+    const trimmedTitle = requireTrimmedTitle(title);
+    if (!trimmedTitle) {
       res.status(400).json({ error: 'Title is required' });
       return;
     }
@@ -88,7 +105,7 @@ export const createTask = async (
           [
             taskId,
             userId,
-            title,
+            trimmedTitle,
             description || null,
             priority || null,
             category || null,
@@ -117,7 +134,7 @@ export const createTask = async (
         [
           taskId,
           userId,
-          title,
+          trimmedTitle,
           description || null,
           priority || null,
           category || null,
@@ -151,7 +168,7 @@ export const createTask = async (
       hasRecurrence: (newTask?.recurrence_type ?? sanitizedRecurrenceType) !== 'none',
     });
 
-    res.status(201).json(newTask);
+    res.status(201).json(serializeTask(newTask));
   } catch (error) {
     console.error('Error creating task:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -180,19 +197,19 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
            ORDER BY created_at DESC`,
           [userId]
         );
-        tasks = result.rows;
+        tasks = result.rows.map((row) => serializeTask(row));
       } finally {
         client.release();
       }
     } else {
       // SQLite
       const db = getDatabase();
-      tasks = await db.all(
+      tasks = (await db.all(
         `SELECT * FROM tasks 
          WHERE user_id = ? 
          ORDER BY created_at DESC`,
         [userId]
-      );
+      )).map((row) => serializeTask(row as Record<string, unknown>));
     }
 
     res.json(tasks);
@@ -247,6 +264,11 @@ export const updateTask = async (
       return;
     }
 
+    if (title !== undefined && !requireTrimmedTitle(title)) {
+      res.status(400).json({ error: 'Title is required' });
+      return;
+    }
+
     const now = new Date().toISOString();
     let existingTask;
     let updatedTask;
@@ -272,6 +294,9 @@ export const updateTask = async (
         existingTask = existingResult.rows[0];
         console.log('Found existing task:', existingTask);
 
+        const nextTitle = title !== undefined ? title.trim() : existingTask.title;
+        const nextCompleted = completed !== undefined ? Boolean(completed) : existingTask.completed;
+
         // Tentar atualizar com coluna time, se falhar, atualizar sem ela
         try {
           console.log('Attempting to update with time column');
@@ -294,9 +319,9 @@ export const updateTask = async (
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, recurrence_type = $9, recurrence_config = $10, recurrence_until = $11, updated_at = $12
              WHERE id = $13 AND user_id = $14`,
             [
-              title || existingTask.title,
+              nextTitle,
               description !== undefined ? description : existingTask.description,
-              completed !== undefined ? completed : existingTask.completed,
+              nextCompleted,
               priority !== undefined ? priority : existingTask.priority,
               category !== undefined ? category : existingTask.category,
               important !== undefined ? important : existingTask.important,
@@ -322,9 +347,9 @@ export const updateTask = async (
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, due_date = $7, updated_at = $8
              WHERE id = $9 AND user_id = $10`,
             [
-              title || existingTask.title,
+              nextTitle,
               description !== undefined ? description : existingTask.description,
-              completed !== undefined ? completed : existingTask.completed,
+              nextCompleted,
               priority !== undefined ? priority : existingTask.priority,
               category !== undefined ? category : existingTask.category,
               important !== undefined ? important : existingTask.important,
@@ -374,14 +399,17 @@ export const updateTask = async (
         ? sanitizeRecurrenceUntil(recurrence_until)
         : existingTask.recurrence_until;
 
+      const nextTitle = title !== undefined ? title.trim() : existingTask.title;
+      const nextCompleted = completed !== undefined ? (Boolean(completed) ? 1 : 0) : existingTask.completed;
+
       await db.run(
         `UPDATE tasks 
          SET title = ?, description = ?, completed = ?, priority = ?, category = ?, important = ?, time = ?, due_date = ?, recurrence_type = ?, recurrence_config = ?, recurrence_until = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
         [
-          title || existingTask.title,
+          nextTitle,
           description !== undefined ? description : existingTask.description,
-          completed !== undefined ? completed : existingTask.completed,
+          nextCompleted,
           priority !== undefined ? priority : existingTask.priority,
           category !== undefined ? category : existingTask.category,
           important !== undefined ? important : existingTask.important,
@@ -412,7 +440,7 @@ export const updateTask = async (
       }
     }
 
-    res.json(updatedTask);
+    res.json(serializeTask(updatedTask));
   } catch (error) {
     console.error('Error updating task:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
@@ -517,7 +545,7 @@ export const toggleTaskCompletion = async (
         }
 
         existingTask = existingResult.rows[0];
-        const newCompletedStatus = !existingTask.completed;
+        const newCompletedStatus = !Boolean(existingTask.completed);
 
         await client.query(
           `UPDATE tasks 
@@ -546,13 +574,13 @@ export const toggleTaskCompletion = async (
         return;
       }
 
-      const newCompletedStatus = !existingTask.completed;
+      const newCompletedStatus = !Boolean(existingTask.completed);
 
       await db.run(
         `UPDATE tasks 
          SET completed = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
-        [newCompletedStatus, now, id, userId]
+        [newCompletedStatus ? 1 : 0, now, id, userId]
       );
 
       updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
@@ -572,7 +600,7 @@ export const toggleTaskCompletion = async (
       await rescheduleRemindersForTask(id);
     }
 
-    res.json({ ...updatedTask, next_occurrence: nextOccurrence });
+    res.json({ ...serializeTask(updatedTask), next_occurrence: nextOccurrence ? serializeTask(nextOccurrence) : nextOccurrence });
   } catch (error) {
     console.error('Error toggling task completion:', error);
     res.status(500).json({ error: 'Internal server error' });

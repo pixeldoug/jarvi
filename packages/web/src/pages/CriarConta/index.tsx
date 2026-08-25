@@ -451,7 +451,7 @@ export function CriarConta() {
       if (result.pendingVerification) {
         navigate('/verify-pending', { state: { email: result.email } });
       } else {
-        navigate('/');
+        navigate('/tasks');
       }
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Não foi possível criar sua conta agora.');
@@ -470,7 +470,7 @@ export function CriarConta() {
     try {
       const { fbc, fbp } = getFbCookies();
       await loginWithGoogle(idToken, buildOnboardingPayload(''), { fbc, fbp });
-      navigate('/');
+        navigate('/tasks');
     } catch (err) {
       setAccountError(err instanceof Error ? err.message : 'Não foi possível criar sua conta com o Google agora.');
     } finally {

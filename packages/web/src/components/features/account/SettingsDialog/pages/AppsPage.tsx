@@ -68,7 +68,7 @@ const APPS: AppDefinition[] = [
     id: 'siri',
     name: 'Siri',
     description: 'Use a Siri para conversar com a Jarvi.',
-    icon: '/icons/apps/siri.png',
+    icon: '/icons/apps/siri.svg',
     available: false,
   },
 ];
@@ -90,6 +90,25 @@ const parseApiPayload = async (response: Response): Promise<Record<string, unkno
     return { error: rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() };
   }
 };
+
+async function fetchWithTimeout(
+  input: RequestInfo,
+  init: RequestInit = {},
+  timeoutMs = 8000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('A requisição demorou demais. Tente novamente.');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 // ============================================================================
 // ROOT: VIEW CONTROLLER
@@ -163,11 +182,14 @@ function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
                 aria-label={
                   app.available
                     ? `Conectar ${app.name}`
-                    : `${app.name} ainda não está disponível`
+                    : `${app.name} em breve`
                 }
               >
                 Conectar
               </Button>
+              {!app.available && (
+                <p className={styles.unavailableHint}>Em breve</p>
+              )}
             </div>
           </li>
         ))}
@@ -194,7 +216,7 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
   const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
 
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
   const [requestLoading, setRequestLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
@@ -215,7 +237,7 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
     const load = async () => {
       setStatusLoading(true);
       try {
-        const res = await fetch(`${API_URL}/api/users/whatsapp-link`, {
+        const res = await fetchWithTimeout(`${API_URL}/api/users/whatsapp-link`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await parseApiPayload(res);
@@ -244,13 +266,29 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
     };
   }, [token]);
 
+  const validatePhone = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return 'Informe o número do WhatsApp.';
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length < 12) {
+      return 'Número de WhatsApp inválido. Use DDI + DDD + número, por exemplo +5511999999999.';
+    }
+    return null;
+  };
+
   // Send verification code
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
+    const validationError = validatePhone(phone);
+    if (validationError) {
+      setError(validationError);
+      setRequestLoading(false);
+      return;
+    }
     setRequestLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link/request`, {
+      const res = await fetchWithTimeout(`${API_URL}/api/users/whatsapp-link/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -276,7 +314,7 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
     clearFeedback();
     setRequestLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link/request`, {
+      const res = await fetchWithTimeout(`${API_URL}/api/users/whatsapp-link/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -298,6 +336,10 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
+    if (!verificationCode.trim()) {
+      setError('Informe o código de verificação.');
+      return;
+    }
     setVerifyLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/users/whatsapp-link/verify`, {
@@ -379,13 +421,16 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
       <p className={styles.pageSubtitle}>Gerencie os aplicativos conectados à sua conta.</p>
 
       {/* Feedback */}
-      {statusLoading && <p className={styles.pageSubtitle}>Carregando...</p>}
       {error && <p className={styles.feedbackError}>{error}</p>}
       {successMsg && <p className={styles.feedbackSuccess}>{successMsg}</p>}
 
+      {statusLoading && (
+        <p className={styles.pageSubtitle}>Verificando conexão…</p>
+      )}
+
       {/* ── INITIAL STATE ─────────────────────────────────────────── */}
-      {whatsappState === 'initial' && (
-        <form className={styles.formSection} onSubmit={handleRequestCode}>
+      {!statusLoading && whatsappState === 'initial' && (
+        <form className={styles.formSection} onSubmit={handleRequestCode} noValidate>
           <div>
             <label className={styles.fieldLabel} htmlFor="wa-phone-initial">
               Número do WhatsApp
@@ -399,7 +444,6 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 showLabel={false}
-                required
               />
               <Button
                 type="submit"
@@ -416,8 +460,8 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
       )}
 
       {/* ── AWAITING CODE STATE ────────────────────────────────────── */}
-      {whatsappState === 'awaitingCode' && (
-        <form className={styles.formSection} onSubmit={handleVerifyCode}>
+      {!statusLoading && whatsappState === 'awaitingCode' && (
+        <form className={styles.formSection} onSubmit={handleVerifyCode} noValidate>
           <div>
             <label className={styles.fieldLabel} htmlFor="wa-phone-await">
               Número do WhatsApp
@@ -439,7 +483,7 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
                 disabled={requestLoading}
                 onClick={handleResendCode}
               >
-                Renviar Código
+                Reenviar Código
               </Button>
             </div>
           </div>
@@ -457,7 +501,6 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value)}
                 showLabel={false}
-                required
               />
               <Button
                 type="submit"
@@ -474,7 +517,7 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
       )}
 
       {/* ── CONNECTED STATE ────────────────────────────────────────── */}
-      {whatsappState === 'connected' && (
+      {!statusLoading && whatsappState === 'connected' && (
         <div className={styles.formSection}>
           <div className={styles.connectedRow}>
             <span className={styles.connectedBadge}>Conectado</span>
@@ -685,7 +728,7 @@ function GmailConnectPage({ onBack }: GmailConnectPageProps) {
       </p>
 
       {/* Feedback */}
-      {statusLoading && <p className={styles.pageSubtitle}>Carregando...</p>}
+      {statusLoading && <p className={styles.pageSubtitle}>Verificando conexão…</p>}
       {error && <p className={styles.feedbackError}>{error}</p>}
       {successMsg && <p className={styles.feedbackSuccess}>{successMsg}</p>}
 

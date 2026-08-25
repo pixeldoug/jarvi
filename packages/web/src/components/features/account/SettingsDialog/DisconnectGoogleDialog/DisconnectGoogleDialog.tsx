@@ -115,7 +115,7 @@ export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDial
       <div className={styles.textBlock}>
         <h2 className={styles.title}>Desvincular Google</h2>
         <p className={styles.description}>
-          Você entra no Jarvi com sua conta do Google{user?.email ? ` (${user.email})` : ''}.
+          Você entra na Jarvi com sua conta do Google{user?.email ? ` (${user.email})` : ''}.
           Para desvincular, primeiro crie uma senha — ela será usada nos seus próximos logins
           com email e senha.
         </p>

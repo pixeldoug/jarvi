@@ -146,11 +146,11 @@ export function PaymentForm({ onSuccess, onError }: PaymentFormProps) {
               Voce esta no periodo gratuito
               {typeof daysLeftInTrial === 'number' ? ` (${daysLeftInTrial} dia(s) restantes)` : ''}.
               {formattedTrialEnd
-                ? ` Adicione seu cartao ate ${formattedTrialEnd} para continuar usando o Jarvi.`
-                : ' Adicione seu cartao ao final do periodo gratuito para continuar usando o Jarvi.'}
+                ? ` Adicione seu cartao ate ${formattedTrialEnd} para continuar usando a Jarvi.`
+                : ' Adicione seu cartao ao final do periodo gratuito para continuar usando a Jarvi.'}
             </>
           ) : (
-            <>Adicione seu cartao para continuar usando o Jarvi. Se voce recebeu um cupom do beta, informe abaixo antes de confirmar.</>
+            <>Adicione seu cartao para continuar usando a Jarvi. Se voce recebeu um cupom do beta, informe abaixo antes de confirmar.</>
           )}
         </p>
       </div>

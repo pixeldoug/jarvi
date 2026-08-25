@@ -140,9 +140,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error(data.error || 'Login failed');
       }
 
+      localStorage.setItem('jarvi_token', data.token);
       setToken(data.token);
       setUser(data.user);
-      localStorage.setItem('jarvi_token', data.token);
 
       if (posthog) {
         posthog.identify(data.user.email, {
@@ -186,9 +186,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const data = await response.json();
+      localStorage.setItem('jarvi_token', data.token);
       setToken(data.token);
       setUser(data.user);
-      localStorage.setItem('jarvi_token', data.token);
 
       if (posthog) {
         posthog.identify(data.user.email, {
@@ -260,9 +260,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Fallback for old behavior (shouldn't happen with new backend)
       if (data.token) {
+        localStorage.setItem('jarvi_token', data.token);
         setToken(data.token);
         setUser(data.user);
-        localStorage.setItem('jarvi_token', data.token);
 
         if (posthog) {
           posthog.identify(data.user.email, {

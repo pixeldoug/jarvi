@@ -71,7 +71,8 @@ export function ControlBar({
 }: ControlBarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
-  const { trialExpired } = useSubscription();
+  const { trialExpired, trialGateDismissed } = useSubscription();
+  const composerLocked = trialExpired && !trialGateDismissed;
 
   // Keep the bar above the virtual keyboard on mobile (see hook docs)
   useKeyboardOffset();
@@ -114,7 +115,7 @@ export function ControlBar({
   const reminderChipRef = useRef<HTMLDivElement>(null);
 
   const handleSwitchToTask = useCallback(() => {
-    if (trialExpired) return;
+    if (composerLocked) return;
     setMode('task');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -127,7 +128,7 @@ export function ControlBar({
       setTitle(carriedTitle);
       setPromptText('');
     }
-  }, [defaultCategory, promptText]);
+  }, [defaultCategory, promptText, composerLocked]);
 
   const handleSwitchToPrompt = useCallback(() => {
     setMode('prompt');
@@ -224,11 +225,11 @@ export function ControlBar({
   // ── Prompt handlers ──────────────────────────────────────────────────────────
 
   const addPromptFiles = useCallback(async (files: File[]) => {
-    if (!files.length || trialExpired) return;
+    if (!files.length || composerLocked) return;
     const prepared = await filesToPendingAttachments(files);
     if (!prepared.length) return;
     setPromptAttachments((prev) => [...prev, ...prepared].slice(0, MAX_CHAT_ATTACHMENTS));
-  }, [trialExpired]);
+  }, [composerLocked]);
 
   const handleRemovePromptAttachment = useCallback((id: string) => {
     setPromptAttachments((prev) => prev.filter((a) => a.id !== id));
@@ -253,10 +254,10 @@ export function ControlBar({
   );
 
   const handlePromptDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    if (trialExpired) return;
+    if (composerLocked) return;
     e.preventDefault();
     setIsDraggingPrompt(true);
-  }, [trialExpired]);
+  }, [composerLocked]);
 
   const handlePromptDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -275,8 +276,35 @@ export function ControlBar({
     [addPromptFiles],
   );
 
+  const handleCreateTaskFromPrompt = async () => {
+    if (composerLocked) return;
+    const text = promptText.trim();
+    if (!text || !onCreateTask) return;
+
+    const today = new Date();
+    const dueDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const createdTask = await onCreateTask({
+      title: text,
+      description: '',
+      dueDate,
+    });
+
+    toast.success('Tarefa criada com sucesso', {
+      hasButton: true,
+      action:
+        createdTask && onOpenTaskDetails
+          ? { label: 'Visualizar', onClick: () => onOpenTaskDetails(createdTask) }
+          : undefined,
+    });
+
+    setPromptText('');
+    setPromptAttachments([]);
+    onMobileClose?.();
+  };
+
   const handlePromptSubmit = () => {
-    if (trialExpired) return;
+    if (composerLocked) return;
     const text = promptText.trim();
     const payload = toChatAttachmentPayload(promptAttachments);
     if (onSubmitPrompt && (text || payload.length > 0)) {
@@ -292,14 +320,14 @@ export function ControlBar({
   const handlePromptKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handlePromptSubmit();
+      void handleCreateTaskFromPrompt();
     }
   };
 
   // ── Task creation handlers ────────────────────────────────────────────────────
 
   const handleSubmitTask = async () => {
-    if (!title.trim() || trialExpired) return;
+    if (!title.trim() || composerLocked) return;
 
     let formattedDueDate: string | undefined;
     if (dueDate) {
@@ -408,7 +436,7 @@ export function ControlBar({
     }
   };
 
-  const isSubmitDisabled = !title.trim() || trialExpired;
+  const isSubmitDisabled = !title.trim() || composerLocked;
 
   // ── Toggle group ─────────────────────────────────────────────────────────────
 
@@ -431,7 +459,7 @@ export function ControlBar({
         onClick={mode === 'prompt' ? handleSwitchToTask : undefined}
         aria-label="Criar tarefa"
         aria-pressed={mode === 'task'}
-        disabled={!onCreateTask || trialExpired}
+        disabled={!onCreateTask || composerLocked}
       >
         <PencilSimple weight={mode === 'task' ? 'fill' : 'regular'} size={18} />
       </button>
@@ -651,7 +679,7 @@ export function ControlBar({
                 onPaste={handlePromptPaste}
                 placeholder="O que você tem em mente?"
                 className={styles.promptInput}
-                disabled={trialExpired}
+                disabled={composerLocked}
               />
 
               <div className={styles.promptActionsLeft}>
@@ -660,7 +688,7 @@ export function ControlBar({
                   className={styles.attachButton}
                   onClick={() => promptFileInputRef.current?.click()}
                   aria-label="Anexar arquivo"
-                  disabled={trialExpired || promptAttachments.length >= MAX_CHAT_ATTACHMENTS}
+                  disabled={composerLocked || promptAttachments.length >= MAX_CHAT_ATTACHMENTS}
                 >
                   <Paperclip size={20} />
                 </button>
@@ -672,8 +700,8 @@ export function ControlBar({
                 type="button"
                 className={styles.sendButton}
                 onClick={handlePromptSubmit}
-                aria-label="Enviar"
-                disabled={trialExpired}
+                aria-label="Enviar para a IA"
+                disabled={composerLocked}
               >
                 <PaperPlaneTilt weight="fill" size={20} />
               </button>

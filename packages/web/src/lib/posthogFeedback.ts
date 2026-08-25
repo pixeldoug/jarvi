@@ -58,8 +58,8 @@ export const FEEDBACK_SURVEYS: Record<FeedbackKind, FeedbackSurveyConfig> = {
     questions: [
       {
         id: '2abecab1-19b1-4090-9cbe-6ecaf83017b3',
-        question: 'Qual ideia você gostaria de ver no Jarvi?',
-        label: 'Qual ideia você gostaria de ver no Jarvi?',
+        question: 'Qual ideia você gostaria de ver na Jarvi?',
+        label: 'Qual ideia você gostaria de ver na Jarvi?',
         placeholder: 'Conte a ideia...',
         optional: false,
       },

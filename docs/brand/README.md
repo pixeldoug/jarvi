@@ -9,6 +9,7 @@
 - Produto em **PT-BR**.
 - Frases curtas, diretas; o usuário está tentando fazer uma tarefa, não ler um manifesto.
 - Evitar jargão interno (“overlay”, “token semântico”) na UI. Isso fica no handbook e no compliance.
+- Gênero do produto: use **a Jarvi** (a plataforma / o app). Reserve **o Jarvi** só para a persona do assistente em prompts internos.
 
 ## Brand vs implementação
 

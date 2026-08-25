@@ -4,12 +4,22 @@ import {
   useEffect,
   useCallback,
   useRef,
+  useState,
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
+import { useAuth } from './AuthContext';
+import {
+  getDaysLeftInTrial,
+  getPlanPresentation,
+  isSubscriptionCurrentlyActive,
+  type PlanType,
+} from '../lib/planPresentation';
 
-export type PlanType = 'monthly' | 'annual' | 'lifetime' | null;
+export type { PlanType };
+
+const TRIAL_GATE_DISMISSED_KEY = 'jarvi_trial_gate_dismissed';
 
 interface SubscriptionStatus {
   status: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled';
@@ -30,6 +40,8 @@ interface SubscriptionContextType {
   daysLeftInTrial: number | null;
   trialExtended: boolean;
   trialExpired: boolean;
+  trialGateDismissed: boolean;
+  dismissTrialGate: () => void;
 }
 
 const defaultSubscription: SubscriptionStatus = {
@@ -48,15 +60,32 @@ interface SubscriptionProviderProps {
 }
 
 export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
+  const { token, user } = useAuth();
   const queryClient = useQueryClient();
   const lastRefreshAt = useRef(0);
+  const [trialGateDismissed, setTrialGateDismissed] = useState(false);
 
-  const hasToken = !!localStorage.getItem('jarvi_token');
+  const dismissedStorageKey = user?.id
+    ? `${TRIAL_GATE_DISMISSED_KEY}:${user.id}`
+    : TRIAL_GATE_DISMISSED_KEY;
+
+  useEffect(() => {
+    if (!user?.id) {
+      setTrialGateDismissed(false);
+      return;
+    }
+    try {
+      const perUser = localStorage.getItem(dismissedStorageKey) === '1';
+      const legacy = localStorage.getItem(TRIAL_GATE_DISMISSED_KEY) === '1';
+      setTrialGateDismissed(perUser || legacy);
+    } catch {
+      setTrialGateDismissed(false);
+    }
+  }, [user?.id, dismissedStorageKey]);
 
   const query = useQuery<SubscriptionStatus>({
-    queryKey: ['subscription'],
+    queryKey: ['subscription', token],
     queryFn: async () => {
-      const token = localStorage.getItem('jarvi_token');
       if (!token) return defaultSubscription;
 
       try {
@@ -66,9 +95,8 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
         throw err;
       }
     },
-    enabled: hasToken,
+    enabled: !!token,
     staleTime: 60_000,
-    placeholderData: hasToken ? undefined : defaultSubscription,
   });
 
   const { data: subscription, isLoading, error: queryError } = query;
@@ -112,30 +140,31 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     await queryClient.invalidateQueries({ queryKey: ['subscription'] });
   }, [queryClient]);
 
-  const daysLeftInTrial = (() => {
-    if (!subscription?.trialEndsAt || subscription.status !== 'trialing') return null;
-    const trialEnd = new Date(subscription.trialEndsAt);
-    const now = new Date();
-    const diffTime = trialEnd.getTime() - now.getTime();
-    return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-  })();
-
-  const hasActiveSubscription = subscription?.isActive ?? false;
+  const daysLeftInTrial = getDaysLeftInTrial(subscription);
+  const hasActiveSubscription = isSubscriptionCurrentlyActive(subscription);
   const needsSubscription = subscription?.status === 'none';
   const trialExtended = subscription?.trialExtended ?? false;
+  const plan = getPlanPresentation(subscription);
 
   // Only treat the user as "trial expired" when we have REAL data from the
   // server and the user is actually authenticated. Without these guards, the
   // paywall flashes right after SPA login because the React Context value
   // provided to consumers (TrialExpiredGate) is still from the pre-login
   // render, where `placeholderData` returned a synthetic `status:'none'`.
-  const hasRealData = !query.isPlaceholderData && query.dataUpdatedAt > 0;
-  const trialExpired =
-    hasToken &&
-    hasRealData &&
-    !hasActiveSubscription &&
-    (subscription?.status === 'none' ||
-      (subscription?.status === 'trialing' && daysLeftInTrial === 0));
+  const hasRealData = !!token && !query.isPlaceholderData && query.dataUpdatedAt > 0;
+  const trialExpired = hasRealData && plan.isTrialExpired && !hasActiveSubscription;
+
+  const dismissTrialGate = useCallback(() => {
+    setTrialGateDismissed(true);
+    try {
+      if (user?.id) {
+        localStorage.setItem(`${TRIAL_GATE_DISMISSED_KEY}:${user.id}`, '1');
+      }
+      localStorage.setItem(TRIAL_GATE_DISMISSED_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  }, [user?.id]);
 
   const value: SubscriptionContextType = {
     subscription: subscription ?? null,
@@ -147,6 +176,8 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     daysLeftInTrial,
     trialExtended,
     trialExpired,
+    trialGateDismissed,
+    dismissTrialGate,
   };
 
   return (

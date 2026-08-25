@@ -194,7 +194,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: min(420px, 50vh);
   
   font-family: var(--typography-body-lg-font-family);
   font-size: var(--typography-body-lg-font-size);

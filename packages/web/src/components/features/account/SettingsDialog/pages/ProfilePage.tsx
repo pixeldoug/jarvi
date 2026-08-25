@@ -352,7 +352,7 @@ export function ProfilePage({
             <div className={styles.emailDetails}>
               <p className={styles.sectionLabel}>Conta conectada</p>
               <p className={styles.sectionDescription}>
-                Você pode fazer login no Jarvi com sua conta do Google {userEmail}
+                Você pode fazer login na Jarvi com sua conta do Google {userEmail}
               </p>
             </div>
             <div className={styles.googleButtonWrapper}>
@@ -373,7 +373,7 @@ export function ProfilePage({
             <div className={styles.emailDetails}>
               <p className={styles.sectionLabel}>Senha</p>
               <p className={styles.sectionDescription}>
-                Altere sua senha de acesso ao Jarvi.
+                Altere sua senha de acesso à Jarvi.
               </p>
             </div>
             <div>
@@ -388,7 +388,7 @@ export function ProfilePage({
             <div className={styles.emailDetails}>
               <p className={styles.sectionLabel}>Vincular Google</p>
               <p className={styles.sectionDescription}>
-                Habilite o login com Google para entrar no Jarvi sem precisar de senha.
+                Habilite o login com Google para entrar na Jarvi sem precisar de senha.
                 A conta Google precisa ter o mesmo email ({userEmail}).
               </p>
             </div>

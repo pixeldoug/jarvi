@@ -176,10 +176,6 @@ export async function getSubscriptionStatus(userId: string): Promise<{
   trialExtended: boolean;
   planType: PlanType;
 }> {
-  if (!stripe) {
-    throw new Error('Stripe is not configured');
-  }
-
   const user = await getUserById(userId);
   if (!user) {
     return { status: 'none', trialEndsAt: null, currentPeriodEnd: null, trialExtended: false, planType: null };
@@ -221,12 +217,23 @@ export async function getSubscriptionStatus(userId: string): Promise<{
       };
     }
 
-    // Trial expired (or invalid) – normalize to none for API consumers.
+    // Trial expired (or invalid) – normalize to none for API consumers,
+    // but keep trialEndsAt so the UI can say when the trial ended.
     if (user.subscription_status === 'trialing') {
       await updateUserSubscription(userId, { subscriptionStatus: 'none' });
     }
 
-    return { status: 'none', trialEndsAt: null, currentPeriodEnd: null, trialExtended, planType: null };
+    return { status: 'none', trialEndsAt: trialEnd, currentPeriodEnd: null, trialExtended, planType: null };
+  }
+
+  if (!stripe) {
+    return {
+      status: user.subscription_status === 'active' ? 'active' : 'none',
+      trialEndsAt: user.trial_ends_at ? new Date(user.trial_ends_at) : null,
+      currentPeriodEnd: null,
+      trialExtended,
+      planType: null,
+    };
   }
 
   const subscription = await stripe.subscriptions.retrieve(

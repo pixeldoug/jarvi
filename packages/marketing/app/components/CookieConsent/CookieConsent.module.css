@@ -1,0 +1,57 @@
+.banner {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 80;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: #111;
+  color: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28);
+}
+
+.text {
+  margin: 0;
+  flex: 1 1 280px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.text a {
+  color: #cbb8ff;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.primary,
+.secondary {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.primary {
+  background: #4a1ef5;
+  color: #fff;
+}
+
+.secondary {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
