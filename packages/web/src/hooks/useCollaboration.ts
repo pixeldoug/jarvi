@@ -29,7 +29,7 @@ export const useCollaboration = (): UseCollaborationReturn => {
   useEffect(() => {
     if (!user || !token) return;
 
-    const newSocket = io(process.env.REACT_APP_API_URL || 'http://localhost:3001', {
+    const newSocket = io(import.meta.env.VITE_API_URL ?? 'http://localhost:3001', {
       auth: {
         token: token
       }

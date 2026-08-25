@@ -422,14 +422,11 @@ const getTaskById = async (taskId: string): Promise<RecurrenceTaskRow | null> =>
 };
 
 /**
- * Periodic sweep: finds recurring tasks that are either completed or already
- * past their due date and haven't generated their next occurrence yet, and
- * generates it for each. Safety net for recurrences the user never
- * explicitly completes (reminder-style) and for the case where the
- * synchronous trigger failed.
+ * Periodic sweep: finds completed recurring tasks that have not generated
+ * their next occurrence yet. Next occurrence is created on completion
+ * (sync path); this is the safety net if that trigger failed.
  */
 export async function runRecurrenceSweep(): Promise<{ processed: number; created: number }> {
-  const nowIso = new Date().toISOString();
   let candidates: RecurrenceTaskRow[] = [];
 
   if (isPostgreSQL()) {
@@ -439,8 +436,7 @@ export async function runRecurrenceSweep(): Promise<{ processed: number; created
        WHERE recurrence_type IS NOT NULL
          AND recurrence_type != 'none'
          AND recurrence_next_task_id IS NULL
-         AND (completed = TRUE OR due_date < $1)`,
-      [nowIso],
+         AND completed = TRUE`,
     );
     candidates = result.rows as RecurrenceTaskRow[];
   } else {
@@ -450,8 +446,7 @@ export async function runRecurrenceSweep(): Promise<{ processed: number; created
        WHERE recurrence_type IS NOT NULL
          AND recurrence_type != 'none'
          AND recurrence_next_task_id IS NULL
-         AND (completed = 1 OR due_date < ?)`,
-      [nowIso],
+         AND completed = 1`,
     )) as RecurrenceTaskRow[];
   }
 

@@ -33,7 +33,7 @@
     }
   ],
   "env": {
-    "VITE_API_URL": "",
+    "VITE_API_URL": "https://jarvi-production.up.railway.app",
     "VITE_APP_NAME": "Jarvi"
   }
 }

@@ -55,7 +55,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   };
 
   const handleSearch = async (query: string) => {
-    if (!query.trim()) {
+    const trimmed = query.trim();
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    if (!trimmed || (trimmed.length < 3 && !looksLikeEmail)) {
       setSearchResults([]);
       return;
     }

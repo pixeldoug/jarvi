@@ -114,11 +114,22 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     });
   };
 
-  // Simple markdown renderer for preview
+  // Simple markdown renderer for preview (escape HTML first; only http(s)/mailto links)
   const renderMarkdown = (text: string) => {
     if (!text) return '';
-    
-    return text
+
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const safeHref = (url: string) => {
+      const trimmed = url.trim();
+      return /^(https?:|mailto:)/i.test(trimmed) ? trimmed : '#';
+    };
+
+    return escaped
       // Headers
       .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>')
       .replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold mt-6 mb-3">$1</h2>')
@@ -130,7 +141,9 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
       // Code
       .replace(/`(.*)`/gim, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
       // Links
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, (_match, label: string, href: string) =>
+        `<a href="${safeHref(href)}" class="text-blue-600 dark:text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">${label}</a>`
+      )
       // Lists
       .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
       .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')

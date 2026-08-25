@@ -127,7 +127,7 @@ export function ControlBar({
       setTitle(carriedTitle);
       setPromptText('');
     }
-  }, [defaultCategory, promptText]);
+  }, [defaultCategory, promptText, trialExpired]);
 
   const handleSwitchToPrompt = useCallback(() => {
     setMode('prompt');

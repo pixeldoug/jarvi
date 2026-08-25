@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { v4 as uuidv4 } from 'uuid';
+import { sanitizeNoteContent } from '../utils/sanitizeNoteContent';
 
 export const createNote = async (
   req: Request,
@@ -9,6 +10,7 @@ export const createNote = async (
   try {
     const { title, content, category } = req.body;
     const userId = req.user?.id;
+    const safeContent = sanitizeNoteContent(content);
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
@@ -36,7 +38,7 @@ export const createNote = async (
             noteId,
             userId,
             title,
-            content || '',
+            safeContent,
             now,
             now,
           ]
@@ -47,7 +49,7 @@ export const createNote = async (
           id: noteId,
           user_id: userId,
           title,
-          content: content || '',
+          content: safeContent,
           created_at: now,
           updated_at: now,
           access_level: 'owner',
@@ -67,7 +69,7 @@ export const createNote = async (
           noteId,
           userId,
           title,
-          content || '',
+          safeContent,
           category || null,
           now,
           now,
@@ -202,6 +204,7 @@ export const updateNote = async (
     const { id } = req.params;
     const { title, content, category } = req.body;
     const userId = req.user?.id;
+    const safeContent = sanitizeNoteContent(content);
 
     if (!userId) {
       res.status(401).json({ error: 'User not authenticated' });
@@ -279,13 +282,13 @@ export const updateNote = async (
             updateQuery = `UPDATE notes 
                           SET title = $1, content = $2, category = $3, updated_at = $4
                           WHERE id = $5 AND user_id = $6`;
-            updateParams = [title, content || '', category || null, now, id, userId];
+            updateParams = [title, safeContent, category || null, now, id, userId];
           } else {
             // É um usuário compartilhado com permissão de escrita
             updateQuery = `UPDATE notes 
                           SET title = $1, content = $2, category = $3, updated_at = $4
                           WHERE id = $5`;
-            updateParams = [title, content || '', category || null, now, id];
+            updateParams = [title, safeContent, category || null, now, id];
           }
           
           await client.query(updateQuery, updateParams);
@@ -336,7 +339,7 @@ export const updateNote = async (
             `UPDATE notes 
              SET title = ?, content = ?, category = ?, updated_at = ?
              WHERE id = ? AND user_id = ?`,
-            [title, content || '', category || null, now, id, userId]
+            [title, safeContent, category || null, now, id, userId]
           );
         } else {
           // É um usuário compartilhado com permissão de escrita
@@ -344,7 +347,7 @@ export const updateNote = async (
             `UPDATE notes 
              SET title = ?, content = ?, category = ?, updated_at = ?
              WHERE id = ?`,
-            [title, content || '', category || null, now, id]
+            [title, safeContent, category || null, now, id]
           );
         }
       } else {

@@ -11,7 +11,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { sanitizeTimeString } from '../utils/taskTime';
 import { getIO, hasIO } from '../utils/ioManager';
+import { userHasActiveSubscription } from '../middleware/requireSubscription';
 import { pendingSourceToAnalytics, recordTaskCreated } from './taskTelemetry';
+
+export const SUBSCRIPTION_REQUIRED = 'SUBSCRIPTION_REQUIRED';
 
 export interface PendingTaskRecord {
   id: string;
@@ -240,6 +243,11 @@ export const confirmPending = async (
   pendingTask: PendingTaskRecord,
   email?: string,
 ): Promise<TaskRecord> => {
+  const hasSubscription = await userHasActiveSubscription(pendingTask.user_id);
+  if (!hasSubscription) {
+    throw new Error(SUBSCRIPTION_REQUIRED);
+  }
+
   const task = await createTaskFromPending(pendingTask);
   await setPendingTaskStatus(pendingTask.id, 'confirmed');
   emitPendingTaskUpdated(pendingTask.user_id, pendingTask.id, 'confirmed');
