@@ -348,7 +348,7 @@ export default function LandingPage() {
             </div>
             <h2 className={styles.featuresSectionTitle}>Um app que aprende com você</h2>
             <p className={styles.featuresSectionDescription}>
-            A Jarvi cria memória a partir das suas tarefas  e quanto mais voce usa o app, mais ela aprende a ajudar você.
+            A Jarvi cria memória a partir das suas tarefas e quanto mais você usa o app, mais ela aprende a ajudar você.
             </p>
           </div>
 
@@ -482,8 +482,8 @@ export default function LandingPage() {
         <div
           className={`${styles.ctaContent} ${isCtaInView ? `${styles.reveal} ${styles.revealDelay2}` : styles.revealHidden}`}
         >
-          <h2>Garanta seu acesso antecipado</h2>
-          <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
+          <h2>Crie sua conta grátis</h2>
+          <p>Comece a organizar suas tarefas com a Jarvi e contribua com feedbacks</p>
           <Button
             href={signupHref}
             variant="primary"

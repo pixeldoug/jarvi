@@ -10,6 +10,7 @@ import {
   rescheduleRemindersForTask,
 } from '../services/reminderService';
 import { RecurrenceType } from '../types/recurrence';
+import { parseTaskFields } from '../utils/taskFields';
 import { recordTaskCreated } from '../services/taskTelemetry';
 
 const VALID_RECURRENCE_TYPES: RecurrenceType[] = [
@@ -64,7 +65,15 @@ export const createTask = async (
       return;
     }
 
-    if (!title) {
+    const parsed = parseTaskFields(
+      { title, priority, dueDate },
+      { titleRequired: true }
+    );
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    if (!parsed.title) {
       res.status(400).json({ error: 'Title is required' });
       return;
     }
@@ -74,6 +83,9 @@ export const createTask = async (
     const sanitizedTime = sanitizeTimeString(time);
     const sanitizedRecurrenceType = sanitizeRecurrenceType(recurrence_type);
     const sanitizedRecurrenceUntil = sanitizeRecurrenceUntil(recurrence_until);
+    const safeTitle = parsed.title;
+    const safePriority = parsed.priority !== undefined ? parsed.priority : null;
+    const safeDueDate = parsed.dueDate !== undefined ? parsed.dueDate : null;
     let newTask;
 
     if (isPostgreSQL()) {
@@ -88,13 +100,13 @@ export const createTask = async (
           [
             taskId,
             userId,
-            title,
+            safeTitle,
             description || null,
-            priority || null,
+            safePriority,
             category || null,
             important || false,
             sanitizedTime,
-            dueDate || null,
+            safeDueDate,
             sanitizedRecurrenceType,
             recurrence_config || null,
             sanitizedRecurrenceUntil,
@@ -117,13 +129,13 @@ export const createTask = async (
         [
           taskId,
           userId,
-          title,
+          safeTitle,
           description || null,
-          priority || null,
+          safePriority,
           category || null,
           important || false,
           sanitizedTime,
-          dueDate || null,
+          safeDueDate,
           sanitizedRecurrenceType,
           recurrence_config || null,
           sanitizedRecurrenceUntil,
@@ -247,6 +259,15 @@ export const updateTask = async (
       return;
     }
 
+    const parsed = parseTaskFields(
+      { title, priority, dueDate },
+      { titleRequired: false }
+    );
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+
     const now = new Date().toISOString();
     let existingTask;
     let updatedTask;
@@ -278,7 +299,7 @@ export const updateTask = async (
           // Converter strings vazias e valores pseudo-nulos ("null", "NULL", "undefined")
           // para SQL NULL, evitando que esses literais vazem para a UI.
           const timeValue = time !== undefined ? sanitizeTimeString(time) : existingTask.time;
-          const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
+          const dueDateValue = parsed.dueDate !== undefined ? parsed.dueDate : existingTask.due_date;
           const recurrenceTypeValue = recurrence_type !== undefined
             ? sanitizeRecurrenceType(recurrence_type)
             : existingTask.recurrence_type;
@@ -294,10 +315,10 @@ export const updateTask = async (
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, time = $7, due_date = $8, recurrence_type = $9, recurrence_config = $10, recurrence_until = $11, updated_at = $12
              WHERE id = $13 AND user_id = $14`,
             [
-              title || existingTask.title,
+              parsed.title !== undefined ? parsed.title : existingTask.title,
               description !== undefined ? description : existingTask.description,
               completed !== undefined ? completed : existingTask.completed,
-              priority !== undefined ? priority : existingTask.priority,
+              parsed.priority !== undefined ? parsed.priority : existingTask.priority,
               category !== undefined ? category : existingTask.category,
               important !== undefined ? important : existingTask.important,
               timeValue,
@@ -315,17 +336,17 @@ export const updateTask = async (
           // Se falhar (coluna time não existe), atualizar sem a coluna time
           console.log('Time column not found, updating without time field. Error:', timeColumnError);
           // Converter strings vazias para null para campos de timestamp
-          const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
+          const dueDateValue = parsed.dueDate !== undefined ? parsed.dueDate : existingTask.due_date;
           
           await client.query(
             `UPDATE tasks 
              SET title = $1, description = $2, completed = $3, priority = $4, category = $5, important = $6, due_date = $7, updated_at = $8
              WHERE id = $9 AND user_id = $10`,
             [
-              title || existingTask.title,
+              parsed.title !== undefined ? parsed.title : existingTask.title,
               description !== undefined ? description : existingTask.description,
               completed !== undefined ? completed : existingTask.completed,
-              priority !== undefined ? priority : existingTask.priority,
+              parsed.priority !== undefined ? parsed.priority : existingTask.priority,
               category !== undefined ? category : existingTask.category,
               important !== undefined ? important : existingTask.important,
               dueDateValue,
@@ -363,7 +384,7 @@ export const updateTask = async (
       // Converter strings vazias e valores pseudo-nulos ("null", "NULL", "undefined")
       // para SQL NULL, evitando que esses literais vazem para a UI.
       const timeValue = time !== undefined ? sanitizeTimeString(time) : existingTask.time;
-      const dueDateValue = dueDate !== undefined ? (dueDate === '' ? null : dueDate) : existingTask.due_date;
+      const dueDateValue = parsed.dueDate !== undefined ? parsed.dueDate : existingTask.due_date;
       const recurrenceTypeValue = recurrence_type !== undefined
         ? sanitizeRecurrenceType(recurrence_type)
         : existingTask.recurrence_type;
@@ -379,10 +400,10 @@ export const updateTask = async (
          SET title = ?, description = ?, completed = ?, priority = ?, category = ?, important = ?, time = ?, due_date = ?, recurrence_type = ?, recurrence_config = ?, recurrence_until = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
         [
-          title || existingTask.title,
+          parsed.title !== undefined ? parsed.title : existingTask.title,
           description !== undefined ? description : existingTask.description,
           completed !== undefined ? completed : existingTask.completed,
-          priority !== undefined ? priority : existingTask.priority,
+          parsed.priority !== undefined ? parsed.priority : existingTask.priority,
           category !== undefined ? category : existingTask.category,
           important !== undefined ? important : existingTask.important,
           timeValue,

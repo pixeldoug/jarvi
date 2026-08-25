@@ -925,17 +925,7 @@ export function Tasks() {
         return;
       }
 
-      // Check if task is completed and has today's date - keep it in "hoje" section
-      if (task.completed && task.due_date) {
-        const taskDateStr = task.due_date.split('T')[0];
-        if (taskDateStr === todayStr) {
-          // Keep completed tasks with today's date in "hoje" section
-          categories.hoje.push(task);
-          return;
-        }
-      }
-
-      // Separate other completed tasks
+      // Completed tasks always live in Concluídas, including those with a due date.
       if (task.completed) {
         categories.completadas.push(task);
         return;
@@ -964,7 +954,7 @@ export function Tasks() {
       }
     });
 
-    // Sort "hoje" section: incomplete tasks first, completed tasks at the end
+    // Keep section order stable; completed items no longer mix into Hoje.
     categories.hoje.sort((a, b) => {
       if (a.completed && !b.completed) return 1; // completed after incomplete
       if (!a.completed && b.completed) return -1; // incomplete before completed
