@@ -7,6 +7,7 @@ import {
   deletePendingTaskRow,
   getPendingTaskById,
   rejectPending,
+  SUBSCRIPTION_REQUIRED,
   updatePendingTaskFields,
 } from '../services/pendingTaskService';
 
@@ -81,6 +82,13 @@ export const confirmPendingTask = async (req: Request, res: Response): Promise<v
     const task = await confirmPending(pendingTask);
     res.status(201).json({ task, pendingTaskId: id, status: 'confirmed' });
   } catch (error) {
+    if (error instanceof Error && error.message === SUBSCRIPTION_REQUIRED) {
+      res.status(403).json({
+        error: 'subscription_required',
+        message: 'An active subscription is required to access this resource',
+      });
+      return;
+    }
     console.error('Error confirming pending task:', error);
     res.status(500).json({ error: 'Failed to confirm pending task' });
   }

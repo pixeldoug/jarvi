@@ -18,6 +18,41 @@ function isTrialStillActive(trialEndsAtIso: string | null): boolean {
   return trialEnd.getTime() > Date.now();
 }
 
+async function resolveActiveSubscription(
+  userId: string
+): Promise<{ user: UserWithSubscription | null; isActive: boolean }> {
+  let user = await getUserSubscriptionStatus(userId);
+  if (!user) {
+    return { user: null, isActive: false };
+  }
+
+  let isActive = computeIsActive(user);
+
+  // Auto-heal: if DB says not-active but we have a Stripe subscription ID, our DB
+  // may be stale (e.g. webhooks arrived out of order or an invoice event was missed).
+  // Pull live state from Stripe and re-check before rejecting the request.
+  if (!isActive && user.stripe_subscription_id) {
+    const syncedStatus = await syncSubscriptionFromStripe(
+      userId,
+      user.stripe_subscription_id
+    );
+    if (syncedStatus && ACTIVE_STATUSES.has(syncedStatus)) {
+      user = await getUserSubscriptionStatus(userId);
+      if (user) {
+        isActive = computeIsActive(user);
+      }
+    }
+  }
+
+  return { user, isActive };
+}
+
+/** Shared check for HTTP middleware, pending-task confirm, and WhatsApp tools. */
+export async function userHasActiveSubscription(userId: string): Promise<boolean> {
+  const { isActive } = await resolveActiveSubscription(userId);
+  return isActive;
+}
+
 /**
  * Middleware to require an active subscription (trialing or active)
  * Use this middleware on routes that require a paid subscription
@@ -35,36 +70,18 @@ export async function requireActiveSubscription(
       return;
     }
 
-    let user = await getUserSubscriptionStatus(userId);
+    const { user, isActive } = await resolveActiveSubscription(userId);
 
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    let isActive = computeIsActive(user);
-
-    // Auto-heal: if DB says not-active but we have a Stripe subscription ID, our DB
-    // may be stale (e.g. webhooks arrived out of order or an invoice event was missed).
-    // Pull live state from Stripe and re-check before rejecting the request.
-    if (!isActive && user.stripe_subscription_id) {
-      const syncedStatus = await syncSubscriptionFromStripe(
-        userId,
-        user.stripe_subscription_id
-      );
-      if (syncedStatus && ACTIVE_STATUSES.has(syncedStatus)) {
-        user = await getUserSubscriptionStatus(userId);
-        if (user) {
-          isActive = computeIsActive(user);
-        }
-      }
-    }
-
     if (!isActive) {
       res.status(403).json({
         error: 'subscription_required',
         message: 'An active subscription is required to access this resource',
-        subscriptionStatus: user?.subscription_status,
+        subscriptionStatus: user.subscription_status,
       });
       return;
     }

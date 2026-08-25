@@ -447,42 +447,86 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const searchTerm = `%${q}%`;
-    let users;
+    const query = q.trim();
+    const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(query);
+
+    if (query.length < 3 && !looksLikeEmail) {
+      res.status(400).json({ error: 'Search query must be at least 3 characters' });
+      return;
+    }
+
+    const isExactEmail = looksLikeEmail;
+    let users: Array<{ id: string; name: string; email: string }>;
 
     if (isPostgreSQL()) {
       const pool = getPool();
       const client = await pool.connect();
       try {
-        const result = await client.query(
-          `SELECT id, name, email 
-           FROM users 
-           WHERE (name ILIKE $1 OR email ILIKE $1) 
-           AND id != $2 
-           ORDER BY name ASC 
-           LIMIT 10`,
-          [searchTerm, userId]
-        );
-        users = result.rows;
+        if (isExactEmail) {
+          const result = await client.query(
+            `SELECT id, name, email
+             FROM users
+             WHERE LOWER(email) = LOWER($1)
+               AND id != $2
+             LIMIT 1`,
+            [query, userId]
+          );
+          users = result.rows;
+        } else {
+          const result = await client.query(
+            `SELECT id, name, email
+             FROM users
+             WHERE (name ILIKE $1 OR email ILIKE $1)
+               AND id != $2
+             ORDER BY name ASC
+             LIMIT 10`,
+            [`%${query}%`, userId]
+          );
+          users = result.rows;
+        }
       } finally {
         client.release();
       }
     } else {
       const db = getDatabase();
-      users = await db.all(
-        `SELECT id, name, email 
-         FROM users 
-         WHERE (name LIKE ? OR email LIKE ?) 
-         AND id != ? 
-         ORDER BY name ASC 
-         LIMIT 10`,
-        [searchTerm, searchTerm, userId]
-      );
+      if (isExactEmail) {
+        users = await db.all(
+          `SELECT id, name, email
+           FROM users
+           WHERE LOWER(email) = LOWER(?)
+             AND id != ?
+           LIMIT 1`,
+          [query, userId]
+        );
+      } else {
+        const searchTerm = `%${query}%`;
+        users = await db.all(
+          `SELECT id, name, email
+           FROM users
+           WHERE (name LIKE ? OR email LIKE ?)
+             AND id != ?
+           ORDER BY name ASC
+           LIMIT 10`,
+          [searchTerm, searchTerm, userId]
+        );
+      }
     }
 
-    res.json(users);
+    const payload = users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: isExactEmail ? user.email : maskEmail(user.email),
+    }));
+
+    res.json(payload);
   } catch (error) {
     console.error('Error searching users:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+function maskEmail(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return '***';
+  return `${email[0]}***${email.slice(at)}`;
+}

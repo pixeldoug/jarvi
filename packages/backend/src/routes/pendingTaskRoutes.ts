@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { requireActiveSubscription } from '../middleware/requireSubscription';
 import {
   confirmPendingTask,
   deletePendingTask,
@@ -10,10 +11,12 @@ import {
 
 const router = Router();
 
-router.get('/', authenticateToken, getPendingTasks);
-router.post('/:id/confirm', authenticateToken, confirmPendingTask);
-router.post('/:id/reject', authenticateToken, rejectPendingTask);
-router.put('/:id', authenticateToken, updatePendingTask);
-router.delete('/:id', authenticateToken, deletePendingTask);
+router.use(authenticateToken, requireActiveSubscription);
+
+router.get('/', getPendingTasks);
+router.post('/:id/confirm', confirmPendingTask);
+router.post('/:id/reject', rejectPendingTask);
+router.put('/:id', updatePendingTask);
+router.delete('/:id', deletePendingTask);
 
 export default router;

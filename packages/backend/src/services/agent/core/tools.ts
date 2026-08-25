@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
 import { sanitizeTimeString, extractTimeFromText } from '../../../utils/taskTime';
 import { hasIO, getIO } from '../../../utils/ioManager';
+import { userHasActiveSubscription } from '../../../middleware/requireSubscription';
 import {
   fetchRecentEmails,
   getGmailTokens,
@@ -505,6 +506,14 @@ async function executeCreateTaskAsActive(
   input: CreateTaskInput,
   ctx: AgentContext,
 ): Promise<ToolExecutionResult> {
+  const hasSubscription = await userHasActiveSubscription(ctx.userId);
+  if (!hasSubscription) {
+    return {
+      success: false,
+      message: 'É necessário um plano ativo para criar tarefas.',
+    };
+  }
+
   const taskId = uuidv4();
   const {
     title,

@@ -16,6 +16,21 @@ import { triggerMemoryReconciliation } from '../services/agent/core/memory';
 const firstNameOf = (fullName?: string | null): string | undefined =>
   (fullName || '').trim().split(/\s+/)[0] || undefined;
 
+const LOGIN_GENERIC_ERROR = 'E-mail ou senha incorretos';
+const REGISTER_PENDING_MESSAGE =
+  'Conta criada com sucesso! Verifique seu email para ativar sua conta.';
+const RESEND_GENERIC_MESSAGE =
+  'Se o email existir, você receberá um código de verificação.';
+
+const isUnverifiedEmailPasswordAccount = (user: {
+  auth_provider?: string | null;
+  email_verified?: boolean | number | null;
+}): boolean => {
+  const provider = user.auth_provider || 'email';
+  const verified = user.email_verified === true || user.email_verified === 1;
+  return provider === 'email' && !verified;
+};
+
 /**
  * Fires the deep-funnel Meta conversion (account verified/active) server-side.
  * Uses a deterministic event id (`cr_<userId>`) so repeated verify calls dedup.
@@ -260,6 +275,10 @@ export const googleAuth = async (
           user = newUserResult.rows[0];
         } else {
           user = result.rows[0];
+          if (isUnverifiedEmailPasswordAccount(user)) {
+            res.status(401).json({ error: LOGIN_GENERIC_ERROR });
+            return;
+          }
           // Existing user: preserve user-customized name/avatar.
           // Only auto-fill avatar from Google when the user has no avatar and never explicitly removed it.
           const shouldUpdateAuthProvider = user.password === 'google-auth';
@@ -340,6 +359,10 @@ export const googleAuth = async (
 
         user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
       } else {
+        if (isUnverifiedEmailPasswordAccount(user)) {
+          res.status(401).json({ error: LOGIN_GENERIC_ERROR });
+          return;
+        }
         // Existing user: preserve user-customized name/avatar.
         // Only auto-fill avatar from Google when the user has no avatar and never explicitly removed it.
         const shouldUpdateAuthProvider = user.password === 'google-auth';
@@ -507,7 +530,11 @@ export const register = async (
         // Check if user already exists
         const existingResult = await client.query('SELECT * FROM users WHERE email = $1', [email]);
         if (existingResult.rows.length > 0) {
-          res.status(400).json({ error: 'User already exists' });
+          res.status(201).json({
+            pendingVerification: true,
+            message: REGISTER_PENDING_MESSAGE,
+            email,
+          });
           return;
         }
 
@@ -530,7 +557,11 @@ export const register = async (
       // Check if user already exists
       const existingUser = await db.get('SELECT * FROM users WHERE email = ?', [email]);
       if (existingUser) {
-        res.status(400).json({ error: 'User already exists' });
+        res.status(201).json({
+          pendingVerification: true,
+          message: REGISTER_PENDING_MESSAGE,
+          email,
+        });
         return;
       }
 
@@ -596,7 +627,7 @@ export const register = async (
     // Return success but indicate email verification is pending
     res.status(201).json({
       pendingVerification: true,
-      message: 'Conta criada com sucesso! Verifique seu email para ativar sua conta.',
+      message: REGISTER_PENDING_MESSAGE,
       email: newUser.email,
     });
   } catch (error) {
@@ -641,20 +672,20 @@ export const login = async (
     }
 
     if (!user) {
-      res.status(401).json({ error: 'E-mail ou senha incorretos' });
+      res.status(401).json({ error: LOGIN_GENERIC_ERROR });
       return;
     }
 
     // Check if user has a password (not Google-only user)
     if (user.auth_provider === 'google' || user.password === 'google-auth') {
-      res.status(401).json({ error: 'Please use Google Sign-In for this account' });
+      res.status(401).json({ error: LOGIN_GENERIC_ERROR });
       return;
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      res.status(401).json({ error: 'E-mail ou senha incorretos' });
+      res.status(401).json({ error: LOGIN_GENERIC_ERROR });
       return;
     }
 
@@ -1000,13 +1031,12 @@ export const resendVerification = async (
         user = result.rows[0];
 
         if (!user) {
-          // Don't reveal if email exists or not for security
-          res.json({ success: true, message: 'Se o email existir, você receberá um código de verificação.' });
+          res.json({ success: true, message: RESEND_GENERIC_MESSAGE });
           return;
         }
 
         if (user.email_verified) {
-          res.status(400).json({ error: 'Este email já está verificado.' });
+          res.json({ success: true, message: RESEND_GENERIC_MESSAGE });
           return;
         }
 
@@ -1025,12 +1055,12 @@ export const resendVerification = async (
       user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
 
       if (!user) {
-        res.json({ success: true, message: 'Se o email existir, você receberá um código de verificação.' });
+        res.json({ success: true, message: RESEND_GENERIC_MESSAGE });
         return;
       }
 
       if (user.email_verified) {
-        res.status(400).json({ error: 'Este email já está verificado.' });
+        res.json({ success: true, message: RESEND_GENERIC_MESSAGE });
         return;
       }
 
@@ -1052,7 +1082,7 @@ export const resendVerification = async (
       return;
     }
 
-    res.json({ success: true, message: 'Código de verificação enviado!' });
+    res.json({ success: true, message: RESEND_GENERIC_MESSAGE });
   } catch (error) {
     console.error('Resend verification error:', {
       message: error instanceof Error ? error.message : 'Unknown error',

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import {
@@ -12,6 +13,47 @@ import {
 } from '../services/gmailService';
 import { analyzeEmails } from '../services/gmailAnalysisService';
 import { getIO, hasIO } from '../utils/ioManager';
+
+const GMAIL_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+const getGmailStateSecret = (): string | undefined =>
+  process.env.GMAIL_OAUTH_STATE_SECRET || process.env.JWT_SECRET;
+
+const signGmailState = (userId: string, secret: string): string => {
+  const payload = Buffer.from(
+    JSON.stringify({ userId, exp: Date.now() + GMAIL_OAUTH_STATE_TTL_MS })
+  ).toString('base64url');
+  const mac = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${mac}`;
+};
+
+const verifyGmailState = (state: string, secret: string): string | null => {
+  const separator = state.lastIndexOf('.');
+  if (separator <= 0) return null;
+
+  const payload = state.slice(0, separator);
+  const mac = state.slice(separator + 1);
+  if (!payload || !mac) return null;
+
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  const macBuffer = Buffer.from(mac);
+  const expectedBuffer = Buffer.from(expected);
+  if (macBuffer.length !== expectedBuffer.length) return null;
+  if (!crypto.timingSafeEqual(macBuffer, expectedBuffer)) return null;
+
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')) as {
+      userId?: string;
+      exp?: number;
+    };
+    if (!decoded.userId || typeof decoded.exp !== 'number' || Date.now() > decoded.exp) {
+      return null;
+    }
+    return decoded.userId;
+  } catch {
+    return null;
+  }
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,8 +150,14 @@ export const gmailConnect = (req: Request, res: Response): void => {
       return;
     }
 
-    // Encode userId in state so we can recover it on callback
-    const state = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64url');
+    const secret = getGmailStateSecret();
+    if (!secret) {
+      res.status(500).json({ error: 'Failed to generate Gmail auth URL' });
+      return;
+    }
+
+    // Signed, short-lived state so the callback cannot accept a forged userId
+    const state = signGmailState(req.user.id, secret);
     const oauth2Client = createOAuth2Client();
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -147,19 +195,28 @@ export const gmailCallback = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    let userId: string;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8')) as {
-        userId: string;
-      };
-      userId = decoded.userId;
-    } catch {
+    const secret = getGmailStateSecret();
+    if (!secret) {
+      res.status(500).json({ error: 'Failed to complete Gmail OAuth' });
+      return;
+    }
+
+    const userId = verifyGmailState(state, secret);
+    if (!userId) {
       res.status(400).json({ error: 'Invalid state parameter' });
       return;
     }
 
     const oauth2Client = createOAuth2Client();
-    const { tokens } = await oauth2Client.getToken(code);
+    let tokens;
+    try {
+      const tokenResponse = await oauth2Client.getToken(code);
+      tokens = tokenResponse.tokens;
+    } catch (tokenError) {
+      console.error('[gmailController] getToken failed:', tokenError);
+      res.status(400).json({ error: 'Invalid or expired authorization code' });
+      return;
+    }
 
     if (!tokens.access_token || !tokens.refresh_token) {
       const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';

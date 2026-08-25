@@ -1098,6 +1098,12 @@ const runMigrations = async (): Promise<void> => {
           // Column already exists, ignore
         }
       }
+
+      try {
+        await client.query('ALTER TABLE notes ADD COLUMN IF NOT EXISTS category TEXT');
+      } catch (e) {
+        // Column already exists, ignore
+      }
     } finally {
       client.release();
     }
@@ -1500,6 +1506,12 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+    }
+
+    try {
+      await db.exec('ALTER TABLE notes ADD COLUMN category TEXT');
+    } catch (e) {
+      // Column already exists, ignore
     }
   }
 };
