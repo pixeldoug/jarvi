@@ -30,7 +30,7 @@ Doutrina de tokens (web): [packages/web/src/design-system/README.md](../packages
 | [product/](product/) | O que a Jarvi é (superfícies, job do produto) | App de tarefas; web + marketing + mobile | Spec de componente, bans de CSS |
 | [decisions/](decisions/) | ADRs — por que uma decisão existe | Um overlay por vez | “Importe `Dialog` de `components/ui`” |
 | [brand/](brand/) | Voz e tom (cross-surface) | PT-BR direto, sem jargão de design system | Paleta, `var(--…)`, Button vs Ghost |
-| `ARCHITECTURE.md`, `*_RUNBOOK.md`, `STRIPE_SETUP.md`, `PRODUCTION_PLAN.md`, `SETUP_NOVO_COMPUTADOR.md`, `WHATSAPP_TASKS.md` | Ops / engenharia **já existentes** — ficam na raiz de `docs/` neste passo | Como subir WhatsApp em produção | Contrato de UI |
+| `ARCHITECTURE.md`, `*_RUNBOOK.md`, `STRIPE_SETUP.md`, `PRODUCTION_PLAN.md`, `SETUP_NOVO_COMPUTADOR.md`, `WHATSAPP_TASKS.md`, [DAILY_SYSTEM_CHECK_RUNBOOK.md](DAILY_SYSTEM_CHECK_RUNBOOK.md) | Ops / engenharia — ficam na raiz de `docs/` neste passo | Como subir WhatsApp; verificação diária de produção | Contrato de UI |
 
 Arquivos de ops **não foram movidos**. Quando fizer sentido, podem ir para algo como `docs/ops/`; até lá, trate-os como engenharia, não como produto.
 
