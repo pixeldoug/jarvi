@@ -270,11 +270,14 @@ export interface ContextOptions {
   categories?: CategoryRow[];
   focusedTask?: TaskRow;
   mode?: 'general' | 'task';
+  onboardingJourneyPending?: boolean;
 }
 
 export function buildContext(opts: ContextOptions = {}): AgentContext {
   return {
     userId: 'eval-user',
+    // PostHog distinct_id for eval traces — matches the seeded eval user row.
+    email: 'eval@jarvi.test',
     preferredName: opts.preferredName ?? 'Doug',
     timezone: opts.timezone ?? 'America/Sao_Paulo',
     memory: opts.memory ?? 'Doug é fundador da Jarvi, mora em São Paulo.',
@@ -285,5 +288,6 @@ export function buildContext(opts: ContextOptions = {}): AgentContext {
     mode: opts.mode ?? (opts.focusedTask ? 'task' : 'general'),
     focusedTask: opts.focusedTask,
     originalUserMessage: '',
+    onboardingJourneyPending: opts.onboardingJourneyPending ?? false,
   };
 }

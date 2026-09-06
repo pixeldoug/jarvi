@@ -89,6 +89,7 @@ Para produção:
 | `TWILIO_AUTH_TOKEN` | Auth token Twilio (envio de mensagens/chamadas + validação de assinatura de webhooks) | `...` |
 | `TWILIO_WHATSAPP_NUMBER` | Número do sender de WhatsApp | `+55XXXXXXXXXXX` |
 | `TWILIO_WEBHOOK_URL` | URL do webhook inbound de WhatsApp (validação de assinatura) | `https://SEU_BACKEND/api/webhooks/whatsapp` |
+| `TWILIO_ONBOARDING_WELCOME_CONTENT_SID` | Content SID do único template de onboarding (boas-vindas + como usar no WhatsApp + dica de fixar). Variável `1` = nome | `HX...` |
 | `TWILIO_VOICE_NUMBER` | Número Twilio com capacidade de voz usado para lembretes por Ligação. Opcional — sem ele, cai para `TWILIO_WHATSAPP_NUMBER` (útil só em dev/teste, pois o sender de WhatsApp normalmente não tem voz habilitada) | `+55XXXXXXXXXXX` |
 | `BACKEND_PUBLIC_URL` | URL pública HTTPS do backend, usada para montar as URLs de TwiML/status callback que o Twilio busca ao processar uma Ligação de lembrete | `https://SEU_BACKEND` |
 

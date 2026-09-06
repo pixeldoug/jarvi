@@ -74,6 +74,8 @@ const createTables = async (): Promise<void> => {
       whatsapp_promo_dismissed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       avatar_explicitly_removed ${booleanType} DEFAULT FALSE,
       preferred_name TEXT,
+      onboarding_completed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      onboarding_journey_completed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -122,6 +124,15 @@ const createTables = async (): Promise<void> => {
       slack_message_ts TEXT,
       converted_user_id TEXT,
       converted_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      created_at ${timestampType},
+      updated_at ${timestampType}
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS onboarding_whatsapp_otps (
+      phone TEXT PRIMARY KEY,
+      code TEXT NOT NULL,
+      expires_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')} NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -882,6 +893,19 @@ const runMigrations = async (): Promise<void> => {
         }
       }
 
+      try {
+        await client.query(`CREATE TABLE IF NOT EXISTS onboarding_whatsapp_otps (
+          phone TEXT PRIMARY KEY,
+          code TEXT NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          attempt_count INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`);
+      } catch (e) {
+        // Table already exists, ignore
+      }
+
       // Migration: Add WhatsApp-specific task columns
       for (const migration of whatsappTaskMigrations) {
         try {
@@ -1097,6 +1121,53 @@ const runMigrations = async (): Promise<void> => {
         } catch (e) {
           // Column already exists, ignore
         }
+      }
+
+      try {
+        const columnResult = await client.query(
+          `SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'users'
+             AND column_name = 'onboarding_completed_at'`
+        );
+        if (columnResult.rows.length === 0) {
+          await client.query(
+            'ALTER TABLE users ADD COLUMN onboarding_completed_at TIMESTAMP'
+          );
+          await client.query(
+            `UPDATE users
+             SET onboarding_completed_at = created_at
+             WHERE onboarding_completed_at IS NULL`
+          );
+        }
+      } catch (e) {
+        // Column already exists, ignore
+      }
+
+      try {
+        const journeyColumn = await client.query(
+          `SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'users'
+             AND column_name = 'onboarding_journey_completed_at'`
+        );
+        if (journeyColumn.rows.length === 0) {
+          await client.query(
+            'ALTER TABLE users ADD COLUMN onboarding_journey_completed_at TIMESTAMP'
+          );
+          // Existing users already past the wizard should not get the
+          // first-tasks WhatsApp intro on their next chat turn.
+          await client.query(
+            `UPDATE users
+             SET onboarding_journey_completed_at = onboarding_completed_at
+             WHERE onboarding_completed_at IS NOT NULL
+               AND onboarding_journey_completed_at IS NULL`
+          );
+        }
+      } catch (e) {
+        // Column already exists, ignore
       }
     } finally {
       client.release();
@@ -1500,6 +1571,29 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+    }
+
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN onboarding_completed_at DATETIME');
+      await db.exec(
+        `UPDATE users
+         SET onboarding_completed_at = created_at
+         WHERE onboarding_completed_at IS NULL`
+      );
+    } catch (e) {
+      // Column already exists — do not backfill again (would close in-progress onboarding)
+    }
+
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN onboarding_journey_completed_at DATETIME');
+      await db.exec(
+        `UPDATE users
+         SET onboarding_journey_completed_at = onboarding_completed_at
+         WHERE onboarding_completed_at IS NOT NULL
+           AND onboarding_journey_completed_at IS NULL`
+      );
+    } catch (e) {
+      // Column already exists — do not backfill again
     }
   }
 };

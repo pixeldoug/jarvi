@@ -117,6 +117,28 @@ export const sendReminderTemplateMessage = async (
   });
 };
 
+export const sendOnboardingWelcomeTemplate = async (
+  to: string,
+  name: string,
+): Promise<void> => {
+  const contentSid = process.env.TWILIO_ONBOARDING_WELCOME_CONTENT_SID?.trim();
+  const safeName = name.slice(0, 40) || 'oi';
+  if (!contentSid) {
+    console.warn(
+      'TWILIO_ONBOARDING_WELCOME_CONTENT_SID is not set; skipping onboarding welcome WhatsApp.'
+    );
+    return;
+  }
+
+  const client = getTwilioClient();
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid,
+    contentVariables: JSON.stringify({ '1': safeName }),
+  });
+};
+
 export const downloadMedia = async (mediaUrl: string): Promise<Buffer> => {
   const { accountSid, authToken } = getTwilioCredentials();
   const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');

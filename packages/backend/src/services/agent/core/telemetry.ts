@@ -11,6 +11,7 @@
  */
 
 import { captureServer } from '../../posthogService';
+import { PROMPT_VERSION } from './prompt';
 import { AGENT_MODEL } from './runAgent';
 import type { AgentTurnUsage } from './types';
 
@@ -23,6 +24,8 @@ export interface AgentTurnTelemetryInput {
   usage: AgentTurnUsage;
   /** Whether the anti-hallucination retry fired during this turn. */
   retried: boolean;
+  /** PostHog AI observability trace id for this turn (see runAgent). */
+  traceId?: string;
 }
 
 export function recordAgentTurnUsage(input: AgentTurnTelemetryInput): void {
@@ -37,6 +40,11 @@ export function recordAgentTurnUsage(input: AgentTurnTelemetryInput): void {
     cached_tokens: input.usage.cachedTokens,
     api_calls: input.usage.apiCalls,
     retried: input.retried,
+    // `retried` is kept for continuity; `guardrail_fired` is the canonical
+    // flag name used by the AI-observability dashboards.
+    guardrail_fired: input.retried,
+    trace_id: input.traceId,
+    prompt_version: PROMPT_VERSION,
   });
 }
 

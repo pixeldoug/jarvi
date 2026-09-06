@@ -25,7 +25,7 @@ export interface DeleteAccountDialogProps {
 }
 
 export function DeleteAccountDialog({ isOpen, onClose, onDeleted }: DeleteAccountDialogProps) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [confirmText, setConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
@@ -84,7 +84,11 @@ export function DeleteAccountDialog({ isOpen, onClose, onDeleted }: DeleteAccoun
             <li>Todas as suas tarefas, notas, categorias e listas serão apagadas.</li>
             <li>Sua assinatura no Stripe será cancelada imediatamente.</li>
             <li>Sua conexão com WhatsApp e Google será removida.</li>
-            <li>Você perderá acesso ao Jarvi com este email.</li>
+            <li>
+              {user?.authProvider === 'whatsapp'
+                ? 'Você perderá acesso ao Jarvi com este WhatsApp.'
+                : 'Você perderá acesso ao Jarvi com este email.'}
+            </li>
           </ul>
           <p className={styles.descriptionMuted}>
             O histórico financeiro é mantido no Stripe para fins de auditoria, mas seus dados

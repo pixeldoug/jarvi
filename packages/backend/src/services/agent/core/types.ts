@@ -90,7 +90,10 @@ export type ToolName =
   | 'update_category'
   | 'delete_category'
   | 'show_category'
-  | 'scan_gmail';
+  | 'scan_gmail'
+  | 'search_web'
+  | 'offer_choices'
+  | 'complete_onboarding_journey';
 
 export interface ToolExecutionResult {
   success: boolean;
@@ -159,6 +162,13 @@ export interface AgentContext {
   focusedTask?: TaskRow;
   /** Original user message text (used by some tool executors for trace context). */
   originalUserMessage?: string;
+  /**
+   * True while the post-wizard first-tasks chat is still open
+   * (`onboarding_completed_at` set, `onboarding_journey_completed_at` null).
+   */
+  onboardingJourneyPending?: boolean;
+  /** True when the user has a verified WhatsApp number on the account. */
+  whatsappVerified?: boolean;
   /** Channel-specific metadata (e.g. WhatsApp phone / message SID). */
   whatsappPhone?: string;
   whatsappMessageSid?: string;
@@ -194,6 +204,8 @@ export interface AgentRunResult {
   toolCallNames: string[];
   /** Token usage aggregated across every OpenAI call made within this run. */
   usage: AgentTurnUsage;
+  /** PostHog AI observability trace id for this run (one per user turn). */
+  traceId: string;
 }
 
 // ---------------------------------------------------------------------------

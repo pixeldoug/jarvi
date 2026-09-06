@@ -30,9 +30,8 @@ import styles from './TrialExpiredGate.module.css';
 // ============================================================================
 
 const PAYMENT_URLS = {
-  monthly:  import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL        || '',
-  annual:   import.meta.env.VITE_STRIPE_PAYMENT_LINK_YEARLY_URL  || '',
-  lifetime: import.meta.env.VITE_STRIPE_PAYMENT_LINK_ONETIME_URL || '',
+  monthly: import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL       || '',
+  annual:  import.meta.env.VITE_STRIPE_PAYMENT_LINK_YEARLY_URL || '',
 } as const;
 
 interface PlanOption {
@@ -60,14 +59,6 @@ const PLANS: PlanOption[] = [
     price: 'R$ 20,75',
     suffix: '/mês',
     description: 'Equivale a R$ 249,00/ano',
-  },
-  {
-    id: 'lifetime',
-    title: 'Vitalício',
-    chip: 'Melhor valor',
-    price: 'R$ 398,00',
-    suffix: null,
-    description: 'Pagamento único, acesso para sempre.',
   },
 ];
 

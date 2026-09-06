@@ -130,8 +130,8 @@
 }
 
 .deleteBtn:hover {
-  background: var(--color-system-red-100);
-  color: var(--color-system-red-600);
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-primary);
 }
 
 /* ============================================================================

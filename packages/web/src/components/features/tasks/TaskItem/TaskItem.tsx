@@ -19,6 +19,7 @@ import { FrequencyPicker, type FrequencyValue } from '../FrequencyPicker';
 import { useCategories } from '../../../../contexts/CategoryContext';
 import { useMergedTaskCategories } from '../../../../hooks/useMergedTaskCategories';
 import { getTaskAppSource } from '../../../../lib/taskAppSource';
+import { capitalizeTaskTitle } from '../../../../lib/taskTitle';
 import { formatTaskDate, formatTaskDateWeekday, isToday, parseDateString } from '../../../../lib/utils';
 import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recurrence';
 import type { RecurrenceType } from '@jarvi/shared';
@@ -344,7 +345,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
                 }}
                 title={isMobile ? undefined : 'Clique para editar o título'}
               >
-                {task.title}
+                {capitalizeTaskTitle(task.title)}
               </p>
             )}
           </div>

@@ -70,7 +70,7 @@ export const ResetPassword: React.FC = () => {
   };
 
   const handleGoToLogin = () => {
-    navigate('/login');
+    navigate('/login/email');
   };
 
   if (success) {

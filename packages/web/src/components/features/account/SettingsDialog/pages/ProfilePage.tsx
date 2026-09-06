@@ -1,7 +1,7 @@
 /**
  * ProfilePage - SettingsDialog
  *
- * "Meu perfil" tab: avatar, name, timezone, email, connected account, delete account.
+ * "Meu perfil" tab: avatar, name, timezone, login identity (email or WhatsApp), connected account, delete account.
  * Logic extracted from AccountDialog + pages/Settings.
  */
 
@@ -15,9 +15,9 @@ import {
   Select,
   toast,
 } from '../../../../ui';
-import { GoogleLogin } from '../../../auth';
 import type { SelectOption } from '../../../../ui';
 import type { SettingsProfileOverlay } from '../settingsOverlays';
+import { LoginMethodsCard } from './LoginMethodsCard';
 import styles from '../SettingsDialog.module.css';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
@@ -59,8 +59,10 @@ const TIMEZONES: SelectOption[] = [
 
 export function ProfilePage({
   onOpenProfileOverlay,
+  onGoToApps,
 }: {
   onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
+  onGoToApps?: () => void;
 }) {
   const { user, updateUser, token, linkGoogleAccount } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,8 +79,16 @@ export function ProfilePage({
 
   const isGoogleUser = user?.authProvider === 'google';
   const isEmailUser = user?.authProvider === 'email';
+  const isWhatsappUser = user?.authProvider === 'whatsapp';
   const userName = user?.name || 'Usuário';
   const userEmail = user?.email || '';
+  const userWhatsappPhone = user?.whatsappVerified ? user.whatsappPhone : undefined;
+  const hasVerifiedEmail = Boolean(userEmail && user?.emailVerified === true);
+  const canDisconnectEmail = Boolean(userWhatsappPhone && userEmail && !isGoogleUser);
+  const canDisconnectWhatsapp = Boolean(userWhatsappPhone && hasVerifiedEmail);
+  const canDisconnectGoogle = Boolean(
+    isGoogleUser && (userWhatsappPhone || user?.hasPassword)
+  );
   const userAvatar = user?.avatar;
 
   // Load timezone
@@ -336,71 +346,19 @@ export function ProfilePage({
 
       <Divider />
 
-      {/* Email */}
-      <div className={styles.section}>
-        <div className={styles.emailDetails}>
-          <p className={styles.emailLabel}>Email</p>
-          <p className={styles.emailValue}>{userEmail}</p>
-        </div>
-      </div>
-
-      {/* Connected Account — Google users only */}
-      {isGoogleUser && (
-        <>
-          <Divider />
-          <div className={styles.section}>
-            <div className={styles.emailDetails}>
-              <p className={styles.sectionLabel}>Conta conectada</p>
-              <p className={styles.sectionDescription}>
-                Você pode fazer login no Jarvi com sua conta do Google {userEmail}
-              </p>
-            </div>
-            <div className={styles.googleButtonWrapper}>
-              <GoogleLogin
-                buttonText="Desconectar Google"
-                onClick={() => onOpenProfileOverlay?.('disconnect')}
-              />
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Password + Link Google — email users only */}
-      {isEmailUser && (
-        <>
-          <Divider />
-          <div className={styles.section}>
-            <div className={styles.emailDetails}>
-              <p className={styles.sectionLabel}>Senha</p>
-              <p className={styles.sectionDescription}>
-                Altere sua senha de acesso ao Jarvi.
-              </p>
-            </div>
-            <div>
-              <Button variant="secondary" onClick={() => onOpenProfileOverlay?.('password')}>
-                Alterar senha
-              </Button>
-            </div>
-          </div>
-
-          <Divider />
-          <div className={styles.section}>
-            <div className={styles.emailDetails}>
-              <p className={styles.sectionLabel}>Vincular Google</p>
-              <p className={styles.sectionDescription}>
-                Habilite o login com Google para entrar no Jarvi sem precisar de senha.
-                A conta Google precisa ter o mesmo email ({userEmail}).
-              </p>
-            </div>
-            <div className={styles.googleButtonWrapper}>
-              <GoogleLogin
-                buttonText="Vincular Google"
-                onCredential={handleLinkGoogle}
-              />
-            </div>
-          </div>
-        </>
-      )}
+      <LoginMethodsCard
+        email={userEmail}
+        emailVerified={hasVerifiedEmail}
+        whatsappPhone={userWhatsappPhone}
+        isGoogleUser={isGoogleUser}
+        canChangePassword={isEmailUser || (isWhatsappUser && hasVerifiedEmail)}
+        canDisconnectEmail={canDisconnectEmail}
+        canDisconnectWhatsapp={canDisconnectWhatsapp}
+        canDisconnectGoogle={canDisconnectGoogle}
+        onOpenOverlay={(overlay) => onOpenProfileOverlay?.(overlay)}
+        onLinkGoogle={handleLinkGoogle}
+        onGoToApps={onGoToApps}
+      />
 
       <Divider />
 

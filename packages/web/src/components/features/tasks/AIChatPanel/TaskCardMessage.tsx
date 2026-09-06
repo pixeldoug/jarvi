@@ -1,29 +1,11 @@
-import { useEffect, type ReactNode } from 'react';
-import {
-  Calendar,
-  Hash,
-  Fire,
-  Trash,
-  Repeat,
-  Bell,
-  CaretDown,
-  Star,
-  CheckCircle,
-} from '@phosphor-icons/react';
-import { Chip } from '../../../ui';
-import { TaskCheckbox } from '../TaskCheckbox';
+import { useEffect } from 'react';
+import { Checks, Trash } from '@phosphor-icons/react';
 import { useTasks } from '../../../../contexts/TaskContext';
 import { formatFrequencyChip } from '../../../../lib/recurrence';
-import { formatReminderLabel, isConfiguredReminder } from '../../../../lib/reminders';
+import { formatRemindersChipLabel, isConfiguredReminder } from '../../../../lib/reminders';
 import type { ToolCallData } from '../../../../hooks/useChatStream';
+import { capitalizeTaskTitle } from '../../../../lib/taskTitle';
 import styles from './AIChatPanel.module.css';
-
-const PRIORITY_LABELS: Record<string, string> = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Urgente',
-  urgent: 'Urgente',
-};
 
 function normalizeTime(time?: string | null): string {
   if (!time) return '';
@@ -72,26 +54,18 @@ function formatDueDate(raw: string): string {
   return `${day} ${month}`;
 }
 
-interface ArtifactChip {
-  key: string;
-  label: string;
-  icon: ReactNode;
-}
-
-interface DetailRow {
-  key: string;
-  kind: string;
-  label: string;
-  icon: ReactNode;
-}
+/**
+ * The artifact only carries what identifies the task in the conversation.
+ * Category, priority and the rest stay in the task itself, one click away.
+ */
+const MAX_META_PARTS = 2;
 
 interface TaskCardMessageProps {
   toolCall: ToolCallData;
   onTaskClick?: (taskId: string) => void;
-  onToggleCompletion?: (taskId: string) => void;
 }
 
-export function TaskCardMessage({ toolCall, onTaskClick, onToggleCompletion }: TaskCardMessageProps) {
+export function TaskCardMessage({ toolCall, onTaskClick }: TaskCardMessageProps) {
   const { tasks, remindersByTaskId, fetchReminders } = useTasks();
   const data = toolCall.result?.data;
   const taskId = data ? String(data.id || '') : '';
@@ -110,14 +84,12 @@ export function TaskCardMessage({ toolCall, onTaskClick, onToggleCompletion }: T
 
   // When the live task exists, use it as source of truth (including cleared fields).
   // Fall back to the tool-call snapshot only before the task is in local state.
-  const title = liveTask
-    ? liveTask.title
-    : pickPersistedField(data, 'title', toolCall.toolArgs);
+  const title = capitalizeTaskTitle(
+    liveTask ? liveTask.title : pickPersistedField(data, 'title', toolCall.toolArgs),
+  );
   const isCompleted = liveTask
     ? liveTask.completed
     : toolCall.toolName === 'complete_task' || Boolean(data.completed);
-  const priority = liveTask?.priority
-    || pickPersistedField(data, 'priority', toolCall.toolArgs);
   // Resolve due date with care:
   // - live `due_date` / legacy camelCase `dueDate` from optimistic writes
   // - empty string/null on the live task means "cleared" (don't use snapshot)
@@ -137,177 +109,62 @@ export function TaskCardMessage({ toolCall, onTaskClick, onToggleCompletion }: T
       dueDate = snapshotDueDate;
     }
   }
-  const category = liveTask
-    ? (liveTask.category || '')
-    : pickPersistedField(data, 'category', toolCall.toolArgs);
   const time = normalizeTime(
     liveTask ? liveTask.time : pickPersistedField(data, 'time', toolCall.toolArgs),
   );
-  const recurrenceType = liveTask?.recurrence_type;
-  const recurrenceConfig = liveTask?.recurrence_config;
 
   if (!title && !isCompleted && !isDeleted) return null;
 
   // A deleted task no longer exists, so there's nothing to navigate to —
-  // unlike the other cards, this one is never clickable.
+  // unlike the other artifacts, this one is never clickable.
   const isClickable = !isDeleted && Boolean(taskId && onTaskClick);
-  const canToggle = !isDeleted && Boolean(taskId && onToggleCompletion);
 
   const handleClick = () => {
     if (isClickable) onTaskClick?.(taskId);
   };
 
   const formattedDate = formatDueDate(dueDate);
-  const dateChipLabel = formattedDate
+  const dateLabel = formattedDate
     ? time
       ? `${formattedDate}, ${time}`
       : formattedDate
     : time;
-  // In the hover menu, surface every set priority — including medium.
-  const priorityLabel = priority ? PRIORITY_LABELS[priority] || priority : '';
   const snapshotRecurrenceType = pickPersistedField(data, 'recurrence_type', toolCall.toolArgs);
   const snapshotRecurrenceConfig = pickPersistedField(data, 'recurrence_config', toolCall.toolArgs);
   const frequencyLabel =
-    formatFrequencyChip(recurrenceType, recurrenceConfig)
+    formatFrequencyChip(liveTask?.recurrence_type, liveTask?.recurrence_config)
     || formatFrequencyChip(
       (snapshotRecurrenceType || undefined) as Parameters<typeof formatFrequencyChip>[0],
       snapshotRecurrenceConfig || null,
     );
-  const isImportant = Boolean(liveTask?.important);
 
-  const dateChip: ArtifactChip | null = dateChipLabel
-    ? {
-        key: 'date',
-        label: dateChipLabel,
-        icon: <Calendar weight="regular" />,
-      }
-    : null;
-
-  // Rich detail rows for the hover dropdown (everything beyond the date chip).
-  const detailRows: DetailRow[] = [];
-  if (category) {
-    detailRows.push({
-      key: 'category',
-      kind: 'Categoria',
-      label: category.startsWith('#') ? category : `# ${category}`,
-      icon: <Hash weight="regular" />,
-    });
-  }
-  if (priorityLabel) {
-    detailRows.push({
-      key: 'priority',
-      kind: 'Prioridade',
-      label: priorityLabel,
-      icon: <Fire weight="regular" />,
-    });
-  }
-  if (frequencyLabel) {
-    detailRows.push({
-      key: 'recurrence',
-      kind: 'Recorrência',
-      label: frequencyLabel,
-      icon: <Repeat weight="regular" />,
-    });
-  }
+  const metaParts: string[] = [];
+  if (dateLabel) metaParts.push(dateLabel);
   if (configuredReminders.length > 0) {
-    configuredReminders.forEach((reminder, index) => {
-      detailRows.push({
-        key: `reminder-${reminder.id || index}`,
-        kind: configuredReminders.length > 1 ? `Lembrete ${index + 1}` : 'Lembrete',
-        label: formatReminderLabel(reminder),
-        icon: <Bell weight="regular" />,
-      });
-    });
+    metaParts.push(formatRemindersChipLabel(configuredReminders));
   }
-  if (isImportant) {
-    detailRows.push({
-      key: 'important',
-      kind: 'Destaque',
-      label: 'Importante',
-      icon: <Star weight="fill" />,
-    });
-  }
-  if (isCompleted) {
-    detailRows.push({
-      key: 'status',
-      kind: 'Status',
-      label: 'Concluída',
-      icon: <CheckCircle weight="fill" />,
-    });
-  }
-
-  const hasMeta = Boolean(dateChip || detailRows.length > 0);
+  if (frequencyLabel) metaParts.push(frequencyLabel);
+  const meta = isDeleted ? '' : metaParts.slice(0, MAX_META_PARTS).join(' · ');
 
   return (
     <div
-      className={`${styles.taskCard} ${isClickable ? styles.taskCardClickable : ''}`}
+      className={`${styles.taskRef} ${isClickable ? styles.taskRefClickable : ''}`}
       onClick={handleClick}
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       onKeyDown={isClickable ? (e) => e.key === 'Enter' && handleClick() : undefined}
     >
-      <div className={styles.taskCardHeader}>
-        {isDeleted ? (
-          <Trash size={20} weight="regular" className={styles.taskCardCheckDone} />
-        ) : (
-          <TaskCheckbox
-            checked={isCompleted}
-            onChange={() => {
-              if (canToggle) onToggleCompletion?.(taskId);
-            }}
-            ariaLabel={isCompleted ? 'Marcar como não concluída' : 'Marcar como concluída'}
-          />
-        )}
-        <span
-          className={`${styles.taskCardTitle} ${isCompleted || isDeleted ? styles.taskCardTitleDone : ''}`}
-        >
-          {title || (isDeleted ? 'Tarefa excluída' : 'Tarefa concluída')}
-        </span>
-      </div>
-
-      {!isDeleted && hasMeta && (
-        <div
-          className={styles.taskCardMeta}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-        >
-          {dateChip && (
-            <Chip
-              label={dateChip.label}
-              icon={dateChip.icon}
-              size="medium"
-              active
-            />
-          )}
-
-          {detailRows.length > 0 && (
-            <div className={styles.taskCardExtra}>
-              <button
-                type="button"
-                className={styles.taskCardExtraTrigger}
-                aria-label={`Mais ${detailRows.length} detalhes`}
-                aria-haspopup="true"
-              >
-                <span>+{detailRows.length}</span>
-                <CaretDown size={12} weight="bold" />
-              </button>
-              <div className={styles.taskCardDropdown} role="menu">
-                {detailRows.map((row) => (
-                  <div key={row.key} className={styles.taskCardDropdownRow} role="menuitem">
-                    <span className={styles.taskCardDropdownIcon} aria-hidden>
-                      {row.icon}
-                    </span>
-                    <span className={styles.taskCardDropdownText}>
-                      <span className={styles.taskCardDropdownKind}>{row.kind}</span>
-                      <span className={styles.taskCardDropdownLabel}>{row.label}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+      {isDeleted ? (
+        <Trash size={16} weight="regular" className={styles.taskRefIcon} aria-hidden />
+      ) : (
+        <Checks size={16} weight="regular" className={styles.taskRefIcon} aria-hidden />
       )}
+      <span
+        className={`${styles.taskRefTitle} ${isCompleted || isDeleted ? styles.taskRefTitleDone : ''}`}
+      >
+        {title || (isDeleted ? 'Tarefa excluída' : 'Tarefa concluída')}
+      </span>
+      {meta && <span className={styles.taskRefMeta}>{meta}</span>}
     </div>
   );
 }

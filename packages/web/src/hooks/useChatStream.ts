@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -15,6 +16,10 @@ export interface ChatMessageData {
   reasoningSegments?: string[];
   /** Files the user attached to this message (metadata only, for display). */
   attachments?: ChatAttachmentMeta[];
+  /** Suggested replies the user can tap (onboarding follow-up, etc.). */
+  choicePrompts?: string[];
+  /** Question shown above the choice buttons. */
+  choicePromptTitle?: string;
 }
 
 /** Lightweight attachment metadata kept in the UI for rendering chips. */
@@ -64,9 +69,13 @@ function finalizeReasoningSegment(message: ChatMessageData): ChatMessageData {
   };
 }
 
-export function useChatStream(mode: 'task' | 'general', taskId?: string) {
+export function useChatStream(
+  mode: 'task' | 'general',
+  taskId?: string,
+  seededMessages: ChatMessageData[] = [],
+) {
   const { token } = useAuth();
-  const [messages, setMessages] = useState<ChatMessageData[]>([]);
+  const [messages, setMessages] = useState<ChatMessageData[]>(seededMessages);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
@@ -89,13 +98,23 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
 
     setMessages((prev) => [...prev, userMsg]);
 
-    const historyForApi = [...messages, userMsg].map((m) => ({
-      role: m.role,
-      content: [m.content, m.contentAfter].filter(Boolean).join('\n\n'),
-    }));
+    const historyForApi = [...messages, userMsg].map((m) => {
+      const artifact = m.role === 'assistant' ? resolveChatChoiceArtifact(m) : null;
+      const choiceLine =
+        artifact && artifact.choices.length > 0
+          ? [artifact.question, `Opções: ${artifact.choices.join(' | ')}`].filter(Boolean).join('\n')
+          : '';
+      return {
+        role: m.role,
+        content: [
+          artifact ? artifact.content : m.content,
+          artifact ? artifact.contentAfter : m.contentAfter,
+          choiceLine,
+        ].filter(Boolean).join('\n\n'),
+      };
+    });
 
     const assistantId = nextId();
-    let afterSeparator = false;
     setMessages((prev) => [
       ...prev,
       {
@@ -186,23 +205,19 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
 
             case 'text':
               setIsWaiting(false);
-              if (afterSeparator) {
-                updateAssistant((m) => ({
-                  ...m,
-                  contentAfter: (m.contentAfter || '') + (event.content || ''),
-                }));
-              } else {
-                updateAssistant((m) => ({
-                  ...m,
-                  content: m.content + (event.content || ''),
-                }));
-              }
+              updateAssistant((m) => ({
+                ...m,
+                content: m.content + (event.content || ''),
+              }));
               break;
 
             case 'separator':
-              afterSeparator = true;
+              // The agent is restarting this turn (guardrail retry). The retry
+              // supersedes the previous attempt — `runAgent` returns only the
+              // last text — so the partial answer already streamed must go.
               finalizeAssistantReasoning();
               setIsWaiting(true);
+              updateAssistant((m) => ({ ...m, content: '' }));
               break;
 
             case 'tool_call':
@@ -239,7 +254,15 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
                     },
                   };
                 }
-                return { ...m, toolCalls: calls };
+                const next: ChatMessageData = { ...m, toolCalls: calls };
+                if (event.toolName === 'offer_choices' && event.success) {
+                  const artifact = resolveChatChoiceArtifact(next);
+                  if (artifact.choices.length > 0) {
+                    next.choicePromptTitle = artifact.question;
+                    next.choicePrompts = artifact.choices;
+                  }
+                }
+                return next;
               });
               break;
 
@@ -247,22 +270,22 @@ export function useChatStream(mode: 'task' | 'general', taskId?: string) {
               const errorText = event.message || 'Ocorreu um erro.';
               updateAssistant((m) => {
                 if (!m.content) return { ...m, content: errorText };
-                if (afterSeparator) {
-                  return {
-                    ...m,
-                    contentAfter:
-                      (m.contentAfter || '') +
-                      (m.contentAfter ? '\n\n' : '') +
-                      `⚠️ ${errorText}`,
-                  };
-                }
                 return { ...m, content: m.content + `\n\n⚠️ ${errorText}` };
               });
               break;
             }
 
             case 'done':
-              finalizeAssistantReasoning();
+              updateAssistant((m) => {
+                const withReasoning = finalizeReasoningSegment(m);
+                const artifact = resolveChatChoiceArtifact(withReasoning);
+                if (artifact.choices.length === 0) return withReasoning;
+                return {
+                  ...withReasoning,
+                  choicePromptTitle: artifact.question,
+                  choicePrompts: artifact.choices,
+                };
+              });
               break;
           }
         }

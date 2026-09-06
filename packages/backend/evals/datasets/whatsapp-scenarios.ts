@@ -17,6 +17,7 @@ import {
   todayIso,
   WEEKDAY,
 } from '../helpers';
+import type { RuleExpectations } from '../ruleChecker';
 /**
  * Gold-standard WhatsApp task-creation confirmation, mirroring the mandatory
  * format in `buildWhatsappExtras` (prompt.ts): bold title + 🗓️, a due-date
@@ -66,9 +67,20 @@ const TIME_ALREADY_PASSED_TODAY = offsetTimeToday(-120);
 // Scenario shape
 // ---------------------------------------------------------------------------
 
-export interface EvalScenario {
-  name: string;
+/**
+ * One user turn of a multi-turn scenario: the input plus the assertions
+ * checked against THAT turn's output and tool calls only.
+ */
+export interface EvalTurn extends RuleExpectations {
   input: string;
+  /** Free-form gold standard used by the LLM judge for this turn. */
+  idealOutput?: string;
+}
+
+export interface EvalScenario extends RuleExpectations {
+  name: string;
+  /** Single-turn user message. Ignored when `turns` is set. */
+  input?: string;
   channel?: 'whatsapp' | 'web';
   contextOverrides?: {
     memory?: string;
@@ -77,26 +89,22 @@ export interface EvalScenario {
     categories?: ReturnType<typeof makeCategory>[];
     focusedTask?: ReturnType<typeof makeTask>;
     mode?: 'general' | 'task';
+    onboardingJourneyPending?: boolean;
   };
-  /** Strings that MUST appear in the response (case-insensitive). */
-  mustContain?: string[];
-  /** Strings that must NOT appear in the response (case-insensitive). */
-  mustNotContain?: string[];
-  /** Tools that MUST be called during the scenario. */
-  mustCallTool?: string[];
-  /** Tools that must NOT be called during the scenario. */
-  mustNotCallTool?: string[];
-  /** Exact number of times a tool must be called. */
-  mustCallToolCount?: Record<string, number>;
-  /** Tool argument expectations. At least one call to tool must include arg === value. */
-  mustCallToolArgs?: Array<{ tool: string; arg: string; value: string | null }>;
-  /** Tool argument exclusions. No call to tool must include arg === value. */
-  mustNotCallToolArgs?: Array<{ tool: string; arg: string; value: string | null }>;
-  /** Task IDs that must be updated via update_task. */
-  mustUpdateTaskIds?: string[];
-  /** Task IDs that must not be updated via update_task. */
-  mustNotUpdateTaskIds?: string[];
-  /** Free-form gold standard used by the LLM-based scorer. */
+  /**
+   * Chat already on the table before turn 1. Use when the bug only appears
+   * as a reply to a previous assistant offer (e.g. "ok" after "shall I
+   * continue with the other task?").
+   */
+  seedHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /**
+   * Multi-turn scenario: user turns executed in sequence with the accumulated
+   * conversation history (and task state refreshed between turns). When set,
+   * the top-level `input`, rule expectations, and `idealOutput` are ignored —
+   * each turn carries its own assertions.
+   */
+  turns?: EvalTurn[];
+  /** Free-form gold standard used by the LLM-based scorer (single-turn). */
   idealOutput?: string;
   tags: string[];
 }
@@ -525,5 +533,90 @@ export const SCENARIOS: EvalScenario[] = [
     mustContain: ['Brasília'],
     mustNotContain: ['erro', 'error', 'não consigo'],
     tags: ['edge', 'off-topic'],
+  },
+
+  // ── Multi-turn ───────────────────────────────────────────────────────────────
+  {
+    // Turn 1 creates the task and (per the reminder flow) must ask for the
+    // missing reminder time instead of claiming the reminder is set; turn 2's
+    // confirmation ("pode ser") must land in update_task, not just chat.
+    name: 'multiturn/reminder-confirmation-updates-task',
+    turns: [
+      {
+        input: 'me lembra de tomar o remédio da pressão amanhã',
+        mustCallTool: ['create_task'],
+        mustCallToolArgs: [
+          { tool: 'create_task', arg: 'due_date', value: TOMORROW },
+        ],
+        mustNotContain: ['anotado', 'vou anotar'],
+      },
+      {
+        input: 'pode ser às 8h por whatsapp',
+        mustCallTool: ['update_task'],
+        mustNotCallTool: ['create_task'],
+      },
+    ],
+    tags: ['multiturn', 'reminder', 'ack', 'tool-calling'],
+  },
+  {
+    // Correcting the date of the task created in the previous turn must be an
+    // update_task on the SAME task — never a second create_task.
+    name: 'multiturn/date-correction-updates-not-duplicates',
+    turns: [
+      {
+        input: 'dentista amanhã às 10h',
+        mustCallTool: ['create_task'],
+        mustCallToolArgs: [
+          { tool: 'create_task', arg: 'due_date', value: TOMORROW },
+          { tool: 'create_task', arg: 'time', value: '10:00' },
+        ],
+      },
+      {
+        input: 'na verdade a consulta é na sexta',
+        mustCallTool: ['update_task'],
+        mustNotCallTool: ['create_task'],
+        mustCallToolArgs: [
+          { tool: 'update_task', arg: 'due_date', value: NEXT_FRIDAY },
+        ],
+      },
+    ],
+    tags: ['multiturn', 'date-correction', 'tool-calling'],
+  },
+  {
+    // "já comprei" refers to the task created one turn earlier — the agent
+    // must complete that task, not create another one or just acknowledge.
+    name: 'multiturn/complete-task-from-previous-turn',
+    turns: [
+      {
+        input: 'comprar ração pro cachorro hoje',
+        mustCallTool: ['create_task'],
+        mustCallToolArgs: [
+          { tool: 'create_task', arg: 'due_date', value: TODAY },
+        ],
+      },
+      {
+        input: 'já comprei, pode concluir',
+        mustCallTool: ['complete_task'],
+        mustNotCallTool: ['create_task'],
+      },
+    ],
+    tags: ['multiturn', 'complete', 'cross-turn-reference', 'tool-calling'],
+  },
+  {
+    // An explicit "não cria tarefa" in a follow-up question must be honored
+    // even right after a turn where a task WAS created.
+    name: 'multiturn/nao-cria-so-me-fala',
+    turns: [
+      {
+        input: 'preciso marcar dermatologista semana que vem na quarta',
+        mustCallTool: ['create_task'],
+      },
+      {
+        input: 'e quanto custa em média uma consulta dessas? não cria tarefa, só me fala',
+        mustNotCallTool: ['create_task'],
+        mustNotContain: ['tarefa criada', 'salvo!'],
+      },
+    ],
+    tags: ['multiturn', 'no-create', 'explicit-negative', 'tool-calling'],
   },
 ];

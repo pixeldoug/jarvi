@@ -17,7 +17,7 @@ import { Button, Dialog, PasswordInput, toast } from '../../../../ui';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import styles from './DisconnectGoogleDialog.module.css';
 
-type Step = 'intro' | 'create-password' | 'confirm' | 'success';
+type Step = 'intro' | 'create-password' | 'confirm' | 'confirm-whatsapp' | 'success';
 
 export interface DisconnectGoogleDialogProps {
   isOpen: boolean;
@@ -26,10 +26,15 @@ export interface DisconnectGoogleDialogProps {
 
 export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDialogProps) {
   const { user, addPasswordToGoogleAccount, disconnectGoogle } = useAuth();
+  const canFallBackToWhatsapp = Boolean(user?.whatsappVerified && user?.whatsappPhone);
 
-  const initialStep: Step = user?.hasPassword ? 'confirm' : 'intro';
+  const resolveStep = (): Step => {
+    if (user?.hasPassword) return 'confirm';
+    if (canFallBackToWhatsapp) return 'confirm-whatsapp';
+    return 'intro';
+  };
 
-  const [step, setStep] = useState<Step>(initialStep);
+  const [step, setStep] = useState<Step>(resolveStep);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(0);
@@ -38,14 +43,14 @@ export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDial
 
   useEffect(() => {
     if (isOpen) {
-      setStep(user?.hasPassword ? 'confirm' : 'intro');
+      setStep(resolveStep());
       setPassword('');
       setConfirmPassword('');
       setPasswordStrength(0);
       setError('');
       setIsSubmitting(false);
     }
-  }, [isOpen, user?.hasPassword]);
+  }, [isOpen, user?.hasPassword, canFallBackToWhatsapp]);
 
   const closeIfIdle = () => {
     if (isSubmitting) return;
@@ -88,7 +93,11 @@ export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDial
     try {
       setIsSubmitting(true);
       await disconnectGoogle();
-      toast.success('Google desvinculado. Use email e senha nos próximos logins.');
+      toast.success(
+        canFallBackToWhatsapp && !user?.hasPassword
+          ? 'Google desvinculado. Você passa a entrar só com o WhatsApp.'
+          : 'Google desvinculado. Use email e senha nos próximos logins.',
+      );
       setStep('success');
     } catch (err) {
       const code = (err as { code?: string })?.code;
@@ -235,6 +244,47 @@ export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDial
     </div>
   );
 
+  const renderConfirmWhatsapp = () => (
+    <div className={styles.stepBody}>
+      <div className={styles.iconBadge} data-variant="warning">
+        <Warning size={24} weight="regular" />
+      </div>
+      <div className={styles.textBlock}>
+        <h2 className={styles.title}>Desconectar Google</h2>
+        <p className={styles.description}>
+          Você deixa de entrar com o Google
+          {user?.email ? ` (${user.email})` : ''} e passa a usar só o WhatsApp
+          {user?.whatsappPhone ? ` (${user.whatsappPhone})` : ''}.
+        </p>
+        <p className={styles.descriptionMuted}>
+          Nenhum dado será apagado. Você pode continuar usando a sessão atual.
+        </p>
+      </div>
+
+      {error && <p className={styles.errorMessage}>{error}</p>}
+
+      <div className={styles.actions}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+          disabled={isSubmitting}
+        >
+          Manter vinculado
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleConfirmDisconnect}
+          loading={isSubmitting}
+          disabled={isSubmitting}
+        >
+          Desconectar
+        </Button>
+      </div>
+    </div>
+  );
+
   const renderSuccess = () => (
     <div className={styles.stepBody}>
       <div className={styles.iconBadge} data-variant="success">
@@ -243,8 +293,10 @@ export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDial
       <div className={styles.textBlock}>
         <h2 className={styles.title}>Pronto!</h2>
         <p className={styles.description}>
-          Seu Google foi desvinculado. Da próxima vez, entre com <strong>{user?.email}</strong> e
-          sua senha.
+          {user?.authProvider === 'whatsapp' || !user?.email
+            ? 'Seu Google foi desvinculado. Da próxima vez, entre com o WhatsApp.'
+            : <>Seu Google foi desvinculado. Da próxima vez, entre com <strong>{user.email}</strong> e
+              sua senha.</>}
         </p>
       </div>
       <div className={styles.actions}>
@@ -266,6 +318,7 @@ export function DisconnectGoogleDialog({ isOpen, onClose }: DisconnectGoogleDial
       {step === 'intro' && renderIntro()}
       {step === 'create-password' && renderCreatePassword()}
       {step === 'confirm' && renderConfirm()}
+      {step === 'confirm-whatsapp' && renderConfirmWhatsapp()}
       {step === 'success' && renderSuccess()}
     </Dialog>
   );

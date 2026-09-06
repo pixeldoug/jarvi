@@ -180,7 +180,7 @@ export const runWhatsappAgent = async (
     { role: 'user', content: userMessage },
   ];
 
-  let { text, toolCallNames, usage } = await runAgent(
+  let { text, toolCallNames, usage, traceId } = await runAgent(
     WHATSAPP_PROFILE,
     ctx,
     systemPrompt,
@@ -203,7 +203,8 @@ export const runWhatsappAgent = async (
       systemPrompt,
       initialMessages,
       {},
-      { forceToolChoice: true },
+      // Same traceId: the retry belongs to the same user turn/trace.
+      { forceToolChoice: true, traceId },
     );
     text = retry.text || text;
     toolCallNames = [...toolCallNames, ...retry.toolCallNames];
@@ -217,6 +218,7 @@ export const runWhatsappAgent = async (
     subscriptionStatus,
     usage,
     retried,
+    traceId,
   });
 
   const finalResponse = text || 'Entendido! Como posso te ajudar?';

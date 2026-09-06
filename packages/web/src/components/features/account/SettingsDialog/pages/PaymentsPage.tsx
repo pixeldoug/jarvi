@@ -4,7 +4,7 @@
  * "Pagamentos" tab: current plan info + upgrade cards.
  *
  * States:
- *  - Trial / None / Canceled: shows all 3 plan cards with "Assinar" CTA
+ *  - Trial / None / Canceled: shows monthly + annual plan cards with "Assinar" CTA
  *  - Active: shows current plan name + "Gerenciar Plano" button (Stripe portal).
  *            Plan changes are handled entirely via the Stripe Billing Portal
  *            to avoid creating duplicate subscriptions.
@@ -28,9 +28,8 @@ const BILLING_PORTAL_URL =
 // ============================================================================
 
 const PAYMENT_URLS = {
-  monthly:  import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL        || '',
-  annual:   import.meta.env.VITE_STRIPE_PAYMENT_LINK_YEARLY_URL  || '',
-  lifetime: import.meta.env.VITE_STRIPE_PAYMENT_LINK_ONETIME_URL || '',
+  monthly: import.meta.env.VITE_STRIPE_PAYMENT_LINK_URL       || '',
+  annual:  import.meta.env.VITE_STRIPE_PAYMENT_LINK_YEARLY_URL || '',
 } as const;
 
 const PLAN_DISPLAY_NAMES: Record<NonNullable<PlanType>, string> = {
@@ -65,14 +64,6 @@ const PLANS_UPSELL: PlanOption[] = [
     price: 'R$ 20,75',
     suffix: '/mês',
     description: 'Equivale a R$ 249,00/ano',
-  },
-  {
-    id: 'lifetime',
-    title: 'Vitalício',
-    chip: 'Melhor valor',
-    price: 'R$ 398,00',
-    suffix: null,
-    description: 'Pagamento único, acesso para sempre.',
   },
 ];
 

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
 import type { ClipboardEvent, DragEvent } from 'react';
 import { X, PaperPlaneRight, NotePencil, Sparkle, Paperclip, FileText, UploadSimple } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
-import { useChatStream, ToolCallData, ChatAttachment } from '../../../../hooks/useChatStream';
+import { useChatStream, ToolCallData, ChatAttachment, type ChatMessageData } from '../../../../hooks/useChatStream';
 import {
   MAX_CHAT_ATTACHMENTS,
   PendingAttachment,
@@ -12,7 +12,8 @@ import {
 } from '../../../../utils/chatAttachments';
 import { Button } from '../../../ui';
 import { AttachmentViewer } from '../../../ui/AttachmentViewer';
-import { ChatMessage } from './ChatMessage';
+import { resolveChatChoiceArtifact } from '../../../../lib/chatChoicePrompts';
+import { ChatMessage, TASK_ARTIFACT_TOOLS } from './ChatMessage';
 import { SkillChips } from './SkillChips';
 import jarviLogo from '../../../../assets/logo/symbol.svg';
 import styles from './AIChatPanel.module.css';
@@ -24,14 +25,16 @@ export interface AIChatPanelProps {
   onClose: () => void;
   /** Called once per new successful tool call, with the tool call data */
   onTaskMutated: (toolCalls: ToolCallData[]) => void;
-  /** Message to send automatically when the panel first mounts */
+  /**
+   * Pre-populated conversation shown when the panel opens (e.g. after onboarding).
+   * If set, `initialMessage` is ignored so we do not send a duplicate turn.
+   */
+  seededMessages?: ChatMessageData[];
   initialMessage?: string;
   /** Attachments to send alongside the initial message (e.g. from ControlBar) */
   initialAttachments?: ChatAttachment[];
   /** Called when the user clicks a task card artifact inside the chat */
   onTaskCardClick?: (taskId: string) => void;
-  /** Called when the user toggles completion on a task card artifact */
-  onToggleTaskCompletion?: (taskId: string) => void;
   /** Called when the user clicks a list/filter card artifact inside the chat */
   onListCardClick?: (listId: string) => void;
   /** Called when the user clicks a category card artifact inside the chat */
@@ -55,8 +58,8 @@ export function AIChatPanel({
   onTaskMutated,
   initialMessage,
   initialAttachments,
+  seededMessages,
   onTaskCardClick,
-  onToggleTaskCompletion,
   onListCardClick,
   onCategoryCardClick,
   onAttachToTask,
@@ -64,23 +67,56 @@ export function AIChatPanel({
 }: AIChatPanelProps) {
   const { user } = useAuth();
   const { trialExpired } = useSubscription();
-  const { messages, sendMessage, isStreaming, thinkingStatus, reset } = useChatStream(mode, taskId);
+  const { messages, sendMessage, isStreaming, thinkingStatus, reset } = useChatStream(
+    mode,
+    taskId,
+    seededMessages,
+  );
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [viewingAttachment, setViewingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const stickToBottomRef = useRef((seededMessages?.length ?? 0) === 0);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const initialSentRef = useRef(false);
   // Track already-processed tool results to avoid calling onTaskMutated repeatedly
   // as text tokens stream in after a tool call completes.
-  const processedToolResultsRef = useRef(new Set<string>());
+  const processedToolResultsRef = useRef(
+    new Set(
+      (seededMessages ?? []).flatMap((message) =>
+        (message.toolCalls ?? []).map((_call: ToolCallData, idx: number) => `${message.id}-${idx}`),
+      ),
+    ),
+  );
 
   const hasMessages = messages.length > 0;
 
+  /**
+   * A task entity renders its artifact only in the message that first touched it.
+   * Later turns talk about the same task in text instead of repeating the card,
+   * so the chat reads as a conversation and not as a second task list.
+   */
+  const taskArtifactOwner = useMemo(() => {
+    const owner = new Map<string, string>();
+    for (const message of messages) {
+      for (const call of message.toolCalls ?? []) {
+        if (!call.result?.success || !TASK_ARTIFACT_TOOLS.includes(call.toolName)) continue;
+        const entityId = String(call.result?.data?.id ?? '');
+        if (!entityId || owner.has(entityId)) continue;
+        owner.set(entityId, message.id);
+      }
+    }
+    return owner;
+  }, [messages]);
+
   // Send initialMessage on first mount (e.g. from ControlBar prompt)
   useLayoutEffect(() => {
+    if ((seededMessages?.length ?? 0) > 0) {
+      initialSentRef.current = true;
+      return;
+    }
     const hasInitialAttachments = (initialAttachments?.length ?? 0) > 0;
     if ((initialMessage || hasInitialAttachments) && !initialSentRef.current) {
       initialSentRef.current = true;
@@ -106,8 +142,20 @@ export function AIChatPanel({
   }, []);
 
   useEffect(() => {
+    if (!stickToBottomRef.current) {
+      if (chatBodyRef.current) chatBodyRef.current.scrollTop = 0;
+      return;
+    }
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  const sendFromUser = useCallback(
+    (text: string, attachments: ChatAttachment[] = []) => {
+      stickToBottomRef.current = true;
+      return sendMessage(text, attachments);
+    },
+    [sendMessage],
+  );
 
   // Fire onTaskMutated exactly once per new successful tool result.
   useEffect(() => {
@@ -197,11 +245,11 @@ export function AIChatPanel({
         onAttachmentsSent?.(payload);
       }
     }
-    sendMessage(text, payload);
+    sendFromUser(text, payload);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, attachments, isStreaming, trialExpired, sendMessage, mode, onAttachToTask, onAttachmentsSent]);
+  }, [input, attachments, isStreaming, trialExpired, sendFromUser, mode, onAttachToTask, onAttachmentsSent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -212,7 +260,7 @@ export function AIChatPanel({
 
   const handleSkillSelect = (skill: string) => {
     if (trialExpired) return;
-    sendMessage(skill);
+    sendFromUser(skill);
   };
 
   const handleNewConversation = () => {
@@ -275,7 +323,16 @@ export function AIChatPanel({
           </div>
         ) : (
           <div className={styles.messageList}>
-            {messages.map((msg, index) => (
+            {messages.map((msg, index) => {
+              const isLatestUserTurn =
+                !messages.slice(index + 1).some((later) => later.role === 'user');
+              const canInteractFollowups =
+                !trialExpired && !isStreaming && isLatestUserTurn;
+              const canPickChoice =
+                canInteractFollowups &&
+                msg.role === 'assistant' &&
+                resolveChatChoiceArtifact(msg).choices.length > 0;
+              return (
               <ChatMessage
                 key={msg.id}
                 message={msg}
@@ -285,12 +342,15 @@ export function AIChatPanel({
                     ? thinkingStatus
                     : undefined
                 }
+                taskArtifactOwner={taskArtifactOwner}
                 onTaskCardClick={onTaskCardClick}
-                onToggleTaskCompletion={onToggleTaskCompletion}
                 onListCardClick={onListCardClick}
                 onCategoryCardClick={onCategoryCardClick}
+                onChoiceSelect={canPickChoice ? (text) => sendFromUser(text) : undefined}
+                choicesDisabled={!canPickChoice}
               />
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

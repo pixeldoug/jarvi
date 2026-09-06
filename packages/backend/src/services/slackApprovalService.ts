@@ -1,3 +1,5 @@
+import { shouldEmitExternalIntegrations } from '../config/environment';
+
 const SLACK_API_BASE = 'https://slack.com/api';
 
 export interface SlackNewAccountPayload {
@@ -278,6 +280,15 @@ const callSlackApi = async (
 export const postNewAccountNotification = async (
   lead: SlackNewAccountPayload
 ): Promise<void> => {
+  if (!shouldEmitExternalIntegrations()) {
+    console.debug(
+      '[dev] skipped Slack new-account notification:',
+      lead.email,
+      lead.userId
+    );
+    return;
+  }
+
   if (!isSlackApprovalConfigured()) {
     return;
   }

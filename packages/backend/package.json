@@ -11,17 +11,16 @@
     "stripe:trigger:trial-end": "stripe trigger customer.subscription.trial_will_end",
     "stripe:trigger:payment-success": "stripe trigger invoice.payment_succeeded",
     "stripe:trigger:payment-failed": "stripe trigger invoice.payment_failed",
-    "eval": "AGENT_SEED=42 AGENT_TEMPERATURE=0 npx ts-node --require dotenv/config -P tsconfig.eval.json evals/whatsapp-agent.eval.ts"
+    "eval": "AGENT_SEED=42 AGENT_TEMPERATURE=0 npx ts-node --require dotenv/config -P tsconfig.eval.json evals/run-evals.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
+    "@posthog/ai": "^8.8.0",
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/pg": "^8.15.5",
     "@types/zxcvbn": "^4.4.5",
-    "autoevals": "^0.0.132",
     "bcryptjs": "^2.4.3",
-    "braintrust": "^3.9.0",
     "bullmq": "^5.70.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",

@@ -20,6 +20,7 @@ import { ToastProvider } from './components/ui';
 import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
+import { EmailLogin } from './pages/Login/EmailLogin';
 import { TrialExpiredGate } from './components/features/subscription/TrialExpiredGate/TrialExpiredGate';
 
 // Lazy load pages
@@ -40,6 +41,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!user.onboardingCompletedAt) {
+    return <Navigate to="/criar-conta" replace />;
   }
 
   return (
@@ -66,6 +71,7 @@ function AppSwitch() {
     <Routes location={location}>
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
+      <Route path="/login/email" element={<EmailLogin />} />
       <Route
         path="/criar-conta"
         element={

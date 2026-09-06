@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { shouldEmitExternalIntegrations } from '../config/environment';
 
 /**
  * Meta Conversions API (CAPI) service.
@@ -77,6 +78,11 @@ const buildUserData = (userData: MetaUserData): Record<string, unknown> => {
  */
 export const sendMetaEvent = async (params: SendMetaEventParams): Promise<boolean> => {
   if (!isConfigured()) {
+    return false;
+  }
+
+  if (!shouldEmitExternalIntegrations()) {
+    console.debug('[dev] skipped Meta CAPI event:', params.eventName);
     return false;
   }
 

@@ -1,0 +1,99 @@
+.card {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--semantic-surface-tertiary);
+  padding-left: var(--sizes-6);
+  padding-right: var(--sizes-6);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--semantic-border-primary) transparent;
+}
+
+.row + .row {
+  margin-top: var(--sizes-3);
+  padding-top: var(--sizes-3);
+  border-top: 1px solid var(--semantic-border-primary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  min-height: var(--size-target-standard, 48px);
+  padding: 0;
+  gap: var(--sizes-2);
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.chipWrap {
+  flex-shrink: 0;
+}
+
+.titleInput {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.titleInput::placeholder {
+  color: var(--semantic-control-content-placeholder);
+}
+
+.removeButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--semantic-content-secondary);
+  cursor: pointer;
+}
+
+.removeButton:hover {
+  background: var(--semantic-surface-primary);
+  color: var(--semantic-content-primary);
+}

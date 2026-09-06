@@ -54,7 +54,7 @@ const getTokenExpiration = (hours: number): string => {
   return date.toISOString();
 };
 
-const getInternalTrialEndsAtIso = (): string => {
+export const getInternalTrialEndsAtIso = (): string => {
   const trialEnd = new Date();
   trialEnd.setDate(trialEnd.getDate() + INTERNAL_TRIAL_DAYS);
   return trialEnd.toISOString();
@@ -62,7 +62,72 @@ const getInternalTrialEndsAtIso = (): string => {
 
 const normalizeEmail = (value: string): string => value.trim().toLowerCase();
 
-const syncOnboardingLeadWithUser = async (email: string, userId: string): Promise<void> => {
+const parseDbBoolean = (value: unknown): boolean =>
+  value === true || value === 1 || value === '1';
+
+const toIsoOrNull = (value: unknown): string | null => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  const asString = String(value).trim();
+  return asString ? asString : null;
+};
+
+export const WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX = '@users.jarvi.internal';
+
+export const isPlaceholderWhatsappEmail = (email?: string | null): boolean =>
+  typeof email === 'string' && email.endsWith(WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX);
+
+export const hasRealUserEmail = (email?: string | null): boolean =>
+  typeof email === 'string' && email.trim().length > 0 && !isPlaceholderWhatsappEmail(email);
+
+const WHATSAPP_AUTH_PASSWORD = 'whatsapp-auth';
+
+const placeholderEmailForPhone = (phone: string): string =>
+  `wa.${phone.replace(/\D/g, '')}${WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX}`;
+
+export const toPublicUser = (user: {
+  id: string;
+  email: string;
+  name: string;
+  avatar?: string | null;
+  preferred_name?: string | null;
+  auth_provider?: string | null;
+  has_password?: boolean | number | null;
+  onboarding_completed_at?: string | Date | null;
+  whatsapp_verified?: boolean | number | null;
+  whatsapp_phone?: string | null;
+  email_verified?: boolean | number | null;
+  subscription_status?: string | null;
+}) => {
+  const authProvider =
+    user.auth_provider === 'google' || user.auth_provider === 'whatsapp'
+      ? user.auth_provider
+      : 'email';
+  const rawEmail = user.email || '';
+  const email = rawEmail.endsWith(WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX) ? '' : rawEmail;
+  const whatsappPhone =
+    typeof user.whatsapp_phone === 'string' && user.whatsapp_phone.trim()
+      ? user.whatsapp_phone.trim()
+      : undefined;
+  return {
+    id: user.id,
+    email,
+    name: user.name,
+    avatar: user.avatar,
+    preferred_name: user.preferred_name ?? undefined,
+    authProvider,
+    hasPassword: Boolean(user.has_password),
+    onboardingCompletedAt: toIsoOrNull(user.onboarding_completed_at),
+    whatsappVerified: parseDbBoolean(user.whatsapp_verified),
+    whatsappPhone: parseDbBoolean(user.whatsapp_verified) ? whatsappPhone : undefined,
+    emailVerified: Boolean(email) && parseDbBoolean(user.email_verified),
+    subscription_status: user.subscription_status ?? undefined,
+  };
+};
+
+export const syncOnboardingLeadWithUser = async (email: string, userId: string): Promise<void> => {
   const normalizedEmail = normalizeEmail(email);
   const now = new Date().toISOString();
 
@@ -433,14 +498,7 @@ export const googleAuth = async (
     res.json({
       token,
       isNewUser,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        authProvider: user.auth_provider || 'google',
-        hasPassword: !!user.has_password,
-      },
+      user: toPublicUser(user),
     });
 
     // Fire-and-forget: the user just entered the platform, so this is a good
@@ -478,12 +536,13 @@ export const register = async (
       return;
     }
 
+    const normalizedEmail = normalizeEmail(email);
     const metaFbc = fbc || null;
     const metaFbp = fbp || null;
     const metaEventId = eventId || null;
 
     // Validate password strength
-    const passwordValidation = validatePasswordStrength(password, [email, name], 2);
+    const passwordValidation = validatePasswordStrength(password, [normalizedEmail, name], 2);
     if (!passwordValidation.isValid) {
       res.status(400).json({ 
         error: passwordValidation.message,
@@ -506,7 +565,7 @@ export const register = async (
       const client = await pool.connect();
       try {
         // Check if user already exists
-        const existingResult = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        const existingResult = await client.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
         if (existingResult.rows.length > 0) {
           res.status(400).json({ error: 'User already exists' });
           return;
@@ -516,7 +575,7 @@ export const register = async (
         await client.query(
           `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-          [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
+          [userId, normalizedEmail, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
         );
 
         const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -529,7 +588,7 @@ export const register = async (
       const db = getDatabase();
 
       // Check if user already exists
-      const existingUser = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+      const existingUser = await db.get('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
       if (existingUser) {
         res.status(400).json({ error: 'User already exists' });
         return;
@@ -539,30 +598,30 @@ export const register = async (
       await db.run(
         `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userId, email, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
+        [userId, normalizedEmail, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
       );
 
       newUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
     }
 
     try {
-      await syncOnboardingLeadWithUser(email, newUser.id);
+      await syncOnboardingLeadWithUser(normalizedEmail, newUser.id);
     } catch (syncError) {
       console.error('Failed to sync onboarding lead during register:', syncError);
     }
 
     // Notifica o time no Slack que uma nova conta foi criada (best-effort).
-    void notifyNewAccountCreated(email, newUser.id);
+    void notifyNewAccountCreated(normalizedEmail, newUser.id);
 
     // PostHog server-side: garante que o cadastro apareça mesmo se o SDK do
     // navegador estiver bloqueado (ad blocker) ou não carregar.
-    identifyServer(email, {
-      email,
+    identifyServer(normalizedEmail, {
+      email: normalizedEmail,
       name,
       user_id: newUser.id,
       subscription_status: 'trialing',
     });
-    captureServer(email, 'user_registered', {
+    captureServer(normalizedEmail, 'user_registered', {
       method: 'email',
       pending_verification: true,
       source: 'backend',
@@ -576,7 +635,7 @@ export const register = async (
       actionSource: 'website',
       eventSourceUrl: eventSourceUrl || undefined,
       userData: {
-        email,
+        email: normalizedEmail,
         externalId: userId,
         firstName: firstNameOf(name),
         clientIpAddress: getClientIp(req.ip, req.headers['x-forwarded-for']),
@@ -588,17 +647,16 @@ export const register = async (
 
     // Send verification email
     try {
-      await sendVerificationEmail(email, name, verificationToken);
+      await sendVerificationEmail(normalizedEmail, name, verificationToken);
     } catch (emailError) {
       console.error('Failed to send verification email:', emailError);
       // Don't fail registration if email fails, user can resend
     }
 
-    // Return success but indicate email verification is pending
     res.status(201).json({
       pendingVerification: true,
-      message: 'Conta criada com sucesso! Verifique seu email para ativar sua conta.',
       email: newUser.email,
+      message: 'Conta criada. Verifique seu email para entrar.',
     });
   } catch (error) {
     // Log error without exposing sensitive details
@@ -623,6 +681,7 @@ export const login = async (
       return;
     }
 
+    const normalizedEmail = normalizeEmail(String(email));
     let user;
 
     if (isPostgreSQL()) {
@@ -630,7 +689,7 @@ export const login = async (
       const pool = getPool();
       const client = await pool.connect();
       try {
-        const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        const result = await client.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [normalizedEmail]);
         user = result.rows[0];
       } finally {
         client.release();
@@ -638,7 +697,7 @@ export const login = async (
     } else {
       // SQLite
       const db = getDatabase();
-      user = await db.get('SELECT * FROM users WHERE email = ?', [email]);
+      user = await db.get('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [normalizedEmail]);
     }
 
     if (!user) {
@@ -646,9 +705,16 @@ export const login = async (
       return;
     }
 
-    // Check if user has a password (not Google-only user)
+    // Check if user has a password (not Google-only / WhatsApp-only user)
     if (user.auth_provider === 'google' || user.password === 'google-auth') {
       res.status(401).json({ error: 'Please use Google Sign-In for this account' });
+      return;
+    }
+    const isWhatsappOnly =
+      (user.auth_provider === 'whatsapp' || user.password === 'whatsapp-auth') &&
+      !parseDbBoolean(user.has_password);
+    if (isWhatsappOnly) {
+      res.status(401).json({ error: 'Entre pelo WhatsApp em Criar conta.' });
       return;
     }
 
@@ -679,14 +745,7 @@ export const login = async (
 
     res.json({
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        authProvider: user.auth_provider || 'email',
-        hasPassword: !!user.has_password,
-      },
+      user: toPublicUser(user),
     });
 
     // Fire-and-forget: the user just entered the platform, so this is a good
@@ -724,7 +783,10 @@ export const getProfile = async (
       const client = await pool.connect();
       try {
         const result = await client.query(
-          'SELECT id, email, name, preferred_name, avatar, auth_provider, has_password, created_at FROM users WHERE id = $1',
+          `SELECT id, email, name, preferred_name, avatar, auth_provider, has_password,
+                  created_at, onboarding_completed_at, whatsapp_verified, whatsapp_phone,
+                  email_verified, subscription_status
+           FROM users WHERE id = $1`,
           [userId]
         );
         user = result.rows[0];
@@ -734,7 +796,13 @@ export const getProfile = async (
     } else {
       // SQLite
       const db = getDatabase();
-      user = await db.get('SELECT id, email, name, preferred_name, avatar, auth_provider, has_password, created_at FROM users WHERE id = ?', [userId]);
+      user = await db.get(
+        `SELECT id, email, name, preferred_name, avatar, auth_provider, has_password,
+                created_at, onboarding_completed_at, whatsapp_verified, whatsapp_phone,
+                email_verified, subscription_status
+         FROM users WHERE id = ?`,
+        [userId]
+      );
     }
 
     if (!user) {
@@ -742,11 +810,7 @@ export const getProfile = async (
       return;
     }
 
-    res.json({
-      ...user,
-      authProvider: user.auth_provider || 'email',
-      hasPassword: !!user.has_password,
-    });
+    res.json(toPublicUser(user));
 
     // Fire-and-forget: this endpoint is called on every app mount/session
     // restore, so it's a good moment to lazily catch up on daily memory
@@ -913,6 +977,8 @@ export const verifyEmailOtp = async (
            WHERE id = $3`,
           [true, now, user.id]
         );
+        const updated = await client.query('SELECT * FROM users WHERE id = $1', [user.id]);
+        user = updated.rows[0];
       } finally {
         client.release();
       }
@@ -942,6 +1008,7 @@ export const verifyEmailOtp = async (
          WHERE id = ?`,
         [true, now, user.id]
       );
+      user = await db.get('SELECT * FROM users WHERE id = ?', [user.id]);
     }
 
     // Meta CAPI: account verified/active = the optimization conversion.
@@ -957,14 +1024,7 @@ export const verifyEmailOtp = async (
     res.json({
       success: true,
       token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        authProvider: user.auth_provider || 'email',
-        hasPassword: !!user.has_password,
-      },
+      user: toPublicUser(user),
     });
   } catch (error) {
     console.error('Verify email OTP error:', {
@@ -1418,7 +1478,8 @@ export const disconnectGoogle = async (
         }
 
         const hasRealPassword = !!user.has_password && user.password && user.password !== 'google-auth';
-        if (!hasRealPassword) {
+        const hasWhatsapp = parseDbBoolean(user.whatsapp_verified) && Boolean(user.whatsapp_phone);
+        if (!hasRealPassword && !hasWhatsapp) {
           res.status(400).json({
             error: 'Crie uma senha antes de desvincular o Google.',
             code: 'PASSWORD_REQUIRED',
@@ -1426,12 +1487,26 @@ export const disconnectGoogle = async (
           return;
         }
 
-        await client.query(
-          `UPDATE users
-           SET auth_provider = $1, updated_at = $2
-           WHERE id = $3`,
-          ['email', now, userId]
-        );
+        if (hasRealPassword) {
+          await client.query(
+            `UPDATE users
+             SET auth_provider = $1, updated_at = $2
+             WHERE id = $3`,
+            ['email', now, userId]
+          );
+        } else {
+          const placeholderEmail = placeholderEmailForPhone(user.whatsapp_phone);
+          await client.query(
+            `UPDATE users
+             SET email = $1, password = $2, has_password = $3, auth_provider = $4,
+                 email_verified = $5, email_verification_token = NULL,
+                 email_verification_expires = NULL, updated_at = $6
+             WHERE id = $7`,
+            [placeholderEmail, WHATSAPP_AUTH_PASSWORD, false, 'whatsapp', true, now, userId]
+          );
+        }
+        const updated = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = updated.rows[0];
       } finally {
         client.release();
       }
@@ -1454,7 +1529,8 @@ export const disconnectGoogle = async (
       }
 
       const hasRealPassword = !!user.has_password && user.password && user.password !== 'google-auth';
-      if (!hasRealPassword) {
+      const hasWhatsapp = parseDbBoolean(user.whatsapp_verified) && Boolean(user.whatsapp_phone);
+      if (!hasRealPassword && !hasWhatsapp) {
         res.status(400).json({
           error: 'Crie uma senha antes de desvincular o Google.',
           code: 'PASSWORD_REQUIRED',
@@ -1462,19 +1538,36 @@ export const disconnectGoogle = async (
         return;
       }
 
-      await db.run(
-        `UPDATE users
-         SET auth_provider = ?, updated_at = ?
-         WHERE id = ?`,
-        ['email', now, userId]
-      );
+      if (hasRealPassword) {
+        await db.run(
+          `UPDATE users
+           SET auth_provider = ?, updated_at = ?
+           WHERE id = ?`,
+          ['email', now, userId]
+        );
+      } else {
+        const placeholderEmail = placeholderEmailForPhone(user.whatsapp_phone);
+        await db.run(
+          `UPDATE users
+           SET email = ?, password = ?, has_password = ?, auth_provider = ?,
+               email_verified = ?, email_verification_token = NULL,
+               email_verification_expires = NULL, updated_at = ?
+           WHERE id = ?`,
+          [placeholderEmail, WHATSAPP_AUTH_PASSWORD, 0, 'whatsapp', 1, now, userId]
+        );
+      }
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
     }
 
+    const publicUser = toPublicUser(user);
     res.json({
       success: true,
-      message: 'Google desvinculado com sucesso. Faça login com email e senha na próxima vez.',
-      authProvider: 'email',
-      hasPassword: true,
+      message: publicUser.authProvider === 'whatsapp'
+        ? 'Google desvinculado. Você passa a entrar só com o WhatsApp.'
+        : 'Google desvinculado com sucesso. Faça login com email e senha na próxima vez.',
+      authProvider: publicUser.authProvider,
+      hasPassword: publicUser.hasPassword,
+      user: publicUser,
     });
   } catch (error) {
     console.error('Disconnect Google error:', {
@@ -1558,7 +1651,8 @@ export const linkGoogleAccount = async (
           return;
         }
 
-        if (user.email.toLowerCase() !== payload.email.toLowerCase()) {
+        const canAdoptGoogleEmail = isPlaceholderWhatsappEmail(user.email);
+        if (!canAdoptGoogleEmail && user.email.toLowerCase() !== payload.email.toLowerCase()) {
           res.status(400).json({
             error: `A conta Google (${payload.email}) não corresponde ao email da sua conta (${user.email}).`,
             code: 'EMAIL_MISMATCH',
@@ -1566,10 +1660,31 @@ export const linkGoogleAccount = async (
           return;
         }
 
-        await client.query(
-          `UPDATE users SET auth_provider = $1, email_verified = $2, updated_at = $3 WHERE id = $4`,
-          ['google', true, now, userId]
-        );
+        if (canAdoptGoogleEmail) {
+          const taken = await client.query(
+            'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
+            [payload.email, userId]
+          );
+          if (taken.rows.length > 0) {
+            res.status(409).json({
+              error: 'Este email do Google já está em uso em outra conta.',
+              code: 'EMAIL_TAKEN',
+            });
+            return;
+          }
+          await client.query(
+            `UPDATE users SET email = $1, auth_provider = $2, email_verified = $3, updated_at = $4 WHERE id = $5`,
+            [payload.email, 'google', true, now, userId]
+          );
+        } else {
+          await client.query(
+            `UPDATE users SET auth_provider = $1, email_verified = $2, updated_at = $3 WHERE id = $4`,
+            ['google', true, now, userId]
+          );
+        }
+
+        const updated = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = updated.rows[0];
       } finally {
         client.release();
       }
@@ -1587,7 +1702,8 @@ export const linkGoogleAccount = async (
         return;
       }
 
-      if (user.email.toLowerCase() !== payload.email.toLowerCase()) {
+      const canAdoptGoogleEmail = isPlaceholderWhatsappEmail(user.email);
+      if (!canAdoptGoogleEmail && user.email.toLowerCase() !== payload.email.toLowerCase()) {
         res.status(400).json({
           error: `A conta Google (${payload.email}) não corresponde ao email da sua conta (${user.email}).`,
           code: 'EMAIL_MISMATCH',
@@ -1595,16 +1711,37 @@ export const linkGoogleAccount = async (
         return;
       }
 
-      await db.run(
-        `UPDATE users SET auth_provider = ?, email_verified = ?, updated_at = ? WHERE id = ?`,
-        ['google', 1, now, userId]
-      );
+      if (canAdoptGoogleEmail) {
+        const taken = await db.get(
+          'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id != ?',
+          [payload.email, userId]
+        );
+        if (taken) {
+          res.status(409).json({
+            error: 'Este email do Google já está em uso em outra conta.',
+            code: 'EMAIL_TAKEN',
+          });
+          return;
+        }
+        await db.run(
+          `UPDATE users SET email = ?, auth_provider = ?, email_verified = ?, updated_at = ? WHERE id = ?`,
+          [payload.email, 'google', 1, now, userId]
+        );
+      } else {
+        await db.run(
+          `UPDATE users SET auth_provider = ?, email_verified = ?, updated_at = ? WHERE id = ?`,
+          ['google', 1, now, userId]
+        );
+      }
+
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
     }
 
     res.json({
       success: true,
       message: 'Google vinculado com sucesso.',
       authProvider: 'google',
+      user: toPublicUser(user),
     });
   } catch (error) {
     console.error('Link Google error:', {
@@ -1613,5 +1750,261 @@ export const linkGoogleAccount = async (
       ip: req.ip
     });
     res.status(500).json({ error: 'Failed to link Google account' });
+  }
+};
+
+/**
+ * Adds a real email + password to a WhatsApp-only account so the user can
+ * later disconnect WhatsApp without losing access.
+ */
+export const addEmailToWhatsappAccount = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email e senha são obrigatórios' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ error: 'Formato de email inválido' });
+      return;
+    }
+
+    const passwordValidation = validatePasswordStrength(password, [email], 2);
+    if (!passwordValidation.isValid) {
+      res.status(400).json({
+        error: passwordValidation.message,
+        feedback: passwordValidation.feedback,
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = generateSecureToken();
+    const tokenExpires = getTokenExpiration(24);
+    const devCode = generateOtpFromToken(verificationToken);
+    let user;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = result.rows[0];
+        if (!user) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+        if (user.auth_provider !== 'whatsapp') {
+          res.status(400).json({ error: 'Esta conta já tem um email.' });
+          return;
+        }
+        if (hasRealUserEmail(user.email)) {
+          res.status(400).json({ error: 'Esta conta já tem um email.' });
+          return;
+        }
+        const taken = await client.query(
+          'SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2',
+          [email, userId]
+        );
+        if (taken.rows.length > 0) {
+          res.status(409).json({ error: 'Este email já está em uso' });
+          return;
+        }
+        await client.query(
+          `UPDATE users
+           SET email = $1, password = $2, has_password = $3, email_verified = $4,
+               email_verification_token = $5, email_verification_expires = $6, updated_at = $7
+           WHERE id = $8`,
+          [email, hashedPassword, true, false, verificationToken, tokenExpires, now, userId]
+        );
+        const updated = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = updated.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      if (user.auth_provider !== 'whatsapp') {
+        res.status(400).json({ error: 'Esta conta já tem um email.' });
+        return;
+      }
+      if (hasRealUserEmail(user.email)) {
+        res.status(400).json({ error: 'Esta conta já tem um email.' });
+        return;
+      }
+      const taken = await db.get(
+        'SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id != ?',
+        [email, userId]
+      );
+      if (taken) {
+        res.status(409).json({ error: 'Este email já está em uso' });
+        return;
+      }
+      await db.run(
+        `UPDATE users
+         SET email = ?, password = ?, has_password = ?, email_verified = ?,
+             email_verification_token = ?, email_verification_expires = ?, updated_at = ?
+         WHERE id = ?`,
+        [email, hashedPassword, 1, 0, verificationToken, tokenExpires, now, userId]
+      );
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    }
+
+    try {
+      await sendVerificationEmail(email, user.name, verificationToken);
+    } catch (emailError) {
+      console.error('Failed to send add-email verification:', emailError);
+    }
+
+    const allowLocalOtpBypass = process.env.NODE_ENV !== 'production';
+    if (allowLocalOtpBypass) {
+      console.warn(`[auth] Local email OTP for ${email}: ${devCode}`);
+    }
+
+    res.json({
+      success: true,
+      pendingVerification: true,
+      message: 'Enviamos um código para este email. Confirme para ativá-lo.',
+      user: toPublicUser(user),
+      ...(allowLocalOtpBypass ? { delivery: 'local', devCode } : {}),
+    });
+  } catch (error) {
+    console.error('Add email to WhatsApp account error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ error: 'Não foi possível adicionar o email' });
+  }
+};
+
+/**
+ * Removes email/Google login from an account that still has WhatsApp.
+ * The user stays on WhatsApp-only login.
+ */
+export const disconnectEmailLogin = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let user;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = result.rows[0];
+        if (!user) {
+          res.status(404).json({ error: 'User not found' });
+          return;
+        }
+        if (!parseDbBoolean(user.whatsapp_verified) || !user.whatsapp_phone) {
+          res.status(400).json({
+            error: 'Conecte um WhatsApp antes de desconectar o email.',
+            code: 'WHATSAPP_REQUIRED',
+          });
+          return;
+        }
+        if (user.auth_provider === 'google' || user.password === 'google-auth') {
+          res.status(400).json({
+            error: 'Desconecte o Google em Formas de entrar antes de remover o email.',
+            code: 'GOOGLE_LINKED',
+          });
+          return;
+        }
+        if (!hasRealUserEmail(user.email)) {
+          res.status(400).json({ error: 'Esta conta não tem um email para desconectar.' });
+          return;
+        }
+
+        const placeholderEmail = placeholderEmailForPhone(user.whatsapp_phone);
+        await client.query(
+          `UPDATE users
+           SET email = $1, password = $2, has_password = $3, auth_provider = $4,
+               email_verified = $5, email_verification_token = NULL,
+               email_verification_expires = NULL, updated_at = $6
+           WHERE id = $7`,
+          [placeholderEmail, WHATSAPP_AUTH_PASSWORD, false, 'whatsapp', true, now, userId]
+        );
+        const updated = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+        user = updated.rows[0];
+      } finally {
+        client.release();
+      }
+    } else {
+      const db = getDatabase();
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+      if (!user) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      if (!parseDbBoolean(user.whatsapp_verified) || !user.whatsapp_phone) {
+        res.status(400).json({
+          error: 'Conecte um WhatsApp antes de desconectar o email.',
+          code: 'WHATSAPP_REQUIRED',
+        });
+        return;
+      }
+      if (user.auth_provider === 'google' || user.password === 'google-auth') {
+        res.status(400).json({
+          error: 'Desconecte o Google em Formas de entrar antes de remover o email.',
+          code: 'GOOGLE_LINKED',
+        });
+        return;
+      }
+      if (!hasRealUserEmail(user.email)) {
+        res.status(400).json({ error: 'Esta conta não tem um email para desconectar.' });
+        return;
+      }
+
+      const placeholderEmail = placeholderEmailForPhone(user.whatsapp_phone);
+      await db.run(
+        `UPDATE users
+         SET email = ?, password = ?, has_password = ?, auth_provider = ?,
+             email_verified = ?, email_verification_token = NULL,
+             email_verification_expires = NULL, updated_at = ?
+         WHERE id = ?`,
+        [placeholderEmail, WHATSAPP_AUTH_PASSWORD, 0, 'whatsapp', 1, now, userId]
+      );
+      user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
+    }
+
+    res.json({
+      success: true,
+      message: 'Email desconectado. Você passa a entrar só com o WhatsApp.',
+      user: toPublicUser(user),
+    });
+  } catch (error) {
+    console.error('Disconnect email login error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ error: 'Não foi possível desconectar o email' });
   }
 };

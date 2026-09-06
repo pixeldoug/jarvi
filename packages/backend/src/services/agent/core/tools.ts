@@ -45,6 +45,8 @@ import {
 import { rescheduleRemindersForTask } from '../../reminderService';
 import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
 import { recordTaskCreated } from '../../taskTelemetry';
+import { searchWeb } from '../../webSearchService';
+import { capitalizeTaskTitle } from '../../../utils/taskTitle';
 import type {
   AgentContext,
   ChannelProfile,
@@ -410,6 +412,63 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
       },
     },
   },
+  search_web: {
+    type: 'function',
+    function: {
+      name: 'search_web',
+      description:
+        'Pesquisa na web um fato externo necessário para desbloquear uma tarefa: prazo oficial, telefone, endereço, horário de funcionamento, se um estabelecimento oferece um serviço. Não use para opinião, tutorial genérico, nem para o que o usuário já disse. No máximo 2 buscas por turno. Depois de receber o resultado, salve os fatos úteis na descrição da tarefa com update_task e fale pouco no chat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Consulta específica em português, com cidade/país quando for local (ex: "ressonância magnética clínica Ubatuba telefone", "prazo IRPF 2026 Receita Federal").',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  offer_choices: {
+    type: 'function',
+    function: {
+      name: 'offer_choices',
+      description:
+        'Exibe a pergunta como artefato de respostas rápidas (botões clicáveis) no chat web. Use SOMENTE quando você precisa de uma resposta agora e já tem 2 a 5 opções concretas. Uma pergunta por turno. Sirva para prazo, lembrete, convênio, qual clínica, sim/não, hoje/semana/todas. NÃO escreva as opções como bullets no texto. NÃO use para listar tarefas, fatos ou um formulário com vários campos ao mesmo tempo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          question: {
+            type: 'string',
+            description:
+              'A pergunta concreta mostrada acima dos botões (ex: "Quer particular ou convênio?").',
+          },
+          choices: {
+            type: 'array',
+            items: { type: 'string' },
+            description:
+              '2 a 5 opções curtas (até ~80 caracteres) que a pessoa pode tocar. Ex: ["Hoje","Amanhã","Essa semana"]; ["Particular","Pelo convênio"]; ["Fumagalli em Ubatuba","HOC em Caraguá"].',
+          },
+        },
+        required: ['question', 'choices'],
+      },
+    },
+  },
+  complete_onboarding_journey: {
+    type: 'function',
+    function: {
+      name: 'complete_onboarding_journey',
+      description:
+        'Encerra a jornada das primeiras tarefas do onboarding. Chame UMA ÚNICA VEZ, só no web, quando a tríade (o quê / quando / como lembrar) da ÚLTIMA tarefa da fila estiver resolvida. Sem parâmetros. Devolve a lista de tarefas organizadas para você fechar a conversa. NÃO chame em conversas normais fora do onboarding.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
 };
 
 export function getToolsForChannel(profile: ChannelProfile): ChatCompletionTool[] {
@@ -434,7 +493,7 @@ async function executeCreateTask(
   profile: ChannelProfile,
 ): Promise<ToolExecutionResult> {
   const now = new Date().toISOString();
-  const title = String(args.title || '').trim();
+  const title = capitalizeTaskTitle(String(args.title || '').trim());
   if (!title) return { success: false, message: 'title é obrigatório' };
 
   const description = args.description
@@ -765,6 +824,13 @@ async function executeUpdateTask(
     if (key === 'recurrence_until') {
       fields.push(`${key} = ${ph()}`);
       values.push(sanitizeRecurrenceUntil(normalizeNullableField(args[key])));
+      continue;
+    }
+
+    if (key === 'title') {
+      const normalized = normalizeNullableField(args[key]);
+      fields.push(`${key} = ${ph()}`);
+      values.push(typeof normalized === 'string' ? capitalizeTaskTitle(normalized) : normalized);
       continue;
     }
 
@@ -1551,6 +1617,194 @@ async function executeScanGmail(
   };
 }
 
+async function executeSearchWeb(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const query = String(args.query || '').trim();
+  if (!query) return { success: false, message: 'query é obrigatório' };
+
+  try {
+    const result = await searchWeb(query, { timezone: ctx.timezone });
+    return {
+      success: true,
+      data: {
+        query: result.query,
+        summary: result.summary,
+        sources: result.sources,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Falha ao pesquisar na web';
+    console.error('search_web failed:', error);
+    return { success: false, message };
+  }
+}
+
+function parseOfferChoices(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0 && item.length <= 80)
+    .slice(0, 5);
+}
+
+function executeOfferChoices(args: Record<string, unknown>): ToolExecutionResult {
+  const question = typeof args.question === 'string' ? args.question.trim() : '';
+  const choices = parseOfferChoices(args.choices);
+  if (!question) return { success: false, message: 'question é obrigatório' };
+  if (choices.length < 2) {
+    return { success: false, message: 'Informe pelo menos 2 opções curtas' };
+  }
+  return { success: true, data: { question, choices } };
+}
+
+const ONBOARDING_JOURNEY_TASK_CAP = 5;
+
+const hasTimestamp = (value: unknown): boolean =>
+  value != null && String(value).trim() !== '';
+
+const formatOnboardingTasksLine = (
+  titles: string[],
+): string => {
+  if (titles.length === 0) return 'suas primeiras tarefas';
+  if (titles.length === 1) return titles[0]!;
+  if (titles.length === 2) return `${titles[0]} e ${titles[1]}`;
+  return `${titles.slice(0, -1).join(', ')} e ${titles[titles.length - 1]}`;
+};
+
+interface OnboardingJourneyUserRow {
+  onboarding_journey_completed_at?: string | Date | null;
+}
+
+interface OnboardingJourneyTaskRow {
+  id: string;
+  title: string;
+  due_date?: string | Date | null;
+  time?: string | Date | null;
+}
+
+async function fetchOnboardingJourneyUser(
+  userId: string,
+): Promise<OnboardingJourneyUserRow | null> {
+  if (isPostgreSQL()) {
+    const result = await getPool().query(
+      `SELECT onboarding_journey_completed_at
+       FROM users WHERE id = $1`,
+      [userId],
+    );
+    return (result.rows[0] as OnboardingJourneyUserRow) || null;
+  }
+  return (
+    (await getDatabase().get<OnboardingJourneyUserRow>(
+      `SELECT onboarding_journey_completed_at
+       FROM users WHERE id = ?`,
+      [userId],
+    )) || null
+  );
+}
+
+async function fetchOnboardingJourneyTasks(
+  userId: string,
+): Promise<OnboardingJourneyTaskRow[]> {
+  if (isPostgreSQL()) {
+    const result = await getPool().query(
+      `SELECT id, title, due_date, time
+       FROM tasks
+       WHERE user_id = $1 AND (completed = FALSE OR completed IS NULL)
+       ORDER BY created_at ASC
+       LIMIT $2`,
+      [userId, ONBOARDING_JOURNEY_TASK_CAP],
+    );
+    return result.rows as OnboardingJourneyTaskRow[];
+  }
+  return getDatabase().all<OnboardingJourneyTaskRow[]>(
+    `SELECT id, title, due_date, time
+     FROM tasks
+     WHERE user_id = ? AND (completed = 0 OR completed IS NULL)
+     ORDER BY created_at ASC
+     LIMIT ?`,
+    [userId, ONBOARDING_JOURNEY_TASK_CAP],
+  );
+}
+
+async function markOnboardingJourneyComplete(
+  userId: string,
+  completedAt: string,
+): Promise<void> {
+  if (isPostgreSQL()) {
+    await getPool().query(
+      `UPDATE users
+       SET onboarding_journey_completed_at = $1, updated_at = $2
+       WHERE id = $3 AND onboarding_journey_completed_at IS NULL`,
+      [completedAt, completedAt, userId],
+    );
+    return;
+  }
+  await getDatabase().run(
+    `UPDATE users
+     SET onboarding_journey_completed_at = ?, updated_at = ?
+     WHERE id = ? AND onboarding_journey_completed_at IS NULL`,
+    [completedAt, completedAt, userId],
+  );
+}
+
+function summarizeJourneyTasks(rows: OnboardingJourneyTaskRow[]): {
+  tasks: Array<{ id: string; title: string; due_label: string | null }>;
+  tasksLine: string;
+} {
+  const tasks = rows.map((row) => {
+    const dueLabel = formatDueDateLabel(
+      normalizeTaskDueDate(row.due_date),
+      normalizeTaskTime(row.time),
+    );
+    return { id: row.id, title: row.title, due_label: dueLabel };
+  });
+  const titles = tasks.map((task) =>
+    task.due_label ? `${task.title} (${task.due_label})` : task.title,
+  );
+  return { tasks, tasksLine: formatOnboardingTasksLine(titles).slice(0, 120) };
+}
+
+async function executeCompleteOnboardingJourney(
+  ctx: AgentContext,
+  profile: ChannelProfile,
+): Promise<ToolExecutionResult> {
+  if (profile.id !== 'web') {
+    return { success: false, message: 'complete_onboarding_journey só está disponível no web' };
+  }
+
+  const user = await fetchOnboardingJourneyUser(ctx.userId);
+  if (!user) return { success: false, message: 'Usuário não encontrado' };
+
+  const taskRows = await fetchOnboardingJourneyTasks(ctx.userId);
+  const summarized = summarizeJourneyTasks(taskRows);
+
+  if (hasTimestamp(user.onboarding_journey_completed_at)) {
+    return {
+      success: true,
+      data: {
+        alreadyCompleted: true,
+        tasks: summarized.tasks,
+        tasksLine: summarized.tasksLine,
+      },
+    };
+  }
+
+  const now = new Date().toISOString();
+  await markOnboardingJourneyComplete(ctx.userId, now);
+
+  return {
+    success: true,
+    data: {
+      alreadyCompleted: false,
+      tasks: summarized.tasks,
+      tasksLine: summarized.tasksLine,
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Public dispatcher
 // ---------------------------------------------------------------------------
@@ -1592,6 +1846,12 @@ export async function executeToolCall(
       return executeShowCategory(args, ctx);
     case 'scan_gmail':
       return executeScanGmail(args, ctx);
+    case 'search_web':
+      return executeSearchWeb(args, ctx);
+    case 'offer_choices':
+      return executeOfferChoices(args);
+    case 'complete_onboarding_journey':
+      return executeCompleteOnboardingJourney(ctx, profile);
     default:
       return { success: false, message: `Tool desconhecida: ${toolName}` };
   }

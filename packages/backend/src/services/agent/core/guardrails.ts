@@ -23,22 +23,36 @@ const DEDUP_WINDOW_SECONDS = 120;
 export const CREATION_CLAIM_REGEX =
   /(^|\s)(➕|📋|(?<!mensagem )(?<!msg )(?<!texto )(?<!recado )(?<!frase )(?:sugerida|sugeri|criada|criei|anotei|agendei|registrei))\b/i;
 
+// Every verb here must assert a mutation on its own. "deixei" is deliberately
+// absent: it reads both ways ("deixei para sexta" changes the task, "deixei sem
+// prazo" states that nothing changed), so it fired the retry on turns that had
+// nothing to save. That case is measured by the `claim-sem-tool` evaluator
+// instead of being blocked at runtime.
 export const UPDATE_CLAIM_REGEX =
-  /\b(atualizei|alterei|ajustei|corrigi|mudei|deixei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei)\b/i;
+  /\b(atualizei|alterei|ajustei|corrigi|mudei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei)\b/i;
 
 export function shouldRetryWithForcedTool(
   responseText: string,
   toolCallNames: string[],
 ): boolean {
-  const claimedCreation = CREATION_CLAIM_REGEX.test(responseText);
   const calledCreationTool = toolCallNames.some((name) =>
     CREATION_TOOL_NAMES.has(name as ToolName),
   );
-  const claimedUpdate = UPDATE_CLAIM_REGEX.test(responseText);
   const calledUpdateTool = toolCallNames.some((name) =>
     UPDATE_TOOL_NAMES.has(name as ToolName),
   );
-  return (claimedCreation && !calledCreationTool) || (claimedUpdate && !calledUpdateTool);
+  const claimedCreation = CREATION_CLAIM_REGEX.test(responseText);
+  const claimedUpdate = UPDATE_CLAIM_REGEX.test(responseText);
+
+  if (claimedCreation && !calledCreationTool) return true;
+
+  // "Marquei a tarefa" / "coloquei para sexta" right after create_task is a
+  // creation confirmation, not an unsaved edit. Those verbs also sit in
+  // UPDATE_CLAIM_REGEX, so without this guard a normal creation turn would be
+  // retried.
+  if (claimedUpdate && !calledUpdateTool && !calledCreationTool) return true;
+
+  return false;
 }
 
 /**

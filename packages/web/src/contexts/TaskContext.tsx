@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { usePostHog } from 'posthog-js/react';
+import { shouldEmitProductAnalytics } from '../lib/productAnalytics';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/apiClient';
 import { io } from 'socket.io-client';
@@ -166,7 +167,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
     return [];
   });
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const posthog = usePostHog();
   const queryClient = useQueryClient();
 
@@ -216,6 +217,16 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
   const tasks = tasksData ?? [];
   const isLoading = isQueryLoading;
   const error = queryError ? 'Failed to fetch tasks' : null;
+
+  const previousOnboardingCompletedAt = useRef(user?.onboardingCompletedAt);
+  useEffect(() => {
+    const current = user?.onboardingCompletedAt;
+    const previous = previousOnboardingCompletedAt.current;
+    previousOnboardingCompletedAt.current = current;
+    if (current && current !== previous) {
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    }
+  }, [user?.onboardingCompletedAt, queryClient]);
 
   const fetchTasks = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -422,7 +433,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       const response = await apiClient.patch<ToggleTaskResponse>(`/api/tasks/${taskId}/toggle`);
       const { next_occurrence: nextOccurrence, ...updatedTask } = response;
 
-      if (updatedTask.completed && posthog) {
+      if (updatedTask.completed && posthog && shouldEmitProductAnalytics()) {
         posthog.capture('task_completed', {
           task_id: updatedTask.id,
           priority: updatedTask.priority,

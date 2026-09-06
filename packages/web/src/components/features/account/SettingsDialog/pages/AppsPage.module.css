@@ -40,35 +40,6 @@
   gap: var(--sizes-1);
 }
 
-.integrationList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sizes-3);
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.integrationRow {
-  display: flex;
-  align-items: center;
-  gap: var(--sizes-6);
-  width: 100%;
-  flex-shrink: 0;
-  padding: var(--sizes-4);
-  border-radius: var(--radius-lg);
-  background: var(--semantic-surface-tertiary);
-}
-
-.integrationInfo {
-  display: flex;
-  align-items: center;
-  gap: var(--sizes-4);
-  flex: 1;
-  min-width: 0;
-}
-
 .iconContainer {
   width: var(--size-target-standard);
   height: var(--size-target-standard);
@@ -85,41 +56,6 @@
   width: 40px;
   height: 40px;
   object-fit: contain;
-}
-
-.integrationDetails {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.integrationName {
-  font-family: var(--typography-label-md-font-family);
-  font-size: var(--typography-label-md-font-size);
-  font-weight: var(--typography-label-md-font-weight);
-  line-height: var(--typography-label-md-line-height);
-  letter-spacing: var(--typography-label-md-letter-spacing);
-  color: var(--semantic-content-primary);
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.integrationDescription {
-  font-family: var(--typography-body-md-font-family);
-  font-size: var(--typography-body-md-font-size);
-  font-weight: var(--typography-body-md-font-weight);
-  line-height: var(--typography-body-md-line-height);
-  letter-spacing: var(--typography-body-md-letter-spacing);
-  color: var(--semantic-content-secondary);
-  margin: 0;
-}
-
-.integrationActions {
-  flex-shrink: 0;
 }
 
 /* ============================================================================
@@ -238,22 +174,6 @@
   display: flex;
   align-items: center;
   gap: var(--sizes-4);
-}
-
-.connectedBadge {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 var(--sizes-3);
-  border-radius: 999px;
-  border: 1px solid var(--semantic-content-positive, #16a34a);
-  background: transparent;
-
-  font-family: var(--typography-label-md-font-family);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--semantic-content-positive, #16a34a);
-  white-space: nowrap;
 }
 
 .connectedPhone {

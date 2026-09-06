@@ -67,7 +67,8 @@ const getOtherDetails = (value: unknown): Record<string, unknown> => {
 };
 
 const getWizardValidationError = (payload: NormalizedWizardPayload): string | null => {
-  const isSimplifiedWebOnboarding = payload.flowVersion === 'web-onboarding-v2';
+  const isSimplifiedWebOnboarding =
+    payload.flowVersion === 'web-onboarding-v2' || payload.flowVersion === 'web-onboarding-v3';
   if (!payload.name) return 'Nome é obrigatório';
   if (!payload.email) return 'Email é obrigatório';
   if (!EMAIL_REGEX.test(payload.email)) return 'Formato de email inválido';
@@ -98,7 +99,8 @@ const getWizardValidationError = (payload: NormalizedWizardPayload): string | nu
 const parseWizardPayload = (rawPayload: Record<string, unknown>): NormalizedWizardPayload | null => {
   const otherDetails = getOtherDetails(rawPayload.otherDetails);
   const flowVersion = sanitizeString(rawPayload.flowVersion, 80) || 'figma-onboarding-v1';
-  const isSimplifiedWebOnboarding = flowVersion === 'web-onboarding-v2';
+  const isSimplifiedWebOnboarding =
+    flowVersion === 'web-onboarding-v2' || flowVersion === 'web-onboarding-v3';
   const email = normalizeEmail(sanitizeString(rawPayload.email, 255));
   const name = sanitizeString(rawPayload.name, 120);
   const areas = parseStringArray(rawPayload.areas);

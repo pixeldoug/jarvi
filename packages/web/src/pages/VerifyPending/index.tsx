@@ -111,7 +111,7 @@ export const VerifyPending: React.FC = () => {
   };
 
   const handleBackToLogin = () => {
-    navigate('/login');
+    navigate('/login/email');
   };
 
   return (

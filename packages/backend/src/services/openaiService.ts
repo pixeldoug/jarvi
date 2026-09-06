@@ -1,5 +1,9 @@
+import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
+import { PostHogOpenAI } from '@posthog/ai/openai';
 import { toFile } from 'openai/uploads';
+import { getPostHogClient, isEvalAnalyticsDistinctId } from './posthogService';
+import { capitalizeTaskTitle } from '../utils/taskTitle';
 
 export interface ExtractedTask {
   title: string;
@@ -39,6 +43,17 @@ Se has_new_info = true: updated_memory deve conter a memória completa atualizad
 Se has_new_info = false: updated_memory = null.
 Nunca inclua markdown nem texto fora do JSON.`;
 
+/**
+ * Manually-versioned identifier for the onboarding prompts in this file,
+ * attached to their AI traces so a copy change can be segmented in PostHog.
+ * Bump it whenever an onboarding prompt or the deterministic follow-up copy
+ * below changes.
+ */
+export const ONBOARDING_PROMPT_VERSION = '2026-08-22.1';
+
+// Same wrapper-with-fallback pattern as runAgent.ts and core/memory.ts: when
+// PostHog is configured these calls emit $ai_generation events (tagged with
+// `span`) so their cost and output are visible; otherwise the pure SDK is used.
 let openaiClient: OpenAI | null = null;
 
 const getOpenAIClient = (): OpenAI => {
@@ -47,10 +62,58 @@ const getOpenAIClient = (): OpenAI => {
   }
 
   if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const posthog = getPostHogClient();
+    openaiClient = posthog
+      ? new PostHogOpenAI({ apiKey: process.env.OPENAI_API_KEY, posthog })
+      : new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
 
   return openaiClient;
+};
+
+/** Identity and trace attribution for the PostHog AI observability events. */
+export interface AiTelemetryOptions {
+  /** PostHog distinct_id convention across the backend. */
+  email?: string;
+  userId?: string;
+  /** Groups several calls of the same flow into a single trace. */
+  traceId?: string;
+}
+
+type OpenAiSpan =
+  | 'task_extraction_text'
+  | 'task_extraction_image'
+  | 'image_description'
+  | 'memory_whatsapp'
+  | 'onboarding_task_extraction'
+  | 'onboarding_follow_up_order';
+
+interface PosthogCallParams {
+  posthogDistinctId?: string;
+  posthogTraceId?: string;
+  posthogProperties?: Record<string, unknown>;
+}
+
+const buildPosthogParams = (
+  span: OpenAiSpan,
+  identity?: AiTelemetryOptions,
+  extraProperties?: Record<string, unknown>,
+): PosthogCallParams => {
+  if (!getPostHogClient()) return {};
+  if (identity?.email && isEvalAnalyticsDistinctId(identity.email)) return {};
+
+  const params: PosthogCallParams = {
+    posthogTraceId: identity?.traceId ?? randomUUID(),
+    posthogProperties: {
+      span,
+      environment: process.env.NODE_ENV ?? 'development',
+      ...(identity?.userId ? { user_id: identity.userId } : {}),
+      ...extraProperties,
+    },
+  };
+
+  if (identity?.email) params.posthogDistinctId = identity.email;
+  return params;
 };
 
 const safeJsonParse = (value: string | null | undefined): Record<string, unknown> => {
@@ -309,6 +372,7 @@ export const extractTaskFromText = async (
       { role: 'system', content: `${TASK_SYSTEM_PROMPT}${memorySection}\nData/hora atual: ${now}` },
       { role: 'user', content: text },
     ],
+    ...buildPosthogParams('task_extraction_text'),
   });
 
   return normalizeExtractedTask(safeJsonParse(response.choices[0]?.message?.content));
@@ -344,6 +408,7 @@ export const extractTaskFromImage = async (
         ],
       },
     ],
+    ...buildPosthogParams('task_extraction_image'),
   });
 
   return normalizeExtractedTask(safeJsonParse(response.choices[0]?.message?.content));
@@ -374,6 +439,7 @@ export const analyzeImageForChat = async (
       },
     ],
     max_tokens: 200,
+    ...buildPosthogParams('image_description'),
   });
 
   return (
@@ -402,6 +468,7 @@ export const updateMemoryFromWhatsappText = async (
       { role: 'system', content: MEMORY_UPDATE_SYSTEM_PROMPT },
       { role: 'user', content: userContent },
     ],
+    ...buildPosthogParams('memory_whatsapp'),
   });
 
   const parsed = safeJsonParse(response.choices[0]?.message?.content);
@@ -410,6 +477,224 @@ export const updateMemoryFromWhatsappText = async (
   }
 
   return null;
+};
+
+export interface OnboardingExtractedTask {
+  title: string;
+  due_date: string | null;
+  time: string | null;
+}
+
+const ONBOARDING_TASKS_PROMPT = `Você extrai as primeiras tarefas de um usuário novo, em português.
+Retorne JSON válido:
+{ "tasks": [ { "title": "string", "due_date": "YYYY-MM-DD | null", "time": "HH:MM | null" } ] }
+
+Regras:
+- Extraia no máximo 16 tarefas concretas (ações que a pessoa precisa fazer)
+- title curto e objetivo, com a primeira letra maiúscula
+- due_date SOMENTE se a pessoa escreveu um prazo explícito (hoje, amanhã, sexta, dia 23, 23/08). Senão null.
+- time SOMENTE se mencionou horário. Senão null.
+- NUNCA invente data, horário, "amanhã" ou 08:00. Agendar/marcar consulta sem prazo dito = due_date e time null.
+- Ignore saudações e texto que não for tarefa
+- Nunca inclua markdown nem texto fora do JSON`;
+
+const HAS_EXPLICIT_WHEN =
+  /\b(hoje|amanh[ãa]|depois de amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo|semana que vem|pr[óo]xima semana|essa semana|este m[eê]s|fim do m[eê]s|dia\s+\d{1,2}|\d{1,2}\/\d{1,2}|\d{4}-\d{2}-\d{2}|às\s*\d|\d{1,2}h|\d{1,2}:\d{2})\b/i;
+
+const withoutInventedSchedule = (
+  tasks: OnboardingExtractedTask[],
+  sourceText: string,
+): OnboardingExtractedTask[] => {
+  if (HAS_EXPLICIT_WHEN.test(sourceText)) return tasks;
+  return tasks.map((task) => ({ ...task, due_date: null, time: null }));
+};
+
+const fallbackTasksFromText = (text: string): OnboardingExtractedTask[] => {
+  const lines = text
+    .split(/[\n;•\-\u2013]+/)
+    .map((line) => line.replace(/^\d+[\.)]\s*/, '').trim())
+    .filter((line) => line.length >= 2)
+    .slice(0, 16);
+
+  return lines.map((title) => ({
+    title: capitalizeTaskTitle(title.slice(0, 200)),
+    due_date: null,
+    time: null,
+  }));
+};
+
+export const extractOnboardingTasks = async (
+  text: string,
+  options?: ExtractionOptions & AiTelemetryOptions,
+): Promise<OnboardingExtractedTask[]> => {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  try {
+    const openai = getOpenAIClient();
+    const now = buildDateTimeString(options?.timezone);
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: `${ONBOARDING_TASKS_PROMPT}\nData/hora atual: ${now}` },
+        { role: 'user', content: trimmed },
+      ],
+      ...buildPosthogParams('onboarding_task_extraction', options, {
+        onboarding_prompt_version: ONBOARDING_PROMPT_VERSION,
+      }),
+    });
+
+    const parsed = safeJsonParse(response.choices[0]?.message?.content);
+    const rawTasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    const tasks: OnboardingExtractedTask[] = [];
+
+    for (const item of rawTasks) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const title = typeof row.title === 'string' ? capitalizeTaskTitle(row.title.trim()) : '';
+      if (!title) continue;
+      const dueRaw = typeof row.due_date === 'string' ? row.due_date : null;
+      const timeRaw = typeof row.time === 'string' ? row.time.trim() : '';
+      tasks.push({
+        title: title.slice(0, 200),
+        due_date: normalizeDueDate(dueRaw),
+        time: timeRaw.length >= 4 ? timeRaw.slice(0, 5) : null,
+      });
+      if (tasks.length >= 16) break;
+    }
+
+    const resolved = tasks.length > 0 ? tasks : fallbackTasksFromText(trimmed);
+    return withoutInventedSchedule(resolved, trimmed);
+  } catch (error) {
+    console.error('extractOnboardingTasks failed, using line fallback:', error);
+    return fallbackTasksFromText(trimmed);
+  }
+};
+
+export type OnboardingFollowUp = {
+  ack: string;
+  question: string;
+  choices: string[];
+  taskTitle?: string;
+};
+
+const READY_ACK = 'Tudo pronto, criei suas primeiras tarefas.';
+const DEADLINE_CHOICES = ['Hoje', 'Amanhã', 'Essa semana', 'Até o fim do mês', 'Ainda não sei'];
+const REMINDER_LEAD_CHOICES = [
+  'No dia',
+  '1 dia antes',
+  '2 dias antes',
+  '1 semana antes',
+  'Ainda não quero lembrete',
+];
+
+type OnboardingTask = { title: string; dueDate?: string | null; time?: string | null };
+
+function formatOnboardingWhen(dueDate: string, time?: string | null): string {
+  const [year, month, day] = dueDate.split('-').map(Number);
+  if (!year || !month || !day) return dueDate;
+  const label = new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+  });
+  if (time && time.length >= 4) {
+    return `${label}, às ${time.slice(0, 5)}`;
+  }
+  return label;
+}
+
+const ONBOARDING_ORDER_PROMPT = `Você é a Jarvi. As primeiras tarefas de um usuário novo JÁ foram criadas.
+Sua única decisão é: por qual delas começar a conversa.
+
+Responda SOMENTE JSON: { "start_with": número }
+
+- start_with é o número da tarefa na lista (a primeira é 1).
+- Comece pela mais urgente: prazo mais próximo, risco de multa ou de perder a data, saúde, ou algo que destrava as outras.
+- Entre tarefas equivalentes, comece pela que a pessoa citou primeiro.
+- Não escreva texto fora do JSON.`;
+
+/**
+ * Only the *order* is delegated to the model — the copy itself is composed
+ * deterministically below, so a bad completion can never produce off-brand
+ * wording. Any failure just starts with the first task.
+ */
+const pickStartingTaskIndex = async (
+  tasks: OnboardingTask[],
+  rawText: string,
+  options?: AiTelemetryOptions,
+): Promise<number> => {
+  try {
+    const openai = getOpenAIClient();
+    const taskLines = tasks
+      .map(
+        (task, index) =>
+          `${index + 1}. ${task.title}${task.dueDate ? ` (prazo: ${task.dueDate})` : ' (sem prazo)'}`,
+      )
+      .join('\n');
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: ONBOARDING_ORDER_PROMPT },
+        {
+          role: 'user',
+          content: `Tarefas:\n${taskLines}\n\nTexto original da pessoa:\n${rawText.slice(0, 1500)}`,
+        },
+      ],
+      ...buildPosthogParams('onboarding_follow_up_order', options, {
+        onboarding_prompt_version: ONBOARDING_PROMPT_VERSION,
+        task_count: tasks.length,
+      }),
+    });
+
+    const parsed = safeJsonParse(response.choices[0]?.message?.content);
+    const position = Number(parsed.start_with);
+    if (!Number.isFinite(position)) return 0;
+
+    const index = Math.trunc(position) - 1;
+    return index >= 0 && index < tasks.length ? index : 0;
+  } catch (error) {
+    console.error('pickStartingTaskIndex failed, starting with the first task:', error);
+    return 0;
+  }
+};
+
+const buildFollowUpForTask = (tasks: OnboardingTask[], startIndex: number): OnboardingFollowUp => {
+  const task = tasks[startIndex];
+  const missingDate = !task.dueDate;
+
+  return {
+    ack: READY_ACK,
+    question: missingDate
+      ? 'Quando você quer que eu te lembre disso?'
+      : `Essa tarefa está marcada para ${formatOnboardingWhen(task.dueDate as string, task.time)}. Com quanta antecedência você quer o lembrete?`,
+    choices: missingDate ? DEADLINE_CHOICES : REMINDER_LEAD_CHOICES,
+    taskTitle: task.title,
+  };
+};
+
+/**
+ * Builds the first assistant message after onboarding. The wording, the
+ * question and the choices are fixed copy; the model is only consulted to
+ * decide which task the conversation opens with (see `pickStartingTaskIndex`).
+ */
+export const composeOnboardingFollowUp = async (
+  tasks: OnboardingTask[],
+  rawText: string,
+  options?: AiTelemetryOptions,
+): Promise<OnboardingFollowUp> => {
+  if (tasks.length === 0) {
+    return {
+      ack: READY_ACK,
+      question: 'Quando você quer que eu te lembre disso?',
+      choices: DEADLINE_CHOICES,
+    };
+  }
+
+  const startIndex = tasks.length === 1 ? 0 : await pickStartingTaskIndex(tasks, rawText, options);
+  return buildFollowUpForTask(tasks, startIndex);
 };
 
 // `updateTaskFromFollowUp` was removed as part of the unified agent

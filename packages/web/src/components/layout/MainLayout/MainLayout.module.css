@@ -48,6 +48,8 @@
 .main {
   flex: 1;
   min-width: 0;
+  container-type: inline-size;
+  container-name: main-panel;
   height: calc(100vh - var(--sizes-6) - var(--sizes-16));
   padding: var(--sizes-8) var(--sizes-12) 0 var(--sizes-12);
   background: linear-gradient(
@@ -148,6 +150,9 @@
   letter-spacing: var(--typography-heading-lg-letter-spacing);
   color: var(--semantic-content-primary);
   margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -252,6 +257,17 @@
   .rightSidebar {
     width: 496px;
     max-width: 496px;
+  }
+}
+
+@container main-panel (max-width: 520px) {
+  .mainTitleRow {
+    gap: var(--sizes-2);
+  }
+
+  .mainTitle {
+    font-size: var(--typography-heading-md-font-size);
+    line-height: var(--typography-heading-md-line-height);
   }
 }
 

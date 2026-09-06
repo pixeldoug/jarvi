@@ -193,7 +193,7 @@ export function MainLayout({
       </div>
 
       {/* Content */}
-      <div className={styles.content}>
+      <div className={styles.content} data-has-right={rightSidebar ? '' : undefined}>
         {/* Mobile overlay backdrop */}
         {isDrawerOpen && (
           <div
