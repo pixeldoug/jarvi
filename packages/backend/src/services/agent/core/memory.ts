@@ -7,9 +7,12 @@
  * write itself enforces the consent flag) but updates have no effect.
  */
 
+import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
+import { PostHogOpenAI } from '@posthog/ai/openai';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
+import { getPostHogClient } from '../../posthogService';
 import { getDateTimeForTimezone } from './time';
 import { getUserAllTasks } from './tasks';
 
@@ -18,16 +21,45 @@ const FALLBACK_TIMEZONE = 'America/Sao_Paulo';
 // Cheap model used only for memory extraction / reconciliation
 const MEMORY_MODEL = 'gpt-4o-mini';
 
+// Same wrapper-with-fallback pattern as runAgent.ts: when PostHog is
+// configured, these satellite calls emit $ai_generation events (tagged with
+// `span`) so their cost is visible; otherwise the pure SDK is used and no
+// posthog params are passed.
 let openaiClient: OpenAI | null = null;
 const getOpenAIClient = (): OpenAI => {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY environment variable is required');
   }
   if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const posthog = getPostHogClient();
+    openaiClient = posthog
+      ? new PostHogOpenAI({ apiKey: process.env.OPENAI_API_KEY, posthog })
+      : new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
   return openaiClient;
 };
+
+interface PosthogCallParams {
+  posthogTraceId?: string;
+  posthogProperties?: Record<string, unknown>;
+}
+
+function buildMemoryPosthogParams(
+  span: 'memory_extraction' | 'memory_reconciliation',
+  userId: string,
+): PosthogCallParams {
+  if (!getPostHogClient()) return {};
+  // Seeded eval user in helpers.ts — never bill eval memory calls to prod LLM analytics.
+  if (userId === 'eval-user') return {};
+  return {
+    posthogTraceId: randomUUID(),
+    posthogProperties: {
+      span,
+      user_id: userId,
+      environment: process.env.NODE_ENV ?? 'development',
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // User profile reads
@@ -41,6 +73,9 @@ export interface UserProfile {
   email: string;
   /** Raw `users.subscription_status` (e.g. 'active' | 'trialing' | 'none'), for cost-by-plan segmentation. */
   subscriptionStatus: string;
+  /** Wizard done, first-tasks chat still open. */
+  onboardingJourneyPending: boolean;
+  whatsappVerified: boolean;
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
@@ -52,7 +87,9 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
           [userId],
         ),
         getPool().query(
-          'SELECT timezone, preferred_name, name, email, subscription_status FROM users WHERE id = $1',
+          `SELECT timezone, preferred_name, name, email, subscription_status,
+                  whatsapp_verified, onboarding_completed_at, onboarding_journey_completed_at
+           FROM users WHERE id = $1`,
           [userId],
         ),
       ]);
@@ -62,12 +99,20 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       const userRow = userRes.rows[0];
       const preferredName =
         userRow?.preferred_name || userRow?.name?.split(' ')[0] || '';
+      const onboardingJourneyPending =
+        userRow?.onboarding_completed_at != null &&
+        userRow?.onboarding_journey_completed_at == null;
       return {
         memory,
         timezone: userRow?.timezone || FALLBACK_TIMEZONE,
         preferredName,
         email: userRow?.email || '',
         subscriptionStatus: userRow?.subscription_status || 'none',
+        onboardingJourneyPending,
+        whatsappVerified:
+          userRow?.whatsapp_verified === true ||
+          userRow?.whatsapp_verified === 1 ||
+          userRow?.whatsapp_verified === '1',
       };
     }
     const db = getDatabase();
@@ -82,19 +127,32 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
         name?: string;
         email?: string;
         subscription_status?: string;
+        onboarding_completed_at?: string | null;
+        onboarding_journey_completed_at?: string | null;
+        whatsapp_verified?: boolean | number | string | null;
       }>(
-        'SELECT timezone, preferred_name, name, email, subscription_status FROM users WHERE id = ?',
+        `SELECT timezone, preferred_name, name, email, subscription_status,
+                whatsapp_verified, onboarding_completed_at, onboarding_journey_completed_at
+         FROM users WHERE id = ?`,
         [userId],
       ),
     ]);
     const memory = memRow && memRow.consent_ai_memory ? (memRow.memory_text || '') : '';
     const preferredName = userRow?.preferred_name || userRow?.name?.split(' ')[0] || '';
+    const onboardingJourneyPending =
+      userRow?.onboarding_completed_at != null &&
+      userRow?.onboarding_journey_completed_at == null;
     return {
       memory,
       timezone: userRow?.timezone || FALLBACK_TIMEZONE,
       preferredName,
       email: userRow?.email || '',
       subscriptionStatus: userRow?.subscription_status || 'none',
+      onboardingJourneyPending,
+      whatsappVerified:
+        userRow?.whatsapp_verified === true ||
+        userRow?.whatsapp_verified === 1 ||
+        userRow?.whatsapp_verified === '1',
     };
   } catch {
     return {
@@ -103,6 +161,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       preferredName: '',
       email: '',
       subscriptionStatus: 'none',
+      onboardingJourneyPending: false,
+      whatsappVerified: false,
     };
   }
 }
@@ -181,6 +241,7 @@ export async function extractMemoryPostResponse(
       },
     ],
     max_tokens: 800,
+    ...buildMemoryPosthogParams('memory_extraction', userId),
   });
 
   const result = response.choices[0]?.message?.content?.trim();
@@ -309,6 +370,7 @@ Regras:
       model: MEMORY_MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 800,
+      ...buildMemoryPosthogParams('memory_reconciliation', userId),
     });
     const updated = response.choices[0]?.message?.content?.trim();
     return updated || currentMemory;

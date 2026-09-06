@@ -63,9 +63,19 @@ cd packages/backend && node -e "
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 (async () => {
-  const db = await open({ filename: './jarvi.db', driver: sqlite3.Database });
-  await db.run('UPDATE users SET email_verified = 1 WHERE email = ?', ['YOUR_EMAIL']);
+ const db = await open({ filename: './jarvi.db', driver: sqlite3.Database });
+ await db.run('UPDATE users SET email_verified = 1 WHERE email = ?', ['YOUR_EMAIL']);
 })();
 "
 ```
 Then login via POST `/api/auth/login` with `{email, password}` to get a JWT token.
+
+### Local onboarding tests (avoid polluting prod analytics)
+
+Outside `NODE_ENV=production`, the backend skips Slack onboarding alerts, PostHog server events, and Meta CAPI by default. The web app skips PostHog/Meta Pixel lifecycle events when running via Vite dev (`import.meta.env.DEV`).
+
+Override when you need to test integrations locally:
+- Backend: `JARVI_EMIT_EXTERNAL_INTEGRATIONS=true` in `packages/backend/.env`
+- Web: `VITE_EMIT_PRODUCT_ANALYTICS=true` in `packages/web/.env`
+
+Test accounts still persist in SQLite (`jarvi.db`). Delete test rows manually if needed.

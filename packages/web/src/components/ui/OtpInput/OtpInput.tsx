@@ -31,6 +31,8 @@ export interface OtpInputProps {
   helperText?: string;
   /** Additional CSS classes */
   className?: string;
+  /** Horizontal alignment of the digit boxes */
+  align?: 'start' | 'center';
 }
 
 function normalizeDigits(input: string): string {
@@ -48,6 +50,7 @@ export function OtpInput({
   error = false,
   helperText,
   className = '',
+  align = 'center',
 }: OtpInputProps & { onComplete?: (value: string) => void }) {
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -175,6 +178,7 @@ export function OtpInput({
   const wrapperClasses = [styles.wrapper, className].filter(Boolean).join(' ');
   const rowClasses = [
     styles.row,
+    align === 'start' && styles.rowStart,
     disabled && styles.disabled,
   ].filter(Boolean).join(' ');
 

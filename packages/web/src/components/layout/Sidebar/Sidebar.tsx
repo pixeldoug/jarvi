@@ -4,7 +4,7 @@
  * Global application sidebar. Handles:
  *  - User profile header (avatar, name, plan label, settings/collapse toggle)
  *  - Optional Pro CTA for trialing / free users
- *  - Task navigation items (Todas as tarefas, Hoje, Esta semana, Futuro, Sem data, Vencidas)
+ *  - Task navigation items (Todas as tarefas, Hoje, Esta semana, Futuro, Caixa de entrada, Vencidas)
  *  - Collapsible "Categorias" group with hover add-button
  *  - Collapsible "Filtros" group (custom lists)
  *  - Expanded (320 px) / Collapsed (56 px) states, toggled internally
@@ -41,6 +41,9 @@ import {
 } from '../../features/account/SettingsDialog/SettingsDialog';
 import { ChangePasswordDialog } from '../../features/account/SettingsDialog/ChangePasswordDialog';
 import { DisconnectGoogleDialog } from '../../features/account/SettingsDialog/DisconnectGoogleDialog';
+import { DisconnectWhatsAppDialog } from '../../features/account/SettingsDialog/DisconnectWhatsAppDialog';
+import { DisconnectEmailDialog } from '../../features/account/SettingsDialog/DisconnectEmailDialog';
+import { AddEmailDialog } from '../../features/account/SettingsDialog/AddEmailDialog';
 import { DeleteAccountDialog } from '../../features/account/SettingsDialog/DeleteAccountDialog';
 import { useMobileSidebar } from '../MainLayout/MainLayout';
 import { SidebarEmptyState } from './SidebarEmptyState';
@@ -135,7 +138,7 @@ export interface SidebarProps {
 const NAV_ITEMS: Array<{ id: ListType; label: string; icon: typeof Checks }> = [
   { id: 'all', label: 'Lista de tarefas', icon: Checks },
   { id: 'later', label: 'Calendário', icon: CalendarDots },
-  { id: 'noDate', label: 'Sem data', icon: Tray },
+  { id: 'noDate', label: 'Caixa de entrada', icon: Tray },
   { id: 'overdue', label: 'Vencidas', icon: HourglassLow },
   { id: 'recurring', label: 'Recorrentes', icon: Repeat },
 ];
@@ -814,6 +817,7 @@ export function Sidebar({
             onClose={handleCloseMobileSettings}
             hideHeader
             onOpenProfileOverlay={setProfileOverlay}
+            onGoToApps={() => setMobileSettingsPage('apps')}
           />
         )}
       </BottomSheet>
@@ -824,6 +828,18 @@ export function Sidebar({
       />
       <DisconnectGoogleDialog
         isOpen={profileOverlay === 'disconnect'}
+        onClose={() => setProfileOverlay(null)}
+      />
+      <DisconnectWhatsAppDialog
+        isOpen={profileOverlay === 'disconnect-whatsapp'}
+        onClose={() => setProfileOverlay(null)}
+      />
+      <DisconnectEmailDialog
+        isOpen={profileOverlay === 'disconnect-email'}
+        onClose={() => setProfileOverlay(null)}
+      />
+      <AddEmailDialog
+        isOpen={profileOverlay === 'add-email'}
         onClose={() => setProfileOverlay(null)}
       />
       <DeleteAccountDialog

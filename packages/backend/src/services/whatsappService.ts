@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import { isProduction } from '../config/environment';
 
 interface TaskConfirmationData {
   title: string;
@@ -115,6 +116,96 @@ export const sendReminderTemplateMessage = async (
     contentSid: TASK_REMINDER_TEMPLATE_SID,
     contentVariables: JSON.stringify({ '1': taskTitle, '2': scheduleLabel }),
   });
+};
+
+const sendContentTemplateOrLog = async (
+  to: string,
+  contentSid: string,
+  variables: Record<string, string>,
+  preview: string,
+): Promise<void> => {
+  if (!isProduction()) {
+    console.log('[WhatsApp] Skipping template send outside production.', {
+      to,
+      contentSid,
+      preview,
+    });
+    return;
+  }
+
+  const client = getTwilioClient();
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid,
+    contentVariables: JSON.stringify(variables),
+  });
+};
+
+export const sendOnboardingWelcomeTemplate = async (
+  to: string,
+  name: string,
+  tasksLine: string,
+): Promise<void> => {
+  const contentSid = process.env.TWILIO_ONBOARDING_WELCOME_CONTENT_SID?.trim();
+  if (!contentSid) {
+    console.warn(
+      'TWILIO_ONBOARDING_WELCOME_CONTENT_SID is not set; skipping onboarding welcome WhatsApp.'
+    );
+    return;
+  }
+
+  const client = getTwilioClient();
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid,
+    contentVariables: JSON.stringify({
+      '1': name.slice(0, 40) || 'oi',
+      '2': tasksLine.slice(0, 120) || 'suas primeiras tarefas',
+    }),
+  });
+};
+
+export const sendOnboardingIntroTemplate = async (
+  to: string,
+  name: string,
+): Promise<void> => {
+  const contentSid = process.env.TWILIO_ONBOARDING_INTRO_CONTENT_SID?.trim();
+  const safeName = name.slice(0, 40) || 'oi';
+  const preview =
+    `Oi, ${safeName}! Aqui é a Jarvi. Você pode me mandar fotos, áudios, documentos ou mensagens para criar tarefas rapidinho — e depois organizar no computador. Dica: fixe esta conversa no topo do WhatsApp.`;
+  if (!contentSid) {
+    console.warn(
+      'TWILIO_ONBOARDING_INTRO_CONTENT_SID is not set; skipping onboarding intro WhatsApp.'
+    );
+    if (!isProduction()) {
+      console.log('[WhatsApp] Onboarding intro preview:', preview);
+    }
+    return;
+  }
+
+  await sendContentTemplateOrLog(to, contentSid, { '1': safeName }, preview);
+};
+
+export const sendOnboardingTasksConfirmationTemplate = async (
+  to: string,
+  tasksLine: string,
+): Promise<void> => {
+  const contentSid = process.env.TWILIO_ONBOARDING_TASKS_CONFIRMATION_CONTENT_SID?.trim();
+  const safeLine = tasksLine.slice(0, 120) || 'suas primeiras tarefas';
+  const preview = `Prontinho! Suas primeiras tarefas já estão organizadas: ${safeLine}. Qualquer coisa, é só me chamar por aqui.`;
+  if (!contentSid) {
+    console.warn(
+      'TWILIO_ONBOARDING_TASKS_CONFIRMATION_CONTENT_SID is not set; skipping onboarding tasks confirmation WhatsApp.'
+    );
+    if (!isProduction()) {
+      console.log('[WhatsApp] Onboarding tasks confirmation preview:', preview);
+    }
+    return;
+  }
+
+  await sendContentTemplateOrLog(to, contentSid, { '1': safeLine }, preview);
 };
 
 export const downloadMedia = async (mediaUrl: string): Promise<Buffer> => {

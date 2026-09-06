@@ -8,6 +8,7 @@ import { sendEmailChangeConfirmation } from '../services/emailService';
 import { sendVerificationCode } from '../services/whatsappService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { cancelSubscriptionForDeletion } from '../services/stripeService';
+import { hasRealUserEmail, toPublicUser } from '../controllers/authController';
 
 // Helper to generate secure token
 const generateSecureToken = (): string => {
@@ -846,28 +847,81 @@ router.delete('/whatsapp-link', authenticateToken, async (req: Request, res: Res
     }
 
     const now = new Date().toISOString();
+    let existing: {
+      email?: string | null;
+      auth_provider?: string | null;
+      password?: string | null;
+      email_verified?: boolean | number | null;
+    } | undefined;
+
+    if (isPostgreSQL()) {
+      const pool = getPool();
+      const result = await pool.query(
+        'SELECT email, auth_provider, password, email_verified FROM users WHERE id = $1',
+        [userId]
+      );
+      existing = result.rows[0];
+    } else {
+      const db = getDatabase();
+      existing = await db.get(
+        'SELECT email, auth_provider, password, email_verified FROM users WHERE id = ?',
+        [userId]
+      );
+    }
+
+    if (!existing) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    const emailReady =
+      hasRealUserEmail(existing.email) &&
+      (Boolean(existing.email_verified) || existing.auth_provider === 'google');
+    if (!emailReady) {
+      res.status(400).json({
+        error: 'Confirme um email em Meu perfil antes de desconectar o WhatsApp.',
+        code: 'EMAIL_REQUIRED',
+      });
+      return;
+    }
+
+    const nextAuthProvider =
+      existing.auth_provider === 'whatsapp'
+        ? existing.password === 'google-auth'
+          ? 'google'
+          : 'email'
+        : existing.auth_provider || 'email';
+
+    let updatedUser;
 
     if (isPostgreSQL()) {
       const pool = getPool();
       await pool.query(
         `UPDATE users
          SET whatsapp_phone = NULL, whatsapp_verified = FALSE, whatsapp_link_code = NULL,
-             whatsapp_link_code_expires_at = NULL, updated_at = $1
-         WHERE id = $2`,
-        [now, userId]
+             whatsapp_link_code_expires_at = NULL, auth_provider = $1, updated_at = $2
+         WHERE id = $3`,
+        [nextAuthProvider, now, userId]
       );
+      const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+      updatedUser = result.rows[0];
     } else {
       const db = getDatabase();
       await db.run(
         `UPDATE users
          SET whatsapp_phone = NULL, whatsapp_verified = 0, whatsapp_link_code = NULL,
-             whatsapp_link_code_expires_at = NULL, updated_at = ?
+             whatsapp_link_code_expires_at = NULL, auth_provider = ?, updated_at = ?
          WHERE id = ?`,
-        [now, userId]
+        [nextAuthProvider, now, userId]
       );
+      updatedUser = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
     }
 
-    res.json({ success: true, message: 'Vinculação do WhatsApp removida.' });
+    res.json({
+      success: true,
+      message: 'Vinculação do WhatsApp removida.',
+      user: toPublicUser(updatedUser),
+    });
   } catch (error) {
     console.error('Error unlinking WhatsApp:', error);
     res.status(500).json({ error: 'Erro ao remover vinculação do WhatsApp' });

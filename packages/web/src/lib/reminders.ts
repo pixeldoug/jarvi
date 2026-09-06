@@ -46,20 +46,39 @@ function formatOffsetLabel(offset: RelativeReminderOffset): string {
   return `${offset.amount} ${unitLabel} ${preposition}`;
 }
 
-function formatAbsoluteDateTime(isoLocal: string): string {
-  const [datePart, timePart] = isoLocal.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
-  const monthLabel = date
+function formatMonthLabel(date: Date): string {
+  return date
     .toLocaleDateString('pt-BR', { month: 'short' })
     .replace('.', '')
     .replace(/^./, (s) => s.toUpperCase());
+}
 
-  if (timePart) {
-    return `${day} ${monthLabel} às ${timePart}`;
+function formatHoursMinutes(timePart: string): string {
+  const clean = timePart.replace(/Z$/i, '').split('.')[0];
+  const [hours = '00', minutes = '00'] = clean.split(':');
+  return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+}
+
+function formatAbsoluteDateTime(isoLocal: string): string {
+  const hasTimezone = /Z$/i.test(isoLocal) || /[+-]\d{2}:\d{2}$/.test(isoLocal);
+  if (hasTimezone) {
+    const parsed = new Date(isoLocal);
+    if (!Number.isNaN(parsed.getTime())) {
+      const hours = String(parsed.getHours()).padStart(2, '0');
+      const minutes = String(parsed.getMinutes()).padStart(2, '0');
+      return `${parsed.getDate()} ${formatMonthLabel(parsed)} às ${hours}:${minutes}`;
+    }
   }
 
-  return `${day} ${monthLabel} ${year}`;
+  const [datePart, timePart] = isoLocal.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  if (timePart) {
+    return `${day} ${formatMonthLabel(date)} às ${formatHoursMinutes(timePart)}`;
+  }
+
+  return `${day} ${formatMonthLabel(date)} ${year}`;
 }
 
 const WEEKDAY_LABELS_PT = [

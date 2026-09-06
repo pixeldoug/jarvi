@@ -10,8 +10,9 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from '@phosphor-icons/react';
-import { Button, Input } from '../../../../ui';
+import { Button, ConnectionChip, Input, ListCard, ListCardGroup } from '../../../../ui';
 import { useAuth } from '../../../../../contexts/AuthContext';
+import { formatWhatsAppPhone } from '../../../../../lib/whatsappPhone';
 import styles from './AppsPage.module.css';
 
 // ============================================================================
@@ -127,6 +128,46 @@ interface AppsListProps {
 }
 
 function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
+  const { token, user } = useAuth();
+  const [whatsappLinked, setWhatsappLinked] = useState(Boolean(user?.whatsappVerified));
+  const [whatsappPhone, setWhatsappPhone] = useState(user?.whatsappPhone || '');
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/users/whatsapp-link`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await parseApiPayload(res);
+        if (!res.ok || cancelled) return;
+        const phone = typeof data.phone === 'string' ? data.phone : '';
+        setWhatsappLinked(Boolean(data.linked));
+        setWhatsappPhone(phone);
+      } catch {
+        // Keep auth-seeded state if status fetch fails.
+      }
+    };
+
+    void load();
+
+    const handleChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ linked?: boolean }>).detail;
+      if (typeof detail?.linked === 'boolean') {
+        setWhatsappLinked(detail.linked);
+        if (!detail.linked) setWhatsappPhone('');
+      }
+    };
+    window.addEventListener('jarvi:whatsapp-link-changed', handleChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('jarvi:whatsapp-link-changed', handleChange);
+    };
+  }, [token]);
+
   return (
     <>
       {!hideHeader && (
@@ -136,42 +177,55 @@ function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
         </div>
       )}
 
-      <ul className={styles.integrationList}>
-        {APPS.map((app) => (
-          <li key={app.id} className={styles.integrationRow}>
-            <div className={styles.integrationInfo}>
-              <div className={styles.iconContainer}>
+      <ListCardGroup>
+        {APPS.map((app) => {
+          const isWhatsapp = app.id === 'whatsapp';
+          const connected = isWhatsapp && whatsappLinked;
+          const description =
+            connected && whatsappPhone
+              ? `Conectado em ${formatWhatsAppPhone(whatsappPhone)}.`
+              : app.description;
+
+          return (
+            <ListCard
+              key={app.id}
+              as="li"
+              icon={
                 <img
                   src={app.icon}
                   alt={app.name}
                   className={styles.appIcon}
                   draggable={false}
                 />
-              </div>
-              <div className={styles.integrationDetails}>
-                <p className={styles.integrationName}>{app.name}</p>
-                <p className={styles.integrationDescription}>{app.description}</p>
-              </div>
-            </div>
-
-            <div className={styles.integrationActions}>
-              <Button
-                variant="secondary"
-                size="small"
-                disabled={!app.available}
-                onClick={() => onConnect(app.id)}
-                aria-label={
-                  app.available
-                    ? `Conectar ${app.name}`
-                    : `${app.name} ainda não está disponível`
-                }
-              >
-                Conectar
-              </Button>
-            </div>
-          </li>
-        ))}
-      </ul>
+              }
+              title={app.name}
+              description={description}
+              action={
+                connected ? (
+                  <ConnectionChip
+                    onClick={() => onConnect(app.id)}
+                    aria-label={`Gerenciar ${app.name}`}
+                  />
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    disabled={!app.available}
+                    onClick={() => onConnect(app.id)}
+                    aria-label={
+                      app.available
+                        ? `Conectar ${app.name}`
+                        : `${app.name} ainda não está disponível`
+                    }
+                  >
+                    Conectar
+                  </Button>
+                )
+              }
+            />
+          );
+        })}
+      </ListCardGroup>
     </>
   );
 }
@@ -187,7 +241,8 @@ interface WhatsAppConnectPageProps {
 }
 
 function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
-  const { token } = useAuth();
+  const { token, user, unlinkWhatsApp } = useAuth();
+  const canUnlinkWhatsapp = Boolean(user?.email && user?.emailVerified);
 
   const [whatsappState, setWhatsappState] = useState<WhatsAppState>('initial');
   const [phone, setPhone] = useState('');
@@ -330,24 +385,12 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
     clearFeedback();
     setUnlinkLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/users/whatsapp-link`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await parseApiPayload(res);
-      if (!res.ok) throw new Error(String(data.error || 'Erro ao desvincular WhatsApp'));
-
-      setSuccessMsg(String(data.message || 'WhatsApp desvinculado com sucesso.'));
+      await unlinkWhatsApp();
+      setSuccessMsg('WhatsApp desvinculado com sucesso.');
       setLinkedPhone(null);
       setPhone('');
       setVerificationCode('');
       setWhatsappState('initial');
-      window.dispatchEvent(
-        new CustomEvent('jarvi:whatsapp-link-changed', { detail: { linked: false } })
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao desvincular WhatsApp');
     } finally {
@@ -477,19 +520,28 @@ function WhatsAppConnectPage({ onBack }: WhatsAppConnectPageProps) {
       {whatsappState === 'connected' && (
         <div className={styles.formSection}>
           <div className={styles.connectedRow}>
-            <span className={styles.connectedBadge}>Conectado</span>
-            <p className={styles.connectedPhone}>{linkedPhone}</p>
-            <div className={styles.connectedActions}>
-              <Button
-                variant="secondary"
-                loading={unlinkLoading}
-                disabled={unlinkLoading}
-                onClick={handleUnlink}
-              >
-                Desvincular número
-              </Button>
-            </div>
+            <ConnectionChip />
+            <p className={styles.connectedPhone}>
+              {linkedPhone ? formatWhatsAppPhone(linkedPhone) : linkedPhone}
+            </p>
+            {canUnlinkWhatsapp && (
+              <div className={styles.connectedActions}>
+                <Button
+                  variant="secondary"
+                  loading={unlinkLoading}
+                  disabled={unlinkLoading}
+                  onClick={handleUnlink}
+                >
+                  Desconectar
+                </Button>
+              </div>
+            )}
           </div>
+          {!canUnlinkWhatsapp && (
+            <p className={styles.helperText}>
+              Adicione um email em Meu perfil para poder desconectar o WhatsApp.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -711,7 +763,7 @@ function GmailConnectPage({ onBack }: GmailConnectPageProps) {
       {!statusLoading && connected && (
         <div className={styles.formSection}>
           <div className={styles.connectedRow}>
-            <span className={styles.connectedBadge}>Conectado</span>
+            <ConnectionChip />
             <div className={styles.connectedActions}>
               <Button
                 variant="secondary"

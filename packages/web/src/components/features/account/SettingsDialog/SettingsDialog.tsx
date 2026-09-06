@@ -79,6 +79,7 @@ export function SettingsPageContent({
   onClose,
   hideHeader = false,
   onOpenProfileOverlay,
+  onGoToApps,
 }: {
   page: SettingsPage;
   onClose: () => void;
@@ -89,9 +90,10 @@ export function SettingsPageContent({
    */
   hideHeader?: boolean;
   onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
+  onGoToApps?: () => void;
 }) {
   switch (page) {
-    case 'profile':    return <ProfilePage onOpenProfileOverlay={onOpenProfileOverlay} />;
+    case 'profile':    return <ProfilePage onOpenProfileOverlay={onOpenProfileOverlay} onGoToApps={onGoToApps} />;
     case 'payments':   return <PaymentsPage onClose={onClose} />;
     case 'apps':       return <AppsPage hideHeader={hideHeader} />;
     case 'memory':     return <MemoryPage />;
@@ -177,6 +179,7 @@ export function SettingsDialog({
             page={activePage}
             onClose={onClose}
             onOpenProfileOverlay={onOpenProfileOverlay}
+            onGoToApps={() => setActivePage('apps')}
           />
         </main>
       </div>

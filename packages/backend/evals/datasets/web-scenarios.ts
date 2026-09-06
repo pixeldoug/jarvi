@@ -5,12 +5,16 @@
  * general mode (chat panel) and task mode (focused task sidebar).
  */
 
-import { addDays, makeCategory, makeTask, todayIso } from '../helpers';
+import { addDays, makeCategory, makeTask, nextWeekday, todayIso, WEEKDAY } from '../helpers';
 import type { EvalScenario } from './whatsapp-scenarios';
 
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
 const YESTERDAY = addDays(TODAY, -1);
+const SATURDAY = nextWeekday(TODAY, WEEKDAY.sabado);
+const SATURDAY_DISPLAY = SATURDAY.split('-').slice(1).reverse().join('/');
+// Every day the agent could silently pick when told only "essa semana".
+const THIS_WEEK_DAYS = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
 
 export const WEB_SCENARIOS: EvalScenario[] = [
   // ── Task creation ─────────────────────────────────────────────────────────
@@ -24,7 +28,7 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     ],
     mustContain: ['contrato'],
     mustNotContain: ['amanhã', 'sem data'],
-    idealOutput: 'Feito! Tem algum detalhe importante sobre o contrato?',
+    idealOutput: 'Poxa, revisar contrato ainda hoje é puxado. Já deixei a tarefa pronta. Se faltar como lembrar, oferece isso num offer_choices.',
     tags: ['web', 'task-creation', 'tool-calling'],
   },
   {
@@ -34,8 +38,18 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     mustCallTool: ['create_task'],
     mustCallToolCount: { create_task: 2 },
     mustContain: ['luz', 'seguro'],
-    idealOutput: 'Feito! Quer adicionar prazo para a conta de luz ou para o seguro?',
+    idealOutput: 'Deixei as duas tarefas prontas e desbloqueio uma de cada vez, com uma pergunta (offer_choices) se faltar prazo.',
     tags: ['web', 'task-creation', 'multi-create', 'tool-calling'],
+  },
+  {
+    name: 'web/create-task-offer-one-choice',
+    channel: 'web',
+    input: 'preciso marcar oftalmo',
+    mustCallTool: ['create_task', 'offer_choices'],
+    mustNotContain: ['Embaixo', 'Ainda falta combinar', 'Particular', 'Pelo convênio'],
+    idealOutput:
+      'Cria a tarefa e oferece UMA pergunta com opções (prazo). Não lista dia, local e lembrete juntos.',
+    tags: ['web', 'task-creation', 'offer-choices', 'tool-calling'],
   },
 
   // ── Category reuse (must NOT invent new categories) ───────────────────────
@@ -239,5 +253,133 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     mustContain: ['amanhã'],
     idealOutput: 'Feito! Reagendei para amanhã.',
     tags: ['web', 'overdue', 'reschedule', 'tool-calling'],
+  },
+
+  // ── Multi-turn ─────────────────────────────────────────────────────────────
+  {
+    // Web deadline follow-up: turn 1 creates the task without a date (and per
+    // the web rules asks the prazo question via offer_choices); the user's
+    // one-word answer in turn 2 must become an update_task with the resolved
+    // due_date — not a new task, not just a chat confirmation.
+    name: 'web/multiturn-deadline-followup',
+    channel: 'web',
+    turns: [
+      {
+        input: 'preciso marcar oftalmo',
+        mustCallTool: ['create_task'],
+      },
+      {
+        input: 'amanhã',
+        mustCallTool: ['update_task'],
+        mustNotCallTool: ['create_task'],
+        mustCallToolArgs: [
+          { tool: 'update_task', arg: 'due_date', value: TOMORROW },
+        ],
+      },
+    ],
+    tags: ['web', 'multiturn', 'deadline-followup', 'tool-calling'],
+  },
+  {
+    // A period is not a deadline. Answering the prazo question with "essa
+    // semana" must narrow to concrete days via offer_choices; resolving it to
+    // a week boundary behind the user's back is the bug this guards.
+    name: 'web/multiturn-periodo-vago-prazo',
+    channel: 'web',
+    turns: [
+      {
+        input: 'preciso comprar as coisas do aniversário da Chloe',
+        mustCallTool: ['create_task'],
+      },
+      {
+        // A period is not a deadline: no day of it may be written without the
+        // user naming one. The follow-up should also go out as offer_choices,
+        // but the agent never calls that tool in any scenario today, so
+        // asserting it here would only add a permanently red test.
+        input: 'essa semana',
+        mustNotCallToolArgs: THIS_WEEK_DAYS.flatMap((day) => [
+          { tool: 'update_task', arg: 'due_date', value: day },
+          { tool: 'create_task', arg: 'due_date', value: day },
+        ]),
+      },
+    ],
+    tags: ['web', 'multiturn', 'deadline-followup', 'vague-period', 'tool-calling'],
+  },
+  {
+    // Regression: after the due date is already saved, "ok" to "shall I
+    // continue with the other task?" must start that other task — not
+    // re-apply the same due date on the one just finished.
+    name: 'web/ok-continues-next-task',
+    channel: 'web',
+    contextOverrides: {
+      preferredName: 'doug',
+      activeTasks: [
+        makeTask({
+          id: 'task-salao-chloe',
+          title: 'Reservar salão de niver da Chloe',
+          due_date: SATURDAY,
+        }),
+        makeTask({
+          id: 'task-compras-chloe',
+          title: 'Comprar coisas pra festa da Chloe',
+        }),
+      ],
+    },
+    seedHistory: [
+      {
+        role: 'user',
+        content: `Sábado, ${SATURDAY_DISPLAY}`,
+      },
+      {
+        role: 'assistant',
+        content:
+          `Boa, doug. Já deixei **Reservar salão de niver da Chloe** com prazo para sábado, ${SATURDAY_DISPLAY}.\n\nSe quiser, agora eu sigo com a outra tarefa da Chloe.`,
+      },
+    ],
+    input: 'ok',
+    mustCallTool: ['offer_choices'],
+    mustNotCallTool: ['update_task'],
+    mustNotUpdateTaskIds: ['task-salao-chloe'],
+    mustNotContain: ['atualizei a data'],
+    idealOutput:
+      'Começa a outra tarefa da Chloe (Comprar coisas pra festa) perguntando o prazo via offer_choices. Não chama update_task de novo no salão.',
+    tags: ['web', 'onboarding', 'ack', 'next-task', 'tool-calling'],
+  },
+  {
+    name: 'web/onboarding-journey-close',
+    channel: 'web',
+    contextOverrides: {
+      preferredName: 'doug',
+      onboardingJourneyPending: true,
+      activeTasks: [
+        makeTask({
+          id: 'task-salao-chloe',
+          title: 'Reservar salão de niver da Chloe',
+          due_date: SATURDAY,
+        }),
+        makeTask({
+          id: 'task-compras-chloe',
+          title: 'Comprar coisas pra festa da Chloe',
+          due_date: SATURDAY,
+        }),
+      ],
+    },
+    seedHistory: [
+      {
+        role: 'user',
+        content: 'Ainda não sei',
+      },
+      {
+        role: 'assistant',
+        content:
+          'Tranquilo, doug. Deixei Comprar coisas pra festa da Chloe sem prazo por enquanto.\n\nComo você quer ser lembrado?',
+      },
+    ],
+    input: 'Ainda não quero lembrete',
+    mustCallTool: ['complete_onboarding_journey'],
+    mustNotCallTool: ['offer_choices'],
+    mustContain: ['esquerda', 'WhatsApp'],
+    idealOutput:
+      'Chama complete_onboarding_journey e fecha a jornada: painel à esquerda do chat para gerenciar tarefas, e Jarvi disponível no WhatsApp. Sem offer_choices.',
+    tags: ['web', 'onboarding', 'journey-close', 'tool-calling'],
   },
 ];

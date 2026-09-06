@@ -7,12 +7,16 @@
  * identical between the two; only the OpenAI client call differs.
  */
 
+import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
+import { PostHogOpenAI } from '@posthog/ai/openai';
 import type {
   ChatCompletionMessageParam,
   ChatCompletionToolMessageParam,
 } from 'openai/resources/chat/completions';
+import { captureServer, getPostHogClient, isEvalAnalyticsDistinctId } from '../../posthogService';
 import { findRecentDuplicateTitle } from './guardrails';
+import { PROMPT_VERSION } from './prompt';
 import { executeToolCall, getToolsForChannel } from './tools';
 import type {
   AgentCallbacks,
@@ -51,16 +55,34 @@ function getDeterminismParams(): { temperature?: number; seed?: number } {
 const MAX_OPENAI_RETRIES = 4;
 const BACKOFF_BASE_MS = 500;
 
+// PostHog AI observability: when PostHog is configured, the OpenAI client is
+// the `@posthog/ai` wrapper (a subclass of the official SDK) which captures
+// one `$ai_generation` event per API call — including streamed calls — tagged
+// with the `posthog*` params spread into each `create()`. When PostHog is NOT
+// configured, this stays the pure SDK and `buildPosthogCallParams` returns an
+// empty object, so no unknown params ever reach the OpenAI API.
 let openaiClient: OpenAI | null = null;
 const getOpenAIClient = (): OpenAI => {
   if (!process.env.OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY environment variable is required');
   }
   if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
+    const posthog = getPostHogClient();
+    openaiClient = posthog
+      ? new PostHogOpenAI({ apiKey: process.env.OPENAI_API_KEY, posthog, maxRetries: 0 })
+      : new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
   }
   return openaiClient;
 };
+
+const isAiObservabilityEnabled = (): boolean => getPostHogClient() !== null;
+
+/** Extra per-call params understood (and stripped) by the @posthog/ai wrapper. */
+interface PosthogCallParams {
+  posthogDistinctId?: string;
+  posthogTraceId?: string;
+  posthogProperties?: Record<string, unknown>;
+}
 
 // ---------------------------------------------------------------------------
 // Resilience: retry with exponential backoff + jitter
@@ -186,6 +208,18 @@ async function callWithRetry<T>(
 export interface RunAgentOptions {
   /** Force `tool_choice: 'required'` on the first iteration (anti-hallucination retry). */
   forceToolChoice?: boolean;
+  /**
+   * Reuse an existing trace id instead of generating a new one — the
+   * anti-hallucination retry passes the first run's id so the whole user turn
+   * shows up as a single trace in PostHog AI observability.
+   */
+  traceId?: string;
+  /**
+   * Extra properties merged into every $ai_generation / $ai_span this run
+   * emits (e.g. the eval runner sets `environment: 'eval'`, `scenario`,
+   * `git_sha`).
+   */
+  traceProperties?: Record<string, unknown>;
 }
 
 export async function runAgent(
@@ -199,6 +233,27 @@ export async function runAgent(
   const openai = getOpenAIClient();
   const tools = getToolsForChannel(profile);
   const determinismParams = getDeterminismParams();
+
+  // One trace per user turn (the retry run reuses the id via options.traceId).
+  const traceId = options.traceId ?? randomUUID();
+  const observabilityEnabled =
+    isAiObservabilityEnabled() && !(ctx.email && isEvalAnalyticsDistinctId(ctx.email));
+  const baseTraceProperties: Record<string, unknown> = {
+    channel: profile.id,
+    mode: ctx.mode,
+    prompt_version: PROMPT_VERSION,
+    environment: process.env.NODE_ENV ?? 'development',
+    ...options.traceProperties,
+  };
+  const buildPosthogCallParams = (iteration: number): PosthogCallParams =>
+    observabilityEnabled
+      ? {
+          posthogDistinctId:
+            ctx.email && !isEvalAnalyticsDistinctId(ctx.email) ? ctx.email : undefined,
+          posthogTraceId: traceId,
+          posthogProperties: { ...baseTraceProperties, iteration },
+        }
+      : {};
 
   let messages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
@@ -239,6 +294,7 @@ export async function runAgent(
             stream_options: { include_usage: true },
             max_completion_tokens: MAX_TOKENS_STREAM,
             ...determinismParams,
+            ...buildPosthogCallParams(iteration),
           }),
         { channel: profile.id, userId: ctx.userId },
       );
@@ -300,6 +356,7 @@ export async function runAgent(
             tool_choice: toolChoice,
             max_completion_tokens: MAX_TOKENS_SINGLE,
             ...determinismParams,
+            ...buildPosthogCallParams(iteration),
           }),
         { channel: profile.id, userId: ctx.userId },
       );
@@ -371,6 +428,8 @@ export async function runAgent(
 
       callbacks.onToolCall?.(tc.name, parsedArgs);
 
+      const toolStartedAt = Date.now();
+      let dedupSkipped = false;
       let result;
       if (tc.name === 'create_task' && profile.enableDedup) {
         const title = String(parsedArgs.title ?? '').trim();
@@ -383,6 +442,7 @@ export async function runAgent(
             ctx.userId,
             duplicateId,
           );
+          dedupSkipped = true;
           result = {
             success: true as const,
             data: {
@@ -401,6 +461,23 @@ export async function runAgent(
 
       callbacks.onToolResult?.(tc.name, result.success, result.data);
       toolCallNames.push(tc.name);
+
+      // One $ai_span per executed tool, attached to this turn's trace so
+      // tools show up nested under the generation in AI observability.
+      if (ctx.email) {
+        captureServer(ctx.email, '$ai_span', {
+          $ai_trace_id: traceId,
+          $ai_span_id: randomUUID(),
+          $ai_span_name: tc.name,
+          $ai_input_state: parsedArgs,
+          $ai_output_state: result,
+          $ai_latency: (Date.now() - toolStartedAt) / 1000,
+          $ai_is_error: !result.success,
+          iteration,
+          dedup_skipped: dedupSkipped,
+          ...baseTraceProperties,
+        });
+      }
 
       toolResultMessages.push({
         role: 'tool',
@@ -421,5 +498,5 @@ export async function runAgent(
     apiCalls,
   };
 
-  return { text: finalText, toolCallNames, usage };
+  return { text: finalText, toolCallNames, usage, traceId };
 }

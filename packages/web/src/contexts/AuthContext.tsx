@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { usePostHog } from 'posthog-js/react';
 import { trackRegistrationCompleted } from '../lib/openaiPixel';
+import { shouldEmitProductAnalytics, shouldTrackProductUser } from '../lib/productAnalytics';
 
 interface User {
   id: string;
@@ -9,13 +10,12 @@ interface User {
   preferred_name?: string;
   avatar?: string;
   subscription_status?: 'none' | 'trialing' | 'active' | 'past_due' | 'canceled';
-  authProvider?: 'email' | 'google';
+  authProvider?: 'email' | 'google' | 'whatsapp';
   hasPassword?: boolean;
-}
-
-interface RegisterResult {
-  pendingVerification: boolean;
-  email: string;
+  onboardingCompletedAt?: string | null;
+  whatsappVerified?: boolean;
+  whatsappPhone?: string;
+  emailVerified?: boolean;
 }
 
 interface RegisterMeta {
@@ -39,12 +39,17 @@ interface AuthContextType {
     idToken: string,
     onboarding?: unknown,
     meta?: { fbc?: string; fbp?: string },
-  ) => Promise<void>;
-  register: (email: string, name: string, password: string, meta?: RegisterMeta) => Promise<RegisterResult>;
+  ) => Promise<{ isNewUser: boolean }>;
+  register: (email: string, name: string, password: string, meta?: RegisterMeta) => Promise<void>;
+  acceptSession: (token: string, user: User) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   addPasswordToGoogleAccount: (password: string) => Promise<void>;
+  addEmailToWhatsappAccount: (email: string, password: string) => Promise<{ devCode?: string }>;
+  verifyAddedEmail: (email: string, code: string) => Promise<void>;
   disconnectGoogle: () => Promise<void>;
+  disconnectEmailLogin: () => Promise<void>;
+  unlinkWhatsApp: () => Promise<void>;
   linkGoogleAccount: (idToken: string) => Promise<void>;
 }
 
@@ -94,7 +99,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userData = await response.json();
         setUser(userData);
 
-        if (posthog) {
+        if (posthog && shouldTrackProductUser(userData.email)) {
           posthog.identify(userData.email, {
             email: userData.email,
             name: userData.name,
@@ -144,7 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
 
-      if (posthog) {
+      if (posthog && shouldTrackProductUser(data.user.email)) {
         posthog.identify(data.user.email, {
           email: data.user.email,
           name: data.user.name,
@@ -190,7 +195,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(data.user);
       localStorage.setItem('jarvi_token', data.token);
 
-      if (posthog) {
+      if (posthog && shouldTrackProductUser(data.user.email)) {
         posthog.identify(data.user.email, {
           email: data.user.email,
           name: data.user.name,
@@ -203,6 +208,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (data.isNewUser) {
         trackRegistrationCompleted(data.user?.id ? `cr_${data.user.id}` : undefined);
       }
+
+      return { isNewUser: Boolean(data.isNewUser) };
     } catch (error) {
       console.error('Google login error:', error);
       throw error;
@@ -216,7 +223,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     name: string,
     password: string,
     meta?: RegisterMeta,
-  ): Promise<RegisterResult> => {
+  ): Promise<void> => {
     try {
       setIsLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
@@ -237,48 +244,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = await response.json();
 
+      if (data.pendingVerification) {
+        const error = new Error(data.message || 'Verifique seu email para entrar.') as LoginError;
+        error.pendingVerification = true;
+        error.email = data.email;
+        throw error;
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // Registration now returns pendingVerification instead of token
-      if (data.pendingVerification) {
-        // Track the registration submission. The browser RegistrationSubmitted
-        // Pixel event is fired by the caller (CriarConta) with the same eventId.
-        if (posthog) {
-          posthog.identify(data.email || email, {
-            email: data.email || email,
-            name,
-          });
-          posthog.capture('user_registered', { method: 'email', pending_verification: true });
-        }
-        return {
-          pendingVerification: true,
-          email: data.email,
-        };
-      }
-
-      // Fallback for old behavior (shouldn't happen with new backend)
-      if (data.token) {
-        setToken(data.token);
-        setUser(data.user);
-        localStorage.setItem('jarvi_token', data.token);
-
-        if (posthog) {
-          posthog.identify(data.user.email, {
-            email: data.user.email,
-            name: data.user.name,
-            user_id: data.user.id,
-            subscription_status: data.user.subscription_status ?? 'none',
-          });
-          posthog.capture('user_registered', { method: 'email' });
-        }
-      }
-
-      return {
-        pendingVerification: data.pendingVerification || false,
-        email: data.email || email,
-      };
+      throw new Error('Não foi possível criar sua conta agora.');
     } catch (error) {
       console.error('Registration error:', error);
       throw error;
@@ -287,9 +264,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const persistSession = (nextToken: string, nextUser: User) => {
+    setToken(nextToken);
+    setUser(nextUser);
+    localStorage.setItem('jarvi_token', nextToken);
+  };
+
+  const acceptSession = (nextToken: string, nextUser: User) => {
+    persistSession(nextToken, nextUser);
+    if (!posthog || !shouldTrackProductUser(nextUser.email)) return;
+    const distinctId = nextUser.authProvider === 'whatsapp' ? nextUser.id : nextUser.email;
+    if (!distinctId) return;
+    posthog.identify(distinctId, {
+      email: nextUser.email || undefined,
+      name: nextUser.name,
+      user_id: nextUser.id,
+      auth_provider: nextUser.authProvider,
+      subscription_status: nextUser.subscription_status ?? 'none',
+    });
+  };
+
   const logout = () => {
-    if (posthog) {
+    if (posthog && shouldEmitProductAnalytics()) {
       posthog.capture('user_logged_out');
+    }
+    if (posthog) {
       posthog.reset();
     }
     setUser(null);
@@ -351,15 +350,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       error.code = data.code;
       throw error;
     }
-    setUser((prev) =>
-      prev
-        ? {
-            ...prev,
-            authProvider: (data.authProvider as User['authProvider']) || 'email',
-            hasPassword: data.hasPassword ?? true,
-          }
-        : prev
-    );
+    if (data.user) {
+      setUser(data.user as User);
+    } else {
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              authProvider: (data.authProvider as User['authProvider']) || 'email',
+              hasPassword: data.hasPassword ?? true,
+            }
+          : prev
+      );
+    }
   };
 
   const linkGoogleAccount = async (idToken: string) => {
@@ -384,8 +387,111 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     setUser((prev) =>
       prev
-        ? { ...prev, authProvider: (data.authProvider as User['authProvider']) || 'google' }
+        ? {
+            ...prev,
+            ...(data.user as Partial<User> | undefined),
+            authProvider: (data.authProvider as User['authProvider']) || 'google',
+          }
         : prev
+    );
+  };
+
+  const addEmailToWhatsappAccount = async (email: string, password: string) => {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/whatsapp/add-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Não foi possível adicionar o email.');
+    }
+    if (data.user) {
+      setUser(data.user as User);
+    } else {
+      setUser((prev) => (prev ? { ...prev, email, hasPassword: true, emailVerified: false } : prev));
+    }
+    return { devCode: typeof data.devCode === 'string' ? data.devCode : undefined };
+  };
+
+  const verifyAddedEmail = async (email: string, code: string) => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/verify-email-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Não foi possível confirmar o email.');
+    }
+    if (data.user) {
+      setUser({ ...(data.user as User), emailVerified: true });
+    } else {
+      setUser((prev) => (prev ? { ...prev, email, emailVerified: true } : prev));
+    }
+  };
+
+  const disconnectEmailLogin = async () => {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    const response = await fetch(`${API_BASE_URL}/api/auth/email`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Não foi possível desconectar o email.');
+    }
+    if (data.user) {
+      setUser(data.user as User);
+    }
+  };
+
+  const unlinkWhatsApp = async () => {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    const response = await fetch(`${API_BASE_URL}/api/users/whatsapp-link`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data.error || 'Não foi possível desvincular o WhatsApp.') as Error & {
+        code?: string;
+      };
+      error.code = data.code;
+      throw error;
+    }
+    if (data.user) {
+      setUser(data.user as User);
+    } else {
+      setUser((prev) =>
+        prev
+          ? {
+              ...prev,
+              whatsappVerified: false,
+              whatsappPhone: undefined,
+              authProvider: prev.email ? (prev.authProvider === 'google' ? 'google' : 'email') : prev.authProvider,
+            }
+          : prev
+      );
+    }
+    window.dispatchEvent(
+      new CustomEvent('jarvi:whatsapp-link-changed', { detail: { linked: false } })
     );
   };
 
@@ -396,10 +502,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     loginWithGoogle,
     register,
+    acceptSession,
     logout,
     updateUser,
     addPasswordToGoogleAccount,
+    addEmailToWhatsappAccount,
+    verifyAddedEmail,
     disconnectGoogle,
+    disconnectEmailLogin,
+    unlinkWhatsApp,
     linkGoogleAccount,
   };
 

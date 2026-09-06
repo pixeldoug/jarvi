@@ -130,6 +130,10 @@ export interface TrackOptions {
 }
 
 export function trackPixel(eventName: string, options: TrackOptions = {}): void {
+  if (import.meta.env.DEV && import.meta.env.VITE_EMIT_PRODUCT_ANALYTICS !== 'true') {
+    console.debug('[dev] skipped Meta Pixel:', eventName, options.params);
+    return;
+  }
   if (typeof window === 'undefined' || !window.fbq) return;
   const method = options.custom ? 'trackCustom' : 'track';
   const eventData = options.eventId ? { eventID: options.eventId } : undefined;

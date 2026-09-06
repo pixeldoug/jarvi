@@ -72,6 +72,9 @@ const WEB_PROFILE: ChannelProfile = {
     'delete_category',
     'show_category',
     'scan_gmail',
+    'search_web',
+    'offer_choices',
+    'complete_onboarding_journey',
   ],
   outputFormat: 'markdown',
   transport: 'stream',
@@ -85,6 +88,7 @@ const WEB_PROFILE: ChannelProfile = {
 
 const TOOL_STATUS_LABELS: Record<string, string> = {
   search_tasks: 'Pesquisando suas tarefas…',
+  search_web: 'Pesquisando na web…',
   scan_gmail: 'Verificando seu Gmail…',
   create_task: 'Criando tarefa…',
   update_task: 'Atualizando tarefa…',
@@ -99,7 +103,10 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   delete_category: 'Excluindo categoria…',
   show_category: 'Buscando categoria…',
   update_memory: 'Atualizando memória…',
+  offer_choices: 'Preparando opções…',
 };
+
+const SILENT_WEB_TOOLS = new Set(['complete_onboarding_journey']);
 
 function toolStatusLabel(toolName: string): string {
   return TOOL_STATUS_LABELS[toolName] ?? 'Executando ação…';
@@ -121,7 +128,15 @@ export async function streamChat(
     onEvent({ type: 'status', message: 'Preparando contexto…' });
 
     const profileData = await getUserProfile(userId);
-    const { timezone, preferredName, email, subscriptionStatus, memory } = profileData;
+    const {
+      timezone,
+      preferredName,
+      email,
+      subscriptionStatus,
+      memory,
+      onboardingJourneyPending,
+      whatsappVerified,
+    } = profileData;
 
     // Fallback trigger: reconciliation normally already ran when the user
     // entered the platform (login/session restore). This is fire-and-forget
@@ -160,6 +175,8 @@ export async function streamChat(
         categories: [],
         mode: 'task',
         focusedTask: task,
+        onboardingJourneyPending,
+        whatsappVerified,
       };
       systemPrompt = buildTaskFocusedPrompt(task, ctx, WEB_PROFILE);
     } else {
@@ -191,6 +208,8 @@ export async function streamChat(
         categories,
         mode: 'general',
         originalUserMessage: lastUserMessage,
+        onboardingJourneyPending,
+        whatsappVerified,
       };
       systemPrompt = buildSystemPrompt(ctx, WEB_PROFILE);
     }
@@ -226,15 +245,18 @@ export async function streamChat(
       onReasoning: (delta: string) => onEvent({ type: 'reasoning', content: delta }),
       onStatus: (message: string) => onEvent({ type: 'status', message }),
       onToolCall: (toolName: string, toolArgs: Record<string, unknown>) => {
+        if (SILENT_WEB_TOOLS.has(toolName)) return;
         onEvent({ type: 'status', message: toolStatusLabel(toolName) });
         onEvent({ type: 'tool_call', toolName, toolArgs });
       },
-      onToolResult: (toolName: string, success: boolean, data?: Record<string, unknown>) =>
-        onEvent({ type: 'tool_result', toolName, success, data }),
+      onToolResult: (toolName: string, success: boolean, data?: Record<string, unknown>) => {
+        if (SILENT_WEB_TOOLS.has(toolName)) return;
+        onEvent({ type: 'tool_result', toolName, success, data });
+      },
       onSeparator: () => onEvent({ type: 'separator' }),
     };
 
-    let { text, toolCallNames, usage } = await runAgent(
+    let { text, toolCallNames, usage, traceId } = await runAgent(
       WEB_PROFILE,
       ctx,
       systemPrompt,
@@ -258,7 +280,8 @@ export async function streamChat(
         systemPrompt,
         initialMessages,
         agentCallbacks,
-        { forceToolChoice: true },
+        // Same traceId: the retry belongs to the same user turn/trace.
+        { forceToolChoice: true, traceId },
       );
       text = retry.text || text;
       toolCallNames = [...toolCallNames, ...retry.toolCallNames];
@@ -272,6 +295,7 @@ export async function streamChat(
       subscriptionStatus,
       usage,
       retried,
+      traceId,
     });
 
     onEvent({ type: 'done' });

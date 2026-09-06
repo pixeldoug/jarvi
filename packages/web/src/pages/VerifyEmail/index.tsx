@@ -53,7 +53,7 @@ export const VerifyEmail: React.FC = () => {
   }, [token]);
 
   const handleGoToLogin = () => {
-    navigate('/login');
+    navigate('/login/email');
   };
 
   return (

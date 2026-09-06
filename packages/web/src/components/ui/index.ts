@@ -142,6 +142,17 @@ export {
 } from './Chip';
 
 export {
+  ConnectionChip,
+  type ConnectionChipProps,
+} from './ConnectionChip';
+
+export {
+  ListCard,
+  ListCardGroup,
+  type ListCardProps,
+} from './ListCard';
+
+export {
   Loading,
 } from './Loading';
 

@@ -1,0 +1,227 @@
+.root {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+}
+
+.questionBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.questionBlockCentered {
+  align-items: center;
+  text-align: center;
+}
+
+.questionBlock h1 {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.confirmCopy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.stepSubtitle {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-md-font-size);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.editNumberLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-position: from-font;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.editNumberLink:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.editNumberLink:focus-visible {
+  outline: 2px solid var(--semantic-control-focusring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.editNumberLink:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.helperText {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.errorMessage {
+  margin: 0;
+  padding: var(--sizes-3) var(--sizes-4);
+  border-radius: var(--radius-sm);
+  background-color: #fef2f2;
+  border: 1px solid var(--semantic-content-negative);
+  color: var(--semantic-content-negative);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  line-height: var(--typography-label-sm-line-height);
+  text-align: center;
+}
+
+.whatsappForm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-4);
+}
+
+.whatsappForm .phoneBar {
+  width: 100%;
+}
+
+.resendButton {
+  align-self: center;
+  width: auto;
+}
+
+.phoneBar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);
+  width: 100%;
+  height: 48px;
+  padding-left: var(--sizes-4);
+  padding-right: var(--sizes-4);
+  background-color: var(--semantic-control-bg);
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease;
+}
+
+.phoneBar:focus-within {
+  border-color: var(--semantic-control-border-active);
+}
+
+.phoneBar:focus-within::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 1.5px solid var(--semantic-control-focusring);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.phoneBarError {
+  border-color: var(--semantic-content-negative);
+}
+
+.phoneBarError:focus-within::after {
+  border-color: var(--semantic-content-negative);
+}
+
+.countryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: var(--semantic-content-primary);
+}
+
+.countryButton:focus-visible {
+  outline: none;
+}
+
+.countryFlag {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.countryMenu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  min-width: 140px;
+  padding: var(--sizes-2);
+  border-radius: var(--radius-sm);
+  background: var(--semantic-surface-primary);
+  border: 1px solid var(--semantic-border-primary);
+  box-shadow: 0 8px 24px rgba(9, 9, 11, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  z-index: 2;
+}
+
+.countryOption {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  border: 0;
+  background: transparent;
+  padding: var(--sizes-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.countryOption:hover {
+  background: var(--semantic-surface-secondary);
+}
+
+.phoneDivider {
+  width: 1px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--semantic-border-primary);
+}
+
+.phoneInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  padding: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-control-content);
+}
+
+.phoneInput::placeholder {
+  color: var(--semantic-control-content-placeholder);
+}

@@ -625,7 +625,7 @@ export function CalendarView({
             })()}
           </div>
 
-          {/* Section 2: Saturday | Sunday | Sem data ×2 */}
+          {/* Section 2: Saturday | Sunday | Caixa de entrada ×2 */}
           {(() => {
             const satTasks = tasksByDate.get(toDateKey(weekDays[5])) ?? [];
             const sunTasks = tasksByDate.get(toDateKey(weekDays[6])) ?? [];
@@ -691,7 +691,7 @@ export function CalendarView({
                 {renderWeekDayColumn(weekDays[6], PT_WEEKDAY_LONG[6], bottomSlots)}
                 <div className={styles.somedaySection}>
                   <div className={styles.weekDayHeader}>
-                    <span className={styles.weekDayNumber}>Sem data</span>
+                    <span className={styles.weekDayNumber}>Caixa de entrada</span>
                   </div>
                   <div className={styles.somedayInnerGrid}>
                     {renderSomedayCol(undatedCol0, 0)}

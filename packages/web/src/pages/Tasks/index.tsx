@@ -5,13 +5,15 @@
  */
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { MOBILE_BREAKPOINT } from '../../components/layout/MainLayout/MainLayout';
 import { BottomSheet } from '../../components/ui';
 import { Gear, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
-import type { ToolCallData, ChatAttachment } from '../../hooks/useChatStream';
+import type { ToolCallData, ChatAttachment, ChatMessageData } from '../../hooks/useChatStream';
+import { consumeOnboardingChatSeed, buildOnboardingChatMessages } from '../../lib/onboardingChatSeed';
 import { mergeAttachmentsIntoDescription, buildAiTaskDescription } from '../../utils/chatAttachments';
 import { useLists } from '../../contexts/ListContext';
 import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
@@ -154,7 +156,7 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   'proxima-semana': true,
   'mais-tarde': false,
   'algum-dia': false,
-  'sem-data': false,
+  'sem-data': true,
   completadas: false,
 };
 
@@ -162,6 +164,7 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Tasks() {
+  const location = useLocation();
   const [selectedList, setSelectedList] = useState<ListType>('all');
   const [selectedCustomListId, setSelectedCustomListId] = useState<string | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
@@ -183,7 +186,10 @@ export function Tasks() {
   const [chatMode, setChatMode] = useState<'task' | 'general'>('general');
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined);
   const [chatInitialAttachments, setChatInitialAttachments] = useState<ChatAttachment[] | undefined>(undefined);
+  const [chatSeededMessages, setChatSeededMessages] = useState<ChatMessageData[] | undefined>(undefined);
   const [chatKey, setChatKey] = useState(0);
+  const onboardingChatOpenedRef = useRef(false);
+  const [onboardingChatReveal, setOnboardingChatReveal] = useState(false);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
   const [weekSectionOpen, setWeekSectionOpen] = useState<Record<string, boolean>>({});
@@ -193,7 +199,15 @@ export function Tasks() {
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week');
   const [calendarAnchorDate, setCalendarAnchorDate] = useState(() => getLocalDateKey(new Date()));
 
-  const isCompactHeader = useMediaQuery('(max-width: 824px)');
+  const showTaskInCenter =
+    !!selectedTask &&
+    (taskPinnedInCenter || expandedFromList || (isChatOpen && chatMode === 'task'));
+  const hasRightPanelContent =
+    isChatOpen || !!selectedPendingTask || (!!selectedTask && !showTaskInCenter);
+
+  const isNarrowViewport = useMediaQuery('(max-width: 1440px)');
+  const isCompactHeader =
+    useMediaQuery('(max-width: 824px)') || (isNarrowViewport && hasRightPanelContent);
   const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
   // Mobile-only: chat overlay opens on top of the task-details bottom sheet
   const [isMobileChatOverlayOpen, setIsMobileChatOverlayOpen] = useState(false);
@@ -320,6 +334,7 @@ export function Tasks() {
     setIsChatOpen(false);
     setChatInitialMessage(undefined);
     setChatInitialAttachments(undefined);
+    setChatSeededMessages(undefined);
     setExpandedFromList(false);
     setTaskPinnedInCenter(false);
   }, []);
@@ -425,6 +440,7 @@ export function Tasks() {
     setChatMode('general');
     setExpandedFromList(false);
     setTaskPinnedInCenter(false);
+    setChatSeededMessages(undefined);
     if (text || (attachments && attachments.length > 0)) {
       // Force a fresh panel so the initial message is always sent cleanly
       setChatKey((k) => k + 1);
@@ -436,9 +452,29 @@ export function Tasks() {
 
   const handleCloseChat = useCallback(() => {
     setIsChatOpen(false);
+    setOnboardingChatReveal(false);
     setChatInitialMessage(undefined);
     setChatInitialAttachments(undefined);
+    setChatSeededMessages(undefined);
   }, []);
+
+  useEffect(() => {
+    if (onboardingChatOpenedRef.current) return;
+    const seed = consumeOnboardingChatSeed(location.state);
+    if (!seed) return;
+    onboardingChatOpenedRef.current = true;
+    setOnboardingChatReveal(true);
+    setChatMode('general');
+    setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
+    setChatInitialMessage(undefined);
+    setChatInitialAttachments(undefined);
+    setChatSeededMessages(buildOnboardingChatMessages(seed));
+    setChatKey((k) => k + 1);
+    setIsChatOpen(true);
+    setOpenSections((prev) => ({ ...prev, 'sem-data': true }));
+    void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+  }, [location.state, queryClient]);
 
   // Closes whichever panel is currently shown in the right slot. Used by the
   // mobile bottom sheet (backdrop click / drag-to-close).
@@ -755,7 +791,7 @@ export function Tasks() {
       tomorrow: 'Amanhã',
       week: 'Esta semana',
       later: 'Calendário',
-      noDate: 'Sem data',
+      noDate: 'Caixa de entrada',
       overdue: 'Vencidas',
       recurring: 'Recorrentes',
       completed: 'Concluídas',
@@ -1204,7 +1240,7 @@ export function Tasks() {
         categories={sidebarCategories}
         customLists={customLists.map((l) => ({ id: l.id, name: l.name }))}
         openSettingsRef={openSettingsRef}
-        forceCollapsed={isChatOpen}
+        forceCollapsed={hasRightPanelContent}
       />
       <FilterPopover
         isOpen={isFilterOpen}
@@ -1402,15 +1438,6 @@ export function Tasks() {
     }
   }, [tasks, updateTask, reorderTasks]);
 
-  // Show task details in center when: task-mode chat is open, user expanded from list,
-  // or user closed chat after opening it from a task (split view → task-only center).
-  const showTaskInCenter =
-    !!selectedTask &&
-    (taskPinnedInCenter || expandedFromList || (isChatOpen && chatMode === 'task'));
-
-  const hasRightPanelContent =
-    isChatOpen || !!selectedPendingTask || (!!selectedTask && !showTaskInCenter);
-
   /** Disable Framer layout on list items while the right panel is open — otherwise
    *  items slide when the main column shrinks to make room for the sidebar. */
   const taskLayoutAnimationsEnabled = !hasRightPanelContent;
@@ -1579,6 +1606,7 @@ export function Tasks() {
   // Wrapped in AnimatePresence so swapping between task details and chat
   // plays a coordinated slide: details exits left, chat enters from right.
   const panelTransition = { duration: 0.32, ease: [0.4, 0, 0.2, 1] } as const;
+  const onboardingChatTransition = { duration: 0.45, ease: [0.4, 0, 0.2, 1] } as const;
 
   const computedRightSidebar = hasRightPanelContent ? (
     <AnimatePresence mode="wait" initial={false}>
@@ -1586,10 +1614,10 @@ export function Tasks() {
         <motion.div
           key="chat-panel"
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
-          initial={{ opacity: 0, x: 60 }}
+          initial={onboardingChatReveal ? { opacity: 0 } : { opacity: 0, x: 60 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 60 }}
-          transition={panelTransition}
+          transition={onboardingChatReveal ? onboardingChatTransition : panelTransition}
         >
           <AIChatPanel
             key={chatKey}
@@ -1600,8 +1628,8 @@ export function Tasks() {
             onTaskMutated={handleChatTaskMutated}
             initialMessage={chatMode === 'general' ? chatInitialMessage : undefined}
             initialAttachments={chatMode === 'general' ? chatInitialAttachments : undefined}
+            seededMessages={chatMode === 'general' ? chatSeededMessages : undefined}
             onTaskCardClick={handleChatTaskCardClick}
-            onToggleTaskCompletion={handleToggleCompletion}
             onListCardClick={handleChatListCardClick}
             onCategoryCardClick={handleChatCategoryCardClick}
             onAttachToTask={handleChatAttachToTask}
@@ -1729,7 +1757,6 @@ export function Tasks() {
         onClose={handleCloseMobileChatOverlay}
         onTaskMutated={handleChatTaskMutated}
         onTaskCardClick={handleChatTaskCardClick}
-        onToggleTaskCompletion={handleToggleCompletion}
         onListCardClick={handleChatListCardClick}
         onCategoryCardClick={handleChatCategoryCardClick}
         onAttachToTask={handleChatAttachToTask}
@@ -2209,12 +2236,12 @@ export function Tasks() {
           />
           )}
 
-          {/* Sem data — oculta quando vazia */}
+          {/* Caixa de entrada — oculta quando vazia */}
           {categorizedTasks.semData.length > 0 && (
           <DroppableSection
-            title="Sem data"
+            title="Caixa de entrada"
             tasks={categorizedTasks.semData}
-            emptyMessage="Nenhuma tarefa sem data"
+            emptyMessage="Nenhuma tarefa na caixa de entrada"
             sectionId="sem-data"
             defaultOpen={true}
             isOpen={openSections['sem-data']}

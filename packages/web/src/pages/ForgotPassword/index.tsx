@@ -48,7 +48,7 @@ export const ForgotPassword: React.FC = () => {
   };
 
   const handleBackToLogin = () => {
-    navigate('/login');
+    navigate('/login/email');
   };
 
   const handleResend = async () => {

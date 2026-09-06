@@ -122,7 +122,7 @@ const NAV_ITEMS: Array<{
   { id: 'today', label: 'Hoje', icon: Flag },
   { id: 'week', label: 'Esta semana', icon: Couch },
   { id: 'later', label: 'Mais pra frente', icon: MoonStars },
-  { id: 'noDate', label: 'Sem data', icon: Prohibit },
+  { id: 'noDate', label: 'Caixa de entrada', icon: Prohibit },
   { id: 'completed', label: 'Concluídas', icon: CheckCircle },
 ];
 

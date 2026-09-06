@@ -5,7 +5,7 @@
  * using Google Identity Services with full account chooser
  */
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import googleLogo from '../../../assets/google-logo.svg';
 import styles from './GoogleLogin.module.css';
@@ -23,6 +23,12 @@ interface GoogleLoginProps {
   onClick?: () => void | Promise<void>;
   /** When provided, the raw Google credential is passed here instead of calling loginWithGoogle */
   onCredential?: (idToken: string) => void | Promise<void>;
+  /** Replace the default Google button with a custom trigger. */
+  renderButton?: (props: {
+    onClick: () => void;
+    disabled: boolean;
+    loading: boolean;
+  }) => ReactNode;
 }
 
 export const GoogleLogin: React.FC<GoogleLoginProps> = ({ 
@@ -31,6 +37,7 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
   buttonText = 'Entrar com Google',
   onClick,
   onCredential,
+  renderButton,
 }) => {
   const { loginWithGoogle } = useAuth();
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -170,8 +177,10 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
     );
   }
 
+  const triggerDisabled = (!isReady && !onClick) || isLoading;
+
   return (
-    <div className={styles.wrapper}>
+    <div className={renderButton ? undefined : styles.wrapper}>
       {/* Botão invisível do Google (renderizado pela API) - only if no custom onClick */}
       {!onClick && (
         <div 
@@ -183,27 +192,34 @@ export const GoogleLogin: React.FC<GoogleLoginProps> = ({
           }} 
         />
       )}
-      
-      {/* Botão customizado visível */}
-      <button
-        type="button"
-        className={styles.button}
-        onClick={handleClick}
-        disabled={(!isReady && !onClick) || isLoading}
-      >
-        {isLoading ? (
-          <div className={styles.loading} />
-        ) : (
-          <img 
-            src={googleLogo} 
-            alt="Google logo" 
-            className={styles.logo}
-          />
-        )}
-        <div className={styles.text}>
-          <p>{buttonText}</p>
-        </div>
-      </button>
+
+      {renderButton ? (
+        renderButton({
+          onClick: handleClick,
+          disabled: triggerDisabled,
+          loading: isLoading,
+        })
+      ) : (
+        <button
+          type="button"
+          className={styles.button}
+          onClick={handleClick}
+          disabled={triggerDisabled}
+        >
+          {isLoading ? (
+            <div className={styles.loading} />
+          ) : (
+            <img 
+              src={googleLogo} 
+              alt="Google logo" 
+              className={styles.logo}
+            />
+          )}
+          <div className={styles.text}>
+            <p>{buttonText}</p>
+          </div>
+        </button>
+      )}
     </div>
   );
 };
