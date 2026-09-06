@@ -41,13 +41,6 @@ const parseStringArray = (value: unknown): string[] => {
   );
 };
 
-const formatTaskList = (titles: string[]): string => {
-  if (titles.length === 0) return 'suas primeiras tarefas';
-  if (titles.length === 1) return titles[0]!;
-  if (titles.length === 2) return `${titles[0]} e ${titles[1]}`;
-  return `${titles.slice(0, -1).join(', ')} e ${titles[titles.length - 1]}`;
-};
-
 interface OnboardingUserRow {
   id: string;
   email: string;
@@ -613,10 +606,9 @@ export const completeOnboarding = async (req: Request, res: Response): Promise<v
 
       const rawFirstName = user.name.trim().split(/\s+/)[0] || user.name;
       const firstName = rawFirstName === 'Você' ? 'oi' : rawFirstName;
-      const tasksLine = formatTaskList(finalized.tasks.map((task) => task.title));
       if (parseDbBoolean(user.whatsapp_verified) && user.whatsapp_phone) {
         try {
-          await sendOnboardingWelcomeTemplate(user.whatsapp_phone, firstName, tasksLine);
+          await sendOnboardingWelcomeTemplate(user.whatsapp_phone, firstName);
         } catch (welcomeError) {
           console.error('Failed to send onboarding welcome WhatsApp:', welcomeError);
         }

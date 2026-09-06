@@ -446,7 +446,7 @@ export function buildWebExtras(ctx: AgentContext): string {
           '   - As primeiras tarefas já estão organizadas.',
           '   - Oriente a usar o painel à ESQUERDA do chat (a lista de tarefas). Clicar numa tarefa abre os detalhes para gerenciar prazo, lembrete e o resto.',
           ctx.whatsappVerified
-            ? '   - A Jarvi também está no WhatsApp: o usuário pode mandar mensagem a qualquer momento para lembrar algo ou registrar uma nova tarefa. Acabou de chegar uma mensagem por lá.'
+            ? '   - A Jarvi também está no WhatsApp: o usuário pode mandar mensagem a qualquer momento para lembrar algo ou registrar uma nova tarefa. NÃO diga que acabou de chegar uma mensagem nova por lá.'
             : '   - Se quiser, dá para conectar o WhatsApp em Apps e falar com a Jarvi por lá também. NÃO diga que já chegou mensagem no WhatsApp.',
           '3. NÃO chame offer_choices neste turno. NÃO continue a tríade. NÃO chame complete_onboarding_journey de novo.',
           '4. Se a tool retornar alreadyCompleted=true, NÃO fale do encerramento de novo — siga o chat normal.',

@@ -46,10 +46,6 @@ import { rescheduleRemindersForTask } from '../../reminderService';
 import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
 import { recordTaskCreated } from '../../taskTelemetry';
 import { searchWeb } from '../../webSearchService';
-import {
-  sendOnboardingIntroTemplate,
-  sendOnboardingTasksConfirmationTemplate,
-} from '../../whatsappService';
 import { capitalizeTaskTitle } from '../../../utils/taskTitle';
 import type {
   AgentContext,
@@ -465,7 +461,7 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
     function: {
       name: 'complete_onboarding_journey',
       description:
-        'Encerra a jornada das primeiras tarefas do onboarding. Chame UMA ÚNICA VEZ, só no web, quando a tríade (o quê / quando / como lembrar) da ÚLTIMA tarefa da fila estiver resolvida. Sem parâmetros. Dispara as mensagens de intro no WhatsApp e devolve a lista de tarefas organizadas para você fechar a conversa. NÃO chame em conversas normais fora do onboarding.',
+        'Encerra a jornada das primeiras tarefas do onboarding. Chame UMA ÚNICA VEZ, só no web, quando a tríade (o quê / quando / como lembrar) da ÚLTIMA tarefa da fila estiver resolvida. Sem parâmetros. Devolve a lista de tarefas organizadas para você fechar a conversa. NÃO chame em conversas normais fora do onboarding.',
       parameters: {
         type: 'object',
         properties: {},
@@ -1666,9 +1662,6 @@ function executeOfferChoices(args: Record<string, unknown>): ToolExecutionResult
 
 const ONBOARDING_JOURNEY_TASK_CAP = 5;
 
-const parseDbBoolean = (value: unknown): boolean =>
-  value === true || value === 1 || value === '1';
-
 const hasTimestamp = (value: unknown): boolean =>
   value != null && String(value).trim() !== '';
 
@@ -1682,10 +1675,6 @@ const formatOnboardingTasksLine = (
 };
 
 interface OnboardingJourneyUserRow {
-  preferred_name?: string | null;
-  name?: string | null;
-  whatsapp_phone?: string | null;
-  whatsapp_verified?: boolean | number | string | null;
   onboarding_journey_completed_at?: string | Date | null;
 }
 
@@ -1701,7 +1690,7 @@ async function fetchOnboardingJourneyUser(
 ): Promise<OnboardingJourneyUserRow | null> {
   if (isPostgreSQL()) {
     const result = await getPool().query(
-      `SELECT preferred_name, name, whatsapp_phone, whatsapp_verified, onboarding_journey_completed_at
+      `SELECT onboarding_journey_completed_at
        FROM users WHERE id = $1`,
       [userId],
     );
@@ -1709,7 +1698,7 @@ async function fetchOnboardingJourneyUser(
   }
   return (
     (await getDatabase().get<OnboardingJourneyUserRow>(
-      `SELECT preferred_name, name, whatsapp_phone, whatsapp_verified, onboarding_journey_completed_at
+      `SELECT onboarding_journey_completed_at
        FROM users WHERE id = ?`,
       [userId],
     )) || null
@@ -1797,7 +1786,6 @@ async function executeCompleteOnboardingJourney(
       success: true,
       data: {
         alreadyCompleted: true,
-        whatsappSent: false,
         tasks: summarized.tasks,
         tasksLine: summarized.tasksLine,
       },
@@ -1807,29 +1795,10 @@ async function executeCompleteOnboardingJourney(
   const now = new Date().toISOString();
   await markOnboardingJourneyComplete(ctx.userId, now);
 
-  let whatsappSent = false;
-  if (parseDbBoolean(user.whatsapp_verified) && user.whatsapp_phone) {
-    const firstName =
-      (user.preferred_name || user.name || ctx.preferredName || 'oi')
-        .trim()
-        .split(/\s+/)[0] || 'oi';
-    try {
-      await sendOnboardingIntroTemplate(user.whatsapp_phone, firstName);
-      await sendOnboardingTasksConfirmationTemplate(
-        user.whatsapp_phone,
-        summarized.tasksLine,
-      );
-      whatsappSent = true;
-    } catch (error) {
-      console.error('Failed to send onboarding journey WhatsApp templates:', error);
-    }
-  }
-
   return {
     success: true,
     data: {
       alreadyCompleted: false,
-      whatsappSent,
       tasks: summarized.tasks,
       tasksLine: summarized.tasksLine,
     },
