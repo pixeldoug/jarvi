@@ -26,6 +26,7 @@ import {
   getUserLists,
 } from '../core/tasks';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
+import { isReliableExecutionEnabled } from '../core/flags';
 import { recordAgentTurnUsage, sumAgentTurnUsage } from '../core/telemetry';
 import type {
   AgentContext,
@@ -138,15 +139,28 @@ export async function streamChat(
       whatsappVerified,
     } = profileData;
 
+    // Entrega 1 — resolved per user so the rollout can start with internal
+    // accounts only (see core/flags.ts). Off → legacy path: same prompts,
+    // schemas, retry guardrail and raw model text.
+    const profile: ChannelProfile = {
+      ...WEB_PROFILE,
+      reliableExecution: isReliableExecutionEnabled(email),
+    };
+
     // Fallback trigger: reconciliation normally already ran when the user
     // entered the platform (login/session restore). This is fire-and-forget
     // and never blocks the response — it just catches long-lived tabs that
     // never hit those touchpoints. The current turn always proceeds with
     // whatever `memory` was already loaded above, even if a reconciliation
     // is now running in the background.
-    if (WEB_PROFILE.enableMemoryReconciliation) {
+    if (profile.enableMemoryReconciliation) {
       triggerMemoryReconciliation(userId);
     }
+
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((m) => m.role === 'user')
+      ?.content;
 
     let ctx: AgentContext;
     let systemPrompt: string;
@@ -177,8 +191,11 @@ export async function streamChat(
         focusedTask: task,
         onboardingJourneyPending,
         whatsappVerified,
+        // The date guard reads the user's own words. Only wired with the flag
+        // so the legacy task-mode path stays untouched (it never had it).
+        originalUserMessage: profile.reliableExecution ? lastUserMessage : undefined,
       };
-      systemPrompt = buildTaskFocusedPrompt(task, ctx, WEB_PROFILE);
+      systemPrompt = buildTaskFocusedPrompt(task, ctx, profile);
     } else {
       onEvent({ type: 'status', message: 'Consultando suas tarefas…' });
       const [activeTasks, activeTaskCount, completedTaskCount, lists, categories] =
@@ -189,11 +206,6 @@ export async function streamChat(
           getUserLists(userId),
           getUserCategories(userId),
         ]);
-
-      const lastUserMessage = [...messages]
-        .reverse()
-        .find((m) => m.role === 'user')
-        ?.content;
 
       ctx = {
         userId,
@@ -211,7 +223,7 @@ export async function streamChat(
         onboardingJourneyPending,
         whatsappVerified,
       };
-      systemPrompt = buildSystemPrompt(ctx, WEB_PROFILE);
+      systemPrompt = buildSystemPrompt(ctx, profile);
     }
 
     const initialMessages: ChatCompletionMessageParam[] = messages
@@ -256,17 +268,16 @@ export async function streamChat(
       onSeparator: () => onEvent({ type: 'separator' }),
     };
 
-    let { text, toolCallNames, usage, traceId } = await runAgent(
-      WEB_PROFILE,
-      ctx,
-      systemPrompt,
-      initialMessages,
-      agentCallbacks,
-    );
+    const run = await runAgent(profile, ctx, systemPrompt, initialMessages, agentCallbacks);
+    let { text, toolCallNames, usage } = run;
+    const { traceId } = run;
     let retried = false;
 
+    // Legacy guardrail only. With reliable execution a wrong sentence is
+    // stripped by the backend, never "fixed" by forcing a new write.
     if (
-      WEB_PROFILE.enableAntiHallucinationRetry &&
+      !profile.reliableExecution &&
+      profile.enableAntiHallucinationRetry &&
       shouldRetryWithForcedTool(text, toolCallNames)
     ) {
       console.warn(
@@ -275,7 +286,7 @@ export async function streamChat(
       );
       onEvent({ type: 'separator' });
       const retry = await runAgent(
-        WEB_PROFILE,
+        profile,
         ctx,
         systemPrompt,
         initialMessages,
@@ -296,6 +307,8 @@ export async function streamChat(
       usage,
       retried,
       traceId,
+      reliability: run.reliability,
+      operations: run.operations,
     });
 
     onEvent({ type: 'done' });

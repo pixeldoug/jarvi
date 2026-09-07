@@ -39,7 +39,7 @@ import type { AgentContext, ChannelProfile, TaskRow } from './types';
  * Bump the date (or the suffix for same-day changes) whenever ANY prompt rule
  * in this file changes.
  */
-export const PROMPT_VERSION = '2026-08-23.3';
+export const PROMPT_VERSION = '2026-09-06.1';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -292,9 +292,42 @@ const BASE_BEHAVIOR_RULES = joinNonEmpty([
 // Channel extras (default helpers — adapters override via profile.systemPromptExtras)
 // ---------------------------------------------------------------------------
 
-export function buildWhatsappExtras(ctx: AgentContext): string {
+export function buildWhatsappExtras(ctx: AgentContext, profile?: ChannelProfile): string {
   const greeting = getDynamicGreeting(ctx.timezone);
   const { isoDate, weekday, ddmm } = getDateTimeForTimezone(ctx.timezone);
+  const reliable = Boolean(profile?.reliableExecution);
+
+  // With backend confirmations the "Salvo! Tarefa ..." block is written by the
+  // system; the model only keeps the follow-up question rules.
+  const creationFormatRules: Array<string | null> = reliable
+    ? [
+        '- Ao criar, editar, concluir ou excluir tarefa, NÃO escreva confirmação: o sistema envia "Salvo! Tarefa *título* criada! 🗓️" e a linha de data por você.',
+        '- Sua parte depois da ação é só a eventual pergunta curta:',
+        '[Se a tarefa foi registrada SEM data (due_label nulo/ausente) e nenhuma `note` diz que o sistema já perguntou o dia: recomende UM prazo (due_date) com base no contexto (ex: "Quer um prazo 30 dias antes?" para renovações, "Quer marcar a véspera como prazo?" para consultas, "Quer adicionar um prazo?" caso contrário).]',
+        '[Se a tarefa foi registrada COM data: não fale da data — ela já foi confirmada pelo sistema.]',
+        '[Se o usuário pediu para ser lembrado/avisado e reminders_count veio 0/ausente: pergunte canal e/ou horário do aviso — não trate prazo/recorrência como se fosse o lembrete.]',
+        '[Se a tarefa foi registrada sem prioridade, NÃO sugira prioridade por padrão.]',
+        '- Nunca invente data ou prioridade. Não registre "Hoje", "Amanhã" ou qualquer data sem o usuário ter dito isso',
+        '- Prazo sugerido ≠ lembrete: perguntar due_date é uma coisa; configurar reminders (WhatsApp/ligação) é outra',
+      ]
+    : [
+        '- Ao concluir tarefa, responda em 1 linha: "[título] concluída."',
+        '- Ao criar tarefa, use EXATAMENTE este formato:',
+        '',
+        'Salvo! Tarefa *[título exato]* criada! 🗓️',
+        '',
+        '[Se a tarefa foi registrada COM data (a tool create_task retornou due_label): escreva nesta linha o valor de due_label EXATAMENTE como veio na resposta da tool, sem reformatar, traduzir ou recalcular (ex: "Terça-feira, 16/05 às 17h00"). Depois omita a pergunta de prazo.]',
+        '[Se a tarefa foi registrada SEM data (due_label veio nulo/ausente): NÃO escreva linha de data. Recomende um PRAZO (due_date) com base no contexto quando fizer sentido (ex: "Quer um prazo 30 dias antes?" para renovações, "Quer marcar a véspera como prazo?" para consultas, "Quer adicionar um prazo?" para tarefas sem prazo óbvio). Reserve a palavra "lembrete/avisar" só quando for configurar o campo reminders de verdade.]',
+        '[Se o usuário pediu para ser lembrado/avisado e reminders_count veio 0/ausente: pergunte canal e/ou horário do aviso — não trate prazo/recorrência como se fosse o lembrete.]',
+        '[Se a tarefa foi registrada sem prioridade, NÃO sugira prioridade por padrão.]',
+        '',
+        'Regras da criação:',
+        '- Use negrito no título com *asteriscos* (formato WhatsApp)',
+        '- O emoji 🗓️ faz parte do formato — sempre inclua',
+        '- A linha de data vem do campo due_label retornado por create_task. Cole-a literalmente; NUNCA invente, reformate ou recalcule a data/hora por conta própria',
+        '- Nunca invente data ou prioridade. Não registre "Hoje", "Amanhã" ou qualquer data sem o usuário ter dito isso',
+        '- Prazo sugerido ≠ lembrete: perguntar due_date é uma coisa; configurar reminders (WhatsApp/ligação) é outra',
+      ];
 
   return joinNonEmpty([
     '🚀 PROATIVIDADE É SUA PRIORIDADE Nº 1 NO WHATSAPP:',
@@ -318,22 +351,7 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
     '⚠️ IMPORTANTE — COMO A CRIAÇÃO FUNCIONA NO WHATSAPP:',
     'Tarefas criadas pelo WhatsApp vão direto para a lista de tarefas ativas. Quando você chama create_task, a tarefa já está ativa e aparece imediatamente no app.',
     '',
-    '- Ao concluir tarefa, responda em 1 linha: "[título] concluída."',
-    '- Ao criar tarefa, use EXATAMENTE este formato:',
-    '',
-    'Salvo! Tarefa *[título exato]* criada! 🗓️',
-    '',
-    '[Se a tarefa foi registrada COM data (a tool create_task retornou due_label): escreva nesta linha o valor de due_label EXATAMENTE como veio na resposta da tool, sem reformatar, traduzir ou recalcular (ex: "Terça-feira, 16/05 às 17h00"). Depois omita a pergunta de prazo.]',
-    '[Se a tarefa foi registrada SEM data (due_label veio nulo/ausente): NÃO escreva linha de data. Recomende um PRAZO (due_date) com base no contexto quando fizer sentido (ex: "Quer um prazo 30 dias antes?" para renovações, "Quer marcar a véspera como prazo?" para consultas, "Quer adicionar um prazo?" para tarefas sem prazo óbvio). Reserve a palavra "lembrete/avisar" só quando for configurar o campo reminders de verdade.]',
-    '[Se o usuário pediu para ser lembrado/avisado e reminders_count veio 0/ausente: pergunte canal e/ou horário do aviso — não trate prazo/recorrência como se fosse o lembrete.]',
-    '[Se a tarefa foi registrada sem prioridade, NÃO sugira prioridade por padrão.]',
-    '',
-    'Regras da criação:',
-    '- Use negrito no título com *asteriscos* (formato WhatsApp)',
-    '- O emoji 🗓️ faz parte do formato — sempre inclua',
-    '- A linha de data vem do campo due_label retornado por create_task. Cole-a literalmente; NUNCA invente, reformate ou recalcule a data/hora por conta própria',
-    '- Nunca invente data ou prioridade. Não registre "Hoje", "Amanhã" ou qualquer data sem o usuário ter dito isso',
-    '- Prazo sugerido ≠ lembrete: perguntar due_date é uma coisa; configurar reminders (WhatsApp/ligação) é outra',
+    ...creationFormatRules,
     '',
     '⛔ ESCOPO DE FUNCIONALIDADES:',
     'No WhatsApp você cria, edita, conclui e exclui tarefas — incluindo recorrência e lembretes via update_task. NÃO ofereça dividir em subtarefas, criar listas/projetos ou qualquer coisa fora das suas tools. Se o usuário confirmar recorrência ou lembrete, chame update_task com os campos recurrence_* ou reminders.',
@@ -396,17 +414,33 @@ export function buildWhatsappExtras(ctx: AgentContext): string {
   ]);
 }
 
-export function buildWebExtras(ctx: AgentContext): string {
+export function buildWebExtras(ctx: AgentContext, profile?: ChannelProfile): string {
+  const reliable = Boolean(profile?.reliableExecution);
   return joinNonEmpty([
     '⛔⛔ REGRA CRÍTICA #1 — HUMANO PRIMEIRO, SEM REPETIR O CARTÃO: Depois que create_task/update_task/complete_task/delete_task retornam sucesso, título, prazo, categoria, prioridade E a descrição JÁ aparecem no cartão da tarefa. PROIBIDO repetir esses dados no chat (bullets "• Prazo:", seções "Resumo", segunda confirmação).',
-    'Depois de CRIAR uma tarefa no web, a ordem visível é: (1) 2-3 frases humanas, (2) o cartão, (3) no máximo UM offer_choices se você precisa de uma resposta agora e já tem 2 a 5 opções. Seu texto NÃO é "Feito!".',
-    '- Se o usuário compartilhou dor, preocupação, saúde, cansaço ou algo pessoal: reconheça isso de verdade (ex: "Poxa, dor na lombar é horrível. Vou te ajudar com isso.").',
-    '- Diga que a tarefa já está criada. Faça UMA pergunta por turno — a próxima da tríade que ainda faltar. NÃO enumere dia/local/lembrete juntos e NÃO pule para convênio/clínica/search_web enquanto faltar prazo ou lembrete, a menos que a pessoa peça isso agora.',
-    '- UMA FALA SÓ: um único bloco depois da tool (empatia + tarefa criada). A pergunta vai no offer_choices, não repetida em bullets. NUNCA emende uma segunda confirmação ("Entendi, doug. Já deixei isso organizado...").',
-    '- Exemplo CERTO: "Poxa, isso deve estar péssimo. Já deixei a tarefa pronta pra te ajudar a marcar o exame." + offer_choices "Qual dia faz mais sentido?" ["Hoje","Amanhã","Essa semana"].',
-    '- Exemplo ERRADO: "Feito!"; ou um bloco "Ainda falta combinar" com dia + local + lembrete ao mesmo tempo; ou bullets Particular/Convênio no chat.',
-    '- Só avance para detalhe prático (convênio, clínica, valor, search_web) DEPOIS de prazo e lembrete combinados, ou se a pessoa pedir isso agora. Se a pergunta tiver 2 a 5 respostas curtas, chame offer_choices — NUNCA escreva as opções como bullets no chat.',
-    'Depois de ATUALIZAR/CONCLUIR/EXCLUIR: confirmação curta (ex: "Pronto, atualizei a tarefa.") + no máximo UMA pergunta se for útil. PROIBIDO listas "Resumo" / "Atualização salva".',
+    reliable
+      ? // Entrega 1: the card (and, for edits/failures, the system's own line)
+        // is the confirmation. The model keeps the human part only.
+        joinNonEmpty([
+          'Depois de CRIAR uma tarefa no web, a ordem visível é: (1) o cartão — ele É a confirmação de que a tarefa existe, (2) 1-3 frases suas, humanas, (3) no máximo UM offer_choices se você precisa de uma resposta agora e já tem 2 a 5 opções. Seu texto NÃO é "Feito!" e também NÃO é "criei/salvei/deixei a tarefa pronta": o cartão já disse isso, e frases assim são removidas pelo sistema antes de chegar ao usuário.',
+          '- Se o usuário compartilhou dor, preocupação, saúde, cansaço ou algo pessoal: reconheça isso de verdade (ex: "Poxa, dor na lombar é horrível. Vou te ajudar com isso.").',
+          '- Faça UMA pergunta por turno — a próxima da tríade que ainda faltar. NÃO enumere dia/local/lembrete juntos e NÃO pule para convênio/clínica/search_web enquanto faltar prazo ou lembrete, a menos que a pessoa peça isso agora. Se o resultado da tool disser que o sistema já perguntou algo (ex.: qual dia da semana que vem), NÃO pergunte de novo nem chame offer_choices para a mesma coisa.',
+          '- UMA FALA SÓ: um único bloco depois da tool. A pergunta vai no offer_choices, não repetida em bullets. NUNCA emende uma segunda confirmação ("Entendi, doug. Já deixei isso organizado...").',
+          '- Exemplo CERTO: "Poxa, isso deve estar péssimo. Vamos deixar isso encaminhado." + offer_choices "Qual dia faz mais sentido?" ["Hoje","Amanhã","Essa semana"].',
+          '- Exemplo ERRADO: "Feito!"; "Já deixei a tarefa pronta"; um bloco "Ainda falta combinar" com dia + local + lembrete ao mesmo tempo; bullets Particular/Convênio no chat.',
+          '- Só avance para detalhe prático (convênio, clínica, valor, search_web) DEPOIS de prazo e lembrete combinados, ou se a pessoa pedir isso agora. Se a pergunta tiver 2 a 5 respostas curtas, chame offer_choices — NUNCA escreva as opções como bullets no chat.',
+          'Depois de ATUALIZAR/CONCLUIR/EXCLUIR: o SISTEMA escreve a confirmação ("Pronto, atualizei a tarefa."). Você acrescenta no máximo UMA pergunta se for útil — nunca outra confirmação, nunca listas "Resumo" / "Atualização salva".',
+        ])
+      : joinNonEmpty([
+          'Depois de CRIAR uma tarefa no web, a ordem visível é: (1) 2-3 frases humanas, (2) o cartão, (3) no máximo UM offer_choices se você precisa de uma resposta agora e já tem 2 a 5 opções. Seu texto NÃO é "Feito!".',
+          '- Se o usuário compartilhou dor, preocupação, saúde, cansaço ou algo pessoal: reconheça isso de verdade (ex: "Poxa, dor na lombar é horrível. Vou te ajudar com isso.").',
+          '- Diga que a tarefa já está criada. Faça UMA pergunta por turno — a próxima da tríade que ainda faltar. NÃO enumere dia/local/lembrete juntos e NÃO pule para convênio/clínica/search_web enquanto faltar prazo ou lembrete, a menos que a pessoa peça isso agora.',
+          '- UMA FALA SÓ: um único bloco depois da tool (empatia + tarefa criada). A pergunta vai no offer_choices, não repetida em bullets. NUNCA emende uma segunda confirmação ("Entendi, doug. Já deixei isso organizado...").',
+          '- Exemplo CERTO: "Poxa, isso deve estar péssimo. Já deixei a tarefa pronta pra te ajudar a marcar o exame." + offer_choices "Qual dia faz mais sentido?" ["Hoje","Amanhã","Essa semana"].',
+          '- Exemplo ERRADO: "Feito!"; ou um bloco "Ainda falta combinar" com dia + local + lembrete ao mesmo tempo; ou bullets Particular/Convênio no chat.',
+          '- Só avance para detalhe prático (convênio, clínica, valor, search_web) DEPOIS de prazo e lembrete combinados, ou se a pessoa pedir isso agora. Se a pergunta tiver 2 a 5 respostas curtas, chame offer_choices — NUNCA escreva as opções como bullets no chat.',
+          'Depois de ATUALIZAR/CONCLUIR/EXCLUIR: confirmação curta (ex: "Pronto, atualizei a tarefa.") + no máximo UMA pergunta se for útil. PROIBIDO listas "Resumo" / "Atualização salva".',
+        ]),
     '- FILTROS/LISTAS (OBRIGATÓRIO): Sempre que criar, atualizar ou mencionar um filtro/lista, chame show_list com o ID correspondente. Isso é o que exibe o artefato clicável no chat — sem show_list, nenhum artefato aparece. NUNCA descreva o filtro só em texto.',
     '- CATEGORIAS (show_category): Chame show_category SOMENTE quando a categoria estiver diretamente ligada a uma ação concreta nesta conversa — ou seja, quando você acabou de criar/atualizar uma tarefa com aquela categoria, criou/editou a própria categoria, ou o usuário pediu explicitamente para ver/abrir uma categoria. NUNCA chame show_category só porque o assunto da conversa ou de um anexo "parece" se encaixar em alguma categoria existente (ex: analisar um documento financeiro NÃO deve exibir a categoria "Financeiro"). Quando chamar, use o ID correspondente. Sem show_category nenhum artefato aparece, e NUNCA mencione cor, ícone ou detalhes técnicos no texto da resposta.',
     '- TÍTULO DA TAREFA: Use títulos concisos mas descritivos — devem ter contexto suficiente para que o usuário identifique a tarefa sem precisar abri-la. Inclua o elemento diferenciador (local, pessoa, motivo) quando relevante. Máximo de ~60 caracteres. Sempre comece com letra maiúscula (ex: "Levar gato para check-up", nunca "levar gato...").',
@@ -455,6 +489,30 @@ export function buildWebExtras(ctx: AgentContext): string {
   ]);
 }
 
+/**
+ * Entrega 1 — with `profile.reliableExecution` the backend writes every
+ * confirmation from the operations record, so the model must stop confirming
+ * and start following the executor's `notes`. Returns null when the flag is
+ * off so the legacy prompt is byte-identical.
+ */
+export function buildReliableExecutionRules(profile: ChannelProfile): string | null {
+  if (!profile.reliableExecution) return null;
+  return joinNonEmpty([
+    '⚙️ CONFIRMAÇÕES SÃO DO SISTEMA (OBRIGATÓRIO — sobrepõe qualquer formato de confirmação acima):',
+    profile.outputFormat === 'markdown'
+      ? '- Depois de create_task, o cartão da tarefa que aparece no chat É a confirmação. Depois de update_task / complete_task / delete_task (e de listas/categorias), o SISTEMA escreve a confirmação. Em nenhum dos casos você confirma: nada de "Feito!", "Pronto!", "Salvo!", "criei", "já deixei a tarefa pronta", "atualizei", "prazo definido", "concluída", e não repita título, data, horário, prioridade ou categoria. Frases assim são removidas antes de chegar ao usuário.'
+      : '- Depois de create_task / update_task / complete_task / delete_task (e de listas/categorias), o SISTEMA já envia ao usuário a confirmação do que foi feito, com título e prazo exatamente como ficaram salvos. NÃO escreva confirmação nenhuma: nada de "Feito!", "Pronto!", "Salvo!", "tarefa criada", "atualizei", "prazo definido", "concluída", e não repita título, data, horário, prioridade ou categoria. Frases assim são removidas antes de chegar ao usuário.',
+    profile.outputFormat === 'markdown'
+      ? '- O que sobra para você depois de uma ação é a parte humana: reconhecer o contexto da pessoa quando houver (1-2 frases) e no máximo UMA pergunta curta e útil (prazo, lembrete, contexto) — via offer_choices quando houver 2 a 5 opções. Ou simplesmente nada.'
+      : '- O que sobra para você depois de uma ação é só o que o sistema NÃO faz: no máximo UMA pergunta curta e útil (prazo, lembrete, contexto), um conselho breve quando fizer sentido, ou simplesmente nada.',
+    '- Se o resultado de uma tool tiver `notes`, siga-as à risca. Ex.: "due_date NÃO salvo" significa que a tarefa está sem esse prazo — nunca afirme um prazo que a nota diz que não foi salvo. "O sistema já perguntou ao usuário" significa que você NÃO deve fazer a mesma pergunta.',
+    '- Se o resultado tiver success=false, não finja que deu certo: o sistema já avisou o usuário da falha. Você pode oferecer a alternativa (ex.: perguntar qual tarefa ele quis dizer) — sem repetir a mensagem de erro.',
+    '- Argumentos das tools: due_date sempre YYYY-MM-DD; time sempre HH:MM; recurrence_until sempre YYYY-MM-DD. Omita os campos que não quer alterar. Use null SOMENTE quando o usuário pediu explicitamente para limpar aquele campo. Nunca envie "" para "não alterar".',
+    '- Período sem dia ("semana que vem", "próxima semana", "essa semana", "esse mês", "até o fim do mês", "nos próximos dias") NÃO vira due_date: deixe due_date de fora e crie/atualize o resto. O sistema pergunta ao usuário qual dia — e quando o resultado da tool disser isso, você NÃO pergunta de novo (nem por offer_choices).',
+    '- Nunca chame uma tool de escrita para "corrigir" o texto de uma resposta anterior: só escreva quando o usuário pediu a ação.',
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // Public builders
 // ---------------------------------------------------------------------------
@@ -472,8 +530,9 @@ export function buildSystemPrompt(
   ]);
 
   const extras = profile.systemPromptExtras
-    ? profile.systemPromptExtras(ctx)
+    ? profile.systemPromptExtras(ctx, profile)
     : null;
+  const reliableRules = buildReliableExecutionRules(profile);
 
   // Ordered so the (near-)static content comes first and the volatile,
   // per-turn content (current time, task list, memory) comes last. OpenAI's
@@ -492,6 +551,8 @@ export function buildSystemPrompt(
     BASE_BEHAVIOR_RULES,
     extras ? '' : null,
     extras,
+    reliableRules ? '' : null,
+    reliableRules,
     '',
     buildTemporalContext(ctx),
     '',
@@ -569,8 +630,12 @@ export function buildTaskFocusedPrompt(
     '- ANEXOS PROTEGIDOS: Você não pode remover nem alterar anexos/arquivos da tarefa — apenas o usuário pode.',
     '- REGRA CRÍTICA: nunca diga "ficou com prazo", "atualizei", "deixei para amanhã", "marquei" ou equivalente sem antes chamar update_task e receber sucesso.',
     '- Datas relativas como "amanhã", "hoje", "até amanhã no fim do dia" devem virar due_date no formato YYYY-MM-DD usando o calendário do CONTEXTO TEMPORAL (abaixo). Se houver horário ou expressão como "fim do dia", preencha também time.',
-    '- PRÓXIMA AÇÃO COM DATA EXPLÍCITA (OBRIGATÓRIO): Sempre que o usuário indicar quando vai continuar cuidando desta tarefa — data relativa ("amanhã", "semana que vem") OU absoluta ("dia 24", "24/07", "sexta-feira") — atualize due_date (YYYY-MM-DD, calculado pelo CONTEXTO TEMPORAL) para essa data na MESMA chamada de update_task que atualiza a descrição. Vale mesmo quando a data aparece só dentro da narrativa (ex: "vou verificar no dia 24" → due_date = dia 24). O chip de data da tarefa reflete exatamente o due_date salvo — se você não atualizar due_date, ele continua mostrando a data antiga (ex: "Hoje"), mesmo com a descrição já correta.',
+    profile.reliableExecution
+      ? '- PRÓXIMA AÇÃO COM DATA EXPLÍCITA (OBRIGATÓRIO): Sempre que o usuário indicar quando vai continuar cuidando desta tarefa com um DIA concreto — relativo ("amanhã", "depois de amanhã", "sexta-feira") ou absoluto ("dia 24", "24/07") — atualize due_date (YYYY-MM-DD, calculado pelo CONTEXTO TEMPORAL) para essa data na MESMA chamada de update_task que atualiza a descrição. Vale mesmo quando a data aparece só dentro da narrativa (ex: "vou verificar no dia 24" → due_date = dia 24). Período sem dia ("semana que vem") NÃO entra em due_date — o sistema pergunta o dia. O chip de data da tarefa reflete exatamente o due_date salvo.'
+      : '- PRÓXIMA AÇÃO COM DATA EXPLÍCITA (OBRIGATÓRIO): Sempre que o usuário indicar quando vai continuar cuidando desta tarefa — data relativa ("amanhã", "semana que vem") OU absoluta ("dia 24", "24/07", "sexta-feira") — atualize due_date (YYYY-MM-DD, calculado pelo CONTEXTO TEMPORAL) para essa data na MESMA chamada de update_task que atualiza a descrição. Vale mesmo quando a data aparece só dentro da narrativa (ex: "vou verificar no dia 24" → due_date = dia 24). O chip de data da tarefa reflete exatamente o due_date salvo — se você não atualizar due_date, ele continua mostrando a data antiga (ex: "Hoje"), mesmo com a descrição já correta.',
     '- MEMÓRIA (SECUNDÁRIA E SILENCIOSA): Depois de já ter chamado update_task com o que for relevante para esta tarefa, verifique também se a mensagem contém dado duradouro sobre o usuário (nomes, relacionamentos, preferências, hábitos). Se sim, chame update_memory mesclando com o que já estava salvo — mas isso é um registro interno. NUNCA mencione a palavra "memória" nem frases como "anotei/salvei/registrei na memória" na resposta ao usuário; a resposta deve sempre girar em torno da tarefa (ex.: "Pronto, atualizei a tarefa."), nunca em torno da memória.',
+    profile.reliableExecution ? '' : null,
+    buildReliableExecutionRules(profile),
     '',
     temporal,
     '',

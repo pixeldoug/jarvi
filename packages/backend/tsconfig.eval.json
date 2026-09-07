@@ -5,5 +5,10 @@
     "outDir": "./dist-eval",
     "noEmit": true
   },
-  "include": ["src/**/*", "evals/**/*"]
+  "include": ["src/**/*", "evals/**/*"],
+  "ts-node": {
+    // Load `include` (notably src/types/*.d.ts, where the ambient
+    // `@posthog/ai/openai` declaration lives) — ts-node ignores it by default.
+    "files": true
+  }
 }

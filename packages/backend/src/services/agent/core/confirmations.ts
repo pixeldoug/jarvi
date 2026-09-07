@@ -1,0 +1,523 @@
+/**
+ * Backend-owned confirmations.
+ *
+ * With `profile.reliableExecution`, the text that tells the user what was
+ * created / edited / completed / deleted is generated HERE, from the
+ * operations record — never by the model. The model's own text is passed
+ * through a sentence gate that drops confirmation claims (they are either
+ * redundant or, worse, false) and keeps everything else: questions, advice,
+ * briefings.
+ *
+ * Both channels use the same rules; only the surface formatting differs
+ * (WhatsApp has no task card, so it echoes title + date; web has the card, so
+ * a successful create says nothing and edits stay short). Multi-task batches
+ * always distinguish successes from failures.
+ *
+ * Tools that are not writes from the user's point of view (search_web,
+ * offer_choices, complete_onboarding_journey, show_*) never produce a
+ * confirmation and never count as "a write happened" for the claim gate.
+ */
+
+import { CREATION_CLAIM_REGEX, UPDATE_CLAIM_REGEX } from './guardrails';
+import { formatDueDateLabel } from './time';
+import type { AgentOperation, ChannelProfile } from './types';
+
+// ---------------------------------------------------------------------------
+// Vocabulary
+// ---------------------------------------------------------------------------
+
+const PRIORITY_LABELS: Record<string, string> = {
+  high: 'alta',
+  medium: 'média',
+  low: 'baixa',
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  title: 'título',
+  description: 'descrição',
+  due_date: 'prazo',
+  time: 'horário',
+  priority: 'prioridade',
+  category: 'categoria',
+  recurrence_type: 'recorrência',
+  recurrence_config: 'recorrência',
+  recurrence_until: 'recorrência',
+  reminders: 'lembretes',
+  task_id: 'tarefa',
+  list_id: 'lista',
+  category_id: 'categoria',
+  name: 'nome',
+};
+
+export function fieldLabel(path: string): string {
+  const root = path.split(/[.[]/)[0];
+  return FIELD_LABELS[root] ?? root;
+}
+
+const WRITE_TASK_TOOLS = new Set(['create_task', 'update_task', 'complete_task', 'delete_task']);
+const WRITE_LIST_TOOLS = new Set(['create_list', 'update_list', 'delete_list']);
+const WRITE_CATEGORY_TOOLS = new Set(['create_category', 'update_category', 'delete_category']);
+
+export function isWriteTool(tool: string): boolean {
+  return (
+    WRITE_TASK_TOOLS.has(tool) ||
+    WRITE_LIST_TOOLS.has(tool) ||
+    WRITE_CATEGORY_TOOLS.has(tool) ||
+    tool === 'update_memory'
+  );
+}
+
+/** Tools whose outcome the user must be told about (memory stays silent by design). */
+function isUserVisibleWrite(op: AgentOperation): boolean {
+  return op.kind === 'write' && op.tool !== 'update_memory';
+}
+
+// ---------------------------------------------------------------------------
+// Title / change formatting per surface
+// ---------------------------------------------------------------------------
+
+type Surface = 'plain' | 'markdown';
+
+function quote(title: string | undefined, surface: Surface): string {
+  const t = (title ?? '').trim();
+  if (!t) return 'a tarefa';
+  return surface === 'plain' ? `*${t}*` : `"${t}"`;
+}
+
+function describeChanges(op: AgentOperation): string[] {
+  const changes = op.persisted ?? {};
+  const parts: string[] = [];
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(changes, k);
+
+  if (has('due_date') || has('time')) {
+    const due = has('due_date') ? (changes.due_date as string | null) : undefined;
+    const time = has('time') ? (changes.time as string | null) : undefined;
+    if (due === null && time === null) parts.push('prazo e horário removidos');
+    else if (due === null) parts.push('prazo removido');
+    else if (due !== undefined) {
+      const label =
+        (changes.due_label as string | undefined) ?? formatDueDateLabel(due, time ?? null);
+      parts.push(label ? `prazo ${label}` : 'prazo');
+    } else if (time === null) parts.push('horário removido');
+    else if (time !== undefined) parts.push(`horário ${time}`);
+  }
+  if (has('priority')) {
+    const p = changes.priority as string | null;
+    parts.push(p ? `prioridade ${PRIORITY_LABELS[p] ?? p}` : 'prioridade removida');
+  }
+  if (has('category')) {
+    const c = changes.category as string | null;
+    parts.push(c ? `categoria ${c}` : 'categoria removida');
+  }
+  if (has('title')) parts.push('título');
+  if (has('description')) parts.push(changes.description === null ? 'descrição removida' : 'descrição');
+  if (has('recurrence_type')) {
+    parts.push(changes.recurrence_type === 'none' ? 'recorrência removida' : 'recorrência');
+  } else if (has('recurrence_config') || has('recurrence_until')) {
+    parts.push('recorrência');
+  }
+  if (has('reminders')) {
+    const n = Number(
+      changes.reminders_count ?? (Array.isArray(changes.reminders) ? changes.reminders.length : 0),
+    );
+    if (n === 0) parts.push('lembretes removidos');
+    else parts.push(n === 1 ? 'lembrete' : `${n} lembretes`);
+  }
+  return parts;
+}
+
+function failureSentence(op: AgentOperation, surface: Surface): string {
+  const verb: Record<string, string> = {
+    create_task: 'criar a tarefa',
+    update_task: `atualizar ${quote(op.entity?.title, surface)}`,
+    complete_task: `concluir ${quote(op.entity?.title, surface)}`,
+    delete_task: `excluir ${quote(op.entity?.title, surface)}`,
+    create_list: 'criar a lista',
+    update_list: 'atualizar a lista',
+    delete_list: 'excluir a lista',
+    create_category: 'criar a categoria',
+    update_category: 'atualizar a categoria',
+    delete_category: 'excluir a categoria',
+  };
+  const what = verb[op.tool] ?? 'fazer isso';
+  const code = op.error?.code;
+
+  if (code === 'not_found') {
+    if (op.tool.endsWith('_task')) {
+      const action: Record<string, string> = {
+        update_task: 'atualizar',
+        complete_task: 'concluir',
+        delete_task: 'excluir',
+      };
+      return `Não encontrei a tarefa para ${action[op.tool] ?? 'alterar'}.`;
+    }
+    if (op.tool.endsWith('_list')) return 'Não encontrei essa lista.';
+    if (op.tool.endsWith('_category')) return 'Não encontrei essa categoria.';
+    return 'Não encontrei esse item.';
+  }
+  if (code === 'invalid_arguments') {
+    const fields = (op.notes ?? [])
+      .filter((n) => n.startsWith('invalid:'))
+      .map((n) => fieldLabel(n.slice('invalid:'.length)));
+    const unique = Array.from(new Set(fields));
+    return unique.length
+      ? `Não consegui ${what}: dados inválidos em ${unique.join(', ')}.`
+      : `Não consegui ${what}: dados inválidos.`;
+  }
+  const detail = op.error?.message?.trim();
+  return detail ? `Não consegui ${what}: ${detail.replace(/\.$/, '')}.` : `Não consegui ${what}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Confirmation builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the confirmation for a batch of operations (normally one run-loop
+ * iteration). Returns null when there is nothing the user must be told.
+ */
+export function buildConfirmation(
+  operations: AgentOperation[],
+  profile: Pick<ChannelProfile, 'outputFormat'>,
+): string | null {
+  const surface: Surface = profile.outputFormat;
+  const ops = operations.filter(isUserVisibleWrite);
+  if (ops.length === 0) return null;
+
+  const ok = (tool: string) => ops.filter((o) => o.tool === tool && o.success);
+  const created = ok('create_task').filter((o) => !o.duplicate);
+  const duplicates = ok('create_task').filter((o) => o.duplicate);
+  const updated = ok('update_task').filter((o) => !o.unchanged);
+  const unchanged = ok('update_task').filter((o) => o.unchanged);
+  const completed = ok('complete_task');
+  const deleted = ok('delete_task');
+  const failures = ops.filter((o) => !o.success);
+
+  const lines: string[] = [];
+
+  // ── Tasks: creation ────────────────────────────────────────────────────
+  // Web renders one task card per successful create_task (from the
+  // tool_result event); the card IS the confirmation there, and the model is
+  // left with the human part ("humano primeiro"). WhatsApp has no card, so
+  // the backend echoes title + date.
+  if (surface === 'plain') {
+    if (created.length === 1) {
+      const op = created[0];
+      lines.push(`Salvo! Tarefa ${quote(op.entity?.title, surface)} criada! 🗓️`);
+      const dueLabel = op.persisted?.due_label as string | null | undefined;
+      if (dueLabel) lines.push(dueLabel);
+    } else if (created.length > 1) {
+      lines.push(`Salvo! ${created.length} tarefas criadas! 🗓️`);
+      for (const op of created) {
+        const dueLabel = op.persisted?.due_label as string | null | undefined;
+        lines.push(`${quote(op.entity?.title, surface)}${dueLabel ? ` | ${dueLabel}` : ''}`);
+      }
+    }
+  }
+  for (const op of duplicates) {
+    lines.push(
+      surface === 'plain'
+        ? `${quote(op.entity?.title, surface)} já está na sua lista.`
+        : 'Essa tarefa já existe na sua lista.',
+    );
+  }
+
+  // ── Tasks: updates ─────────────────────────────────────────────────────
+  if (updated.length === 1) {
+    const op = updated[0];
+    const changes = describeChanges(op);
+    if (surface === 'plain') {
+      lines.push(
+        changes.length
+          ? `Atualizei ${quote(op.entity?.title, surface)}: ${changes.join(', ')}.`
+          : `Atualizei ${quote(op.entity?.title, surface)}.`,
+      );
+    } else {
+      lines.push('Pronto, atualizei a tarefa.');
+    }
+  } else if (updated.length > 1) {
+    if (surface === 'plain') {
+      lines.push(`Atualizei ${updated.length} tarefas:`);
+      for (const op of updated) {
+        const changes = describeChanges(op);
+        lines.push(
+          `${quote(op.entity?.title, surface)}${changes.length ? `: ${changes.join(', ')}` : ''}`,
+        );
+      }
+    } else {
+      // The web UI collapses multiple update cards into a count with no
+      // titles — naming them here is the only way the user knows which ones.
+      lines.push(
+        `Pronto! Atualizei ${updated.length} tarefas: ${updated
+          .map((op) => quote(op.entity?.title, surface))
+          .join(', ')}.`,
+      );
+    }
+  }
+  for (const op of unchanged) {
+    lines.push(
+      surface === 'plain'
+        ? `Nada foi alterado em ${quote(op.entity?.title, surface)}.`
+        : 'Nada foi alterado na tarefa.',
+    );
+  }
+
+  // ── Tasks: completion / deletion ───────────────────────────────────────
+  if (completed.length > 0) {
+    if (surface === 'plain') {
+      for (const op of completed) lines.push(`${(op.entity?.title ?? 'Tarefa').trim()} concluída.`);
+    } else {
+      lines.push(
+        completed.length === 1
+          ? 'Pronto! Tarefa concluída.'
+          : `Pronto! ${completed.length} tarefas concluídas.`,
+      );
+    }
+  }
+  if (deleted.length > 0) {
+    if (surface === 'plain') {
+      for (const op of deleted) lines.push(`${(op.entity?.title ?? 'Tarefa').trim()} excluída.`);
+    } else {
+      lines.push(
+        deleted.length === 1 ? 'Tarefa excluída.' : `${deleted.length} tarefas excluídas.`,
+      );
+    }
+  }
+
+  // ── Lists & categories (web) ───────────────────────────────────────────
+  for (const op of ops.filter((o) => o.success && WRITE_LIST_TOOLS.has(o.tool))) {
+    const name = op.entity?.title ? `"${op.entity.title}"` : '';
+    if (op.tool === 'create_list') lines.push(`Lista ${name} criada.`.replace('  ', ' '));
+    else if (op.tool === 'update_list') lines.push(`Lista ${name} atualizada.`.replace('  ', ' '));
+    else lines.push('Lista excluída.');
+  }
+  for (const op of ops.filter((o) => o.success && WRITE_CATEGORY_TOOLS.has(o.tool))) {
+    const name = op.entity?.title ? `"${op.entity.title}"` : '';
+    if (op.tool === 'create_category') lines.push(`Categoria ${name} criada.`.replace('  ', ' '));
+    else if (op.tool === 'update_category') lines.push(`Categoria ${name} atualizada.`.replace('  ', ' '));
+    else lines.push('Categoria excluída.');
+  }
+
+  // ── Failures — always last, always explicit ────────────────────────────
+  for (const op of failures) lines.push(failureSentence(op, surface));
+
+  return lines.length ? lines.join('\n') : null;
+}
+
+/** Unique continuity questions the backend decided to ask in this batch. */
+export function collectPendingQuestions(operations: AgentOperation[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const op of operations) {
+    const q = op.pendingQuestion?.text;
+    if (q && !seen.has(q)) {
+      seen.add(q);
+      out.push(q);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Model-text gate: drop confirmation claims, keep everything else
+// ---------------------------------------------------------------------------
+
+// JS `\b` is ASCII-only: `\bconcluí\b` never matches because "í" is not a
+// word character. Word boundaries here are Unicode-aware lookarounds instead.
+const NOT_LETTER_BEFORE = '(?<![\\p{L}\\p{N}])';
+const NOT_LETTER_AFTER = '(?![\\p{L}\\p{N}])';
+function words(alternatives: string, flags = 'iu'): RegExp {
+  return new RegExp(`${NOT_LETTER_BEFORE}(?:${alternatives})${NOT_LETTER_AFTER}`, flags);
+}
+
+const COMPLETION_CLAIM_REGEX = words(
+  'conclu[íi]|finalizei|exclu[íi]|deletei|removi|apaguei|reagendei|reprogramei',
+);
+
+// The legacy guardrail regexes use ASCII `\b`; re-declared here with Unicode
+// boundaries so "criei"/"atualizei" followed by punctuation or accents match.
+const CREATION_CLAIM_WORDS = words(
+  '(?<!mensagem )(?<!msg )(?<!texto )(?<!recado )(?<!frase )(?:sugerida|sugeri|criada|criei|anotei|agendei|registrei)',
+);
+const UPDATE_CLAIM_WORDS = words(
+  'atualizei|alterei|ajustei|corrigi|mudei|deixei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei',
+);
+
+// "a tarefa foi criada", "prazo definido", "lembrete configurado", ...
+const STATE_CLAIM_REGEX = new RegExp(
+  `${NOT_LETTER_BEFORE}(?:tarefa|tarefas|prazo|data|hor[áa]rio|prioridade|categoria|lembrete|lembretes|recorr[êe]ncia|descri[çc][ãa]o|t[íi]tulo|lista|isso|tudo)${NOT_LETTER_AFTER}[^.!?\\n]{0,50}${NOT_LETTER_BEFORE}(?:criad[ao]s?|atualizad[ao]s?|conclu[íi]d[ao]s?|exclu[íi]d[ao]s?|deletad[ao]s?|removid[ao]s?|salv[ao]s?|registrad[ao]s?|agendad[ao]s?|marcad[ao]s?|reagendad[ao]s?|alterad[ao]s?|ajustad[ao]s?|definid[ao]s?|configurad[ao]s?|adicionad[ao]s?|anotad[ao]s?|pront[ao]s?)${NOT_LETTER_AFTER}`,
+  'iu',
+);
+
+// Passive/state restatements of a write with ANY subject: "a conta de luz foi
+// concluída", "o dentista já está sem data", "isso ficou salvo".
+const PASSIVE_CLAIM_REGEX = new RegExp(
+  `${NOT_LETTER_BEFORE}(?:foi|foram|est[áa]|est[ãa]o|ficou|ficaram|j[áa]\\s+(?:foi|est[áa]|ficou))\\s+(?:criad|conclu[íi]d|finalizad|exclu[íi]d|deletad|removid|apagad|atualizad|salv|registrad|agendad|marcad|reagendad|alterad|ajustad|definid|configurad|adicionad|anotad)[ao]s?${NOT_LETTER_AFTER}`,
+  'iu',
+);
+
+const ACK_ONLY_REGEX =
+  /^\W*(feito|pronto|prontinho|salvo|beleza|perfeito|combinado|ok|okay|certo|anotado|registrado)\W*$/iu;
+
+const ACK_PREFIX_REGEX =
+  /^\W*(feito|pronto|prontinho|salvo|beleza|perfeito|combinado|ok|okay|certo)\s*[!.,…:]/iu;
+
+// A sentence that negates ("não criei", "ainda não atualizei") is honesty,
+// not a claim — always kept.
+const NEGATION_REGEX = words('n[ãa]o|nem|nunca|nenhum[a]?|ainda');
+
+const CALENDAR_EMOJI_REGEX = /🗓️|🗓/u;
+
+// A bare schedule line ("Segunda-feira, 14/09 às 14h00", "Amanhã às 9h") is
+// the model echoing (or inventing) the due label the backend already printed.
+// Dropped only when a write happened — as an answer to "quando é X?" it stays.
+const DATE_LINE_REGEX =
+  /^\W*(?:(?:segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo)(?:-feira)?|hoje|amanh[ãa]|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)(?:[,\s]+(?:\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|de\s+\p{L}+))?(?:[,\s]+(?:[àa]s\s+)?\d{1,2}(?:h|:)\d{0,2})?\W*$/iu;
+
+export interface ClaimGateContext {
+  /** Whether any user-visible write ran in this turn so far. */
+  hasWrites: () => boolean;
+  /** Whether the backend emitted continuity questions in this turn. */
+  hasPendingQuestions: () => boolean;
+  /** Persisted strings (e.g. due labels) whose echo by the model is redundant. */
+  persistedEchoes: () => string[];
+}
+
+export function isClaimSentence(sentence: string, ctx: ClaimGateContext): boolean {
+  const s = sentence.trim();
+  if (!s) return false;
+  if (CALENDAR_EMOJI_REGEX.test(s)) return true;
+  if (NEGATION_REGEX.test(s)) return false;
+
+  if (ACK_ONLY_REGEX.test(s)) return true;
+  if (
+    CREATION_CLAIM_REGEX.test(s) ||
+    UPDATE_CLAIM_REGEX.test(s) ||
+    CREATION_CLAIM_WORDS.test(s) ||
+    UPDATE_CLAIM_WORDS.test(s) ||
+    COMPLETION_CLAIM_REGEX.test(s) ||
+    STATE_CLAIM_REGEX.test(s) ||
+    PASSIVE_CLAIM_REGEX.test(s)
+  ) {
+    return true;
+  }
+  if (ACK_PREFIX_REGEX.test(s)) return true;
+
+  if (ctx.hasWrites()) {
+    if (DATE_LINE_REGEX.test(s)) return true;
+    const lower = s.toLowerCase();
+    for (const echo of ctx.persistedEchoes()) {
+      if (echo && lower.includes(echo.toLowerCase())) return true;
+    }
+  }
+  return false;
+}
+
+/** The model must not ask when the backend already decided the next question. */
+export function isQuestionSentence(sentence: string): boolean {
+  return /\?\W*$/.test(sentence.trim());
+}
+
+function shouldDrop(sentence: string, ctx: ClaimGateContext): boolean {
+  if (isClaimSentence(sentence, ctx)) return true;
+  if (ctx.hasPendingQuestions() && isQuestionSentence(sentence)) return true;
+  return false;
+}
+
+/**
+ * Split into [content, separator, content, separator, ...] so the original
+ * whitespace/newlines can be reassembled around the sentences we keep.
+ */
+function segment(text: string): string[] {
+  return text.split(/(\n+|(?<=[.!?…])\s+)/);
+}
+
+export interface FilterResult {
+  text: string;
+  dropped: number;
+}
+
+export function filterModelText(text: string, ctx: ClaimGateContext): FilterResult {
+  if (!text.trim()) return { text: '', dropped: 0 };
+  const parts = segment(text);
+  let out = '';
+  let dropped = 0;
+  for (let i = 0; i < parts.length; i += 2) {
+    const sentence = parts[i] ?? '';
+    const sep = parts[i + 1] ?? '';
+    if (!sentence.trim()) {
+      out += sentence + sep;
+      continue;
+    }
+    if (shouldDrop(sentence, ctx)) {
+      dropped++;
+      continue;
+    }
+    out += sentence + sep;
+  }
+  return { text: tidy(out), dropped };
+}
+
+export function tidy(text: string): string {
+  return text
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Streaming variant of `filterModelText`: buffers deltas until a sentence
+ * boundary, then emits or drops whole sentences. `flush()` at the end of an
+ * iteration processes the trailing partial sentence.
+ */
+export class SentenceGate {
+  private buffer = '';
+  public dropped = 0;
+
+  constructor(
+    private readonly ctx: ClaimGateContext,
+    private readonly emit: (chunk: string) => void,
+  ) {}
+
+  push(delta: string): void {
+    this.buffer += delta;
+    // Find the last completed sentence boundary in the buffer.
+    const re = /(?:[.!?…]+\s+|\n+)/g;
+    let lastEnd = -1;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(this.buffer)) !== null) lastEnd = m.index + m[0].length;
+    if (lastEnd === -1) return;
+    const head = this.buffer.slice(0, lastEnd);
+    this.buffer = this.buffer.slice(lastEnd);
+    this.process(head);
+  }
+
+  flush(): void {
+    if (!this.buffer) return;
+    const tail = this.buffer;
+    this.buffer = '';
+    this.process(tail);
+  }
+
+  private process(chunk: string): void {
+    const parts = segment(chunk);
+    let out = '';
+    for (let i = 0; i < parts.length; i += 2) {
+      const sentence = parts[i] ?? '';
+      const sep = parts[i + 1] ?? '';
+      if (!sentence.trim()) {
+        out += sentence + sep;
+        continue;
+      }
+      if (shouldDrop(sentence, this.ctx)) {
+        this.dropped++;
+        continue;
+      }
+      out += sentence + sep;
+    }
+    if (out) this.emit(out);
+  }
+}
+
+/** Honest fallback when the model only claimed things that did not happen. */
+export const NOTHING_CHANGED_FALLBACK = 'Ainda não alterei nada. Quer que eu faça isso agora?';
