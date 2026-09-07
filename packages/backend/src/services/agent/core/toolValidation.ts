@@ -15,7 +15,9 @@
  * Empty strings and the literal strings "null"/"undefined" are NOT a clear
  * request — they are what a model emits when it has nothing to say about the
  * field. They are dropped (→ keep) and reported in `ignored`, instead of being
- * silently converted into a destructive `null`.
+ * silently converted into a destructive `null`. Conversely, `null` on a field
+ * whose schema is not nullable (create tools have nothing to clear) is also
+ * dropped rather than rejected — it is the model spelling "no value".
  */
 
 import type { ChatCompletionTool } from 'openai/resources/chat/completions';
@@ -115,8 +117,12 @@ function validateValue(
 
   if (value === null) {
     if (isNullable(schema)) return null;
-    issues.push({ path, message: 'null não é permitido neste campo' });
-    return value;
+    // `null` on a field that can't be cleared (e.g. create_task.due_date, where
+    // there is nothing to clear yet) means "no value" — the prompt tells the
+    // model to leave the field EMPTY and it often spells that as null. Drop
+    // the key instead of failing the whole write over a spelling of "nothing".
+    ignored.push(path);
+    return DROP;
   }
 
   const types = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : [];

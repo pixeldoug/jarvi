@@ -22,11 +22,11 @@ import {
   buildConfirmation,
   collectPendingQuestions,
   filterModelText,
+  gateContextFor,
   isWriteTool,
   NOTHING_CHANGED_FALLBACK,
   SentenceGate,
   tidy,
-  type ClaimGateContext,
 } from './confirmations';
 import { formatValidationIssues, validateToolArguments } from './toolValidation';
 import type {
@@ -355,14 +355,7 @@ export async function runAgent(
     callbacks.onText?.(chunk);
   };
 
-  const gateCtx: ClaimGateContext = {
-    hasWrites: () => operations.some((op) => op.kind === 'write' && op.tool !== 'update_memory'),
-    hasPendingQuestions: () => operations.some((op) => Boolean(op.pendingQuestion)),
-    persistedEchoes: () =>
-      operations
-        .map((op) => op.persisted?.due_label)
-        .filter((v): v is string => typeof v === 'string' && v.length > 0),
-  };
+  const gateCtx = gateContextFor(operations);
 
   // Cost telemetry: summed across every OpenAI call this run makes (each
   // tool-use iteration is a separate billed request).
@@ -569,8 +562,11 @@ export async function runAgent(
           validation.issues.unshift({ path: '', message: 'argumentos não são JSON válido' });
         }
         if (validation.ignored.length) {
-          validationNotes = validation.ignored.map(
-            (p) => `campo "${p}" ignorado (vazio ou desconhecido) — valor anterior mantido`,
+          const isCreate = tc.name.startsWith('create_');
+          validationNotes = validation.ignored.map((p) =>
+            isCreate
+              ? `campo "${p}" ignorado (vazio ou desconhecido) — ficou sem valor`
+              : `campo "${p}" ignorado (vazio ou desconhecido) — valor anterior mantido`,
           );
         }
         if (!validation.ok) {
@@ -726,13 +722,5 @@ export async function runAgent(
  * the run's operations (e.g. a retry path) and need the same claim filtering.
  */
 export function filterClaims(text: string, operations: AgentOperation[]): string {
-  const ctx: ClaimGateContext = {
-    hasWrites: () => operations.some((op) => op.kind === 'write' && op.tool !== 'update_memory'),
-    hasPendingQuestions: () => operations.some((op) => Boolean(op.pendingQuestion)),
-    persistedEchoes: () =>
-      operations
-        .map((op) => op.persisted?.due_label)
-        .filter((v): v is string => typeof v === 'string' && v.length > 0),
-  };
-  return filterModelText(text, ctx).text;
+  return filterModelText(text, gateContextFor(operations)).text;
 }

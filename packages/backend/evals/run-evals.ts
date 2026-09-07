@@ -416,6 +416,17 @@ async function main() {
       const result = await runScenario(scenario);
       const status = result.ruleScore === 1 && result.factualityScore === 1 ? 'ok' : 'FAIL';
       console.log(`[eval] ${status.padEnd(4)} ${scenario.name}`);
+      // EVAL_VERBOSE=1 prints what the agent actually said/called on failures,
+      // so a red scenario can be diagnosed without re-running it by hand.
+      if (status === 'FAIL' && /^(1|true)$/i.test(process.env.EVAL_VERBOSE ?? '')) {
+        for (const [i, turn] of result.turns.entries()) {
+          const tools = turn.toolCalls.map((t) => `${t.name}(${JSON.stringify(t.args)})`).join(', ');
+          console.log(`[eval]   turn ${i + 1} input : ${turn.input}`);
+          console.log(`[eval]   turn ${i + 1} tools : ${tools || 'none'}`);
+          console.log(`[eval]   turn ${i + 1} output: ${JSON.stringify(turn.output)}`);
+          if (turn.ruleFailures.length) console.log(`[eval]   turn ${i + 1} rules : ${turn.ruleFailures.join('; ')}`);
+        }
+      }
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

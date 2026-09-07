@@ -513,6 +513,27 @@ async function main(): Promise<void> {
     );
     check(!/foi concluída/.test(passive.text), 'passive restatement of a write dropped', passive);
     check(/não foi encontrado/.test(passive.text) && /Se quiser/.test(passive.text), 'negated sentence and offer kept', passive);
+    // WhatsApp pipe-joined line: each fragment is gated on its own, and an
+    // imperative re-ask ("me diga qual dia") is dropped when the backend
+    // already asked. A negation in one fragment shields only that fragment.
+    const piped = filterModelText(
+      'Beleza, Doug | deixei o alinhamento às 14h | como “semana que vem” não fecha um dia, me diga qual dia exato pra eu ajustar o prazo | Posso te lembrar na véspera.',
+      { hasWrites: () => true, hasPendingQuestions: () => true, persistedEchoes: () => [] },
+    );
+    check(piped.text === 'Posso te lembrar na véspera.', 'pipe fragments gated individually, re-ask dropped, no orphan pipes', piped);
+    // Title echo: a fragment that is just the persisted title + time is
+    // redundant; a real follow-up that mentions the title is not.
+    const echoText =
+      'alinhamento com o conselho fiscal às 14:00\nfalta só o dia exato da semana que vem para fechar o prazo.\nQuer que eu te lembre do alinhamento com o conselho fiscal na véspera?';
+    const echoes = () => ['Alinhamento com o conselho fiscal'];
+    const echoPending = filterModelText(echoText, { hasWrites: () => true, hasPendingQuestions: () => true, persistedEchoes: echoes });
+    check(echoPending.text === '' && echoPending.dropped === 3, 'with a backend question pending: echo, re-ask and question all dropped', echoPending);
+    const echoFree = filterModelText(echoText, { hasWrites: () => true, hasPendingQuestions: () => false, persistedEchoes: echoes });
+    check(
+      echoFree.text === 'falta só o dia exato da semana que vem para fechar o prazo.\nQuer que eu te lembre do alinhamento com o conselho fiscal na véspera?',
+      'no question pending: only the bare title echo is dropped; follow-ups mentioning the title stay',
+      echoFree,
+    );
   });
 
   __setOpenAIClientForTesting(null);

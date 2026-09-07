@@ -340,7 +340,7 @@ const CREATION_CLAIM_WORDS = words(
   '(?<!mensagem )(?<!msg )(?<!texto )(?<!recado )(?<!frase )(?:sugerida|sugeri|criada|criei|anotei|agendei|registrei)',
 );
 const UPDATE_CLAIM_WORDS = words(
-  'atualizei|alterei|ajustei|corrigi|mudei|deixei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei',
+  'atualizei|alterei|ajustei|corrigi|mudei|deixei|ficou com|ficou para|ficou pra|defini|marquei|coloquei|salvei|adicionei|tirei|limpei|zerei|desmarquei|adiei|antecipei|movi|troquei|editei|renomeei|priorizei',
 );
 
 // "a tarefa foi criada", "prazo definido", "lembrete configurado", ...
@@ -379,8 +379,42 @@ export interface ClaimGateContext {
   hasWrites: () => boolean;
   /** Whether the backend emitted continuity questions in this turn. */
   hasPendingQuestions: () => boolean;
-  /** Persisted strings (e.g. due labels) whose echo by the model is redundant. */
+  /** Persisted strings (due labels, titles) whose echo by the model is redundant. */
   persistedEchoes: () => string[];
+}
+
+/** Gate context over a (growing) operations record — shared by stream and retry paths. */
+export function gateContextFor(operations: AgentOperation[]): ClaimGateContext {
+  return {
+    hasWrites: () => operations.some(isUserVisibleWrite),
+    hasPendingQuestions: () => operations.some((op) => Boolean(op.pendingQuestion)),
+    persistedEchoes: () =>
+      operations.flatMap((op) => {
+        if (!isUserVisibleWrite(op) || !op.success) return [];
+        const out: string[] = [];
+        const label = op.persisted?.due_label;
+        if (typeof label === 'string' && label.length > 0) out.push(label);
+        const title = op.entity?.title?.trim();
+        if (title && title.length >= 4) out.push(title);
+        return out;
+      }),
+  };
+}
+
+// Time/date tokens and glue words that, together with an echoed value, make a
+// fragment say nothing new ("alinhamento com o conselho fiscal às 14:00").
+const ECHO_NOISE_REGEX =
+  /\d{1,2}(?::\d{2}|h\d{0,2})|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|(?<![\p{L}\p{N}])(?:às|as|em|no|na|nos|nas|de|do|da|dos|das|o|a|os|as|para|pra|pro|com|e|ou|já|só|tarefa|prazo|hor[áa]rio|marcad[ao]|agendad[ao]|fica|ficou|está|esta)(?![\p{L}\p{N}])/giu;
+
+/** True when the sentence is essentially the echoed value plus time/glue words. */
+function isBareEcho(sentence: string, echo: string): boolean {
+  const lower = sentence.toLowerCase();
+  const idx = lower.indexOf(echo.toLowerCase());
+  if (idx === -1) return false;
+  const residual = (lower.slice(0, idx) + ' ' + lower.slice(idx + echo.length))
+    .replace(ECHO_NOISE_REGEX, ' ')
+    .replace(/[^\p{L}]/gu, '');
+  return residual.length < 8;
 }
 
 export function isClaimSentence(sentence: string, ctx: ClaimGateContext): boolean {
@@ -405,17 +439,27 @@ export function isClaimSentence(sentence: string, ctx: ClaimGateContext): boolea
 
   if (ctx.hasWrites()) {
     if (DATE_LINE_REGEX.test(s)) return true;
-    const lower = s.toLowerCase();
+    // An echo of what was persisted (title, due label) is only dropped when
+    // the fragment says nothing else — "Quer que eu te lembre do Dentista na
+    // véspera?" mentions the title and stays.
     for (const echo of ctx.persistedEchoes()) {
-      if (echo && lower.includes(echo.toLowerCase())) return true;
+      if (echo && isBareEcho(s, echo)) return true;
     }
   }
   return false;
 }
 
+// Imperative asks without a question mark ("me diz qual dia", "qual dia exato
+// pra eu ajustar") — the model re-asking what the backend already asked.
+const IMPERATIVE_ASK_REGEX = new RegExp(
+  `${NOT_LETTER_BEFORE}(?:me\\s+(?:diz|diga|fala|conta|informa|passa|manda|mande|envia|avisa)|qual\\s+(?:o\\s+)?dia|que\\s+dia|quando\\s+(?:seria|fica|é)|falt(?:a|ou)\\s+(?:só\\s+|apenas\\s+)?(?:definir\\s+|combinar\\s+|saber\\s+)?(?:o\\s+)?dia|dia\\s+(?:exato|certo|certinho|espec[íi]fico))${NOT_LETTER_AFTER}`,
+  'iu',
+);
+
 /** The model must not ask when the backend already decided the next question. */
 export function isQuestionSentence(sentence: string): boolean {
-  return /\?\W*$/.test(sentence.trim());
+  const s = sentence.trim();
+  return /\?\W*$/.test(s) || IMPERATIVE_ASK_REGEX.test(s);
 }
 
 function shouldDrop(sentence: string, ctx: ClaimGateContext): boolean {
@@ -426,10 +470,13 @@ function shouldDrop(sentence: string, ctx: ClaimGateContext): boolean {
 
 /**
  * Split into [content, separator, content, separator, ...] so the original
- * whitespace/newlines can be reassembled around the sentences we keep.
+ * whitespace/newlines can be reassembled around the sentences we keep. The
+ * WhatsApp format joins fragments with " | ", so a pipe is a boundary too —
+ * otherwise one claim would drag a whole line down (or a negation would
+ * shield a whole line of claims).
  */
 function segment(text: string): string[] {
-  return text.split(/(\n+|(?<=[.!?…])\s+)/);
+  return text.split(/(\n+|(?<=[.!?…])\s+|\s*\|\s*)/);
 }
 
 export interface FilterResult {
@@ -459,10 +506,16 @@ export function filterModelText(text: string, ctx: ClaimGateContext): FilterResu
 }
 
 export function tidy(text: string): string {
-  return text
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return (
+    text
+      // Pipes orphaned by a dropped neighbour fragment.
+      .replace(/(?:\s*\|\s*){2,}/g, ' | ')
+      .replace(/^[ \t]*\|[ \t]*/gm, '')
+      .replace(/[ \t]*\|[ \t]*$/gm, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 /**
@@ -482,7 +535,7 @@ export class SentenceGate {
   push(delta: string): void {
     this.buffer += delta;
     // Find the last completed sentence boundary in the buffer.
-    const re = /(?:[.!?…]+\s+|\n+)/g;
+    const re = /(?:[.!?…]+\s+|\n+|\s*\|\s*)/g;
     let lastEnd = -1;
     let m: RegExpExecArray | null;
     while ((m = re.exec(this.buffer)) !== null) lastEnd = m.index + m[0].length;

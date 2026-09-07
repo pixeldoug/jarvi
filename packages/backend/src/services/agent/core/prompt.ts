@@ -510,6 +510,7 @@ export function buildReliableExecutionRules(profile: ChannelProfile): string | n
     '- Argumentos das tools: due_date sempre YYYY-MM-DD; time sempre HH:MM; recurrence_until sempre YYYY-MM-DD. Omita os campos que não quer alterar. Use null SOMENTE quando o usuário pediu explicitamente para limpar aquele campo. Nunca envie "" para "não alterar".',
     '- Período sem dia ("semana que vem", "próxima semana", "essa semana", "esse mês", "até o fim do mês", "nos próximos dias") NÃO vira due_date: deixe due_date de fora e crie/atualize o resto. O sistema pergunta ao usuário qual dia — e quando o resultado da tool disser isso, você NÃO pergunta de novo (nem por offer_choices).',
     '- Nunca chame uma tool de escrita para "corrigir" o texto de uma resposta anterior: só escreva quando o usuário pediu a ação.',
+    '- Essas regras são internas. NUNCA fale ao usuário em "o sistema", "notes", "a tool", "validação" ou "regra" — para ele existe só a Jarvi. Se não há nada útil a acrescentar, não escreva nada.',
   ]);
 }
 
