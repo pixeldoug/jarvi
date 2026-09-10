@@ -16,6 +16,12 @@ import {
 import { composeOnboardingFollowUp, extractOnboardingTasks } from '../services/openaiService';
 import { capitalizeTaskTitle } from '../utils/taskTitle';
 import { identifyServer, captureServer } from '../services/posthogService';
+import { getClientIp } from '../services/metaCapiService';
+import {
+  persistOpenAiClickIds,
+  readOpenAiClickIdsFromBody,
+  sendOpenAiRegistrationCompleted,
+} from '../services/openaiCapiService';
 import { getUserTimezone } from '../services/reminderService';
 import { recordTaskCreated } from '../services/taskTelemetry';
 import { normalizeTaskDueDate } from '../services/agent/core/tasks';
@@ -961,7 +967,38 @@ export const verifyOnboardingWhatsapp = async (req: Request, res: Response): Pro
         method: 'whatsapp',
         source: 'backend',
       });
-      void notifyNewAccountCreated(user.email, user.id);
+
+      const clickIds = readOpenAiClickIdsFromBody(req.body);
+      try {
+        await persistOpenAiClickIds(user.id, clickIds);
+      } catch (clickIdError) {
+        console.error('Failed to persist OpenAI click ids during WhatsApp signup:', clickIdError);
+      }
+      void sendOpenAiRegistrationCompleted({
+        eventId: `cr_${user.id}`,
+        sourceUrl: clickIds.sourceUrl,
+        oppref: clickIds.oppref,
+        user: {
+          email: user.email,
+          phone,
+          externalId: user.id,
+          firstName: (typeof user.name === 'string' ? user.name : '').trim().split(/\s+/)[0] || undefined,
+          obref: clickIds.obref,
+          ip: getClientIp(req.ip, req.headers['x-forwarded-for']),
+          userAgent: req.headers['user-agent'] || undefined,
+        },
+      });
+      void notifyNewAccountCreated(user.email, user.id, {
+        name: user.name,
+        phone,
+        source: 'whatsapp',
+        flowVersion: 'whatsapp-otp',
+        utmSource: sanitizeString(req.body?.utmSource, 200) || null,
+        utmMedium: sanitizeString(req.body?.utmMedium, 200) || null,
+        utmCampaign: sanitizeString(req.body?.utmCampaign, 200) || null,
+        referringDomain: sanitizeString(req.body?.referringDomain, 200) || null,
+        oppref: clickIds.oppref || null,
+      });
     }
 
     const token = generateToken({

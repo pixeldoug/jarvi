@@ -1144,6 +1144,18 @@ const runMigrations = async (): Promise<void> => {
         }
       }
 
+      const openaiAdsUserMigrations = [
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_oppref TEXT',
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_obref TEXT',
+      ];
+      for (const migration of openaiAdsUserMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
+        }
+      }
+
       try {
         const columnResult = await client.query(
           `SELECT 1
@@ -1614,6 +1626,18 @@ const runMigrations = async (): Promise<void> => {
       'ALTER TABLE users ADD COLUMN meta_event_id TEXT',
     ];
     for (const migration of metaAdsUserMigrationsSqlite) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
+    }
+
+    const openaiAdsUserMigrationsSqlite = [
+      'ALTER TABLE users ADD COLUMN openai_oppref TEXT',
+      'ALTER TABLE users ADD COLUMN openai_obref TEXT',
+    ];
+    for (const migration of openaiAdsUserMigrationsSqlite) {
       try {
         await db.exec(migration);
       } catch (e) {

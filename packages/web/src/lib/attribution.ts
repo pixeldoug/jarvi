@@ -118,3 +118,31 @@ export function attributionForLead(): {
     utmCampaign: attrs.utm_campaign ?? attrs.campaign_id ?? null,
   };
 }
+
+export interface OpenAiAdsContext {
+  oppref?: string;
+  obref?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  eventSourceUrl?: string;
+}
+
+/**
+ * Click ids and UTMs to send with signup so Slack and the OpenAI Conversions
+ * API can attribute even when the browser Pixel is blocked.
+ */
+export function readOpenAiAdsContext(): OpenAiAdsContext {
+  const attrs = persistAttribution();
+  const obref = sanitize(getCookie('__obref'));
+  const eventSourceUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}${window.location.pathname}` : undefined;
+  return {
+    oppref: attrs.oppref,
+    obref,
+    utmSource: attrs.utm_source,
+    utmMedium: attrs.utm_medium,
+    utmCampaign: attrs.utm_campaign ?? attrs.campaign_id,
+    eventSourceUrl,
+  };
+}

@@ -9,7 +9,7 @@ export interface SlackNewAccountPayload {
   email: string;
   source: string;
   flowVersion: string;
-  interviewAvailability: 'yes' | 'no' | 'later';
+  interviewAvailability: 'yes' | 'no' | 'later' | 'pending';
   contactValue: string;
   wantsBroadcastUpdates: boolean;
   trackingMethods: string[];
@@ -82,7 +82,13 @@ const INTERVIEW_LABELS: Record<string, string> = {
   yes: 'Sim',
   no: 'Nao',
   later: 'Talvez mais tarde',
+  pending: 'Ainda no onboarding',
 };
+
+const WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX = '@users.jarvi.internal';
+
+const displayEmail = (email: string): string =>
+  email.trim().toLowerCase().endsWith(WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX) ? '—' : email;
 
 // Origem de trafego: mapeia utm_source/medium crus para rotulos amigaveis.
 const UTM_SOURCE_LABELS: Record<string, string> = {
@@ -169,13 +175,18 @@ const buildContactLine = (lead: SlackNewAccountPayload): string => {
 
 const buildContactFields = (lead: SlackNewAccountPayload): SlackField[] => [
   { type: 'mrkdwn', text: `*Nome*\n${lead.name}` },
-  { type: 'mrkdwn', text: `*Email*\n${lead.email}` },
+  { type: 'mrkdwn', text: `*Email*\n${displayEmail(lead.email)}` },
   { type: 'mrkdwn', text: `*Contato*\n${buildContactLine(lead)}` },
   {
     type: 'mrkdwn',
     text: `*Entrevista*\n${INTERVIEW_LABELS[lead.interviewAvailability] ?? lead.interviewAvailability}`,
   },
-  { type: 'mrkdwn', text: `*Broadcast WhatsApp*\n${lead.wantsBroadcastUpdates ? 'Sim' : 'Nao'}` },
+  {
+    type: 'mrkdwn',
+    text: `*Broadcast WhatsApp*\n${
+      lead.interviewAvailability === 'pending' ? '—' : lead.wantsBroadcastUpdates ? 'Sim' : 'Nao'
+    }`,
+  },
 ];
 
 const buildProfileSection = (lead: SlackNewAccountPayload): string => {

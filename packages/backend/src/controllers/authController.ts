@@ -9,6 +9,11 @@ import { sendVerificationEmail, sendPasswordResetEmail, sendGoogleAccountNoticeE
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { generateOtpFromToken } from '../utils/otp';
 import { sendMetaEvent, getClientIp } from '../services/metaCapiService';
+import {
+  persistOpenAiClickIds,
+  readOpenAiClickIdsFromBody,
+  sendOpenAiRegistrationCompleted,
+} from '../services/openaiCapiService';
 import { identifyServer, captureServer } from '../services/posthogService';
 import { notifyNewAccountCreated, persistOnboardingLead } from './earlyAccessController';
 import { triggerMemoryReconciliation } from '../services/agent/core/memory';
@@ -36,6 +41,34 @@ const fireMetaCompleteRegistration = (
       clientUserAgent: req.headers['user-agent'] || undefined,
       fbc: user.meta_fbc ?? undefined,
       fbp: user.meta_fbp ?? undefined,
+    },
+  });
+};
+
+const fireOpenAiCompleteRegistration = (
+  req: Request,
+  user: {
+    id: string;
+    email?: string | null;
+    name?: string | null;
+    whatsapp_phone?: string | null;
+    openai_oppref?: string | null;
+    openai_obref?: string | null;
+  }
+): void => {
+  const clickIds = readOpenAiClickIdsFromBody(req.body);
+  void sendOpenAiRegistrationCompleted({
+    eventId: `cr_${user.id}`,
+    sourceUrl: clickIds.sourceUrl,
+    oppref: clickIds.oppref || user.openai_oppref,
+    user: {
+      email: user.email,
+      phone: user.whatsapp_phone,
+      externalId: user.id,
+      firstName: firstNameOf(user.name),
+      obref: clickIds.obref || user.openai_obref,
+      ip: getClientIp(req.ip, req.headers['x-forwarded-for']),
+      userAgent: req.headers['user-agent'] || undefined,
     },
   });
 };
@@ -468,7 +501,13 @@ export const googleAuth = async (
 
     // Notifica o time no Slack que uma nova conta foi criada (best-effort).
     if (isNewUser) {
-      void notifyNewAccountCreated(email, user.id);
+      const clickIds = readOpenAiClickIdsFromBody(req.body);
+      try {
+        await persistOpenAiClickIds(user.id, clickIds);
+      } catch (clickIdError) {
+        console.error('Failed to persist OpenAI click ids during Google auth:', clickIdError);
+      }
+      void notifyNewAccountCreated(email, user.id, { oppref: clickIds.oppref || null });
     }
 
     // PostHog server-side: identify on every Google auth; capture registration
@@ -486,6 +525,7 @@ export const googleAuth = async (
     // as the CompleteRegistration conversion in a single step.
     if (isNewUser) {
       fireMetaCompleteRegistration(req, user);
+      fireOpenAiCompleteRegistration(req, user);
     }
 
     // Generate JWT token
@@ -610,8 +650,18 @@ export const register = async (
       console.error('Failed to sync onboarding lead during register:', syncError);
     }
 
+    const clickIds = readOpenAiClickIdsFromBody(req.body);
+    try {
+      await persistOpenAiClickIds(newUser.id, clickIds);
+    } catch (clickIdError) {
+      console.error('Failed to persist OpenAI click ids during register:', clickIdError);
+    }
+
     // Notifica o time no Slack que uma nova conta foi criada (best-effort).
-    void notifyNewAccountCreated(normalizedEmail, newUser.id);
+    void notifyNewAccountCreated(normalizedEmail, newUser.id, {
+      name,
+      oppref: clickIds.oppref || null,
+    });
 
     // PostHog server-side: garante que o cadastro apareça mesmo se o SDK do
     // navegador estiver bloqueado (ad blocker) ou não carregar.
@@ -905,6 +955,7 @@ export const verifyEmail = async (
 
     // Meta CAPI: account verified/active = the optimization conversion.
     fireMetaCompleteRegistration(req, user);
+    fireOpenAiCompleteRegistration(req, user);
 
     res.json({ 
       success: true, 
@@ -1013,6 +1064,7 @@ export const verifyEmailOtp = async (
 
     // Meta CAPI: account verified/active = the optimization conversion.
     fireMetaCompleteRegistration(req, user);
+    fireOpenAiCompleteRegistration(req, user);
 
     // Auto-login após verificação bem-sucedida
     const token = generateToken({

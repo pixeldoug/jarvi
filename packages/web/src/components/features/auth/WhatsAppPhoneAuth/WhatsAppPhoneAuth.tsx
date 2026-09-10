@@ -5,6 +5,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { Button, OtpInput } from '../../../ui';
 import { captureProductEvent } from '../../../../lib/productAnalytics';
 import { trackRegistrationCompleted } from '../../../../lib/openaiPixel';
+import { readOpenAiAdsContext } from '../../../../lib/attribution';
 import styles from './WhatsAppPhoneAuth.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -183,10 +184,11 @@ export function WhatsAppPhoneAuth({ source, onSuccess, children }: WhatsAppPhone
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
+      const ads = readOpenAiAdsContext();
       const res = await fetch(`${API_URL}/api/onboarding/whatsapp/verify`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ phone: e164Phone, code }),
+        body: JSON.stringify({ phone: e164Phone, code, ...ads }),
       });
       const data = await parseApiPayload(res);
       if (!res.ok) throw new Error(String(data.error || 'Erro ao validar código'));

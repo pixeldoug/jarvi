@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { usePostHog } from 'posthog-js/react';
 import { trackRegistrationCompleted } from '../lib/openaiPixel';
 import { shouldEmitProductAnalytics, shouldTrackProductUser } from '../lib/productAnalytics';
+import { getFbCookies } from '../lib/metaPixel';
+import { readOpenAiAdsContext } from '../lib/attribution';
 
 interface User {
   id: string;
@@ -173,10 +175,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   ) => {
     try {
       setIsLoading(true);
+      const fb = getFbCookies();
+      const openai = readOpenAiAdsContext();
       const body: Record<string, unknown> = { idToken };
       if (onboarding) body.onboarding = onboarding;
-      if (meta?.fbc) body.fbc = meta.fbc;
-      if (meta?.fbp) body.fbp = meta.fbp;
+      const fbc = meta?.fbc || fb.fbc;
+      const fbp = meta?.fbp || fb.fbp;
+      if (fbc) body.fbc = fbc;
+      if (fbp) body.fbp = fbp;
+      if (openai.oppref) body.oppref = openai.oppref;
+      if (openai.obref) body.obref = openai.obref;
+      if (openai.eventSourceUrl) body.eventSourceUrl = openai.eventSourceUrl;
       const response = await fetch(`${API_BASE_URL}/api/auth/google`, {
         method: 'POST',
         headers: {
@@ -226,6 +235,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   ): Promise<void> => {
     try {
       setIsLoading(true);
+      const fb = getFbCookies();
+      const openai = readOpenAiAdsContext();
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
@@ -235,10 +246,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email,
           name,
           password,
-          fbc: meta?.fbc,
-          fbp: meta?.fbp,
+          fbc: meta?.fbc || fb.fbc,
+          fbp: meta?.fbp || fb.fbp,
           eventId: meta?.eventId,
-          eventSourceUrl: meta?.eventSourceUrl,
+          eventSourceUrl: meta?.eventSourceUrl || openai.eventSourceUrl,
+          oppref: openai.oppref,
+          obref: openai.obref,
         }),
       });
 

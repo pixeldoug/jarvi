@@ -311,19 +311,102 @@ const getOnboardingLeadForNotificationByEmail = async (
   return mapLeadRowToNotificationPayload(row, userId);
 };
 
+export interface NewAccountNotificationExtras {
+  name?: string | null;
+  phone?: string | null;
+  source?: string | null;
+  flowVersion?: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  referringDomain?: string | null;
+  oppref?: string | null;
+}
+
+const getUserForNotification = async (
+  userId: string
+): Promise<{ name?: string; email?: string; whatsapp_phone?: string; auth_provider?: string } | null> => {
+  if (isPostgreSQL()) {
+    const result = await getPool().query(
+      `SELECT name, email, whatsapp_phone, auth_provider FROM users WHERE id = $1`,
+      [userId]
+    );
+    return (result.rows[0] as { name?: string; email?: string; whatsapp_phone?: string; auth_provider?: string } | undefined) || null;
+  }
+
+  return ((await getDatabase().get(
+    `SELECT name, email, whatsapp_phone, auth_provider FROM users WHERE id = ?`,
+    [userId]
+  )) as { name?: string; email?: string; whatsapp_phone?: string; auth_provider?: string } | undefined) || null;
+};
+
+const inferredChatGptUtm = (
+  extras?: NewAccountNotificationExtras
+): Pick<SlackNewAccountPayload, 'utmSource' | 'utmMedium'> => {
+  const utmSource = extras?.utmSource?.trim() || null;
+  const utmMedium = extras?.utmMedium?.trim() || null;
+  if (utmSource) return { utmSource, utmMedium };
+  if (extras?.oppref?.trim()) return { utmSource: 'chatgpt', utmMedium: utmMedium || 'cpc' };
+  return { utmSource: null, utmMedium };
+};
+
+const buildFallbackNotificationPayload = async (
+  email: string,
+  userId: string,
+  extras?: NewAccountNotificationExtras
+): Promise<SlackNewAccountPayload> => {
+  const user = await getUserForNotification(userId);
+  const utm = inferredChatGptUtm(extras);
+  const phone = extras?.phone?.trim() || user?.whatsapp_phone || '';
+  const name = extras?.name?.trim() || user?.name || 'Você';
+
+  return {
+    userId: sanitizeString(userId, 128),
+    leadId: '',
+    name,
+    email: normalizeEmail(email) || normalizeEmail(user?.email || ''),
+    source: extras?.source?.trim() || user?.auth_provider || 'signup',
+    flowVersion: extras?.flowVersion?.trim() || 'account-created',
+    interviewAvailability: 'pending',
+    contactValue: phone,
+    wantsBroadcastUpdates: false,
+    trackingMethods: [],
+    painPoints: [],
+    desiredCapabilities: [],
+    idealOutcomeText: '',
+    memorySeedText: '',
+    utmSource: utm.utmSource,
+    utmMedium: utm.utmMedium,
+    utmCampaign: extras?.utmCampaign?.trim() || null,
+    referringDomain: extras?.referringDomain?.trim() || null,
+  };
+};
+
 /**
- * Posta no Slack uma notificacao de "nova conta criada", montada a partir do
- * onboarding lead vinculado ao email. Disparado pelo fluxo de registro (apos a
- * conta de fato existir). Falhas sao logadas e nunca quebram o registro.
+ * Posta no Slack uma notificacao de "nova conta criada". Prefere o onboarding
+ * lead quando ele já existe; se o cadastro (WhatsApp/email) ainda não gravou
+ * lead, envia um payload mínimo a partir do usuário. Falhas nunca quebram o
+ * registro.
  */
 export const notifyNewAccountCreated = async (
   email: string,
-  userId: string
+  userId: string,
+  extras?: NewAccountNotificationExtras
 ): Promise<void> => {
   try {
     const lead = await getOnboardingLeadForNotificationByEmail(email, userId);
-    if (!lead) return;
-    await postNewAccountNotification(lead);
+    const utm = inferredChatGptUtm(extras);
+    const payload: SlackNewAccountPayload = lead
+      ? {
+          ...lead,
+          contactValue: lead.contactValue || extras?.phone?.trim() || '',
+          utmSource: lead.utmSource || utm.utmSource,
+          utmMedium: lead.utmMedium || utm.utmMedium,
+          utmCampaign: lead.utmCampaign || extras?.utmCampaign?.trim() || null,
+          referringDomain: lead.referringDomain || extras?.referringDomain?.trim() || null,
+        }
+      : await buildFallbackNotificationPayload(email, userId, extras);
+    await postNewAccountNotification(payload);
   } catch (error) {
     console.error('Slack new-account notification error:', error);
   }

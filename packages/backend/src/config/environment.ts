@@ -15,7 +15,7 @@ export const getNodeEnv = (): string => {
 };
 
 /**
- * Slack onboarding alerts, PostHog lifecycle events, Meta CAPI, etc.
+ * Slack onboarding alerts, PostHog lifecycle events, Meta CAPI, OpenAI CAPI, etc.
  * Off by default outside production so local onboarding tests do not pollute prod.
  * Set JARVI_EMIT_EXTERNAL_INTEGRATIONS=true to force-enable locally.
  */
