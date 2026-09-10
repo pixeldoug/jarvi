@@ -79,6 +79,65 @@ const getUserForOnboarding = async (userId: string): Promise<OnboardingUserRow |
   return (row as OnboardingUserRow | undefined) ?? null;
 };
 
+/**
+ * Wizard steps in flow order. `whatsapp` is skipped for email/Google accounts,
+ * which already arrive authenticated.
+ */
+const ONBOARDING_STEPS = ['whatsapp', 'name', 'tracking', 'pain', 'open', 'first_tasks'] as const;
+
+type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
+
+const parseOnboardingStep = (value: unknown): OnboardingStep | null => {
+  const step = sanitizeString(value, 40).toLowerCase();
+  return (ONBOARDING_STEPS as readonly string[]).includes(step)
+    ? (step as OnboardingStep)
+    : null;
+};
+
+/**
+ * Server-side twin of the wizard's `onboarding_step_completed`. The browser
+ * event almost never arrives — posthog-js is dropped by the in-app WhatsApp and
+ * ChatGPT webviews most signups come from — so PostHog had no step trail
+ * between `user_registered` and `onboarding_completed`, making every abandoned
+ * onboarding look identical.
+ */
+const recordOnboardingStep = (email: string, step: OnboardingStep): void => {
+  captureServer(email, 'onboarding_step_completed', {
+    step,
+    step_index: ONBOARDING_STEPS.indexOf(step),
+    step_count: ONBOARDING_STEPS.length,
+    source: 'backend',
+  });
+};
+
+export const trackOnboardingStep = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const step = parseOnboardingStep(req.body?.step);
+    if (!step) {
+      res.status(400).json({ error: 'Etapa inválida.' });
+      return;
+    }
+
+    const user = await getUserForOnboarding(userId);
+    if (!user) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    recordOnboardingStep(user.email, step);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('trackOnboardingStep error:', error);
+    res.status(500).json({ error: 'Não foi possível registrar a etapa.' });
+  }
+};
+
 const ONBOARDING_TASK_CAP = 16;
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
@@ -633,6 +692,7 @@ export const completeOnboarding = async (req: Request, res: Response): Promise<v
         }
       }
 
+      recordOnboardingStep(user.email, 'first_tasks');
       captureServer(user.email, 'onboarding_completed', {
         task_count: finalized.tasks.length,
         d1_reminder_scheduled: false,
@@ -999,6 +1059,12 @@ export const verifyOnboardingWhatsapp = async (req: Request, res: Response): Pro
         referringDomain: sanitizeString(req.body?.referringDomain, 200) || null,
         oppref: clickIds.oppref || null,
       });
+    }
+
+    // Only the wizard counts as a step; linking a number from settings or the
+    // login screen hits the same endpoint.
+    if (sanitizeString(req.body?.context, 40) === 'onboarding') {
+      recordOnboardingStep(user.email, 'whatsapp');
     }
 
     const token = generateToken({

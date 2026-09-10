@@ -188,7 +188,10 @@ export function WhatsAppPhoneAuth({ source, onSuccess, children }: WhatsAppPhone
       const res = await fetch(`${API_URL}/api/onboarding/whatsapp/verify`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ phone: e164Phone, code, ...ads }),
+        // `context` lets the backend record the `whatsapp` onboarding step
+        // itself — the browser event below rarely survives the in-app webviews
+        // most signups come from.
+        body: JSON.stringify({ phone: e164Phone, code, context: source, ...ads }),
       });
       const data = await parseApiPayload(res);
       if (!res.ok) throw new Error(String(data.error || 'Erro ao validar código'));

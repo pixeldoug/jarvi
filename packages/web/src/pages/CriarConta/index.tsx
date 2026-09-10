@@ -161,8 +161,27 @@ function buildMemorySeed(data: OnboardingFormData): string {
     : 'Conte um pouco sobre sua rotina para a Jarvi te ajudar melhor.';
 }
 
-function captureStep(step: string) {
-  captureProductEvent('onboarding_step_completed', { step });
+/**
+ * Reports a finished wizard step twice: through posthog-js and through the
+ * backend. The browser event is the unreliable one — most signups come from the
+ * in-app WhatsApp/ChatGPT webviews, where posthog-js never loads — so the
+ * backend copy is what actually lands the step trail in PostHog.
+ *
+ * `first_tasks` is recorded by `/api/onboarding/complete` instead, so it passes
+ * no token here.
+ */
+function captureStep(step: string, token?: string | null) {
+  captureProductEvent('onboarding_step_completed', { step, source: 'web' });
+  if (!token) return;
+  void fetch(`${API_URL}/api/onboarding/step`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ step }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 // ============================================================================
@@ -702,24 +721,24 @@ export function CriarConta() {
     setErrorField(null);
 
     if (interviewTurn === 'name') {
-      captureStep('name');
+      captureStep('name', token);
       const preferredName = formData.name.trim();
       updateUser({ name: preferredName, preferred_name: preferredName });
       setInterviewTurn('tracking');
       return;
     }
     if (interviewTurn === 'tracking') {
-      captureStep('tracking');
+      captureStep('tracking', token);
       setInterviewTurn('pain');
       return;
     }
     if (interviewTurn === 'pain') {
-      captureStep('pain');
+      captureStep('pain', token);
       setInterviewTurn('open');
       return;
     }
     if (interviewTurn === 'open') {
-      captureStep('open');
+      captureStep('open', token);
       setInterviewTurn('first_tasks');
       return;
     }
