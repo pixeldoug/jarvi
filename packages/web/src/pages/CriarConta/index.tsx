@@ -11,6 +11,7 @@ import { WhatsAppPhoneAuth } from '../../components/features/auth/WhatsAppPhoneA
 import { useForceTheme } from '../../hooks/useForceTheme';
 import { trackPixel } from '../../lib/metaPixel';
 import { captureProductEvent } from '../../lib/productAnalytics';
+import { attributionForLead } from '../../lib/attribution';
 import {
   TRACKING_METHOD_OPTIONS,
   PAIN_POINT_OPTIONS,
@@ -129,10 +130,12 @@ function getTrafficAttribution(): TrafficAttribution {
     }
   };
 
+  const cookie = attributionForLead();
+
   return {
-    utmSource: read('$initial_utm_source'),
-    utmMedium: read('$initial_utm_medium'),
-    utmCampaign: read('$initial_utm_campaign'),
+    utmSource: read('$initial_utm_source') ?? cookie.utmSource,
+    utmMedium: read('$initial_utm_medium') ?? cookie.utmMedium,
+    utmCampaign: read('$initial_utm_campaign') ?? cookie.utmCampaign,
     referringDomain: read('$initial_referring_domain'),
   };
 }

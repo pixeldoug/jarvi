@@ -4,6 +4,7 @@ import { CaretUpDown } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { Button, OtpInput } from '../../../ui';
 import { captureProductEvent } from '../../../../lib/productAnalytics';
+import { trackRegistrationCompleted } from '../../../../lib/openaiPixel';
 import styles from './WhatsAppPhoneAuth.module.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -206,7 +207,10 @@ export function WhatsAppPhoneAuth({ source, onSuccess, children }: WhatsAppPhone
       );
       captureProductEvent('whatsapp_linked', { source });
       const isNewUser = Boolean(data.isNewUser);
-      if (isNewUser) captureProductEvent('user_registered', { method: 'whatsapp' });
+      if (isNewUser) {
+        captureProductEvent('user_registered', { method: 'whatsapp' });
+        trackRegistrationCompleted(nextUser.id ? `cr_${nextUser.id}` : undefined);
+      }
       if (source === 'onboarding') {
         captureProductEvent('onboarding_step_completed', { step: 'whatsapp' });
       }

@@ -98,6 +98,8 @@ const UTM_SOURCE_LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp',
   newsletter: 'Newsletter',
   email: 'Email',
+  chatgpt: 'ChatGPT',
+  openai: 'ChatGPT',
 };
 
 const UTM_MEDIUM_LABELS: Record<string, string> = {

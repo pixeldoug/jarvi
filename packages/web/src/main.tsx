@@ -4,9 +4,12 @@ import './styles/globals.css';
 import App from './App';
 import posthog from 'posthog-js';
 import { PostHogProvider } from 'posthog-js/react';
+import { restoreAttributionToUrl } from './lib/attribution';
 import { initMetaPixel } from './lib/metaPixel';
 import { initOpenAiPixel } from './lib/openaiPixel';
 import { dropInAppBrowserExceptions } from './lib/dropInAppBrowserExceptions';
+
+restoreAttributionToUrl();
 
 const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
 

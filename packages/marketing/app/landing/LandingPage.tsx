@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { ArrowClockwise, Sparkle } from '@phosphor-icons/react';
 import { usePostHog } from 'posthog-js/react';
 import styles from './LandingPage.module.css';
 import { Button } from '../components/Button/Button';
 import { CurveDivider } from '../components/CurveDivider/CurveDivider';
 import { APP_URL, withAttribution } from '../lib/appLinks';
+import { persistAttribution } from '../lib/attribution';
 import { trackLead } from '../lib/metaPixelBootstrap';
 
 type FeatureKey = 'whatsapp' | 'email' | 'calendar' | 'wand' | 'cards' | 'checks';
@@ -80,7 +82,15 @@ const featureCopyByFeature: Record<FeatureKey, { title: string; description: str
   },
 };
 
-export default function LandingPage() {
+type LandingPageProps = {
+  initialLoginHref?: string;
+  initialSignupHref?: string;
+};
+
+export default function LandingPage({
+  initialLoginHref = `${APP_URL}/`,
+  initialSignupHref = `${APP_URL}/criar-conta`,
+}: LandingPageProps) {
   const posthog = usePostHog();
   const [activeFeature, setActiveFeature] = useState<FeatureKey>('whatsapp');
   const [progress, setProgress] = useState(0);
@@ -90,8 +100,8 @@ export default function LandingPage() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isCtaInView, setIsCtaInView] = useState(false);
-  const [loginHref, setLoginHref] = useState(`${APP_URL}/`);
-  const [signupHref, setSignupHref] = useState(`${APP_URL}/criar-conta`);
+  const [loginHref, setLoginHref] = useState(initialLoginHref);
+  const [signupHref, setSignupHref] = useState(initialSignupHref);
 
   const ctaSectionRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -239,13 +249,27 @@ export default function LandingPage() {
   }, [isMobile]);
 
   useEffect(() => {
+    persistAttribution();
     setLoginHref(withAttribution(`${APP_URL}/`));
     setSignupHref(withAttribution(`${APP_URL}/criar-conta`));
   }, []);
 
-  const handleCtaClick = (location: 'navbar' | 'cta_section') => {
-    posthog?.capture('cta_clicked', { location }, { send_instantly: true });
-    trackLead(location);
+  const goAttributed = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    location: 'navbar' | 'cta_section' | 'login',
+  ) => {
+    if (location !== 'login') {
+      posthog?.capture('cta_clicked', { location }, { send_instantly: true });
+      trackLead(location);
+    }
+
+    const url = withAttribution(event.currentTarget.href);
+    event.currentTarget.href = url;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    window.location.assign(url);
   };
 
   useEffect(() => {
@@ -274,7 +298,7 @@ export default function LandingPage() {
           </div>
           <div className={styles.navActions}>
             <span className={styles.navGhostButton}>
-              <Button href={loginHref} variant="ghost" size="default">
+              <Button href={loginHref} variant="ghost" size="default" onClick={(event) => goAttributed(event, 'login')}>
                 Login
               </Button>
             </span>
@@ -282,7 +306,7 @@ export default function LandingPage() {
               href={signupHref}
               variant="primary"
               size="default"
-              onClick={() => handleCtaClick('navbar')}
+              onClick={(event) => goAttributed(event, 'navbar')}
             >
               Criar conta
             </Button>
@@ -488,7 +512,7 @@ export default function LandingPage() {
             href={signupHref}
             variant="primary"
             size="lg"
-            onClick={() => handleCtaClick('cta_section')}
+            onClick={(event) => goAttributed(event, 'cta_section')}
           >
             Criar conta grátis
           </Button>

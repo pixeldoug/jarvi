@@ -8,6 +8,8 @@
  * when the account is actually created/verified — not on form start.
  */
 
+import { persistAttribution } from './attribution';
+
 type OaiqFn = ((...args: unknown[]) => void) & {
   q?: unknown[];
 };
@@ -24,53 +26,12 @@ const PIXEL_ID =
   (import.meta.env.VITE_PUBLIC_OPENAI_PIXEL_ID as string | undefined)?.trim() ||
   DEFAULT_OPENAI_PIXEL_ID;
 
-const COOKIE_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
-
 let initialized = false;
-
-function isJarviHost(hostname: string): boolean {
-  return hostname === 'jarvi.life' || hostname.endsWith('.jarvi.life');
-}
-
-function cookieFlags(): string {
-  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-  const domain = isJarviHost(window.location.hostname) ? '; Domain=.jarvi.life' : '';
-  return `Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}${domain}`;
-}
-
-function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const match = document.cookie.match(
-    new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'),
-  );
-  return match ? decodeURIComponent(match[1]) : undefined;
-}
-
-function setCookie(name: string, value: string): void {
-  document.cookie = `${name}=${encodeURIComponent(value)}; ${cookieFlags()}`;
-}
-
-/**
- * Copies `oppref` from the landing hop onto `.jarvi.life` so later pages (and
- * the OpenAI SDK's `__oppref` cookie) keep the ChatGPT click reference.
- */
-function ensureOpprefCookie(): void {
-  if (typeof window === 'undefined') return;
-
-  const fromUrl = new URLSearchParams(window.location.search).get('oppref');
-  const existing = getCookie('__oppref');
-  const value = fromUrl || existing;
-  if (!value) return;
-
-  if (isJarviHost(window.location.hostname) || fromUrl) {
-    setCookie('__oppref', value);
-  }
-}
 
 export function initOpenAiPixel(): void {
   if (initialized || typeof window === 'undefined' || !PIXEL_ID) return;
 
-  ensureOpprefCookie();
+  persistAttribution();
 
   (function (w: Window, d: Document, s: string, u: string) {
     if (w.oaiq) return;
@@ -92,7 +53,7 @@ export function initOpenAiPixel(): void {
 
 export function trackRegistrationCompleted(eventId?: string): void {
   if (typeof window === 'undefined' || typeof window.oaiq !== 'function') return;
-  ensureOpprefCookie();
+  persistAttribution();
   const options = eventId ? { event_id: eventId } : undefined;
   if (options) {
     window.oaiq('measure', 'registration_completed', { type: 'customer_action' }, options);

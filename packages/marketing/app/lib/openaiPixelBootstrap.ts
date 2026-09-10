@@ -1,9 +1,11 @@
 /**
  * Inline bootstrap for the OpenAI Ads Measurement Pixel on jarvi.life.
  *
- * Captures `oppref` early and writes `__oppref` on `.jarvi.life` so the hop
- * to app.jarvi.life can reuse the ChatGPT click reference.
+ * Persists UTMs, click ids, and `oppref` on `.jarvi.life` before React
+ * hydrates so the hop to app.jarvi.life can reuse them.
  */
+
+import { getAttributionPersistSnippet } from './attribution';
 
 export const DEFAULT_OPENAI_PIXEL_ID = '5szZUPcYMs17mumdMe8uLg';
 
@@ -21,12 +23,7 @@ export function getOpenAiPixelBootstrapScript(pixelId: string): string {
     var m=document.cookie.match(new RegExp('(?:^|; )'+name+'=([^;]*)'));
     return m?decodeURIComponent(m[1]):'';
   }
-  try{
-    var oppref=new URLSearchParams(location.search).get('oppref')||getCookie('__oppref');
-    if(oppref){
-      document.cookie='__oppref='+encodeURIComponent(oppref)+flags;
-    }
-  }catch(e){}
+  ${getAttributionPersistSnippet()}
   (function(w,d,s,u){
     if(w.oaiq)return;
     var q=function(){q.q.push(arguments)};
