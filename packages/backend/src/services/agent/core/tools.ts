@@ -42,12 +42,20 @@ import {
   serializeRecurrenceConfig,
   summarizeRemindersForTool,
 } from './taskRecurrenceReminder';
-import { rescheduleRemindersForTask } from '../../reminderService';
+import { listRemindersForTask, rescheduleRemindersForTask } from '../../reminderService';
 import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
 import { recordTaskCreated } from '../../taskTelemetry';
 import { searchWeb } from '../../webSearchService';
 import { capitalizeTaskTitle } from '../../../utils/taskTitle';
 import { reconcileDueDate } from './dateExpressions';
+import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './onboardingJourney';
+import {
+  decideNextQuestion,
+  dueDateQuestion,
+  periodQuestion,
+  triadStateOf,
+  type TriadPolicy,
+} from './nextQuestion';
 import type {
   AgentContext,
   AgentPendingQuestion,
@@ -458,6 +466,8 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
       },
     },
   },
+  // Legacy path only (reliable execution off): the web adapter does not expose
+  // this tool when the backend runs the onboarding journey itself.
   complete_onboarding_journey: {
     type: 'function',
     function: {
@@ -576,18 +586,23 @@ function reconcileDueDateArg(
     ctx.timezone,
   );
   const notes: string[] = [];
-  const pendingQuestion: AgentPendingQuestion | undefined = decision.pendingQuestion
-    ? {
-        field: 'due_date',
-        reason: 'period_needs_day',
-        expression: decision.pendingQuestion.expression.text,
-        text: decision.pendingQuestion.text,
-      }
+  let pendingQuestion: AgentPendingQuestion | undefined = decision.pendingQuestion
+    ? periodQuestion(decision.pendingQuestion.expression, ctx.timezone)
     : undefined;
 
   if (decision.action === 'hold') {
+    if (decision.pastDate && profile.enableNextQuestionPolicy) {
+      // The task must not be born overdue AND the prazo question is still
+      // open: the backend asks it (the executor drops it again if the task
+      // already had a prazo of its own).
+      pendingQuestion = dueDateQuestion('past_date_held');
+    }
     notes.push(
-      `due_date NÃO salvo: ${decision.reason}. O sistema já perguntou ao usuário qual dia — não pergunte de novo nem afirme um prazo.`,
+      decision.pastDate
+        ? pendingQuestion
+          ? `due_date NÃO salvo: ${decision.reason}. A tarefa não pode ficar vencida por uma data que a pessoa não escolheu. O sistema já perguntou ao usuário quando ele vai fazer — não pergunte de novo nem afirme um prazo.`
+          : `due_date NÃO salvo: ${decision.reason}. A tarefa não pode ficar vencida por uma data que a pessoa não escolheu — pergunte quando ela vai fazer e não afirme um prazo.`
+        : `due_date NÃO salvo: ${decision.reason}. O sistema já perguntou ao usuário qual dia — não pergunte de novo nem afirme um prazo.`,
     );
     return { dueDate: null, held: true, notes, pendingQuestion };
   }
@@ -669,8 +684,46 @@ async function executeCreateTask(
     result.notes = [...(result.notes ?? []), ...dueDecision.notes];
     if (result.data) result.data.notes = result.notes;
   }
-  if (dueDecision.pendingQuestion) result.pending_question = dueDecision.pendingQuestion;
+
+  const createdId = result.entity?.id;
+  let pendingQuestion = dueDecision.pendingQuestion;
+  if (!pendingQuestion && result.success && createdId && triadPolicyEnabled(profile)) {
+    // Tríade: a task is born → the state machine says what to ask first
+    // (prazo, horário or lembrete) — the system asks, not the model.
+    pendingQuestion = decideNextQuestion(
+      {
+        taskId: createdId,
+        taskTitle: title,
+        dueDate,
+        time,
+        remindersCount: Number(result.changes?.reminders_count ?? 0),
+        skips: [],
+      },
+      triadPolicyFor(ctx),
+    ) ?? undefined;
+    if (pendingQuestion) {
+      result.notes = [...(result.notes ?? []), systemAskedNote(pendingQuestion)];
+      if (result.data) result.data.notes = result.notes;
+    }
+  }
+  if (pendingQuestion) {
+    result.pending_question = createdId ? { ...pendingQuestion, taskId: createdId, taskTitle: title } : pendingQuestion;
+  }
   return result;
+}
+
+function triadPolicyEnabled(profile: ChannelProfile): boolean {
+  return Boolean(profile.reliableExecution && profile.enableNextQuestionPolicy);
+}
+
+/** What the tríade can ask for this user (reminders need a way to deliver them). */
+export function triadPolicyFor(ctx: AgentContext, extra: Partial<TriadPolicy> = {}): TriadPolicy {
+  return { canRemind: Boolean(ctx.whatsappVerified), ...extra };
+}
+
+/** Executor note telling the model a system question is already on screen. */
+export function systemAskedNote(question: AgentPendingQuestion): string {
+  return `O sistema já perguntou ao usuário "${question.text}" (com opções). NÃO faça essa pergunta de novo — nem por texto, nem por offer_choices — e não ofereça "ajudar com" isso. Fique com a parte humana: 1-2 frases, ou nada.`;
 }
 
 interface CreateTaskInput {
@@ -1037,6 +1090,13 @@ async function executeUpdateTask(
     }
   }
 
+  // A held past date only leaves a question open when the task really has no
+  // prazo of its own (the previous due_date, if any, stays).
+  if (pendingQuestion?.reason === 'past_date_held' && normalizeTaskDueDate(task.due_date)) {
+    pendingQuestion = undefined;
+  }
+  if (pendingQuestion) pendingQuestion = { ...pendingQuestion, taskId, taskTitle: task.title };
+
   if (!fields.length && args.reminders === undefined) {
     const result: ToolExecutionResult = {
       success: true,
@@ -1104,16 +1164,39 @@ async function executeUpdateTask(
     data.reminders_count = savedReminders.length;
     data.reminders = savedReminders;
   }
-  if (notes.length) data.notes = notes;
-
+  const finalDue = normalizeTaskDueDate(updated?.due_date ?? null);
+  const finalTime = normalizeTaskTime(updated?.time ?? null);
   // Deterministic label for the persisted schedule, so confirmations never
   // have to format dates themselves.
   if ('due_date' in changes || 'time' in changes) {
-    const finalDue = normalizeTaskDueDate(updated?.due_date ?? null);
-    const finalTime = normalizeTaskTime(updated?.time ?? null);
     changes.due_label = formatDueDateLabel(finalDue, finalTime);
     data.due_label = changes.due_label;
   }
+
+  // Tríade transition: the task just got its first prazo (typically the
+  // answer to the system's own date question) or this update IS the answer
+  // to a pending system question about it → the state machine decides the
+  // next question (horário, lembrete or nothing). Arbitrary later edits
+  // (moving an old prazo) do not reopen the tríade.
+  const gainedFirstDueDate =
+    finalDue !== null && normalizeTaskDueDate(task.due_date) === null && 'due_date' in changes;
+  const answersPendingQuestion = ctx.pendingQuestion?.taskId === taskId;
+  if (updated && !pendingQuestion && triadPolicyEnabled(profile) && (gainedFirstDueDate || answersPendingQuestion)) {
+    const remindersCount =
+      savedReminders !== undefined
+        ? savedReminders.length
+        : (await listRemindersForTask(taskId, ctx.userId)).length;
+    pendingQuestion = decideNextQuestion(
+      triadStateOf(updated, remindersCount),
+      triadPolicyFor(ctx, {
+        // The person named a time the model dropped: never guess it, never ask it.
+        timeNamedButUnsaved:
+          finalTime === null && args.time === undefined && extractTimeFromText(ctx.originalUserMessage) !== null,
+      }),
+    ) ?? undefined;
+    if (pendingQuestion) notes.push(systemAskedNote(pendingQuestion));
+  }
+  if (notes.length) data.notes = notes;
 
   const result: ToolExecutionResult = {
     success: true,
@@ -1122,7 +1205,9 @@ async function executeUpdateTask(
     entity: { type: 'task', id: taskId, title: (updated?.title ?? task.title) as string },
     notes,
   };
-  if (pendingQuestion) result.pending_question = pendingQuestion;
+  if (pendingQuestion) {
+    result.pending_question = { ...pendingQuestion, taskId, taskTitle: (updated?.title ?? task.title) as string };
+  }
   return result;
 }
 
@@ -1935,113 +2020,7 @@ function executeOfferChoices(args: Record<string, unknown>): ToolExecutionResult
   return { success: true, data: { question, choices } };
 }
 
-const ONBOARDING_JOURNEY_TASK_CAP = 5;
-
-const hasTimestamp = (value: unknown): boolean =>
-  value != null && String(value).trim() !== '';
-
-const formatOnboardingTasksLine = (
-  titles: string[],
-): string => {
-  if (titles.length === 0) return 'suas primeiras tarefas';
-  if (titles.length === 1) return titles[0]!;
-  if (titles.length === 2) return `${titles[0]} e ${titles[1]}`;
-  return `${titles.slice(0, -1).join(', ')} e ${titles[titles.length - 1]}`;
-};
-
-interface OnboardingJourneyUserRow {
-  onboarding_journey_completed_at?: string | Date | null;
-}
-
-interface OnboardingJourneyTaskRow {
-  id: string;
-  title: string;
-  due_date?: string | Date | null;
-  time?: string | Date | null;
-}
-
-async function fetchOnboardingJourneyUser(
-  userId: string,
-): Promise<OnboardingJourneyUserRow | null> {
-  if (isPostgreSQL()) {
-    const result = await getPool().query(
-      `SELECT onboarding_journey_completed_at
-       FROM users WHERE id = $1`,
-      [userId],
-    );
-    return (result.rows[0] as OnboardingJourneyUserRow) || null;
-  }
-  return (
-    (await getDatabase().get<OnboardingJourneyUserRow>(
-      `SELECT onboarding_journey_completed_at
-       FROM users WHERE id = ?`,
-      [userId],
-    )) || null
-  );
-}
-
-async function fetchOnboardingJourneyTasks(
-  userId: string,
-): Promise<OnboardingJourneyTaskRow[]> {
-  if (isPostgreSQL()) {
-    const result = await getPool().query(
-      `SELECT id, title, due_date, time
-       FROM tasks
-       WHERE user_id = $1 AND (completed = FALSE OR completed IS NULL)
-       ORDER BY created_at ASC
-       LIMIT $2`,
-      [userId, ONBOARDING_JOURNEY_TASK_CAP],
-    );
-    return result.rows as OnboardingJourneyTaskRow[];
-  }
-  return getDatabase().all<OnboardingJourneyTaskRow[]>(
-    `SELECT id, title, due_date, time
-     FROM tasks
-     WHERE user_id = ? AND (completed = 0 OR completed IS NULL)
-     ORDER BY created_at ASC
-     LIMIT ?`,
-    [userId, ONBOARDING_JOURNEY_TASK_CAP],
-  );
-}
-
-async function markOnboardingJourneyComplete(
-  userId: string,
-  completedAt: string,
-): Promise<void> {
-  if (isPostgreSQL()) {
-    await getPool().query(
-      `UPDATE users
-       SET onboarding_journey_completed_at = $1, updated_at = $2
-       WHERE id = $3 AND onboarding_journey_completed_at IS NULL`,
-      [completedAt, completedAt, userId],
-    );
-    return;
-  }
-  await getDatabase().run(
-    `UPDATE users
-     SET onboarding_journey_completed_at = ?, updated_at = ?
-     WHERE id = ? AND onboarding_journey_completed_at IS NULL`,
-    [completedAt, completedAt, userId],
-  );
-}
-
-function summarizeJourneyTasks(rows: OnboardingJourneyTaskRow[]): {
-  tasks: Array<{ id: string; title: string; due_label: string | null }>;
-  tasksLine: string;
-} {
-  const tasks = rows.map((row) => {
-    const dueLabel = formatDueDateLabel(
-      normalizeTaskDueDate(row.due_date),
-      normalizeTaskTime(row.time),
-    );
-    return { id: row.id, title: row.title, due_label: dueLabel };
-  });
-  const titles = tasks.map((task) =>
-    task.due_label ? `${task.title} (${task.due_label})` : task.title,
-  );
-  return { tasks, tasksLine: formatOnboardingTasksLine(titles).slice(0, 120) };
-}
-
+/** Legacy (flag off) closure of the onboarding journey, driven by the model. */
 async function executeCompleteOnboardingJourney(
   ctx: AgentContext,
   profile: ChannelProfile,
@@ -2049,35 +2028,22 @@ async function executeCompleteOnboardingJourney(
   if (profile.id !== 'web') {
     return { success: false, message: 'complete_onboarding_journey só está disponível no web' };
   }
-
-  const user = await fetchOnboardingJourneyUser(ctx.userId);
-  if (!user) return { success: false, message: 'Usuário não encontrado' };
-
   const taskRows = await fetchOnboardingJourneyTasks(ctx.userId);
-  const summarized = summarizeJourneyTasks(taskRows);
-
-  if (hasTimestamp(user.onboarding_journey_completed_at)) {
-    return {
-      success: true,
-      data: {
-        alreadyCompleted: true,
-        tasks: summarized.tasks,
-        tasksLine: summarized.tasksLine,
-      },
-    };
-  }
-
-  const now = new Date().toISOString();
-  await markOnboardingJourneyComplete(ctx.userId, now);
-
-  return {
-    success: true,
-    data: {
-      alreadyCompleted: false,
-      tasks: summarized.tasks,
-      tasksLine: summarized.tasksLine,
-    },
-  };
+  const tasks = taskRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    due_label: formatDueDateLabel(normalizeTaskDueDate(row.due_date), normalizeTaskTime(row.time)),
+  }));
+  const titles = tasks.map((t) => (t.due_label ? `${t.title} (${t.due_label})` : t.title));
+  const tasksLine = (
+    titles.length === 0
+      ? 'suas primeiras tarefas'
+      : titles.length === 1
+        ? titles[0]!
+        : `${titles.slice(0, -1).join(', ')} e ${titles[titles.length - 1]}`
+  ).slice(0, 120);
+  const marked = await markOnboardingJourneyComplete(ctx.userId, new Date().toISOString());
+  return { success: true, data: { alreadyCompleted: !marked, tasks, tasksLine } };
 }
 
 // ---------------------------------------------------------------------------

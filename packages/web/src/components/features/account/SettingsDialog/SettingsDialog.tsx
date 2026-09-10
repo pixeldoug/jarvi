@@ -2,7 +2,7 @@
  * SettingsDialog Component - Jarvi Web
  *
  * Two-column settings modal: sidebar navigation + scrollable canvas.
- * Pages: Meu perfil / Pagamentos / Apps / Memória / Categorias / Filtros / Aparência
+ * Pages: Meu perfil / Pagamentos / Apps / Notificações / Memória / Categorias / Filtros / Aparência
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
  * Node: 40001321-32878
@@ -16,6 +16,7 @@ import {
   CreditCard,
   CirclesFour,
   Brain,
+  Bell,
   Palette,
   Hash,
   FunnelSimple,
@@ -24,6 +25,7 @@ import { Dialog, ListItem } from '../../../ui';
 import { ProfilePage } from './pages/ProfilePage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { AppsPage } from './pages/AppsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { AppearancePage } from './pages/AppearancePage';
 import { CategoriesPage } from './pages/CategoriesPage';
@@ -41,6 +43,7 @@ export type SettingsPage =
   | 'profile'
   | 'payments'
   | 'apps'
+  | 'notifications'
   | 'memory'
   | 'categories'
   | 'filters'
@@ -61,6 +64,7 @@ export const SIDEBAR_ITEMS: SettingsSidebarItem[] = [
   { id: 'profile',    label: 'Meu perfil', icon: User },
   { id: 'payments',   label: 'Pagamentos', icon: CreditCard },
   { id: 'apps',       label: 'Apps',       icon: CirclesFour },
+  { id: 'notifications', label: 'Notificações', icon: Bell },
   { id: 'memory',     label: 'Memória',    icon: Brain },
   { id: 'categories', label: 'Categorias', icon: Hash },
   { id: 'filters',    label: 'Filtros',    icon: FunnelSimple },
@@ -96,6 +100,7 @@ export function SettingsPageContent({
     case 'profile':    return <ProfilePage onOpenProfileOverlay={onOpenProfileOverlay} onGoToApps={onGoToApps} />;
     case 'payments':   return <PaymentsPage onClose={onClose} />;
     case 'apps':       return <AppsPage hideHeader={hideHeader} />;
+    case 'notifications': return <NotificationsPage onGoToApps={onGoToApps} />;
     case 'memory':     return <MemoryPage />;
     case 'categories': return <CategoriesPage hideHeader={hideHeader} />;
     case 'filters':    return <FiltersPage hideHeader={hideHeader} />;

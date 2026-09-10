@@ -129,10 +129,10 @@
 
 .bubbleUser {
   max-width: 85%;
-  padding: var(--sizes-35) var(--sizes-4);
+  padding: var(--sizes-3);
   background: var(--semantic-surface-secondary);
   color: var(--semantic-content-primary);
-  border: 1px solid var(--semantic-border-primary);
+  border: none;
   border-radius: var(--radius-md);
 }
 
@@ -143,13 +143,24 @@
   color: var(--semantic-content-primary);
 }
 
+.bubbleText,
+.aiContent {
+  font-family: var(--font-font-family-font-ui), sans-serif;
+  font-size: var(--typography-body-md-font-size);
+  font-weight: 470;
+  line-height: 1.64;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-wrap: wrap;
+  hyphens: manual;
+}
+
 .bubbleText {
   margin: 0;
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-md-font-size);
-  font-weight: var(--typography-body-md-font-weight);
-  line-height: var(--typography-body-md-line-height);
-  letter-spacing: var(--typography-body-md-letter-spacing);
 }
 
 /* ---- AI message renderer ---- */
@@ -157,16 +168,11 @@
 .aiContent {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  letter-spacing: 0.1px;
+  gap: var(--sizes-4);
 }
 
 .contentLine {
   margin: 0;
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-md-font-size);
-  font-weight: var(--typography-body-md-font-weight);
-  line-height: var(--typography-body-md-line-height);
 }
 
 .contentSpacer {
@@ -179,10 +185,6 @@
   align-items: flex-start;
   gap: 10px;
   padding-left: 4px;
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-md-font-size);
-  font-weight: var(--typography-body-md-font-weight);
-  line-height: var(--typography-body-md-line-height);
 }
 
 .bulletDot {
@@ -213,6 +215,25 @@
 
 .inlineLink:hover {
   color: var(--semantic-content-primary);
+}
+
+/* ---- Journey nudge (first-tasks journey paused) ---- */
+
+.journeyNudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sizes-1) var(--sizes-2);
+  width: 100%;
+  margin-top: var(--sizes-1);
+}
+
+.journeyNudgeText {
+  font-family: var(--font-font-family-font-ui), sans-serif;
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
 }
 
 /* ---- Task card (inline) ---- */
@@ -337,125 +358,195 @@
   border-color: var(--color-brand-primary-300);
 }
 
-/* ---- Choice prompts (quick replies / question artifact) ---- */
+/* ---- Inline task mention (create_task artifact) ---- */
 
-.choiceCard {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sizes-3);
-  padding: var(--sizes-4);
-  background: var(--semantic-surface-secondary);
-  border: 1px solid var(--semantic-border-primary);
-  border-radius: 20px;
+.taskMention {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  max-width: 100%;
+  margin: 0 0 0 var(--sizes-1);
+  padding: 0;
+  vertical-align: middle;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
 }
 
-.choiceHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--sizes-3);
+.taskMentionClickable {
+  cursor: pointer;
 }
 
-.choiceTitle {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-md-font-size);
-  font-weight: var(--typography-heading-sm-font-weight, 600);
-  line-height: var(--typography-body-md-line-height);
-  color: var(--semantic-content-primary);
+.taskMentionClickable:hover .taskMentionTitle {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
-.choiceTitleSpacer {
-  flex: 1;
-}
-
-.choiceDismiss {
+.taskMentionIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  margin: -2px -2px 0 0;
+  width: 20px;
+  height: 20px;
+  overflow: hidden;
+  background: var(--color-brand-primary-200);
+  border-radius: 6px;
+}
+
+.taskMentionIcon img {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
+.taskMentionTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--semantic-content-info);
+  font-weight: 500;
+}
+
+.taskMentionHeader {
+  flex: 1;
+  min-width: 0;
+  margin-left: 0;
+  gap: var(--sizes-1);
+  text-align: left;
+}
+
+.taskMentionHeader .taskMentionTitle {
+  font-family: var(--font-font-family-font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: var(--typography-label-md-line-height);
+}
+
+/* ---- Choice artifact (prompt bar) ---- */
+
+.choiceArtifact {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 2px;
+  background: color-mix(in srgb, var(--color-brand-primary-400) 12%, transparent);
+  border-radius: 26px;
+}
+
+.choiceArtifactHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  width: 100%;
+  padding: 8px 16px;
+}
+
+.choiceArtifactHeaderSpacer {
+  flex: 1;
+}
+
+.choiceArtifactActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.choiceArtifactIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
-  border-radius: var(--radius-sm, 8px);
-  background: transparent;
-  color: var(--semantic-content-tertiary);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-brand-primary-400) 5%, transparent);
+  color: var(--semantic-content-info);
   cursor: pointer;
 }
 
-.choiceDismiss:hover {
-  color: var(--semantic-content-primary);
-  background: var(--semantic-surface-tertiary, var(--semantic-surface-primary));
+.choiceArtifactIconButton:hover {
+  background: color-mix(in srgb, var(--color-brand-primary-400) 12%, transparent);
 }
 
-.choiceDismiss:focus-visible {
+.choiceArtifactIconButton:focus-visible {
   outline: 2px solid var(--color-brand-primary-300);
   outline-offset: 2px;
 }
 
-.choiceList {
+.choiceArtifactBody {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  background: var(--semantic-surface-primary);
-  border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-md);
+  gap: 8px;
+  width: 100%;
+  padding: var(--sizes-2);
+  background: var(--semantic-surface-tertiary);
+  border-radius: 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.choiceOption {
+.choiceArtifactPrompt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding-top: var(--sizes-1);
+}
+
+.choiceArtifactQuestion {
+  margin: 0;
+  padding: 0 16px;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: 500;
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.choiceArtifactChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+}
+
+.choiceArtifactDateChip {
+  display: inline-flex;
+}
+
+.choiceArtifactComposer {
   display: flex;
   align-items: center;
-  gap: var(--sizes-3);
+  gap: 8px;
   width: 100%;
-  margin: 0;
-  padding: var(--sizes-3) var(--sizes-35);
-  text-align: left;
-  cursor: pointer;
-  color: var(--semantic-content-primary);
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--semantic-border-primary);
-  border-radius: 0;
-  font-family: var(--font-font-family-font-ui);
-  font-size: var(--typography-body-md-font-size);
-  line-height: var(--typography-body-md-line-height);
 }
 
-.choiceOption:last-child {
-  border-bottom: none;
-}
-
-.choiceOption:hover:not(:disabled) {
-  background: var(--semantic-surface-tertiary, var(--semantic-surface-secondary));
-}
-
-.choiceOption:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.choiceLetter {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--semantic-border-primary);
-  border-radius: var(--radius-sm, 6px);
-  color: var(--semantic-content-secondary);
-  font-size: var(--typography-label-sm-font-size, 12px);
-  font-weight: 600;
-  line-height: 1;
-}
-
-.choiceLabel {
+.choiceArtifactInput {
+  flex: 1;
   min-width: 0;
+  min-height: var(--typography-label-md-line-height);
+  max-height: 120px;
+  padding: var(--sizes-4) var(--sizes-6) var(--sizes-4) var(--sizes-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.choiceArtifactInput::placeholder {
+  color: var(--semantic-content-secondary);
 }
 
 /* ---- Typing indicator ---- */
@@ -531,14 +622,13 @@
 
 .inputBar {
   flex-shrink: 0;
-  padding: var(--sizes-3) var(--sizes-6) var(--sizes-3) var(--sizes-8);
+  padding: var(--sizes-2);
 }
 
 .inputWrapper {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: var(--sizes-2);
+  flex-direction: column;
   background: var(--component-control-bar-bg-active);
   border: 1px solid var(--component-control-bar-border);
   border-radius: 28px;
@@ -547,6 +637,13 @@
     0px 29px 12px -28px rgba(0, 0, 0, 0.6),
     0px 1px 0px 0px rgba(0, 0, 0, 0.3);
   transition: border-color 0.15s ease;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  width: 100%;
 }
 
 .inputWrapper:focus-within {

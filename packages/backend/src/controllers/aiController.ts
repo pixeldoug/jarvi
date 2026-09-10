@@ -5,6 +5,24 @@ import {
   IncomingChatAttachment,
   MAX_ATTACHMENTS,
 } from '../services/chatAttachmentService';
+import type { AgentPendingQuestionRef } from '../services/agent/core/types';
+
+/** Tríade fields, plus the first-tasks journey nudge ("Continuar"). */
+const PENDING_FIELDS = new Set(['due_date', 'time', 'reminders', 'journey']);
+
+/** The question the user is replying to, as echoed by the web client. Untrusted input. */
+function parsePendingQuestion(value: unknown): AgentPendingQuestionRef | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.field !== 'string' || !PENDING_FIELDS.has(raw.field)) return undefined;
+  const ref: AgentPendingQuestionRef = { field: raw.field as AgentPendingQuestionRef['field'] };
+  if (typeof raw.taskId === 'string' && raw.taskId.length <= 64) ref.taskId = raw.taskId;
+  if (typeof raw.question === 'string') ref.question = raw.question.slice(0, 200);
+  if (Array.isArray(raw.choices)) {
+    ref.choices = raw.choices.filter((c): c is string => typeof c === 'string').slice(0, 6);
+  }
+  return ref;
+}
 
 export const handleChat = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user?.id;
@@ -15,12 +33,14 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
     return;
   }
 
-  const { messages, mode, taskId, attachments } = req.body as {
+  const { messages, mode, taskId, attachments, pendingQuestion: rawPendingQuestion } = req.body as {
     messages?: ChatMessage[];
     mode?: 'task' | 'general';
     taskId?: string;
     attachments?: IncomingChatAttachment[];
+    pendingQuestion?: unknown;
   };
+  const pendingQuestion = parsePendingQuestion(rawPendingQuestion);
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: 'messages is required and must be a non-empty array' });
@@ -85,9 +105,17 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
   };
 
   try {
-    await streamChat(userId, userName, finalMessages, mode, taskId, (event) => {
-      sendSSE(event);
-    });
+    await streamChat(
+      userId,
+      userName,
+      finalMessages,
+      mode,
+      taskId,
+      (event) => {
+        sendSSE(event);
+      },
+      { pendingQuestion },
+    );
   } catch (err: any) {
     console.error('AI chat controller error:', err);
     sendSSE({ type: 'error', message: err?.message || 'Internal server error' });

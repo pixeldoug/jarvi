@@ -14,6 +14,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData, ChatAttachment, ChatMessageData } from '../../hooks/useChatStream';
 import { consumeOnboardingChatSeed, buildOnboardingChatMessages } from '../../lib/onboardingChatSeed';
+import {
+  buildChoicePreviewMessages,
+  isChoicePreviewRequested,
+} from '../../lib/choiceUiInstrumentation';
 import { mergeAttachmentsIntoDescription, buildAiTaskDescription } from '../../utils/chatAttachments';
 import { useLists } from '../../contexts/ListContext';
 import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
@@ -189,6 +193,7 @@ export function Tasks() {
   const [chatSeededMessages, setChatSeededMessages] = useState<ChatMessageData[] | undefined>(undefined);
   const [chatKey, setChatKey] = useState(0);
   const onboardingChatOpenedRef = useRef(false);
+  const choicePreviewOpenedRef = useRef(false);
   const [onboardingChatReveal, setOnboardingChatReveal] = useState(false);
   const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
@@ -475,6 +480,20 @@ export function Tasks() {
     setOpenSections((prev) => ({ ...prev, 'sem-data': true }));
     void queryClient.invalidateQueries({ queryKey: ['tasks'] });
   }, [location.state, queryClient]);
+
+  useEffect(() => {
+    if (choicePreviewOpenedRef.current || onboardingChatOpenedRef.current) return;
+    if (!isChoicePreviewRequested()) return;
+    choicePreviewOpenedRef.current = true;
+    setChatMode('general');
+    setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
+    setChatInitialMessage(undefined);
+    setChatInitialAttachments(undefined);
+    setChatSeededMessages(buildChoicePreviewMessages());
+    setChatKey((k) => k + 1);
+    setIsChatOpen(true);
+  }, [location.search]);
 
   // Closes whichever panel is currently shown in the right slot. Used by the
   // mobile bottom sheet (backdrop click / drag-to-close).

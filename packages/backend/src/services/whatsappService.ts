@@ -117,6 +117,55 @@ export const sendReminderTemplateMessage = async (
   });
 };
 
+/**
+ * Approved Utility templates for the proactive "Resumo do Dia". One per
+ * section combination, because Meta allows neither empty variables nor
+ * conditionals — so "only tasks today" and "only reminders" need their own
+ * body instead of a dead "Lembretes: nenhum" line.
+ *
+ *   daily_summary            Bom dia, {{1}}! ☀️ / Você tem {{2}} para ficar de olho hoje: / Hoje: {{3}} / Lembretes: {{4}} / Tenha um bom dia! 💜
+ *   daily_summary_today      Bom dia, {{1}}! ☀️ / Você tem {{2}} para ficar de olho hoje: / Hoje: {{3}} / Tenha um bom dia! 💜
+ *   daily_summary_reminders  Bom dia, {{1}}! ☀️ / Hoje você tem {{2}} para se lembrar: / {{3}} / Tenha um bom dia! 💜
+ *
+ * {{1}} first name · {{2}} "N coisas" · {{3}}/{{4}} items joined with " · ".
+ *
+ * All three are Utility (deliverable outside the 24h window, not subject to
+ * Meta's marketing caps). Setting `reminders` to null makes
+ * `dailySummaryService` fall back to the `full` template with a
+ * "nada com vencimento hoje" Hoje line.
+ */
+export type DailySummaryTemplateVariant = 'full' | 'today' | 'reminders';
+
+export const DAILY_SUMMARY_TEMPLATE_SIDS: Record<DailySummaryTemplateVariant, string | null> = {
+  full: 'HX950bb9e0e1e2f0c1f236855d888e5808',
+  today: 'HX6c2b7ef61f7dabde19771f1107bc7c22',
+  reminders: 'HXcc2f4d5590eedc0971fe38d608a7c291',
+};
+
+/**
+ * Proactive "Resumo do Dia" message. Which template and what goes in each
+ * variable is decided by the backend (`dailySummaryService`); this function
+ * only transports it. Being a Utility template it is delivered outside the
+ * 24h customer-service window, like task reminders.
+ */
+export const sendDailySummaryMessage = async (
+  to: string,
+  message: { variant: DailySummaryTemplateVariant; variables: Record<string, string> },
+): Promise<void> => {
+  const contentSid = DAILY_SUMMARY_TEMPLATE_SIDS[message.variant];
+  if (!contentSid) {
+    throw new Error(`Daily summary template "${message.variant}" is not available`);
+  }
+
+  const client = getTwilioClient();
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid,
+    contentVariables: JSON.stringify(message.variables),
+  });
+};
+
 export const sendOnboardingWelcomeTemplate = async (
   to: string,
   name: string,

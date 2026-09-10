@@ -36,6 +36,7 @@ import { checkRules, type CapturedToolCall, type RuleExpectations } from './rule
 import { SCENARIOS, type EvalScenario, type EvalTurn } from './datasets/whatsapp-scenarios';
 import { WEB_SCENARIOS } from './datasets/web-scenarios';
 import { RELIABLE_EXECUTION_SCENARIOS } from './datasets/reliable-execution-scenarios';
+import { TASK_REF_REGEX } from '../src/services/agent/core/confirmations';
 import type { ChannelProfile, TaskRow } from '../src/services/agent/core/types';
 
 // EVAL_ONLY=<regex> narrows the run to matching scenario names (e.g.
@@ -261,9 +262,17 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
   EVAL_WEB_PROFILE.systemPromptExtras = buildWebExtras;
 
   const baseProfile = scenario.channel === 'web' ? EVAL_WEB_PROFILE : EVAL_WHATSAPP_PROFILE;
+  const reliableExecution = scenario.reliable ?? EVAL_RELIABLE_EXECUTION;
+  const nextQuestionPolicy = scenario.channel === 'web' && reliableExecution;
   const profile: ChannelProfile = {
     ...baseProfile,
-    reliableExecution: scenario.reliable ?? EVAL_RELIABLE_EXECUTION,
+    reliableExecution,
+    // Mirrors web.ts: the tríade questions and the onboarding journey are the
+    // system's on the web; the legacy path keeps the model-driven tool.
+    enableNextQuestionPolicy: nextQuestionPolicy,
+    toolsAvailable: nextQuestionPolicy
+      ? baseProfile.toolsAvailable.filter((name) => name !== 'complete_onboarding_journey')
+      : baseProfile.toolsAvailable,
   };
   const turns = turnsOf(scenario);
 
@@ -328,6 +337,18 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
             const id = String(data.id);
             if (!scenarioTaskIds.includes(id)) scenarioTaskIds.push(id);
           }
+          // Reliable execution: when the backend refused the model's due_date
+          // (period without a day, past date the user never named), the rules
+          // must judge what was persisted, not what the model proposed. The
+          // captured call keeps the proposal under `held_due_date` for logs.
+          const notes = Array.isArray(data?.notes) ? (data.notes as unknown[]) : [];
+          if (success && notes.some((n) => typeof n === 'string' && n.startsWith('due_date NÃO salvo'))) {
+            const captured = [...turnToolCalls].reverse().find((tc) => tc.name === name);
+            if (captured && 'due_date' in captured.args) {
+              captured.args = { ...captured.args, held_due_date: captured.args.due_date };
+              delete captured.args.due_date;
+            }
+          }
         },
       },
       {
@@ -341,11 +362,16 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
       },
     );
 
-    const output = text || '(sem resposta)';
+    // The web renders `{{task:id|Title}}` as the inline mention; for the judge
+    // and the model history it is just the quoted title, like the web does
+    // when it sends the history back. Rules see the RAW text so a scenario
+    // can assert the mention itself (`mustContain: ['{{task:task-x|']`).
+    const rawOutput = text || '(sem resposta)';
+    const output = rawOutput.replace(TASK_REF_REGEX, (_m, _id, title: string) => `"${title.trim()}"`);
     history.push({ role: 'user', content: turn.input });
     history.push({ role: 'assistant', content: output });
 
-    const ruleFailures = checkRules(turn, output, turnToolCalls).map((f) =>
+    const ruleFailures = checkRules(turn, rawOutput, turnToolCalls).map((f) =>
       turns.length > 1 ? `turn ${turnIndex + 1}: ${f}` : f,
     );
 

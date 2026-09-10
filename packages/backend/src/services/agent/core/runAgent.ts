@@ -17,22 +17,43 @@ import type {
 import { captureServer, getPostHogClient, isEvalAnalyticsDistinctId } from '../../posthogService';
 import { findRecentDuplicateTitle } from './guardrails';
 import { PROMPT_VERSION } from './prompt';
-import { executeToolCall, getToolDefinition, getToolsForChannel } from './tools';
+import { executeToolCall, getToolDefinition, getToolsForChannel, triadPolicyFor } from './tools';
 import {
   buildConfirmation,
-  collectPendingQuestions,
   filterModelText,
   gateContextFor,
   isWriteTool,
   NOTHING_CHANGED_FALLBACK,
   SentenceGate,
+  TaskRefGuard,
   tidy,
+  type KnownTasks,
 } from './confirmations';
+import {
+  bareperiodReply,
+  collectQuestions,
+  decideNextQuestion,
+  periodQuestion,
+  triadStateOf,
+} from './nextQuestion';
+import { resolvePendingAnswer } from './pendingAnswer';
+import {
+  isJourneyResumeReply,
+  isOnboardingJourneyTask,
+  journeyNudgeText,
+  markOnboardingJourneyComplete,
+  nextOnboardingStep,
+  onboardingClosingText,
+} from './onboardingJourney';
+import { addTriadSkip, getTaskById, normalizeTaskDueDate, normalizeTaskTime } from './tasks';
+import { listRemindersForTask } from '../../reminderService';
 import { formatValidationIssues, validateToolArguments } from './toolValidation';
 import type {
   AgentCallbacks,
   AgentContext,
+  AgentJourneyNudge,
   AgentOperation,
+  AgentPendingQuestion,
   AgentRunReliability,
   AgentRunResult,
   AgentTurnUsage,
@@ -255,6 +276,9 @@ interface PendingToolCall {
 
 const NO_TOOL_RESULT_MESSAGE = 'Ferramenta não executada.';
 
+/** A bare "ok"/"sim" to a system question: the question is simply put back. */
+const ACK_REASK_TEXT = 'Beleza! Então só falta isto:';
+
 /** Executor result → operations-record entry. */
 function toOperation(
   tc: PendingToolCall,
@@ -340,6 +364,7 @@ export async function runAgent(
     invalidToolCalls: 0,
     dateCorrections: 0,
     pendingQuestions: 0,
+    fastPath: false,
   };
 
   // Everything the user ends up seeing, in order (confirmations, questions,
@@ -355,7 +380,79 @@ export async function runAgent(
     callbacks.onText?.(chunk);
   };
 
-  const gateCtx = gateContextFor(operations);
+  // Tasks the model may turn into a clickable mention (`{{task:id|title}}`):
+  // the ones in its prompt plus whatever tools return this turn. Unknown ids
+  // are downgraded to plain text by the TaskRefGuard, never sent as a link.
+  const knownTasks: KnownTasks = new Map();
+  const rememberTask = (id: unknown, title: unknown): void => {
+    if (typeof id !== 'string' || !id.trim()) return;
+    if (typeof title !== 'string' || !title.trim()) return;
+    knownTasks.set(id.trim(), title.trim());
+  };
+  for (const t of ctx.activeTasks) rememberTask(t.id, t.title);
+  if (ctx.focusedTask) rememberTask(ctx.focusedTask.id, ctx.focusedTask.title);
+  const rememberTasksFromResult = (result: ToolExecutionResult): void => {
+    if (!result.success) return;
+    if (result.entity?.type === 'task') rememberTask(result.entity.id, result.entity.title);
+    const data = result.data;
+    if (!data) return;
+    rememberTask(data.id, data.title);
+    if (Array.isArray(data.tasks)) {
+      for (const row of data.tasks as Array<Record<string, unknown>>) rememberTask(row?.id, row?.title);
+    }
+  };
+
+  // Backend-owned next question (see nextQuestion.ts). `askedQuestions` is
+  // everything the system asked this turn; the model's own re-asks are dropped
+  // by the gate and its `offer_choices` is refused while one is pending.
+  const nextQuestionPolicy = reliable && Boolean(profile.enableNextQuestionPolicy);
+  const askedQuestions: AgentPendingQuestion[] = [];
+  // The user answered the prazo question with a period ("essa semana"): the
+  // question continues with concrete days, whatever the model does this turn.
+  const bareperiod = nextQuestionPolicy
+    ? bareperiodReply(ctx.originalUserMessage, ctx.timezone)
+    : null;
+
+  const baseGateCtx = gateContextFor(operations);
+  const gateCtx = {
+    ...baseGateCtx,
+    hasPendingQuestions: () => bareperiod !== null || baseGateCtx.hasPendingQuestions(),
+  };
+
+  const emitBlock = (text: string): void => {
+    composedBlocks.push(text);
+    emitText(`${text}\n`);
+    lastModelText = '';
+  };
+
+  const askQuestion = (question: AgentPendingQuestion): void => {
+    askedQuestions.push(question);
+    reliability.pendingQuestions++;
+    // A conversational intro already asks the question in prose (naming the
+    // task): it goes out as text and the artifact carries only the choices.
+    if (question.intro) emitBlock(question.intro);
+    if (callbacks.onQuestion) {
+      // Structured surface (web): the artifact carries the question; the text
+      // stream does not repeat it. The composed text still records it.
+      callbacks.onQuestion(question);
+      if (!question.intro) composedBlocks.push(question.text);
+    } else if (!question.intro) {
+      composedBlocks.push(question.text);
+      emitText(`${question.text}\n`);
+    }
+    lastModelText = '';
+  };
+
+  const emitNudge = (nudge: AgentJourneyNudge): void => {
+    if (callbacks.onJourneyNudge) {
+      // Structured surface (web): a muted line + "Continuar" action.
+      callbacks.onJourneyNudge(nudge);
+      composedBlocks.push(nudge.text);
+      lastModelText = '';
+    } else {
+      emitBlock(journeyNudgeText(nudge));
+    }
+  };
 
   // Cost telemetry: summed across every OpenAI call this run makes (each
   // tool-use iteration is a separate billed request).
@@ -363,6 +460,158 @@ export async function runAgent(
   let totalOutputTokens = 0;
   let totalCachedTokens = 0;
   let apiCalls = 0;
+
+  const emptyUsage = (): AgentTurnUsage => ({
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    cachedTokens: totalCachedTokens,
+    apiCalls,
+  });
+
+  /**
+   * Is the person engaged with the first-tasks journey THIS turn? Only when
+   * they are answering a system question about one of the first tasks, or
+   * took the nudge's "Continuar". A free message — even one that creates a
+   * task and settles its own tríade — is not; the journey stays suspended.
+   */
+  const isJourneyActiveTurn = async (): Promise<boolean> => {
+    const pending = ctx.pendingQuestion;
+    // Under the nudge only "Continuar" itself resumes (the `resume` mode);
+    // anything else typed there is a free message.
+    if (!pending || pending.field === 'journey' || !pending.taskId) return false;
+    return isOnboardingJourneyTask(ctx.userId, pending.taskId);
+  };
+
+  /**
+   * Onboarding journey (see onboardingJourney.ts): after a tríade transition
+   * with nothing left to ask on the touched task, the BACKEND either moves to
+   * the next first task (journey active: one conversational sentence naming
+   * it), leaves a discreet nudge (journey suspended by an off-script turn), or
+   * closes the journey. Only runs when no question was asked this turn — one
+   * question per turn, and the current task's first.
+   */
+  const settleOnboarding = async (
+    currentTaskId: string | undefined,
+    mode: 'advance' | 'resume' = 'advance',
+  ): Promise<void> => {
+    if (!nextQuestionPolicy || !ctx.onboardingJourneyPending || askedQuestions.length > 0) return;
+    const step = await nextOnboardingStep(ctx, currentTaskId, triadPolicyFor(ctx), {
+      active: mode === 'resume' || (await isJourneyActiveTurn()),
+      mode,
+      surface: profile.outputFormat,
+    });
+    if (step.kind === 'continue' || step.kind === 'advance') {
+      askQuestion(step.question);
+    } else if (step.kind === 'suspended') {
+      emitNudge(step.nudge);
+    } else if (step.kind === 'complete') {
+      const marked = await markOnboardingJourneyComplete(ctx.userId, new Date().toISOString());
+      if (marked) {
+        emitBlock(onboardingClosingText(ctx));
+        ctx.onboardingJourneyPending = false;
+      }
+    }
+  };
+
+  /**
+   * Fast path — the person took the nudge's "Continuar" (or said a bare yes to
+   * it): resume the journey on the first task still open, no model call.
+   * Anything else typed under the nudge is a normal message.
+   */
+  const tryResumeJourney = async (): Promise<boolean> => {
+    if (!nextQuestionPolicy || !ctx.onboardingJourneyPending) return false;
+    if (!isJourneyResumeReply(ctx.originalUserMessage)) return false;
+    await settleOnboarding(undefined, 'resume');
+    return askedQuestions.length > 0 || !ctx.onboardingJourneyPending;
+  };
+
+  /**
+   * Fast path — the user answered a SYSTEM question (quick reply, a short
+   * date/time, a skip, or a bare "ok") and the client told us which one. The
+   * answer is applied through the same executor the model would use, the
+   * confirmation + next question are emitted, and no model call is made.
+   * Anything richer than a quick answer falls through to the model.
+   */
+  const tryFastPath = async (): Promise<boolean> => {
+    const pending = ctx.pendingQuestion;
+    if (!nextQuestionPolicy || !pending) return false;
+    if (pending.field === 'journey') return tryResumeJourney();
+    if (!pending.taskId) return false;
+    const task = await getTaskById(pending.taskId, ctx.userId);
+    if (!task) return false;
+    const taskRef = { id: task.id, title: task.title };
+    const dueDate = normalizeTaskDueDate(task.due_date);
+    const answer = resolvePendingAnswer(
+      ctx.originalUserMessage,
+      pending,
+      ctx.timezone,
+      dueDate ? { dueDate, time: normalizeTaskTime(task.time) } : undefined,
+    );
+
+    // "Esta semana" to the prazo question: narrow it to concrete days, no model.
+    if (!answer && pending.field === 'due_date' && bareperiod) {
+      askQuestion(periodQuestion(bareperiod, ctx.timezone, taskRef));
+      return true;
+    }
+    if (!answer) return false;
+
+    const currentQuestion = async (): Promise<AgentPendingQuestion | null> => {
+      const fresh = (await getTaskById(task.id, ctx.userId)) ?? task;
+      const reminders = await listRemindersForTask(task.id, ctx.userId);
+      return decideNextQuestion(triadStateOf(fresh, reminders.length), triadPolicyFor(ctx));
+    };
+
+    if (answer.kind === 'ack') {
+      // "ok" answers nothing: the question on screen is still the question.
+      const question = await currentQuestion();
+      if (!question) return false;
+      emitBlock(ACK_REASK_TEXT);
+      askQuestion(question);
+      return true;
+    }
+
+    if (answer.kind === 'skip') {
+      await addTriadSkip(task.id, ctx.userId, answer.field);
+      operations.push({
+        tool: 'skip_question',
+        kind: 'read',
+        args: { task_id: task.id, field: answer.field },
+        success: true,
+        entity: { type: 'task', id: task.id, title: task.title },
+        iteration: 0,
+      });
+      const question = await currentQuestion();
+      if (question) askQuestion(question);
+      else await settleOnboarding(task.id);
+      return true;
+    }
+
+    const args: Record<string, unknown> =
+      answer.kind === 'due_date'
+        ? { task_id: task.id, due_date: answer.value }
+        : answer.kind === 'time'
+          ? { task_id: task.id, time: answer.value }
+          : { task_id: task.id, reminders: [answer.input] };
+    callbacks.onToolCall?.('update_task', args);
+    const result = await executeToolCall('update_task', args, ctx, profile);
+    callbacks.onToolResult?.('update_task', result.success, result.data);
+    toolCallNames.push('update_task');
+    const op = toOperation({ id: 'fast_path', name: 'update_task', args: '' }, args, result, 0);
+    operations.push(op);
+    callbacks.onSeparator?.();
+
+    const confirmation = tidy(buildConfirmation([op], profile, { preferredName: ctx.preferredName }) ?? '');
+    if (confirmation) emitBlock(confirmation);
+    if (op.pendingQuestion) askQuestion(op.pendingQuestion);
+    else if (result.success) await settleOnboarding(task.id);
+    return true;
+  };
+
+  if (await tryFastPath()) {
+    reliability.fastPath = true;
+    finalText = composedBlocks.filter(Boolean).join('\n\n');
+    return { text: finalText, toolCallNames, operations, usage: emptyUsage(), reliability, traceId };
+  }
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
     const toolChoice =
@@ -375,16 +624,21 @@ export async function runAgent(
     let textContent = '';
     let pendingToolCalls: PendingToolCall[] = [];
     let finishReason: string | null = null;
-    // With `reliable`, model text is streamed through a sentence gate that
-    // holds back confirmation claims; `iterationVisibleText` is what the user
-    // actually saw from the model in this iteration.
+    // Model text always ends in the ref guard (validates `{{task:…}}` ids and
+    // never lets a half-written token reach the client). With `reliable` it
+    // first goes through a sentence gate that holds back confirmation claims.
+    // `iterationVisibleText` is what the user actually saw from the model in
+    // this iteration.
     let iterationVisibleText = '';
-    const gate = reliable
-      ? new SentenceGate(gateCtx, (chunk) => {
-          iterationVisibleText += chunk;
-          emitText(chunk);
-        })
-      : null;
+    const refGuard = new TaskRefGuard(knownTasks, profile.outputFormat, (chunk) => {
+      iterationVisibleText += chunk;
+      emitText(chunk);
+    });
+    const gate = reliable ? new SentenceGate(gateCtx, (chunk) => refGuard.push(chunk)) : null;
+    const pushModelText = (delta: string): void => {
+      if (gate) gate.push(delta);
+      else refGuard.push(delta);
+    };
 
     if (profile.transport === 'stream') {
       const stream = await callWithRetry(
@@ -426,8 +680,7 @@ export async function runAgent(
 
         if (delta?.content) {
           textContent += delta.content;
-          if (gate) gate.push(delta.content);
-          else emitText(delta.content);
+          pushModelText(delta.content);
         }
 
         if (delta?.tool_calls) {
@@ -482,7 +735,7 @@ export async function runAgent(
         callbacks.onReasoning?.(reasoningContent);
       }
       textContent = message?.content?.trim() ?? '';
-      if (gate && textContent) gate.push(textContent);
+      if (textContent) pushModelText(textContent);
 
       pendingToolCalls = (message?.tool_calls ?? [])
         .filter(
@@ -504,15 +757,17 @@ export async function runAgent(
       );
     }
 
+    if (gate) gate.flush();
+    refGuard.flush();
     if (gate) {
-      gate.flush();
       reliability.claimsStripped += gate.dropped;
       // `gate.dropped` is cumulative per gate instance; reset by construction
       // next iteration. Track the visible text for the final composition.
       if (iterationVisibleText.trim()) lastModelText = iterationVisibleText;
       else if (textContent.trim()) lastModelText = '';
     } else if (textContent) {
-      finalText = textContent;
+      // Legacy path: the user sees the model text as-is, minus invalid refs.
+      finalText = iterationVisibleText;
     }
 
     if (pendingToolCalls.length === 0) break;
@@ -590,6 +845,26 @@ export async function runAgent(
         }
       }
 
+      // One question per turn, and the system's comes first: while a backend
+      // question is pending, the model's own `offer_choices` is refused so the
+      // user never sees two artifacts (or a second question) for one message.
+      if (
+        !rejected &&
+        tc.name === 'offer_choices' &&
+        nextQuestionPolicy &&
+        (bareperiod !== null || operations.some((op) => Boolean(op.pendingQuestion)))
+      ) {
+        rejected = true;
+        const pending =
+          [...operations].reverse().find((op) => op.pendingQuestion)?.pendingQuestion ??
+          (bareperiod ? periodQuestion(bareperiod, ctx.timezone) : undefined);
+        result = {
+          success: false,
+          error_code: 'question_pending',
+          message: `O sistema já perguntou ao usuário "${pending?.text ?? 'quando ele vai fazer'}" (com opções). Não faça outra pergunta neste turno — encerre com 1-2 frases humanas, sem pergunta.`,
+        };
+      }
+
       if (!rejected) {
         if (tc.name === 'create_task' && profile.enableDedup) {
           const title = String(executedArgs.title ?? '').trim();
@@ -629,11 +904,11 @@ export async function runAgent(
 
       callbacks.onToolResult?.(tc.name, result!.success, result!.data);
       toolCallNames.push(tc.name);
+      rememberTasksFromResult(result!);
 
       // Recorded in both modes so the legacy/flagged comparison can count
       // writes and failures the same way; only the flagged path USES it.
       const op = toOperation(tc, executedArgs, result!, iteration);
-      if (op.pendingQuestion) reliability.pendingQuestions++;
       if (op.notes?.some((n) => n.startsWith('due_date'))) reliability.dateCorrections++;
       operations.push(op);
       iterationOps.push(op);
@@ -682,28 +957,53 @@ export async function runAgent(
     // built from what actually happened. The model's follow-up (if any)
     // streams after it in the next iteration.
     if (reliable && iterationOps.length > 0) {
-      const confirmation = buildConfirmation(iterationOps, profile);
-      const questions = collectPendingQuestions(iterationOps);
-      const block = tidy([confirmation ?? '', ...questions].filter(Boolean).join('\n'));
-      if (block) {
-        composedBlocks.push(block);
-        emitText(`${block}\n`);
+      const confirmation = tidy(
+        buildConfirmation(iterationOps, profile, { preferredName: ctx.preferredName }) ?? '',
+      );
+      if (confirmation) {
+        composedBlocks.push(confirmation);
+        emitText(`${confirmation}\n`);
         // A backend confirmation supersedes whatever the model said before it.
         lastModelText = '';
+      }
+      // The system's questions come right after its confirmation — structured
+      // (web quick replies) or as text — never left to the model.
+      for (const question of collectQuestions(iterationOps)) {
+        if (askedQuestions.some((q) => q.text === question.text && q.taskId === question.taskId)) continue;
+        askQuestion(question);
       }
     }
   }
 
-  const usage: AgentTurnUsage = {
-    inputTokens: totalInputTokens,
-    outputTokens: totalOutputTokens,
-    cachedTokens: totalCachedTokens,
-    apiCalls,
-  };
-
+  // The model's closing text was streamed before anything the backend adds
+  // below; record it now so the composed text keeps the order the user saw.
   if (reliable) {
     const modelText = tidy(lastModelText);
-    const blocks = [...composedBlocks, modelText].filter(Boolean);
+    if (modelText) composedBlocks.push(modelText);
+    lastModelText = '';
+  }
+
+  // The user replied with a bare period and nothing above asked the day
+  // (typically: no tool ran, because periods must not become a due_date).
+  if (bareperiod && askedQuestions.length === 0) {
+    const focused = ctx.focusedTask ?? (ctx.pendingQuestion?.taskId
+      ? await getTaskById(ctx.pendingQuestion.taskId, ctx.userId)
+      : null);
+    askQuestion(periodQuestion(bareperiod, ctx.timezone, focused ? { id: focused.id, title: focused.title } : undefined));
+  }
+
+  // Onboarding: a task was written this turn and nothing is left to ask on it
+  // → the backend moves to the next first task (journey active), nudges
+  // (journey suspended) or closes the journey.
+  const lastTaskWrite = [...operations]
+    .reverse()
+    .find((op) => op.kind === 'write' && op.success && op.entity?.type === 'task');
+  if (lastTaskWrite) await settleOnboarding(lastTaskWrite.entity?.id);
+
+  const usage = emptyUsage();
+
+  if (reliable) {
+    const blocks = composedBlocks.filter(Boolean);
     let composed = blocks.join('\n\n');
     if (!composed && reliability.claimsStripped > 0 && !gateCtx.hasWrites()) {
       // The model only claimed things that never happened: say so instead of

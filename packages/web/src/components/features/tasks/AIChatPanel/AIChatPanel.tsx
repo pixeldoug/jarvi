@@ -13,7 +13,12 @@ import {
 import { Button } from '../../../ui';
 import { AttachmentViewer } from '../../../ui/AttachmentViewer';
 import { resolveChatChoiceArtifact } from '../../../../lib/chatChoicePrompts';
-import { ChatMessage, TASK_ARTIFACT_TOOLS } from './ChatMessage';
+import {
+  CHOICE_DEFAULT_PLACEHOLDER,
+  choiceOtherPlaceholder,
+} from '../../../../lib/choiceUiInstrumentation';
+import { ChatMessage, TASK_ARTIFACT_TOOLS, relatedTaskFromMessage } from './ChatMessage';
+import { ChoicePrompt } from './ChoicePrompt';
 import { SkillChips } from './SkillChips';
 import jarviLogo from '../../../../assets/logo/symbol.svg';
 import styles from './AIChatPanel.module.css';
@@ -76,6 +81,7 @@ export function AIChatPanel({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [viewingAttachment, setViewingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dismissedChoiceId, setDismissedChoiceId] = useState<string | null>(null);
   const stickToBottomRef = useRef((seededMessages?.length ?? 0) === 0);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -110,6 +116,35 @@ export function AIChatPanel({
     }
     return owner;
   }, [messages]);
+
+  const lastMessage = messages[messages.length - 1];
+  const activeChoice = useMemo(() => {
+    if (trialExpired || isStreaming || !lastMessage || lastMessage.role !== 'assistant') {
+      return null;
+    }
+    if (dismissedChoiceId === lastMessage.id) return null;
+    const artifact = resolveChatChoiceArtifact(lastMessage);
+    if (artifact.choices.length < 2) return null;
+    return { messageId: lastMessage.id, ...artifact };
+  }, [dismissedChoiceId, isStreaming, lastMessage, trialExpired]);
+
+  // The task the question is about. When the last turn touched no task (e.g.
+  // the user answered "Esta semana" and the system narrowed the question),
+  // fall back to the last task created/updated earlier in the conversation.
+  const activeChoiceTask = useMemo(() => {
+    if (!activeChoice) return null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== 'assistant') continue;
+      const task = relatedTaskFromMessage(m);
+      if (task) return task;
+    }
+    return null;
+  }, [activeChoice, messages]);
+
+  useEffect(() => {
+    setDismissedChoiceId(null);
+  }, [lastMessage?.id]);
 
   // Send initialMessage on first mount (e.g. from ControlBar prompt)
   useLayoutEffect(() => {
@@ -267,6 +302,7 @@ export function AIChatPanel({
     reset();
     setInput('');
     setAttachments([]);
+    setDismissedChoiceId(null);
   };
 
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -323,16 +359,7 @@ export function AIChatPanel({
           </div>
         ) : (
           <div className={styles.messageList}>
-            {messages.map((msg, index) => {
-              const isLatestUserTurn =
-                !messages.slice(index + 1).some((later) => later.role === 'user');
-              const canInteractFollowups =
-                !trialExpired && !isStreaming && isLatestUserTurn;
-              const canPickChoice =
-                canInteractFollowups &&
-                msg.role === 'assistant' &&
-                resolveChatChoiceArtifact(msg).choices.length > 0;
-              return (
+            {messages.map((msg, index) => (
               <ChatMessage
                 key={msg.id}
                 message={msg}
@@ -346,11 +373,17 @@ export function AIChatPanel({
                 onTaskCardClick={onTaskCardClick}
                 onListCardClick={onListCardClick}
                 onCategoryCardClick={onCategoryCardClick}
-                onChoiceSelect={canPickChoice ? (text) => sendFromUser(text) : undefined}
-                choicesDisabled={!canPickChoice}
+                onJourneyResume={
+                  index === messages.length - 1 &&
+                  msg.role === 'assistant' &&
+                  msg.journeyNudge &&
+                  !isStreaming &&
+                  !trialExpired
+                    ? () => sendFromUser(msg.journeyNudge!.resumeLabel)
+                    : undefined
+                }
               />
-              );
-            })}
+            ))}
           </div>
         )}
       </div>
@@ -382,57 +415,102 @@ export function AIChatPanel({
             ))}
           </div>
         )}
-        <div
-          className={`${styles.inputWrapper} ${isDragging ? styles.inputWrapperDragging : ''}`}
-          data-theme="dark"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          {isDragging && (
-            <div className={styles.dropOverlay}>
-              <UploadSimple size={20} weight="bold" />
-              <span>Solte para anexar</span>
-            </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className={styles.hiddenFileInput}
-            onChange={handleFileInputChange}
-          />
-          <textarea
-            ref={textareaRef}
-            className={styles.inputField}
-            placeholder="Como posso te ajudar?"
-            value={input}
-            onChange={handleTextareaInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            rows={1}
+        {activeChoice ? (
+          <ChoicePrompt
+            question={activeChoice.question}
+            choices={activeChoice.choices}
+            field={activeChoice.field}
+            taskTitle={activeChoiceTask?.title}
+            onTaskClick={
+              activeChoiceTask?.id && onTaskCardClick
+                ? () => onTaskCardClick(activeChoiceTask.id)
+                : undefined
+            }
             disabled={isStreaming || trialExpired}
-          />
-          <div className={styles.inputActions}>
-            <button
-              type="button"
-              className={styles.attachButton}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isStreaming || trialExpired || attachments.length >= MAX_CHAT_ATTACHMENTS}
-              aria-label="Anexar arquivo"
-            >
-              <Paperclip size={20} />
-            </button>
-            <button
-              className={styles.sendButton}
-              onClick={handleSend}
-              disabled={(!input.trim() && attachments.length === 0) || isStreaming || trialExpired}
-              aria-label="Enviar"
-            >
-              <PaperPlaneRight size={20} weight="fill" />
-            </button>
+            onSelect={(text) => {
+              setInput('');
+              if (textareaRef.current) textareaRef.current.style.height = 'auto';
+              sendFromUser(text);
+            }}
+            onDismiss={() => setDismissedChoiceId(activeChoice.messageId)}
+          >
+            <div className={styles.choiceArtifactComposer}>
+              <textarea
+                ref={textareaRef}
+                className={styles.choiceArtifactInput}
+                placeholder={choiceOtherPlaceholder(activeChoice.field)}
+                value={input}
+                onChange={handleTextareaInput}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                rows={1}
+                disabled={isStreaming || trialExpired}
+              />
+              <button
+                className={styles.sendButton}
+                onClick={handleSend}
+                disabled={(!input.trim() && attachments.length === 0) || isStreaming || trialExpired}
+                aria-label="Enviar"
+              >
+                <PaperPlaneRight size={20} weight="fill" />
+              </button>
+            </div>
+          </ChoicePrompt>
+        ) : (
+          <div
+            className={`${styles.inputWrapper} ${isDragging ? styles.inputWrapperDragging : ''}`}
+            data-theme="dark"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {isDragging && (
+              <div className={styles.dropOverlay}>
+                <UploadSimple size={20} weight="bold" />
+                <span>Solte para anexar</span>
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className={styles.hiddenFileInput}
+              onChange={handleFileInputChange}
+            />
+            <div className={styles.inputRow}>
+              <textarea
+                ref={textareaRef}
+                className={styles.inputField}
+                placeholder={CHOICE_DEFAULT_PLACEHOLDER}
+                value={input}
+                onChange={handleTextareaInput}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                rows={1}
+                disabled={isStreaming || trialExpired}
+              />
+              <div className={styles.inputActions}>
+                <button
+                  type="button"
+                  className={styles.attachButton}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming || trialExpired || attachments.length >= MAX_CHAT_ATTACHMENTS}
+                  aria-label="Anexar arquivo"
+                >
+                  <Paperclip size={20} />
+                </button>
+                <button
+                  className={styles.sendButton}
+                  onClick={handleSend}
+                  disabled={(!input.trim() && attachments.length === 0) || isStreaming || trialExpired}
+                  aria-label="Enviar"
+                >
+                  <PaperPlaneRight size={20} weight="fill" />
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {viewingAttachment && (

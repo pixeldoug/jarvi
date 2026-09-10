@@ -622,6 +622,9 @@ export function CriarConta() {
           question: string;
           choices: string[];
           taskTitle?: string;
+          taskId?: string;
+          field?: 'due_date' | 'time' | 'reminders';
+          settled?: boolean;
         };
         createdTasks?: OnboardingCreatedTask[];
         firstName?: string;

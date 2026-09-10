@@ -4,6 +4,8 @@ import { PostHogOpenAI } from '@posthog/ai/openai';
 import { toFile } from 'openai/uploads';
 import { getPostHogClient, isEvalAnalyticsDistinctId } from './posthogService';
 import { capitalizeTaskTitle } from '../utils/taskTitle';
+import { decideNextQuestion, type TriadPolicy } from './agent/core/nextQuestion';
+import type { AgentTriadField } from './agent/core/types';
 
 export interface ExtractedTask {
   title: string;
@@ -577,32 +579,16 @@ export type OnboardingFollowUp = {
   question: string;
   choices: string[];
   taskTitle?: string;
+  /** Task the question is about — lets the web echo it back for the backend fast path. */
+  taskId?: string;
+  field?: AgentTriadField;
+  /** True when no first task needs a question: the journey can be closed right away. */
+  settled?: boolean;
 };
 
 const READY_ACK = 'Tudo pronto, criei suas primeiras tarefas.';
-const DEADLINE_CHOICES = ['Hoje', 'Amanhã', 'Essa semana', 'Até o fim do mês', 'Ainda não sei'];
-const REMINDER_LEAD_CHOICES = [
-  'No dia',
-  '1 dia antes',
-  '2 dias antes',
-  '1 semana antes',
-  'Ainda não quero lembrete',
-];
 
-type OnboardingTask = { title: string; dueDate?: string | null; time?: string | null };
-
-function formatOnboardingWhen(dueDate: string, time?: string | null): string {
-  const [year, month, day] = dueDate.split('-').map(Number);
-  if (!year || !month || !day) return dueDate;
-  const label = new Date(year, month - 1, day).toLocaleDateString('pt-BR', {
-    day: 'numeric',
-    month: 'long',
-  });
-  if (time && time.length >= 4) {
-    return `${label}, às ${time.slice(0, 5)}`;
-  }
-  return label;
-}
+type OnboardingTask = { id?: string; title: string; dueDate?: string | null; time?: string | null };
 
 const ONBOARDING_ORDER_PROMPT = `Você é a Jarvi. As primeiras tarefas de um usuário novo JÁ foram criadas.
 Sua única decisão é: por qual delas começar a conversa.
@@ -661,18 +647,42 @@ const pickStartingTaskIndex = async (
   }
 };
 
-const buildFollowUpForTask = (tasks: OnboardingTask[], startIndex: number): OnboardingFollowUp => {
-  const task = tasks[startIndex];
-  const missingDate = !task.dueDate;
-
-  return {
-    ack: READY_ACK,
-    question: missingDate
-      ? 'Quando você quer que eu te lembre disso?'
-      : `Essa tarefa está marcada para ${formatOnboardingWhen(task.dueDate as string, task.time)}. Com quanta antecedência você quer o lembrete?`,
-    choices: missingDate ? DEADLINE_CHOICES : REMINDER_LEAD_CHOICES,
-    taskTitle: task.title,
-  };
+/**
+ * The first question of the journey comes from the SAME tríade state machine
+ * the chat uses afterwards (`agent/core/nextQuestion.ts`), so the copy, the
+ * chips and the order (prazo → horário → lembrete) never diverge. Starting at
+ * `startIndex`, the first task that still has something to ask wins.
+ */
+const buildFollowUpForTask = (
+  tasks: OnboardingTask[],
+  startIndex: number,
+  policy: TriadPolicy,
+): OnboardingFollowUp => {
+  for (let offset = 0; offset < tasks.length; offset++) {
+    const task = tasks[(startIndex + offset) % tasks.length];
+    const question = decideNextQuestion(
+      {
+        taskId: task.id,
+        taskTitle: task.title,
+        dueDate: task.dueDate ?? null,
+        time: task.time ?? null,
+        remindersCount: 0,
+        skips: [],
+      },
+      policy,
+    );
+    if (question) {
+      return {
+        ack: READY_ACK,
+        question: question.text,
+        choices: question.choices,
+        taskTitle: task.title,
+        taskId: task.id,
+        field: question.field,
+      };
+    }
+  }
+  return { ack: READY_ACK, question: '', choices: [], settled: true };
 };
 
 /**
@@ -684,17 +694,14 @@ export const composeOnboardingFollowUp = async (
   tasks: OnboardingTask[],
   rawText: string,
   options?: AiTelemetryOptions,
+  policy: TriadPolicy = { canRemind: false },
 ): Promise<OnboardingFollowUp> => {
   if (tasks.length === 0) {
-    return {
-      ack: READY_ACK,
-      question: 'Quando você quer que eu te lembre disso?',
-      choices: DEADLINE_CHOICES,
-    };
+    return { ack: READY_ACK, question: '', choices: [], settled: true };
   }
 
   const startIndex = tasks.length === 1 ? 0 : await pickStartingTaskIndex(tasks, rawText, options);
-  return buildFollowUpForTask(tasks, startIndex);
+  return buildFollowUpForTask(tasks, startIndex, policy);
 };
 
 // `updateTaskFromFollowUp` was removed as part of the unified agent

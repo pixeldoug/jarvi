@@ -76,6 +76,8 @@ const createTables = async (): Promise<void> => {
       preferred_name TEXT,
       onboarding_completed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       onboarding_journey_completed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
+      daily_summary_enabled ${booleanType} DEFAULT TRUE,
+      daily_summary_time TEXT DEFAULT '08:00',
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -284,6 +286,22 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );`,
+
+    // One row per (user, local calendar day): the idempotency record for the
+    // WhatsApp "Resumo do Dia". The UNIQUE constraint is what guarantees at
+    // most one summary per user per day, even across concurrent ticks.
+    `CREATE TABLE IF NOT EXISTS daily_summary_deliveries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      summary_date TEXT NOT NULL,
+      status TEXT NOT NULL,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      message TEXT,
+      error TEXT,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      UNIQUE (user_id, summary_date)
     );`,
 
     `CREATE TABLE IF NOT EXISTS pending_tasks (
@@ -650,6 +668,9 @@ const runMigrations = async (): Promise<void> => {
   const whatsappTaskMigrations = [
     'ALTER TABLE tasks ADD COLUMN original_whatsapp_content TEXT',
     'ALTER TABLE tasks ADD COLUMN media_attachments TEXT',
+    // Agent tríade: fields the user explicitly declined ("Ainda não sei",
+    // "Sem horário", "Sem lembrete"), as a JSON array. See agent/core/nextQuestion.ts.
+    'ALTER TABLE tasks ADD COLUMN agent_triad_skips TEXT',
   ];
 
   const whatsappPendingTaskMigrations = [
@@ -1169,6 +1190,33 @@ const runMigrations = async (): Promise<void> => {
       } catch (e) {
         // Column already exists, ignore
       }
+
+      // Migration: Resumo do Dia (WhatsApp daily summary) preferences. Both
+      // columns default ON so every account — existing and new — receives the
+      // summary unless the person turns it off.
+      const dailySummaryMigrations = [
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_summary_enabled BOOLEAN DEFAULT TRUE',
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_summary_time TEXT DEFAULT '08:00'",
+        `CREATE TABLE IF NOT EXISTS daily_summary_deliveries (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          summary_date TEXT NOT NULL,
+          status TEXT NOT NULL,
+          item_count INTEGER NOT NULL DEFAULT 0,
+          message TEXT,
+          error TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (user_id, summary_date)
+        )`,
+      ];
+      for (const migration of dailySummaryMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column/table already exists, ignore
+        }
+      }
     } finally {
       client.release();
     }
@@ -1594,6 +1642,34 @@ const runMigrations = async (): Promise<void> => {
       );
     } catch (e) {
       // Column already exists — do not backfill again
+    }
+
+    // Migration: Resumo do Dia (WhatsApp daily summary) preferences for SQLite
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN daily_summary_enabled BOOLEAN DEFAULT TRUE');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+    try {
+      await db.exec("ALTER TABLE users ADD COLUMN daily_summary_time TEXT DEFAULT '08:00'");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS daily_summary_deliveries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        summary_date TEXT NOT NULL,
+        status TEXT NOT NULL,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        message TEXT,
+        error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, summary_date)
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
     }
   }
 };

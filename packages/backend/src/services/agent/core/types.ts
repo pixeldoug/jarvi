@@ -25,6 +25,12 @@ export interface TaskRow {
   recurrence_type?: string | null;
   recurrence_config?: string | null;
   recurrence_until?: string | null;
+  /**
+   * JSON array of tríade fields the user explicitly declined to fill
+   * ("Ainda não sei", "Sem horário", "Sem lembrete") — see `nextQuestion.ts`.
+   * A skipped field is never asked again for this task.
+   */
+  agent_triad_skips?: string | null;
   created_at: string | Date;
 }
 
@@ -93,6 +99,7 @@ export type ToolName =
   | 'scan_gmail'
   | 'search_web'
   | 'offer_choices'
+  /** Legacy (flag off) only — with reliable execution the backend closes the journey itself. */
   | 'complete_onboarding_journey';
 
 export interface ToolExecutionResult {
@@ -142,17 +149,77 @@ export interface AgentOperationEntity {
 }
 
 /**
- * A question the backend decided the user must answer before a field can be
- * written (e.g. "semana que vem" without a weekday → which day?). Emitted to
- * the user by the channel adapter, separately from the confirmation.
+ * A question the backend decided to ask the user — the next step of the task
+ * "tríade" (o quê / quando / como lembrar) derived from persisted state, or a
+ * field it refused to write (e.g. "semana que vem" without a weekday → which
+ * day?). The question is product policy, not model creativity: it is emitted
+ * by the channel adapter as a structured quick-reply artifact (web) or as
+ * text (WhatsApp), and the model is told not to ask it again.
  */
+export type AgentPendingQuestionReason =
+  /** The user named a period ("essa semana") that still needs a concrete day. */
+  | 'period_needs_day'
+  /** A task was created without any due_date. */
+  | 'missing_due_date'
+  /** The model proposed a past day the user never named; the task has no prazo. */
+  | 'past_date_held'
+  /** The prazo was just defined (task had none) and the task still has no time. */
+  | 'missing_time'
+  /** Prazo (and horário, or an explicit "sem horário") settled; no reminder yet. */
+  | 'missing_reminder';
+
+export type AgentTriadField = 'due_date' | 'time' | 'reminders';
+
 export interface AgentPendingQuestion {
-  field: 'due_date';
-  reason: 'period_needs_day';
-  /** The exact expression the user wrote that triggered the question. */
-  expression: string;
+  field: AgentTriadField;
+  reason: AgentPendingQuestionReason;
+  /** The exact expression the user wrote that triggered the question (periods only). */
+  expression?: string;
   /** Ready-to-send question text in Jarvi's voice. */
   text: string;
+  /** 2–5 short quick replies. The web renders them as buttons. */
+  choices: string[];
+  /** Task the question is about, when known. */
+  taskId?: string;
+  /** Title of that task, so the UI can label the artifact without guessing. */
+  taskTitle?: string;
+  /**
+   * Conversational sentence, in Jarvi's voice, that names the task AND asks
+   * the question ("E sobre {{task}}, quando você pretende fazer?"). When set,
+   * the chat shows it as text and the quick-reply artifact omits `text`, so
+   * moving on to another task reads as a conversation, not as a wizard step.
+   */
+  intro?: string;
+}
+
+/**
+ * Discreet reminder that the first-tasks journey is paused: the person went
+ * off-script (a new task, a free message) and there are still first tasks to
+ * organize. The web renders it as a muted line with a "Continuar" action;
+ * text channels get the text alone.
+ */
+export interface AgentJourneyNudge {
+  text: string;
+  /** First tasks that still have a tríade question left. */
+  remaining: number;
+  /** Label of the resume action ("Continuar"). */
+  resumeLabel: string;
+}
+
+/**
+ * The question the user is answering — echoed back by the client with the
+ * next message (the web keeps it on the last assistant message). Lets the
+ * backend resolve quick-reply answers and bare acknowledgements itself,
+ * before (or instead of) calling the model. See `pendingAnswer.ts`.
+ *
+ * `field: 'journey'` is the resume nudge (`AgentJourneyNudge`) being answered
+ * — there is no task; "Continuar" resumes the first-tasks journey.
+ */
+export interface AgentPendingQuestionRef {
+  field: AgentTriadField | 'journey';
+  taskId?: string;
+  question?: string;
+  choices?: string[];
 }
 
 export interface AgentOperation {
@@ -213,6 +280,13 @@ export interface ChannelProfile {
    * Adapters resolve this per user from the feature flag; defaults to false.
    */
   reliableExecution?: boolean;
+  /**
+   * Backend-owned "next question" policy (requires `reliableExecution`). When
+   * a task is created or left without a prazo, the BACKEND asks when the
+   * person will do it (quick replies) — the model never has to remember to.
+   * See `nextQuestion.ts`.
+   */
+  enableNextQuestionPolicy?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +330,12 @@ export interface AgentContext {
   onboardingJourneyPending?: boolean;
   /** True when the user has a verified WhatsApp number on the account. */
   whatsappVerified?: boolean;
+  /**
+   * The system question the user is replying to, when the client knows it
+   * (web: the choice artifact on the last assistant message). Drives the
+   * backend fast path for quick replies / acknowledgements.
+   */
+  pendingQuestion?: AgentPendingQuestionRef;
   /** Channel-specific metadata (e.g. WhatsApp phone / message SID). */
   whatsappPhone?: string;
   whatsappMessageSid?: string;
@@ -282,6 +362,18 @@ export interface AgentCallbacks {
   ) => void;
   /** Fired between tool results and the next assistant turn (UI separator). */
   onSeparator?: () => void;
+  /**
+   * Fired when the backend decides the next question for the user (quick
+   * replies). Adapters that implement it get the question as structured data
+   * and NOT as text; adapters that omit it get the question in the text.
+   */
+  onQuestion?: (question: AgentPendingQuestion) => void;
+  /**
+   * Fired when the first-tasks journey is paused with tasks still to organize
+   * (see onboardingJourney.ts). Adapters that implement it get the nudge as
+   * structured data (text + resume action) and NOT as text.
+   */
+  onJourneyNudge?: (nudge: AgentJourneyNudge) => void;
 }
 
 export interface AgentRunResult {
@@ -320,6 +412,11 @@ export interface AgentRunReliability {
   dateCorrections: number;
   /** Continuity questions the backend emitted (e.g. "qual dia da semana que vem?"). */
   pendingQuestions: number;
+  /**
+   * The turn was resolved by the backend alone (quick-reply answer applied,
+   * next question asked) — no model call was made.
+   */
+  fastPath: boolean;
   /** ms from run start until the first user-visible text was emitted (stream only). */
   timeToFirstTextMs?: number;
 }

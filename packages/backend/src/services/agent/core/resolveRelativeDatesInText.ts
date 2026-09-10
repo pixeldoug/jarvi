@@ -24,9 +24,10 @@ export function resolveRelativeDatesInText(text: string, timezone: string): stri
   const tomorrow = isoToDdMmYyyy(addDaysToIsoDate(isoDate, 1));
   const dayAfterTomorrow = isoToDdMmYyyy(addDaysToIsoDate(isoDate, 2));
 
+  // `\b` is ASCII-only in JS, so "amanhã" needs a Unicode-aware end boundary.
   return text
-    .replace(/\bdepois de amanh[aã]\b/gi, `em ${dayAfterTomorrow}`)
+    .replace(/\bdepois de amanh[aã](?![\p{L}\p{N}])/giu, `em ${dayAfterTomorrow}`)
     .replace(/\bontem\b/gi, `em ${yesterday}`)
-    .replace(/\bamanh[aã]\b/gi, `em ${tomorrow}`)
+    .replace(/\bamanh[aã](?![\p{L}\p{N}])/giu, `em ${tomorrow}`)
     .replace(/\bhoje\b/gi, `em ${today}`);
 }

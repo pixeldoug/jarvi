@@ -16,6 +16,8 @@ import type { EvalScenario } from './whatsapp-scenarios';
 
 const TODAY = todayIso();
 const TOMORROW = addDays(TODAY, 1);
+// A task must never be born overdue: any past day is a forbidden due_date.
+const PAST_DAYS = Array.from({ length: 240 }, (_, i) => addDays(TODAY, -(i + 1)));
 
 const CONTA_LUZ = makeTask({ title: 'Pagar conta de luz', due_date: TODAY });
 const SEGURO_FANTASMA = makeTask({ title: 'Renovar seguro do carro' });
@@ -155,5 +157,51 @@ export const RELIABLE_EXECUTION_SCENARIOS: EvalScenario[] = [
     idealOutput:
       'Hoje você tem:\n— Pagar conta de luz\n— Trocar pneus\n\nPosso te ajudar com:\n1. detalhes de uma tarefa\n2. próximas tarefas\n3. tarefas vencidas',
     tags: ['reliable-execution', 'briefing', 'no-write', 'whatsapp'],
+  },
+
+  // ── Official deadline the user doesn't know: search now, never born overdue ─
+  {
+    // IRPF has a universal, public deadline the user does not know. The
+    // deadline question IS a web search — done right at creation, never
+    // offered ("se quiser, eu posso…"). The already-passed official date must
+    // not become the due_date: the backend holds any past day the user never
+    // named (the rules judge what was PERSISTED — the harness strips a held
+    // due_date from the captured call). The "quando você vai fazer?" question
+    // is the SYSTEM's (next-question policy), so the model must not call
+    // offer_choices for it. Turn 2 answers with a day.
+    name: 'reliable/web/prazo-oficial-busca-sem-nascer-vencida',
+    reliable: true,
+    channel: 'web',
+    turns: [
+      {
+        input: 'preciso emitir meu irpf desse ano',
+        mustCallTool: ['create_task', 'search_web'],
+        mustNotCallTool: ['offer_choices'],
+        mustCallToolCount: { create_task: 1 },
+        mustNotCallToolArgs: PAST_DAYS.flatMap((day) => [
+          { tool: 'create_task', arg: 'due_date', value: day },
+          { tool: 'update_task', arg: 'due_date', value: day },
+        ]),
+        mustNotContain: [
+          'se quiser, eu posso',
+          'se quiser eu posso',
+          'se você quiser, eu posso',
+          'se você quiser eu posso',
+          'quer que eu pesquise',
+          'quer que eu busque',
+          'quer que eu descubra',
+          'posso te ajudar a descobrir',
+        ],
+        idealOutput:
+          'O prazo oficial do IRPF 2026 foi até 29/05/2026, então já passou. Quando você vai fazer isso?',
+      },
+      {
+        input: 'hoje',
+        mustCallTool: ['update_task'],
+        mustNotCallTool: ['create_task', 'search_web'],
+        mustCallToolArgs: [{ tool: 'update_task', arg: 'due_date', value: TODAY }],
+      },
+    ],
+    tags: ['reliable-execution', 'web', 'multiturn', 'search-web', 'official-deadline', 'past-date-guard'],
   },
 ];

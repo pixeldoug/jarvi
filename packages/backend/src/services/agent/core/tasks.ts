@@ -29,7 +29,7 @@ const ACTIVE_TASK_ORDERING = `
 `;
 
 const TASK_COLUMNS =
-  'id, user_id, title, description, completed, priority, category, due_date, time, recurrence_type, recurrence_config, recurrence_until, created_at';
+  'id, user_id, title, description, completed, priority, category, due_date, time, recurrence_type, recurrence_config, recurrence_until, agent_triad_skips, created_at';
 
 export interface TaskBuckets {
   overdue: TaskRow[];
@@ -304,6 +304,43 @@ export async function getTaskById(taskId: string, userId: string): Promise<TaskR
 }
 
 // ---------------------------------------------------------------------------
+// Tríade skips ("Ainda não sei" / "Sem horário" / "Sem lembrete")
+// ---------------------------------------------------------------------------
+
+/** Fields the user explicitly declined for this task (never asked again). */
+export function parseTriadSkips(value: unknown): string[] {
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((f): f is string => typeof f === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addTriadSkip(taskId: string, userId: string, field: string): Promise<string[]> {
+  const task = await getTaskById(taskId, userId);
+  if (!task) return [];
+  const skips = parseTriadSkips(task.agent_triad_skips);
+  if (skips.includes(field)) return skips;
+  const next = [...skips, field];
+  const json = JSON.stringify(next);
+  const now = new Date().toISOString();
+  if (isPostgreSQL()) {
+    await getPool().query(
+      'UPDATE tasks SET agent_triad_skips = $1, updated_at = $2 WHERE id = $3 AND user_id = $4',
+      [json, now, taskId, userId],
+    );
+  } else {
+    await getDatabase().run(
+      'UPDATE tasks SET agent_triad_skips = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+      [json, now, taskId, userId],
+    );
+  }
+  return next;
+}
+
+// ---------------------------------------------------------------------------
 // Lists & categories (web-only contexts)
 // ---------------------------------------------------------------------------
 
@@ -407,11 +444,30 @@ function formatRecurrenceSummary(t: TaskRow): string | null {
  * present, and ALWAYS tags VENCIDA / HORÁRIO JÁ PASSOU when applicable so the
  * model never re-recommends as priority a task whose time has already passed.
  */
-export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): string {
+export interface TaskLineOptions {
+  /**
+   * Label the task with the mention token (`{{task:id|title}}`) instead of a
+   * quoted title. Web only: the model copies the form it sees in the list, so
+   * showing the token here is what makes its prose mentions clickable.
+   */
+  mention?: boolean;
+}
+
+function taskLabel(t: TaskRow, options: TaskLineOptions): string {
+  if (!options.mention) return `"${t.title}"`;
+  return `{{task:${t.id}|${String(t.title).replace(/[|}]/g, ' ')}}}`;
+}
+
+export function formatTaskLine(
+  t: TaskRow,
+  todayIso: string,
+  nowHM: string,
+  options: TaskLineOptions = {},
+): string {
   const dueDateStr = normalizeTaskDueDate(t.due_date);
   const timeStr = normalizeTaskTime(t.time);
 
-  const parts: string[] = [`"${t.title}"`];
+  const parts: string[] = [taskLabel(t, options)];
   if (dueDateStr) parts.push(`vence ${dueDateStr}`);
   if (timeStr) parts.push(`às ${timeStr}`);
   if (t.priority) parts.push(`prioridade ${t.priority}`);
@@ -438,11 +494,11 @@ export function formatTaskLine(t: TaskRow, todayIso: string, nowHM: string): str
  * (no description). Keeps the long tail of tasks referenceable by the model
  * without inflating tokens. High priority is flagged so it stays visible.
  */
-export function formatTaskIndexLine(t: TaskRow): string {
+export function formatTaskIndexLine(t: TaskRow, options: TaskLineOptions = {}): string {
   const dueDateStr = normalizeTaskDueDate(t.due_date);
   const timeStr = normalizeTaskTime(t.time);
 
-  const parts: string[] = [`"${t.title}"`];
+  const parts: string[] = [taskLabel(t, options)];
   if (dueDateStr) parts.push(`vence ${dueDateStr}`);
   if (timeStr) parts.push(`às ${timeStr}`);
   if ((t.priority ?? '').toLowerCase() === 'high') parts.push('prioridade high');

@@ -1,17 +1,51 @@
 import { useState, type ReactNode } from 'react';
-import { Checks, FileText, X } from '@phosphor-icons/react';
-import type { ChatMessageData, ChatAttachmentMeta } from '../../../../hooks/useChatStream';
+import { FileText } from '@phosphor-icons/react';
+import type { ChatMessageData, ChatAttachmentMeta, ToolCallData } from '../../../../hooks/useChatStream';
 import { resolveChatChoiceArtifact } from '../../../../lib/chatChoicePrompts';
 import { coalesceAssistantBodies } from '../../../../lib/chatAssistantText';
+import { capitalizeTaskTitle } from '../../../../lib/taskTitle';
+import { splitTaskRefs } from '../../../../lib/taskRefs';
 import { TaskCardMessage } from './TaskCardMessage';
 import { ListCardMessage } from './ListCardMessage';
 import { CategoryCardMessage } from './CategoryCardMessage';
+import { TaskMention } from './TaskMention';
 import { ThinkingBlock } from './ThinkingBlock';
 import { AttachmentViewer } from '../../../ui/AttachmentViewer';
+import { Button } from '../../../ui';
 import styles from './AIChatPanel.module.css';
 
-// Renders **bold**, `code`, and "quoted names" within a line of text.
-// "quoted" segments are rendered as code pills without the surrounding quotes.
+/** create / update / complete render as Figma inline mentions, not the old chip. */
+const INLINE_TASK_TOOLS = ['create_task', 'update_task', 'complete_task'];
+
+export interface InlineTaskMention {
+  id: string;
+  title: string;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function findMentionInText(
+  text: string,
+  mentions: InlineTaskMention[],
+): { index: number; length: number; mention: InlineTaskMention } | null {
+  let best: { index: number; length: number; mention: InlineTaskMention } | null = null;
+  for (const mention of mentions) {
+    if (!mention.title) continue;
+    const pattern = new RegExp(
+      `(?:\\*\\*)?["']?${escapeRegExp(mention.title)}["']?(?:\\*\\*)?`,
+      'i',
+    );
+    const match = text.match(pattern);
+    if (match?.index == null) continue;
+    if (!best || match.index < best.index) {
+      best = { index: match.index, length: match[0].length, mention };
+    }
+  }
+  return best;
+}
+
 function renderInline(text: string): ReactNode[] {
   const segments = text.split(/(\*\*.*?\*\*|`[^`]+`|"[^"]+"|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g);
   return segments.map((seg, i) => {
@@ -42,50 +76,205 @@ function renderInline(text: string): ReactNode[] {
   });
 }
 
-// Converts a plain text AI response into readable nodes:
-// - blank lines → visual spacer
-// - lines starting with •, -, or * → bullet item
-// - **text** → bold
-function renderAiContent(text: string): ReactNode {
-  const lines = text.split('\n');
-  const nodes: ReactNode[] = [];
+function renderLineWithMentions(
+  line: string,
+  mentions: InlineTaskMention[],
+  onTaskClick?: (taskId: string) => void,
+): { nodes: ReactNode; usedIds: string[] } {
+  const usedIds: string[] = [];
+  const remainingMentions = [...mentions];
+  const parts: ReactNode[] = [];
   let key = 0;
 
+  const consumeMention = (id: string, title: string) => {
+    usedIds.push(id);
+    const usedIndex = remainingMentions.findIndex(
+      (item) => (id && item.id === id) || item.title.toLowerCase() === title.toLowerCase(),
+    );
+    if (usedIndex >= 0) remainingMentions.splice(usedIndex, 1);
+  };
+
+  // Title-based matching (legacy: the model wrote the title in prose).
+  const pushTextWithTitleMentions = (text: string) => {
+    let remaining = text;
+    while (remaining.length > 0 && remainingMentions.length > 0) {
+      const found = findMentionInText(remaining, remainingMentions);
+      if (!found) break;
+
+      if (found.index > 0) {
+        parts.push(<span key={`t-${key++}`}>{renderInline(remaining.slice(0, found.index))}</span>);
+      }
+      parts.push(
+        <TaskMention
+          key={`m-${key++}`}
+          title={found.mention.title}
+          onClick={onTaskClick && found.mention.id ? () => onTaskClick(found.mention.id) : undefined}
+        />,
+      );
+      consumeMention(found.mention.id, found.mention.title);
+      remaining = remaining.slice(found.index + found.length);
+    }
+    if (remaining) {
+      parts.push(<span key={`t-${key++}`}>{renderInline(remaining)}</span>);
+    }
+  };
+
+  // Structured references first: `{{task:id|Title}}` written by the backend.
+  for (const segment of splitTaskRefs(line)) {
+    if (segment.type === 'task') {
+      const { id, title } = segment.ref;
+      parts.push(
+        <TaskMention
+          key={`m-${key++}`}
+          title={capitalizeTaskTitle(title)}
+          onClick={onTaskClick && id ? () => onTaskClick(id) : undefined}
+        />,
+      );
+      consumeMention(id, title);
+      continue;
+    }
+    pushTextWithTitleMentions(segment.text);
+  }
+
+  return { nodes: <>{parts}</>, usedIds };
+}
+
+function mentionNode(
+  mention: InlineTaskMention,
+  onTaskClick?: (taskId: string) => void,
+): ReactNode {
+  return (
+    <TaskMention
+      key={mention.id || mention.title}
+      title={mention.title}
+      onClick={onTaskClick && mention.id ? () => onTaskClick(mention.id) : undefined}
+    />
+  );
+}
+
+function renderAiContent(
+  text: string,
+  mentions: InlineTaskMention[] = [],
+  onTaskClick?: (taskId: string) => void,
+): ReactNode {
+  const lines = text.split('\n');
+  const built: Array<
+    | { type: 'spacer' }
+    | { type: 'bullet'; nodes: ReactNode }
+    | { type: 'text'; nodes: ReactNode }
+  > = [];
+  const unused = [...mentions];
+
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
+    const trimmed = lines[i].trim();
 
     if (trimmed === '') {
-      // Only add spacer if not first/last and prev wasn't also spacer
-      if (i > 0 && i < lines.length - 1) {
-        nodes.push(<span key={key++} className={styles.contentSpacer} />);
-      }
+      if (i > 0 && i < lines.length - 1) built.push({ type: 'spacer' });
       continue;
     }
 
+    // A bullet keeps its dot and renders the rest with mentions, so
+    // "• {{task:id|Pagar IRPF}}. Está com prioridade alta." is a real bullet
+    // with a clickable task inside it.
     const bulletMatch = trimmed.match(/^([•\-\*])\s+(.*)/);
-    if (bulletMatch) {
-      nodes.push(
-        <div key={key++} className={styles.bulletLine}>
-          <span className={styles.bulletDot} aria-hidden />
-          <span>{renderInline(bulletMatch[2])}</span>
-        </div>,
+    const body = bulletMatch ? bulletMatch[2] : trimmed;
+
+    const { nodes: lineNodes, usedIds } = renderLineWithMentions(body, unused, onTaskClick);
+    for (const id of usedIds) {
+      const idx = unused.findIndex((item) => item.id === id);
+      if (idx >= 0) unused.splice(idx, 1);
+    }
+
+    built.push({ type: bulletMatch ? 'bullet' : 'text', nodes: lineNodes });
+  }
+
+  if (unused.length > 0) {
+    const extras = unused.map((mention) => mentionNode(mention, onTaskClick));
+    const lastText = [...built].reverse().find((item) => item.type === 'text');
+    if (lastText && lastText.type === 'text') {
+      lastText.nodes = (
+        <>
+          {lastText.nodes} {extras}
+        </>
       );
     } else {
-      nodes.push(
-        <p key={key++} className={styles.contentLine}>
-          {renderInline(trimmed)}
-        </p>,
-      );
+      built.push({ type: 'text', nodes: <>{extras}</> });
     }
   }
 
-  return <>{nodes}</>;
+  return (
+    <>
+      {built.map((item, key) => {
+        if (item.type === 'spacer') {
+          return <span key={key} className={styles.contentSpacer} />;
+        }
+        if (item.type === 'bullet') {
+          return (
+            <div key={key} className={styles.bulletLine}>
+              <span className={styles.bulletDot} aria-hidden />
+              <span>{item.nodes}</span>
+            </div>
+          );
+        }
+        return (
+          <p key={key} className={styles.contentLine}>
+            {item.nodes}
+          </p>
+        );
+      })}
+    </>
+  );
+}
+
+export function createdTaskMentions(toolCalls: ToolCallData[] | undefined): InlineTaskMention[] {
+  if (!toolCalls?.length) return [];
+  const mentions: InlineTaskMention[] = [];
+  const seen = new Set<string>();
+  for (const call of toolCalls) {
+    if (!INLINE_TASK_TOOLS.includes(call.toolName) || !call.result?.success) continue;
+    const id = String(call.result.data?.id || '');
+    const title = capitalizeTaskTitle(
+      String(call.result.data?.title || call.toolArgs?.title || ''),
+    );
+    if (!title) continue;
+    const key = id || title;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    mentions.push({ id, title });
+  }
+  return mentions;
+}
+
+export function relatedTaskFromMessage(message: ChatMessageData | undefined): InlineTaskMention | null {
+  if (!message) return null;
+  // The backend named the task its question is about (e.g. the onboarding
+  // journey moving on to a task nothing touched this turn).
+  if (message.choiceTaskId && message.choiceTaskTitle) {
+    return { id: message.choiceTaskId, title: capitalizeTaskTitle(message.choiceTaskTitle) };
+  }
+  if (!message.toolCalls?.length) return null;
+  const candidates: InlineTaskMention[] = [];
+  for (let i = message.toolCalls.length - 1; i >= 0; i--) {
+    const call = message.toolCalls[i];
+    if (!call.result?.success) continue;
+    if (call.toolName !== 'create_task' && call.toolName !== 'update_task') continue;
+    const id = String(call.result.data?.id || '');
+    const title = capitalizeTaskTitle(
+      String(call.result.data?.title || call.toolArgs?.title || ''),
+    );
+    if (title) candidates.push({ id, title });
+  }
+  if (candidates.length === 0) return null;
+  // The backend says which task its question is about; otherwise the last one touched.
+  if (message.choiceTaskId) {
+    const exact = candidates.find((c) => c.id === message.choiceTaskId);
+    if (exact) return exact;
+  }
+  return candidates[0];
 }
 
 /** Tool calls that can materialize a task artifact in the conversation. */
 export const TASK_ARTIFACT_TOOLS = ['create_task', 'update_task', 'complete_task', 'delete_task'];
-// complete_onboarding_journey is silent: omitted from SSE and never listed here.}
 
 interface ChatMessageProps {
   message: ChatMessageData;
@@ -99,8 +288,11 @@ interface ChatMessageProps {
   onTaskCardClick?: (taskId: string) => void;
   onListCardClick?: (listId: string) => void;
   onCategoryCardClick?: (categoryName: string) => void;
-  onChoiceSelect?: (text: string) => void;
-  choicesDisabled?: boolean;
+  /**
+   * Resume action of the journey nudge. Only the last assistant message gets
+   * it (a nudge further up in the conversation is history, not a prompt).
+   */
+  onJourneyResume?: () => void;
 }
 
 export function ChatMessage({
@@ -111,15 +303,11 @@ export function ChatMessage({
   onTaskCardClick,
   onListCardClick,
   onCategoryCardClick,
-  onChoiceSelect,
-  choicesDisabled = false,
+  onJourneyResume,
 }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const [viewing, setViewing] = useState<ChatAttachmentMeta | null>(null);
-  const [choicesDismissed, setChoicesDismissed] = useState(false);
 
-  // One artifact per task entity: several calls on the same task within a turn
-  // collapse into the last one, which carries the final state.
   const taskToolCalls = Array.from(
     new Map(
       (message.toolCalls || [])
@@ -132,15 +320,13 @@ export function ChatMessage({
     ).values(),
   ).filter((tc) => {
     const taskId = String(tc.result?.data?.id || '');
-    // Without an id there is nothing to track across turns, so keep it.
     if (!taskId || !taskArtifactOwner) return true;
     return taskArtifactOwner.get(taskId) === message.id;
   });
-  const updateTaskToolCalls = taskToolCalls.filter((tc) => tc.toolName === 'update_task');
-  const shouldSummarizeTaskUpdates = updateTaskToolCalls.length > 1;
-  const visibleTaskToolCalls = shouldSummarizeTaskUpdates
-    ? taskToolCalls.filter((tc) => tc.toolName !== 'update_task')
-    : taskToolCalls;
+  const inlineMentions = createdTaskMentions(taskToolCalls);
+  const visibleTaskToolCalls = taskToolCalls.filter(
+    (tc) => !INLINE_TASK_TOOLS.includes(tc.toolName),
+  );
 
   const listToolCalls = (message.toolCalls || []).filter(
     (tc) => tc.result?.success && tc.toolName === 'show_list',
@@ -155,28 +341,23 @@ export function ChatMessage({
     Boolean(message.reasoning?.trim()) || Boolean(message.reasoningSegments?.length);
   const showThinkingBlock = !isUser && (isStreaming || hasReasoning);
   const choiceArtifact = isUser ? null : resolveChatChoiceArtifact(message);
-  const choicePrompts = choiceArtifact?.choices ?? [];
-  const choicePromptTitle = choiceArtifact?.question;
-  const showChoiceCard =
-    !isUser &&
-    !choicesDismissed &&
-    !choicesDisabled &&
-    Boolean(onChoiceSelect) &&
-    choicePrompts.length > 0;
-  const hasCreatedTask = visibleTaskToolCalls.some((tc) => tc.toolName === 'create_task');
+  const hasChoiceArtifact = Boolean(choiceArtifact && choiceArtifact.choices.length > 0);
+  const hasInlineTask = inlineMentions.length > 0;
   const coalesced = isUser
     ? { content: message.content, contentAfter: message.contentAfter || '' }
     : coalesceAssistantBodies(
-        showChoiceCard && choiceArtifact ? choiceArtifact.content : message.content,
-        showChoiceCard && choiceArtifact ? choiceArtifact.contentAfter || '' : message.contentAfter || '',
-        { mergeIntoOne: hasCreatedTask },
+        hasChoiceArtifact && choiceArtifact ? choiceArtifact.content : message.content,
+        hasChoiceArtifact && choiceArtifact ? choiceArtifact.contentAfter || '' : message.contentAfter || '',
+        { mergeIntoOne: hasInlineTask },
       );
   const displayContent = coalesced.content;
   const displayAfter = coalesced.contentAfter;
   const afterBubble =
     !isUser && displayAfter ? (
       <div className={`${styles.bubble} ${styles.bubbleAi}`}>
-        <div className={styles.aiContent}>{renderAiContent(displayAfter)}</div>
+        <div className={styles.aiContent}>
+          {renderAiContent(displayAfter, [], onTaskCardClick)}
+        </div>
       </div>
     ) : null;
 
@@ -224,11 +405,21 @@ export function ChatMessage({
         <div className={`${styles.bubble} ${isUser ? styles.bubbleUser : styles.bubbleAi}`}>
           {isUser
             ? <p className={styles.bubbleText}>{displayContent}</p>
-            : <div className={styles.aiContent}>{renderAiContent(displayContent)}</div>}
+            : (
+              <div className={styles.aiContent}>
+                {renderAiContent(displayContent, inlineMentions, onTaskCardClick)}
+              </div>
+            )}
+        </div>
+      ) : inlineMentions.length > 0 ? (
+        <div className={`${styles.bubble} ${styles.bubbleAi}`}>
+          <div className={styles.aiContent}>
+            {renderAiContent('', inlineMentions, onTaskCardClick)}
+          </div>
         </div>
       ) : null}
 
-      {hasCreatedTask ? afterBubble : null}
+      {hasInlineTask ? afterBubble : null}
 
       {visibleTaskToolCalls.map((tc, i) => (
         <TaskCardMessage
@@ -238,15 +429,6 @@ export function ChatMessage({
         />
       ))}
 
-      {shouldSummarizeTaskUpdates && (
-        <div className={styles.taskRef}>
-          <Checks size={16} weight="regular" className={styles.taskRefIcon} aria-hidden />
-          <span className={styles.taskRefTitle}>
-            {updateTaskToolCalls.length} tarefas atualizadas
-          </span>
-        </div>
-      )}
-
       {listToolCalls.map((tc, i) => (
         <ListCardMessage key={`${message.id}-lc-${i}`} toolCall={tc} onListClick={onListCardClick} />
       ))}
@@ -255,44 +437,18 @@ export function ChatMessage({
         <CategoryCardMessage key={`${message.id}-cc-${i}`} toolCall={tc} onCategoryClick={onCategoryCardClick} />
       ))}
 
-      {!hasCreatedTask ? afterBubble : null}
+      {!hasInlineTask ? afterBubble : null}
 
-      {!isUser && showChoiceCard && (
-        <div className={styles.choiceCard}>
-          <div className={styles.choiceHeader}>
-            {choicePromptTitle ? (
-              <p className={styles.choiceTitle}>{choicePromptTitle}</p>
-            ) : (
-              <span className={styles.choiceTitleSpacer} />
-            )}
-            <button
-              type="button"
-              className={styles.choiceDismiss}
-              aria-label="Dispensar opções"
-              onClick={() => setChoicesDismissed(true)}
-            >
-              <X size={14} weight="bold" />
-            </button>
-          </div>
-          <div className={styles.choiceList}>
-            {choicePrompts.map((choice, index) => {
-              const letter = String.fromCharCode(65 + index);
-              return (
-                <button
-                  key={`${message.id}-choice-${index}`}
-                  type="button"
-                  className={styles.choiceOption}
-                  disabled={choicesDisabled || !onChoiceSelect}
-                  onClick={() => onChoiceSelect?.(choice)}
-                >
-                  <span className={styles.choiceLetter}>{letter}</span>
-                  <span className={styles.choiceLabel}>{choice}</span>
-                </button>
-              );
-            })}
-          </div>
+      {!isUser && message.journeyNudge ? (
+        <div className={styles.journeyNudge}>
+          <span className={styles.journeyNudgeText}>{message.journeyNudge.text}</span>
+          {onJourneyResume ? (
+            <Button variant="ghost" size="small" onClick={onJourneyResume}>
+              {message.journeyNudge.resumeLabel}
+            </Button>
+          ) : null}
         </div>
-      )}
+      ) : null}
 
       {viewing?.previewUrl && (
         <AttachmentViewer

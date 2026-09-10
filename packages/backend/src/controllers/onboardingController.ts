@@ -19,6 +19,10 @@ import { identifyServer, captureServer } from '../services/posthogService';
 import { getUserTimezone } from '../services/reminderService';
 import { recordTaskCreated } from '../services/taskTelemetry';
 import { normalizeTaskDueDate } from '../services/agent/core/tasks';
+import {
+  markOnboardingJourneyComplete,
+  onboardingClosingText,
+} from '../services/agent/core/onboardingJourney';
 
 const parseDbBoolean = (value: unknown): boolean =>
   value === true || value === 1 || value === '1';
@@ -191,13 +195,22 @@ const buildOnboardingCompletePayload = async (params: {
   alreadyCompleted: boolean;
   aiTelemetry: { email: string; userId: string; traceId: string };
 }) => {
+  const rawFirstName = params.user.name.trim().split(/\s+/)[0] || params.user.name;
+  const preferredName = rawFirstName === 'Você' ? '' : rawFirstName;
+  const whatsappVerified = parseDbBoolean(params.user.whatsapp_verified);
   const followUp = await composeOnboardingFollowUp(
     params.createdTasks,
     params.firstTasksText,
     params.aiTelemetry,
+    { canRemind: whatsappVerified },
   );
-  const rawFirstName = params.user.name.trim().split(/\s+/)[0] || params.user.name;
-  const preferredName = rawFirstName === 'Você' ? '' : rawFirstName;
+  if (followUp.settled) {
+    // Every first task already has what the tríade asks for: there is no
+    // journey to run, so the backend closes it now and the first message is
+    // the closing text (same copy the chat uses).
+    await markOnboardingJourneyComplete(params.user.id, new Date().toISOString());
+    followUp.question = onboardingClosingText({ preferredName, whatsappVerified });
+  }
   const createdTitles = params.createdTasks.map((task) => task.title);
   return {
     success: true,

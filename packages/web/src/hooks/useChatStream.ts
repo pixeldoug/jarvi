@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
+import { stripTaskRefs } from '../lib/taskRefs';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -16,10 +17,65 @@ export interface ChatMessageData {
   reasoningSegments?: string[];
   /** Files the user attached to this message (metadata only, for display). */
   attachments?: ChatAttachmentMeta[];
-  /** Suggested replies the user can tap (onboarding follow-up, etc.). */
+  /**
+   * Quick replies the user can tap. Set by the backend's `choices` event (the
+   * system's next question), by a successful `offer_choices` tool call, or by
+   * seeded conversations (onboarding follow-up).
+   */
   choicePrompts?: string[];
   /** Question shown above the choice buttons. */
   choicePromptTitle?: string;
+  /** Task the question is about, when the backend told us. */
+  choiceTaskId?: string;
+  /** Title of that task — set when the question is not about a task touched this turn. */
+  choiceTaskTitle?: string;
+  /**
+   * Which task field the backend's question is about. Drives the picker the
+   * artifact offers ("Escolher data" vs "Escolher horário") and is echoed back
+   * with the next message so the backend can resolve a short answer itself.
+   */
+  choiceField?: ChatChoiceField;
+  /**
+   * The first-tasks journey is paused with tasks still to organize (backend
+   * `journey_nudge` event). Rendered as a muted line with a resume action.
+   */
+  journeyNudge?: ChatJourneyNudge;
+}
+
+export type ChatChoiceField = 'due_date' | 'time' | 'reminders';
+
+export interface ChatJourneyNudge {
+  text: string;
+  remaining: number;
+  resumeLabel: string;
+}
+
+/**
+ * Echo of the system question the person is answering (backend fast path).
+ * `field: 'journey'` is the resume nudge — no task; "Continuar" resumes it.
+ */
+export interface PendingQuestionRef {
+  taskId?: string;
+  field: ChatChoiceField | 'journey';
+}
+
+function toChoiceField(value: unknown): ChatChoiceField {
+  return value === 'time' || value === 'reminders' ? value : 'due_date';
+}
+
+/**
+ * The system question still open at the end of the conversation, if any: the
+ * last assistant message carries a structured question about a known task,
+ * or the journey nudge.
+ */
+export function pendingQuestionOf(messages: ChatMessageData[]): PendingQuestionRef | undefined {
+  const last = messages[messages.length - 1];
+  if (!last || last.role !== 'assistant') return undefined;
+  if (last.choiceTaskId && last.choiceField && last.choicePrompts?.length) {
+    return { taskId: last.choiceTaskId, field: last.choiceField };
+  }
+  if (last.journeyNudge) return { field: 'journey' };
+  return undefined;
 }
 
 /** Lightweight attachment metadata kept in the UI for rendering chips. */
@@ -48,13 +104,33 @@ export interface ToolCallData {
 }
 
 interface SSEEvent {
-  type: 'text' | 'reasoning' | 'status' | 'tool_call' | 'tool_result' | 'separator' | 'done' | 'error';
+  type:
+    | 'text'
+    | 'reasoning'
+    | 'status'
+    | 'tool_call'
+    | 'tool_result'
+    | 'separator'
+    | 'choices'
+    | 'journey_nudge'
+    | 'done'
+    | 'error';
   content?: string;
   message?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
   success?: boolean;
   data?: Record<string, unknown>;
+  /** `choices` event */
+  question?: string;
+  choices?: string[];
+  taskId?: string;
+  taskTitle?: string;
+  field?: string;
+  /** `journey_nudge` event */
+  text?: string;
+  remaining?: number;
+  resumeLabel?: string;
 }
 
 let messageIdCounter = 0;
@@ -98,6 +174,10 @@ export function useChatStream(
 
     setMessages((prev) => [...prev, userMsg]);
 
+    // Which system question this message answers — lets the backend apply a
+    // quick reply ("Amanhã", "9h", "Sem lembrete", "ok") without the model.
+    const pendingQuestion = pendingQuestionOf(messages);
+
     const historyForApi = [...messages, userMsg].map((m) => {
       const artifact = m.role === 'assistant' ? resolveChatChoiceArtifact(m) : null;
       const choiceLine =
@@ -106,11 +186,14 @@ export function useChatStream(
           : '';
       return {
         role: m.role,
-        content: [
-          artifact ? artifact.content : m.content,
-          artifact ? artifact.contentAfter : m.contentAfter,
-          choiceLine,
-        ].filter(Boolean).join('\n\n'),
+        content: stripTaskRefs(
+          [
+            artifact ? artifact.content : m.content,
+            artifact ? artifact.contentAfter : m.contentAfter,
+            choiceLine,
+            m.role === 'assistant' ? m.journeyNudge?.text : undefined,
+          ].filter(Boolean).join('\n\n'),
+        ),
       };
     });
 
@@ -155,6 +238,7 @@ export function useChatStream(
           messages: historyForApi,
           mode,
           taskId,
+          ...(pendingQuestion ? { pendingQuestion } : {}),
           ...(attachments.length > 0 ? { attachments } : {}),
         }),
         signal: controller.signal,
@@ -235,6 +319,31 @@ export function useChatStream(
               }));
               break;
 
+            case 'choices':
+              // The backend decided the next question. It is the source of
+              // truth for the artifact — `done` keeps it (see below).
+              updateAssistant((m) => ({
+                ...m,
+                choicePromptTitle: event.question || undefined,
+                choicePrompts: Array.isArray(event.choices) ? event.choices : [],
+                choiceTaskId: event.taskId || undefined,
+                choiceTaskTitle: event.taskTitle || undefined,
+                choiceField: toChoiceField(event.field),
+              }));
+              break;
+
+            case 'journey_nudge':
+              setIsWaiting(false);
+              updateAssistant((m) => ({
+                ...m,
+                journeyNudge: {
+                  text: event.text || '',
+                  remaining: typeof event.remaining === 'number' ? event.remaining : 0,
+                  resumeLabel: event.resumeLabel || 'Continuar',
+                },
+              }));
+              break;
+
             case 'tool_result':
               updateAssistant((m) => {
                 const calls = [...(m.toolCalls || [])];
@@ -255,7 +364,9 @@ export function useChatStream(
                   };
                 }
                 const next: ChatMessageData = { ...m, toolCalls: calls };
-                if (event.toolName === 'offer_choices' && event.success) {
+                // A model question only fills the artifact when the system has
+                // not asked one already this turn.
+                if (event.toolName === 'offer_choices' && event.success && !m.choicePrompts?.length) {
                   const artifact = resolveChatChoiceArtifact(next);
                   if (artifact.choices.length > 0) {
                     next.choicePromptTitle = artifact.question;

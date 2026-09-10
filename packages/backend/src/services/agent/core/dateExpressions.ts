@@ -27,6 +27,7 @@ import { getDateTimeForTimezone } from './time';
 
 export type DateExpressionKind =
   | 'today'
+  | 'yesterday'
   | 'tomorrow'
   | 'day_after_tomorrow'
   | 'weekday'
@@ -139,21 +140,32 @@ interface Matcher {
 }
 
 const MATCHERS: Matcher[] = [
+  // JS `\b` is ASCII-only: `amanh[ãa]\b` never matched the accented spelling
+  // ("ã" is not a word char, so there is no boundary before the end of the
+  // string). These two use a Unicode-aware lookahead instead.
   {
     kind: 'day_after_tomorrow',
-    regex: /\bdepois\s+de\s+amanh[ãa]\b/gi,
+    regex: /\bdepois\s+de\s+amanh[ãa](?![\p{L}\p{N}])/giu,
     build: (_m, today) => ({ resolved: addDaysToIsoDate(today, 2) }),
   },
   {
     kind: 'tomorrow',
     // "amanhã" not preceded by "depois de" (handled above).
-    regex: /(?<!depois\s+de\s)\bamanh[ãa]\b/gi,
+    regex: /(?<!depois\s+de\s)\bamanh[ãa](?![\p{L}\p{N}])/giu,
     build: (_m, today) => ({ resolved: addDaysToIsoDate(today, 1) }),
   },
   {
     kind: 'today',
     regex: /\bhoje\b/gi,
     build: (_m, today) => ({ resolved: today }),
+  },
+  {
+    // Past days the user names on purpose ("esqueci de pagar ontem"). Never
+    // used to override the model; their presence only means a past due_date
+    // is the user's choice, not a copied-in official date.
+    kind: 'yesterday',
+    regex: /\b(ante)?ontem\b/gi,
+    build: (m, today) => ({ resolved: addDaysToIsoDate(today, m[1] ? -2 : -1) }),
   },
   {
     kind: 'period_next_week',
@@ -280,7 +292,9 @@ export function detectDateExpressions(
 }
 
 export function hasConcreteDay(expressions: DateExpression[]): boolean {
-  return expressions.some((e) => !isPeriodKind(e.kind));
+  // "ontem" is narrative ("ontem o médico pediu, marco semana que vem"), never
+  // the day the user is picking — it must not silence a period question.
+  return expressions.some((e) => !isPeriodKind(e.kind) && e.kind !== 'yesterday');
 }
 
 /** The period expression that still needs a day, if any. */
@@ -304,6 +318,8 @@ export interface DueDateDecision {
   value?: string;
   reason?: string;
   expression?: DateExpression;
+  /** hold because the proposal is a past day the user never named. */
+  pastDate?: boolean;
   /**
    * Present whenever the user named a period that still needs a day, whether
    * or not the model guessed one — the backend asks, the model must not.
@@ -393,7 +409,23 @@ export function reconcileDueDate(
   timezone: string,
 ): DueDateDecision {
   const expressions = detectDateExpressions(userMessage, timezone);
-  if (expressions.length === 0) return { action: 'keep_model_value' };
+  if (expressions.length === 0) {
+    // 0. A day in the past the user never mentioned is not a deadline — it is
+    //    the model copying an official date it just looked up ("prazo do IRPF
+    //    era 29/05") into due_date, which would make the task born overdue.
+    //    "ontem", "dia 30/05" etc. in the message are expressions and skip this.
+    if (proposed && /^\d{4}-\d{2}-\d{2}$/.test(proposed)) {
+      const { isoDate: today } = getDateTimeForTimezone(timezone);
+      if (proposed < today) {
+        return {
+          action: 'hold',
+          reason: `${proposed} já passou e o usuário não mencionou essa data`,
+          pastDate: true,
+        };
+      }
+    }
+    return { action: 'keep_model_value' };
+  }
 
   // 1. Period without a concrete day → never guess. The question is pending
   //    even when the model (correctly) left due_date empty.
