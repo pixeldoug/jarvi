@@ -5,5 +5,6 @@
     "outDir": "./dist-eval",
     "noEmit": true
   },
-  "include": ["src/**/*", "evals/**/*"]
+  "include": ["src/**/*", "evals/**/*"],
+  // `ts-node.files` is inherited from tsconfig.json (needed for src/types/*.d.ts).
 }

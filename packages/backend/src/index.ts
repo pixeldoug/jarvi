@@ -27,6 +27,7 @@ import { initializeWhatsappWorker } from './queues/whatsappQueue';
 import { initializeGmailWorker } from './queues/gmailQueue';
 import { startRecurrenceScheduler } from './services/recurrenceService';
 import { startReminderScheduler } from './services/reminderService';
+import { startDailySummaryScheduler } from './services/dailySummaryService';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { shutdownPostHog } from './services/posthogService';
 
@@ -216,6 +217,7 @@ initializeDatabase()
     initializeGmailWorker();
     startRecurrenceScheduler();
     startReminderScheduler();
+    startDailySummaryScheduler();
     
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
@@ -224,6 +226,7 @@ initializeDatabase()
       console.log('📧 Gmail worker initialized');
       console.log('🔁 Recurrence scheduler initialized');
       console.log('🔔 Reminder scheduler initialized');
+      console.log('☀️ Daily summary scheduler initialized');
     });
 
     // Flush buffered PostHog events before the process exits.

@@ -1,10 +1,12 @@
-import type { ChatMessageData, ToolCallData } from '../hooks/useChatStream';
+import type { ChatChoiceField, ChatMessageData, ToolCallData } from '../hooks/useChatStream';
 
 export interface ChatChoiceArtifact {
   content: string;
   contentAfter: string;
   question?: string;
   choices: string[];
+  /** Set only when the backend's structured question told us the field. */
+  field?: ChatChoiceField;
 }
 
 const BULLET_RE = /^(?:[•\-\*]|\d+[.)]|[A-Ea-e][.)])\s+(.+)$/;
@@ -93,6 +95,8 @@ function choicesFromOfferTool(toolCalls: ToolCallData[] | undefined): {
   for (let i = toolCalls.length - 1; i >= 0; i--) {
     const call = toolCalls[i];
     if (call.toolName !== 'offer_choices') continue;
+    // Refused by the backend (a system question was already pending) → no artifact.
+    if (call.result && !call.result.success) continue;
     const source = call.result?.success && call.result.data ? call.result.data : call.toolArgs;
     const choices = parseChoices(source?.choices);
     if (choices.length < MIN_CHOICES) continue;
@@ -120,8 +124,10 @@ function stripMatchingQuestion(text: string, question?: string): string {
 
 /**
  * Resolves the quick-reply artifact for an assistant message.
- * Prefers `offer_choices` / seeded `choicePrompts`, then a trailing
- * question + short bullet list in the chat text.
+ * Source of truth, in order: structured `choicePrompts` on the message (the
+ * backend's `choices` event or a seeded conversation), then a successful
+ * `offer_choices` tool call, then — legacy fallback — a trailing question +
+ * short bullet list in the chat text.
  */
 export function resolveChatChoiceArtifact(message: ChatMessageData): ChatChoiceArtifact {
   const fromTool = choicesFromOfferTool(message.toolCalls);
@@ -133,10 +139,10 @@ export function resolveChatChoiceArtifact(message: ChatMessageData): ChatChoiceA
       : null;
 
   const structured =
-    fromTool && fromTool.choices.length >= MIN_CHOICES
-      ? fromTool
-      : seeded && seeded.choices.length >= MIN_CHOICES
-        ? seeded
+    seeded && seeded.choices.length >= MIN_CHOICES
+      ? seeded
+      : fromTool && fromTool.choices.length >= MIN_CHOICES
+        ? fromTool
         : null;
 
   const fromAfter = extractTrailingChoices(message.contentAfter || '');
@@ -154,6 +160,7 @@ export function resolveChatChoiceArtifact(message: ChatMessageData): ChatChoiceA
       contentAfter,
       question: structured.question || fromAfter?.question || fromContent?.question,
       choices: structured.choices,
+      ...(structured === seeded && message.choiceField ? { field: message.choiceField } : {}),
     };
   }
 
@@ -181,5 +188,6 @@ export function resolveChatChoiceArtifact(message: ChatMessageData): ChatChoiceA
     contentAfter: message.contentAfter || '',
     question: message.choicePromptTitle,
     choices: leftover,
+    ...(message.choiceField ? { field: message.choiceField } : {}),
   };
 }

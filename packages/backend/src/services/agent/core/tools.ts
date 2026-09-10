@@ -42,13 +42,23 @@ import {
   serializeRecurrenceConfig,
   summarizeRemindersForTool,
 } from './taskRecurrenceReminder';
-import { rescheduleRemindersForTask } from '../../reminderService';
+import { listRemindersForTask, rescheduleRemindersForTask } from '../../reminderService';
 import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
 import { recordTaskCreated } from '../../taskTelemetry';
 import { searchWeb } from '../../webSearchService';
 import { capitalizeTaskTitle } from '../../../utils/taskTitle';
+import { reconcileDueDate } from './dateExpressions';
+import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './onboardingJourney';
+import {
+  decideNextQuestion,
+  dueDateQuestion,
+  periodQuestion,
+  triadStateOf,
+  type TriadPolicy,
+} from './nextQuestion';
 import type {
   AgentContext,
+  AgentPendingQuestion,
   ChannelProfile,
   ListRow,
   CategoryRow,
@@ -456,6 +466,8 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
       },
     },
   },
+  // Legacy path only (reliable execution off): the web adapter does not expose
+  // this tool when the backend runs the onboarding journey itself.
   complete_onboarding_journey: {
     type: 'function',
     function: {
@@ -471,8 +483,64 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Strict schemas (entrega 1). Applied only with `profile.reliableExecution` so
+// the flag-off path keeps sending the exact schemas the baseline was measured
+// with. Patterns are what the server validates against (see toolValidation.ts);
+// `additionalProperties: false` makes unknown keys drop instead of leaking into
+// executors.
+// ---------------------------------------------------------------------------
+
+// Calendar-valid month/day; an optional time suffix is tolerated because
+// `normalizeTaskDueDate` strips it ("2026-09-13T00:00:00" → "2026-09-13").
+export const ISO_DATE_PATTERN = '^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])(T.*)?$';
+export const CLOCK_TIME_PATTERN = '^([01]?\\d|2[0-3]):[0-5]\\d(:[0-5]\\d)?$';
+
+const DATE_FIELDS = new Set(['due_date', 'due_from', 'due_to', 'recurrence_until']);
+const TIME_FIELDS = new Set(['time']);
+
+type SchemaNode = Record<string, unknown> & {
+  type?: string;
+  properties?: Record<string, SchemaNode>;
+  anyOf?: SchemaNode[];
+  items?: SchemaNode;
+};
+
+function strictifyNode(node: SchemaNode, key?: string): SchemaNode {
+  const out: SchemaNode = { ...node };
+  if (key && DATE_FIELDS.has(key) && out.type === 'string') out.pattern = ISO_DATE_PATTERN;
+  if (key && TIME_FIELDS.has(key) && out.type === 'string') out.pattern = CLOCK_TIME_PATTERN;
+  if (out.anyOf) out.anyOf = out.anyOf.map((branch) => strictifyNode(branch, key));
+  if (out.items) out.items = strictifyNode(out.items);
+  if (out.type === 'object' && out.properties) {
+    out.properties = Object.fromEntries(
+      Object.entries(out.properties).map(([k, v]) => [k, strictifyNode(v, k)]),
+    );
+    if (out.additionalProperties === undefined) out.additionalProperties = false;
+  }
+  return out;
+}
+
+export function strictifyTool(tool: ChatCompletionTool): ChatCompletionTool {
+  if (tool.type !== 'function' || !tool.function.parameters) return tool;
+  return {
+    ...tool,
+    function: {
+      ...tool.function,
+      parameters: strictifyNode(tool.function.parameters as SchemaNode),
+    },
+  };
+}
+
 export function getToolsForChannel(profile: ChannelProfile): ChatCompletionTool[] {
-  return profile.toolsAvailable.map((name) => ALL_TOOLS[name]).filter(Boolean);
+  const tools = profile.toolsAvailable.map((name) => ALL_TOOLS[name]).filter(Boolean);
+  return profile.reliableExecution ? tools.map(strictifyTool) : tools;
+}
+
+export function getToolDefinition(name: string, profile: ChannelProfile): ChatCompletionTool | undefined {
+  const tool = ALL_TOOLS[name as ToolName];
+  if (!tool) return undefined;
+  return profile.reliableExecution ? strictifyTool(tool) : tool;
 }
 
 // Set of tool names that cause task creation. Used by the anti-hallucination
@@ -487,6 +555,69 @@ export const UPDATE_TOOL_NAMES = new Set<ToolName>(['update_task', 'complete_tas
 
 const PENDING_TASK_TTL_DAYS = 7;
 
+/** "9:30" / "13:30:00" → "09:30". Leaves anything unparseable untouched. */
+function normalizeClockTime(value: string | null): string | null {
+  if (!value) return value;
+  const m = value.match(/^(\d{1,2}):(\d{2})/);
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : value;
+}
+
+/**
+ * Entrega 1 — the backend, not the model, has the last word on due_date when
+ * the user's own words make the model's proposal impossible or premature.
+ * Returns the value to persist plus notes for the model / operations record.
+ */
+function reconcileDueDateArg(
+  proposed: string | null,
+  ctx: AgentContext,
+  profile: ChannelProfile,
+): {
+  dueDate: string | null;
+  /** True when the model's value was deliberately not persisted. */
+  held: boolean;
+  notes: string[];
+  pendingQuestion?: AgentPendingQuestion;
+} {
+  if (!profile.reliableExecution) return { dueDate: proposed, held: false, notes: [] };
+
+  const decision = reconcileDueDate(
+    proposed ?? undefined,
+    ctx.originalUserMessage,
+    ctx.timezone,
+  );
+  const notes: string[] = [];
+  let pendingQuestion: AgentPendingQuestion | undefined = decision.pendingQuestion
+    ? periodQuestion(decision.pendingQuestion.expression, ctx.timezone)
+    : undefined;
+
+  if (decision.action === 'hold') {
+    if (decision.pastDate && profile.enableNextQuestionPolicy) {
+      // The task must not be born overdue AND the prazo question is still
+      // open: the backend asks it (the executor drops it again if the task
+      // already had a prazo of its own).
+      pendingQuestion = dueDateQuestion('past_date_held');
+    }
+    notes.push(
+      decision.pastDate
+        ? pendingQuestion
+          ? `due_date NÃO salvo: ${decision.reason}. A tarefa não pode ficar vencida por uma data que a pessoa não escolheu. O sistema já perguntou ao usuário quando ele vai fazer — não pergunte de novo nem afirme um prazo.`
+          : `due_date NÃO salvo: ${decision.reason}. A tarefa não pode ficar vencida por uma data que a pessoa não escolheu — pergunte quando ela vai fazer e não afirme um prazo.`
+        : `due_date NÃO salvo: ${decision.reason}. O sistema já perguntou ao usuário qual dia — não pergunte de novo nem afirme um prazo.`,
+    );
+    return { dueDate: null, held: true, notes, pendingQuestion };
+  }
+  if (decision.action === 'correct' && decision.value) {
+    notes.push(`due_date corrigido para ${decision.value}: ${decision.reason}.`);
+    return { dueDate: decision.value, held: false, notes, pendingQuestion };
+  }
+  if (pendingQuestion) {
+    notes.push(
+      `Tarefa salva sem prazo: "${pendingQuestion.expression}" não define um dia. O sistema já perguntou ao usuário qual dia — não pergunte de novo.`,
+    );
+  }
+  return { dueDate: proposed, held: false, notes, pendingQuestion };
+}
+
 async function executeCreateTask(
   args: Record<string, unknown>,
   ctx: AgentContext,
@@ -494,17 +625,22 @@ async function executeCreateTask(
 ): Promise<ToolExecutionResult> {
   const now = new Date().toISOString();
   const title = capitalizeTaskTitle(String(args.title || '').trim());
-  if (!title) return { success: false, message: 'title é obrigatório' };
+  if (!title) {
+    return { success: false, error_code: 'invalid_arguments', message: 'title é obrigatório' };
+  }
 
   const description = args.description
     ? prepareDescriptionForStorage(String(args.description), ctx.timezone)
     : null;
   const priority = args.priority ? String(args.priority) : null;
-  const dueDate = args.due_date ? String(args.due_date) : null;
+  const proposedDueDate = args.due_date ? normalizeTaskDueDate(String(args.due_date)) : null;
+  const dueDecision = reconcileDueDateArg(proposedDueDate, ctx, profile);
+  const dueDate = dueDecision.dueDate;
   // Deterministic safety net: if the model failed to extract the time, try to
   // recover it from the original user message ("quarta 13h30" → "13:30").
-  const time =
-    sanitizeTimeString(args.time) ?? extractTimeFromText(ctx.originalUserMessage);
+  const time = normalizeClockTime(
+    sanitizeTimeString(args.time) ?? extractTimeFromText(ctx.originalUserMessage),
+  );
   // Deterministic guard: only accept categories that already exist for this
   // user. Anything the model invents is dropped (null) so the curated set never
   // drifts. New categories must be created explicitly via create_category.
@@ -525,7 +661,7 @@ async function executeCreateTask(
   const source = profile.id === 'whatsapp' ? 'whatsapp' : 'manual';
   const originalContent = profile.id === 'whatsapp' ? (ctx.originalUserMessage ?? null) : null;
 
-  return executeCreateTaskAsActive(
+  const result = await executeCreateTaskAsActive(
     {
       title,
       description,
@@ -543,6 +679,51 @@ async function executeCreateTask(
     },
     ctx,
   );
+
+  if (dueDecision.notes.length) {
+    result.notes = [...(result.notes ?? []), ...dueDecision.notes];
+    if (result.data) result.data.notes = result.notes;
+  }
+
+  const createdId = result.entity?.id;
+  let pendingQuestion = dueDecision.pendingQuestion;
+  if (!pendingQuestion && result.success && createdId && triadPolicyEnabled(profile)) {
+    // Tríade: a task is born → the state machine says what to ask first
+    // (prazo, horário or lembrete) — the system asks, not the model.
+    pendingQuestion = decideNextQuestion(
+      {
+        taskId: createdId,
+        taskTitle: title,
+        dueDate,
+        time,
+        remindersCount: Number(result.changes?.reminders_count ?? 0),
+        skips: [],
+      },
+      triadPolicyFor(ctx),
+    ) ?? undefined;
+    if (pendingQuestion) {
+      result.notes = [...(result.notes ?? []), systemAskedNote(pendingQuestion)];
+      if (result.data) result.data.notes = result.notes;
+    }
+  }
+  if (pendingQuestion) {
+    result.pending_question = createdId ? { ...pendingQuestion, taskId: createdId, taskTitle: title } : pendingQuestion;
+  }
+  return result;
+}
+
+function triadPolicyEnabled(profile: ChannelProfile): boolean {
+  return Boolean(profile.reliableExecution && profile.enableNextQuestionPolicy);
+}
+
+/** What the tríade can ask for this user (reminders need a way to deliver them). */
+export function triadPolicyFor(ctx: AgentContext, extra: Partial<TriadPolicy> = {}): TriadPolicy {
+  return { canRemind: Boolean(ctx.whatsappVerified), ...extra };
+}
+
+/** Executor note telling the model a system question is already on screen. */
+export function systemAskedNote(question: AgentPendingQuestion): string {
+  return `O sistema já perguntou ao usuário "${question.text}" (com opções). NÃO faça essa pergunta de novo — nem por texto, nem por offer_choices — e não ofereça "ajudar com" isso. Fique com a parte humana: 1-2 frases, ou nada.`;
 }
 
 interface CreateTaskInput {
@@ -652,22 +833,26 @@ async function executeCreateTaskAsActive(
     normalizeTaskTime(time),
   );
 
+  const persisted = {
+    id: taskId,
+    title,
+    description,
+    priority,
+    due_date: dueDate,
+    time,
+    category,
+    recurrence_type: recurrenceType,
+    recurrence_config: recurrenceConfig,
+    due_label: dueLabel,
+    reminders_count: savedReminders.length,
+    reminders: summarizeRemindersForTool(savedReminders),
+  };
+
   return {
     success: true,
-    data: {
-      id: taskId,
-      title,
-      description,
-      priority,
-      due_date: dueDate,
-      time,
-      category,
-      recurrence_type: recurrenceType,
-      recurrence_config: recurrenceConfig,
-      due_label: dueLabel,
-      reminders_count: savedReminders.length,
-      reminders: summarizeRemindersForTool(savedReminders),
-    },
+    data: { ...persisted },
+    changes: { ...persisted },
+    entity: { type: 'task', id: taskId, title },
   };
 }
 
@@ -758,18 +943,36 @@ async function executeCreateTaskAsPending(
 async function executeUpdateTask(
   args: Record<string, unknown>,
   ctx: AgentContext,
+  profile: ChannelProfile,
 ): Promise<ToolExecutionResult> {
   const now = new Date().toISOString();
   const taskId = String(args.task_id || '');
-  if (!taskId) return { success: false, message: 'task_id é obrigatório' };
+  if (!taskId) {
+    return { success: false, error_code: 'invalid_arguments', message: 'task_id é obrigatório' };
+  }
 
   const task = await getTaskById(taskId, ctx.userId);
-  if (!task) return { success: false, message: 'Tarefa não encontrada' };
+  if (!task) {
+    return {
+      success: false,
+      error_code: 'not_found',
+      message: 'Tarefa não encontrada',
+      entity: { type: 'task', id: taskId },
+    };
+  }
 
   const fields: string[] = [];
   const values: unknown[] = [];
+  // What this call actually wrote, post-normalization — the confirmation
+  // echoes THIS, never the model's arguments.
+  const changes: Record<string, unknown> = {};
+  const notes: string[] = [];
+  let pendingQuestion: AgentPendingQuestion | undefined;
   let paramIdx = 1;
   const ph = () => (isPostgreSQL() ? `$${paramIdx++}` : '?');
+  // Legacy (flag off): "", "null", "undefined" are treated as a clear
+  // request. With reliableExecution, validation already dropped those
+  // sentinels upstream (→ keep), so only an explicit JSON null reaches here.
   const normalizeNullableField = (value: unknown): unknown => {
     if (value === null) return null;
     if (typeof value !== 'string') return value;
@@ -777,6 +980,29 @@ async function executeUpdateTask(
     if (!trimmed || ['null', 'undefined'].includes(trimmed.toLowerCase())) return null;
     return trimmed;
   };
+
+  // Entrega 1 — a due_date the user's words can't support is not written:
+  // the previous value stays until the user picks a concrete day.
+  if (args.due_date !== undefined) {
+    const proposed =
+      args.due_date === null ? null : normalizeTaskDueDate(normalizeNullableField(args.due_date));
+    const decision = reconcileDueDateArg(proposed, ctx, profile);
+    if (decision.held) {
+      delete args.due_date;
+      notes.push(...decision.notes);
+      notes.push('due_date anterior mantido.');
+    } else {
+      if (decision.notes.length) notes.push(...decision.notes);
+      if (decision.dueDate !== proposed) args.due_date = decision.dueDate;
+    }
+    pendingQuestion = decision.pendingQuestion;
+  } else if (profile.reliableExecution) {
+    // No due_date proposed, but the user may still have named a period that
+    // needs a day ("vou ver isso semana que vem") — ask, don't guess.
+    const decision = reconcileDueDateArg(null, ctx, profile);
+    pendingQuestion = decision.pendingQuestion;
+    if (decision.notes.length) notes.push(...decision.notes);
+  }
 
   let existingCategories: CategoryRow[] | null = null;
   const fieldKeys = [
@@ -791,20 +1017,27 @@ async function executeUpdateTask(
     'recurrence_until',
   ] as const;
 
+  const write = (key: string, value: unknown): void => {
+    fields.push(`${key} = ${ph()}`);
+    values.push(value);
+    changes[key] = value;
+  };
+
   for (const key of fieldKeys) {
     if (args[key] === undefined) continue;
 
     if (key === 'description') {
       const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone);
-      if (merged.skip) continue;
-      fields.push(`${key} = ${ph()}`);
-      values.push(merged.value);
+      if (merged.skip) {
+        if (args[key] === null) notes.push('description não limpa: a tarefa tem anexos protegidos.');
+        continue;
+      }
+      write(key, merged.value);
       continue;
     }
 
     if (key === 'recurrence_type') {
-      fields.push(`${key} = ${ph()}`);
-      values.push(sanitizeRecurrenceType(args[key]));
+      write(key, sanitizeRecurrenceType(args[key]));
       continue;
     }
 
@@ -816,43 +1049,66 @@ async function executeUpdateTask(
         args.due_date !== undefined
           ? normalizeNullableField(args.due_date) as string | null
           : normalizeTaskDueDate(task.due_date);
-      fields.push(`${key} = ${ph()}`);
-      values.push(serializeRecurrenceConfig(args[key], recurrenceType, dueForConfig));
+      write(key, serializeRecurrenceConfig(args[key], recurrenceType, dueForConfig));
       continue;
     }
 
     if (key === 'recurrence_until') {
-      fields.push(`${key} = ${ph()}`);
-      values.push(sanitizeRecurrenceUntil(normalizeNullableField(args[key])));
+      write(key, sanitizeRecurrenceUntil(normalizeNullableField(args[key])));
       continue;
     }
 
     if (key === 'title') {
       const normalized = normalizeNullableField(args[key]);
-      fields.push(`${key} = ${ph()}`);
-      values.push(typeof normalized === 'string' ? capitalizeTaskTitle(normalized) : normalized);
+      write(key, typeof normalized === 'string' ? capitalizeTaskTitle(normalized) : normalized);
       continue;
     }
 
-    fields.push(`${key} = ${ph()}`);
     if (key === 'time') {
-      values.push(sanitizeTimeString(args[key]));
+      write(key, normalizeClockTime(sanitizeTimeString(args[key])));
     } else if (key === 'category') {
       // Allow clearing (null), but snap any non-null value to an existing
       // category so the agent can't introduce free-text drift.
       const normalized = normalizeNullableField(args[key]);
       if (normalized === null) {
-        values.push(null);
+        write(key, null);
       } else {
         if (!existingCategories) existingCategories = await getUserCategories(ctx.userId);
-        values.push(resolveExistingCategoryName(String(normalized), existingCategories));
+        const resolved = resolveExistingCategoryName(String(normalized), existingCategories);
+        if (resolved === null && profile.reliableExecution) {
+          // Unknown category: never invent one, never wipe the current one.
+          // (Legacy path below keeps writing null, as the baseline did.)
+          notes.push(`category "${String(normalized)}" ignorada: não existe; categoria anterior mantida.`);
+          continue;
+        }
+        write(key, resolved);
       }
+    } else if (key === 'due_date') {
+      write(key, normalizeTaskDueDate(normalizeNullableField(args[key])));
     } else {
-      values.push(normalizeNullableField(args[key]));
+      write(key, normalizeNullableField(args[key]));
     }
   }
 
-  if (!fields.length && args.reminders === undefined) return { success: true, data: { id: taskId } };
+  // A held past date only leaves a question open when the task really has no
+  // prazo of its own (the previous due_date, if any, stays).
+  if (pendingQuestion?.reason === 'past_date_held' && normalizeTaskDueDate(task.due_date)) {
+    pendingQuestion = undefined;
+  }
+  if (pendingQuestion) pendingQuestion = { ...pendingQuestion, taskId, taskTitle: task.title };
+
+  if (!fields.length && args.reminders === undefined) {
+    const result: ToolExecutionResult = {
+      success: true,
+      data: { id: taskId, title: task.title, unchanged: true, ...(notes.length ? { notes } : {}) },
+      changes: {},
+      unchanged: true,
+      entity: { type: 'task', id: taskId, title: task.title },
+      notes,
+    };
+    if (pendingQuestion) result.pending_question = pendingQuestion;
+    return result;
+  }
 
   if (fields.length) {
     fields.push(`updated_at = ${ph()}`);
@@ -872,6 +1128,8 @@ async function executeUpdateTask(
   if (args.reminders !== undefined) {
     const created = await applyRemindersToTask(taskId, ctx.userId, args.reminders, 'replace');
     savedReminders = summarizeRemindersForTool(created);
+    changes.reminders = savedReminders;
+    changes.reminders_count = savedReminders.length;
   } else if (
     fields.some((f) => f.startsWith('due_date') || f.startsWith('time'))
   ) {
@@ -906,10 +1164,51 @@ async function executeUpdateTask(
     data.reminders_count = savedReminders.length;
     data.reminders = savedReminders;
   }
-  return {
+  const finalDue = normalizeTaskDueDate(updated?.due_date ?? null);
+  const finalTime = normalizeTaskTime(updated?.time ?? null);
+  // Deterministic label for the persisted schedule, so confirmations never
+  // have to format dates themselves.
+  if ('due_date' in changes || 'time' in changes) {
+    changes.due_label = formatDueDateLabel(finalDue, finalTime);
+    data.due_label = changes.due_label;
+  }
+
+  // Tríade transition: the task just got its first prazo (typically the
+  // answer to the system's own date question) or this update IS the answer
+  // to a pending system question about it → the state machine decides the
+  // next question (horário, lembrete or nothing). Arbitrary later edits
+  // (moving an old prazo) do not reopen the tríade.
+  const gainedFirstDueDate =
+    finalDue !== null && normalizeTaskDueDate(task.due_date) === null && 'due_date' in changes;
+  const answersPendingQuestion = ctx.pendingQuestion?.taskId === taskId;
+  if (updated && !pendingQuestion && triadPolicyEnabled(profile) && (gainedFirstDueDate || answersPendingQuestion)) {
+    const remindersCount =
+      savedReminders !== undefined
+        ? savedReminders.length
+        : (await listRemindersForTask(taskId, ctx.userId)).length;
+    pendingQuestion = decideNextQuestion(
+      triadStateOf(updated, remindersCount),
+      triadPolicyFor(ctx, {
+        // The person named a time the model dropped: never guess it, never ask it.
+        timeNamedButUnsaved:
+          finalTime === null && args.time === undefined && extractTimeFromText(ctx.originalUserMessage) !== null,
+      }),
+    ) ?? undefined;
+    if (pendingQuestion) notes.push(systemAskedNote(pendingQuestion));
+  }
+  if (notes.length) data.notes = notes;
+
+  const result: ToolExecutionResult = {
     success: true,
     data,
+    changes,
+    entity: { type: 'task', id: taskId, title: (updated?.title ?? task.title) as string },
+    notes,
   };
+  if (pendingQuestion) {
+    result.pending_question = { ...pendingQuestion, taskId, taskTitle: (updated?.title ?? task.title) as string };
+  }
+  return result;
 }
 
 async function executeCompleteTask(
@@ -918,12 +1217,24 @@ async function executeCompleteTask(
 ): Promise<ToolExecutionResult> {
   const now = new Date().toISOString();
   const taskId = String(args.task_id || '');
-  if (!taskId) return { success: false, message: 'task_id é obrigatório' };
+  if (!taskId) {
+    return { success: false, error_code: 'invalid_arguments', message: 'task_id é obrigatório' };
+  }
 
   // Fetch the title BEFORE mutating so both the model's confirmation text and
   // the UI's task card can reference it — without this, "concluída"/"deletada"
   // confirmations have no way to say WHICH task was affected.
   const existing = await getTaskById(taskId, ctx.userId);
+  // Completing a task that doesn't exist used to "succeed" (UPDATE of 0 rows).
+  // The result must be truthful or every confirmation built on it lies.
+  if (!existing) {
+    return {
+      success: false,
+      error_code: 'not_found',
+      message: 'Tarefa não encontrada',
+      entity: { type: 'task', id: taskId },
+    };
+  }
 
   if (isPostgreSQL()) {
     await getPool().query(
@@ -941,13 +1252,15 @@ async function executeCompleteTask(
   // what taskController.toggleTaskCompletion does on the REST path. Without
   // this, completing a recurring task via the agent would leave the series
   // stalled until the next hourly cron sweep.
-  if (existing?.recurrence_type && existing.recurrence_type !== 'none') {
+  if (existing.recurrence_type && existing.recurrence_type !== 'none') {
     await generateNextOccurrenceIfRecurring(taskId);
   }
 
   return {
     success: true,
-    data: { id: taskId, title: existing?.title ?? null, completed: true },
+    data: { id: taskId, title: existing.title, completed: true },
+    changes: { completed: true },
+    entity: { type: 'task', id: taskId, title: existing.title },
   };
 }
 
@@ -956,11 +1269,21 @@ async function executeDeleteTask(
   ctx: AgentContext,
 ): Promise<ToolExecutionResult> {
   const taskId = String(args.task_id || '');
-  if (!taskId) return { success: false, message: 'task_id é obrigatório' };
+  if (!taskId) {
+    return { success: false, error_code: 'invalid_arguments', message: 'task_id é obrigatório' };
+  }
 
   // Fetch BEFORE deleting — once the row is gone there's no way to recover
   // the title, and both the confirmation text and the UI's task card need it.
   const existing = await getTaskById(taskId, ctx.userId);
+  if (!existing) {
+    return {
+      success: false,
+      error_code: 'not_found',
+      message: 'Tarefa não encontrada',
+      entity: { type: 'task', id: taskId },
+    };
+  }
 
   if (isPostgreSQL()) {
     await getPool().query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [
@@ -975,7 +1298,9 @@ async function executeDeleteTask(
   }
   return {
     success: true,
-    data: { id: taskId, title: existing?.title ?? null, deleted: true },
+    data: { id: taskId, title: existing.title, deleted: true },
+    changes: { deleted: true },
+    entity: { type: 'task', id: taskId, title: existing.title },
   };
 }
 
@@ -1104,6 +1429,8 @@ async function executeCreateList(
       show_completed: showCompleted === 1,
       filter_no_category: filterNoCategory === 1,
     },
+    changes: { name: listName },
+    entity: { type: 'list', id: listId, title: listName },
   };
 }
 
@@ -1129,7 +1456,14 @@ async function executeUpdateList(
         [listId, ctx.userId],
       )) || null;
   }
-  if (!existing) return { success: false, message: 'Lista não encontrada' };
+  if (!existing) {
+    return {
+      success: false,
+      error_code: 'not_found',
+      message: 'Lista não encontrada',
+      entity: { type: 'list', id: listId },
+    };
+  }
 
   const newName = args.name ? String(args.name).trim() : existing.name;
   const newCategoryNames = Array.isArray(args.category_names)
@@ -1204,6 +1538,8 @@ async function executeUpdateList(
       show_completed: newShowCompleted === 1,
       filter_no_category: newFilterNoCategory === 1,
     },
+    changes: { name: newName },
+    entity: { type: 'list', id: listId, title: newName },
   };
 }
 
@@ -1212,7 +1548,7 @@ async function executeDeleteList(
   ctx: AgentContext,
 ): Promise<ToolExecutionResult> {
   const listId = String(args.list_id || '');
-  if (!listId) return { success: false, message: 'list_id é obrigatório' };
+  if (!listId) return { success: false, error_code: 'invalid_arguments', message: 'list_id é obrigatório' };
 
   if (isPostgreSQL()) {
     await getPool().query('DELETE FROM lists WHERE id = $1 AND user_id = $2', [
@@ -1225,7 +1561,12 @@ async function executeDeleteList(
       ctx.userId,
     ]);
   }
-  return { success: true, data: { id: listId, deleted: true } };
+  return {
+    success: true,
+    data: { id: listId, deleted: true },
+    changes: { deleted: true },
+    entity: { type: 'list', id: listId },
+  };
 }
 
 async function executeShowList(
@@ -1302,7 +1643,12 @@ async function executeCreateCategory(
     );
   }
 
-  return { success: true, data: { id: categoryId, name: categoryName, color, icon } };
+  return {
+    success: true,
+    data: { id: categoryId, name: categoryName, color, icon },
+    changes: { name: categoryName },
+    entity: { type: 'category', id: categoryId, title: categoryName },
+  };
 }
 
 async function executeUpdateCategory(
@@ -1327,7 +1673,14 @@ async function executeUpdateCategory(
         [categoryId, ctx.userId],
       )) || null;
   }
-  if (!existing) return { success: false, message: 'Categoria não encontrada' };
+  if (!existing) {
+    return {
+      success: false,
+      error_code: 'not_found',
+      message: 'Categoria não encontrada',
+      entity: { type: 'category', id: categoryId },
+    };
+  }
 
   const newName = args.name ? String(args.name).trim() : existing.name;
   const newColor =
@@ -1401,6 +1754,8 @@ async function executeUpdateCategory(
       icon: newIcon,
       visible: newVisible === 1,
     },
+    changes: { name: newName },
+    entity: { type: 'category', id: categoryId, title: newName },
   };
 }
 
@@ -1471,7 +1826,12 @@ async function executeDeleteCategory(
     }
   }
 
-  return { success: true, data: { id: categoryId, deleted: true } };
+  return {
+    success: true,
+    data: { id: categoryId, deleted: true },
+    changes: { deleted: true },
+    entity: { type: 'category', id: categoryId },
+  };
 }
 
 async function executeShowCategory(
@@ -1660,113 +2020,7 @@ function executeOfferChoices(args: Record<string, unknown>): ToolExecutionResult
   return { success: true, data: { question, choices } };
 }
 
-const ONBOARDING_JOURNEY_TASK_CAP = 5;
-
-const hasTimestamp = (value: unknown): boolean =>
-  value != null && String(value).trim() !== '';
-
-const formatOnboardingTasksLine = (
-  titles: string[],
-): string => {
-  if (titles.length === 0) return 'suas primeiras tarefas';
-  if (titles.length === 1) return titles[0]!;
-  if (titles.length === 2) return `${titles[0]} e ${titles[1]}`;
-  return `${titles.slice(0, -1).join(', ')} e ${titles[titles.length - 1]}`;
-};
-
-interface OnboardingJourneyUserRow {
-  onboarding_journey_completed_at?: string | Date | null;
-}
-
-interface OnboardingJourneyTaskRow {
-  id: string;
-  title: string;
-  due_date?: string | Date | null;
-  time?: string | Date | null;
-}
-
-async function fetchOnboardingJourneyUser(
-  userId: string,
-): Promise<OnboardingJourneyUserRow | null> {
-  if (isPostgreSQL()) {
-    const result = await getPool().query(
-      `SELECT onboarding_journey_completed_at
-       FROM users WHERE id = $1`,
-      [userId],
-    );
-    return (result.rows[0] as OnboardingJourneyUserRow) || null;
-  }
-  return (
-    (await getDatabase().get<OnboardingJourneyUserRow>(
-      `SELECT onboarding_journey_completed_at
-       FROM users WHERE id = ?`,
-      [userId],
-    )) || null
-  );
-}
-
-async function fetchOnboardingJourneyTasks(
-  userId: string,
-): Promise<OnboardingJourneyTaskRow[]> {
-  if (isPostgreSQL()) {
-    const result = await getPool().query(
-      `SELECT id, title, due_date, time
-       FROM tasks
-       WHERE user_id = $1 AND (completed = FALSE OR completed IS NULL)
-       ORDER BY created_at ASC
-       LIMIT $2`,
-      [userId, ONBOARDING_JOURNEY_TASK_CAP],
-    );
-    return result.rows as OnboardingJourneyTaskRow[];
-  }
-  return getDatabase().all<OnboardingJourneyTaskRow[]>(
-    `SELECT id, title, due_date, time
-     FROM tasks
-     WHERE user_id = ? AND (completed = 0 OR completed IS NULL)
-     ORDER BY created_at ASC
-     LIMIT ?`,
-    [userId, ONBOARDING_JOURNEY_TASK_CAP],
-  );
-}
-
-async function markOnboardingJourneyComplete(
-  userId: string,
-  completedAt: string,
-): Promise<void> {
-  if (isPostgreSQL()) {
-    await getPool().query(
-      `UPDATE users
-       SET onboarding_journey_completed_at = $1, updated_at = $2
-       WHERE id = $3 AND onboarding_journey_completed_at IS NULL`,
-      [completedAt, completedAt, userId],
-    );
-    return;
-  }
-  await getDatabase().run(
-    `UPDATE users
-     SET onboarding_journey_completed_at = ?, updated_at = ?
-     WHERE id = ? AND onboarding_journey_completed_at IS NULL`,
-    [completedAt, completedAt, userId],
-  );
-}
-
-function summarizeJourneyTasks(rows: OnboardingJourneyTaskRow[]): {
-  tasks: Array<{ id: string; title: string; due_label: string | null }>;
-  tasksLine: string;
-} {
-  const tasks = rows.map((row) => {
-    const dueLabel = formatDueDateLabel(
-      normalizeTaskDueDate(row.due_date),
-      normalizeTaskTime(row.time),
-    );
-    return { id: row.id, title: row.title, due_label: dueLabel };
-  });
-  const titles = tasks.map((task) =>
-    task.due_label ? `${task.title} (${task.due_label})` : task.title,
-  );
-  return { tasks, tasksLine: formatOnboardingTasksLine(titles).slice(0, 120) };
-}
-
+/** Legacy (flag off) closure of the onboarding journey, driven by the model. */
 async function executeCompleteOnboardingJourney(
   ctx: AgentContext,
   profile: ChannelProfile,
@@ -1774,35 +2028,22 @@ async function executeCompleteOnboardingJourney(
   if (profile.id !== 'web') {
     return { success: false, message: 'complete_onboarding_journey só está disponível no web' };
   }
-
-  const user = await fetchOnboardingJourneyUser(ctx.userId);
-  if (!user) return { success: false, message: 'Usuário não encontrado' };
-
   const taskRows = await fetchOnboardingJourneyTasks(ctx.userId);
-  const summarized = summarizeJourneyTasks(taskRows);
-
-  if (hasTimestamp(user.onboarding_journey_completed_at)) {
-    return {
-      success: true,
-      data: {
-        alreadyCompleted: true,
-        tasks: summarized.tasks,
-        tasksLine: summarized.tasksLine,
-      },
-    };
-  }
-
-  const now = new Date().toISOString();
-  await markOnboardingJourneyComplete(ctx.userId, now);
-
-  return {
-    success: true,
-    data: {
-      alreadyCompleted: false,
-      tasks: summarized.tasks,
-      tasksLine: summarized.tasksLine,
-    },
-  };
+  const tasks = taskRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    due_label: formatDueDateLabel(normalizeTaskDueDate(row.due_date), normalizeTaskTime(row.time)),
+  }));
+  const titles = tasks.map((t) => (t.due_label ? `${t.title} (${t.due_label})` : t.title));
+  const tasksLine = (
+    titles.length === 0
+      ? 'suas primeiras tarefas'
+      : titles.length === 1
+        ? titles[0]!
+        : `${titles.slice(0, -1).join(', ')} e ${titles[titles.length - 1]}`
+  ).slice(0, 120);
+  const marked = await markOnboardingJourneyComplete(ctx.userId, new Date().toISOString());
+  return { success: true, data: { alreadyCompleted: !marked, tasks, tasksLine } };
 }
 
 // ---------------------------------------------------------------------------
@@ -1819,7 +2060,7 @@ export async function executeToolCall(
     case 'create_task':
       return executeCreateTask(args, ctx, profile);
     case 'update_task':
-      return executeUpdateTask(args, ctx);
+      return executeUpdateTask(args, ctx, profile);
     case 'complete_task':
       return executeCompleteTask(args, ctx);
     case 'delete_task':

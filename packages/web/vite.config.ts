@@ -8,13 +8,26 @@ export default defineConfig(({ mode }) => {
   
   return {
     plugins: [react()],
+    optimizeDeps: {
+      // Linked workspace package is aliased to dist/esm; prebundling it as CJS
+      // produces shared chunks the browser then requests after a stale hash.
+      exclude: ['@jarvi/shared'],
+    },
     server: {
       port: 3000,
       strictPort: true,
       host: true,
+      // Optimized deps keep a stable ?v= browserHash even when esbuild chunk
+      // filenames change. Cached module graphs then 404 (white screen on every
+      // `npm run dev`). Never let the browser reuse those files.
+      headers: {
+        'Cache-Control': 'no-store',
+      },
       watch: {
-        usePolling: true,
-        interval: 300,
+        ignored: ['**/node_modules/**', '**/.git/**'],
+        ...(process.env.CHOKIDAR_USEPOLLING === 'true'
+          ? { usePolling: true, interval: 300 }
+          : {}),
       },
       proxy: {
         '/api': {

@@ -43,6 +43,15 @@ jobs:
       - name: Build shared package
         run: npm run build:shared
 
+      # Entrega 1 — scripted-model eval of the backend rules (validation,
+      # confirmations, date guard). No model calls: fast, free, exact.
+      - name: Run deterministic agent evals
+        run: npm run eval:deterministic
+        working-directory: packages/backend
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NODE_ENV: ci
+
       - name: Run agent evals
         run: npm run eval
         working-directory: packages/backend

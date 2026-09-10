@@ -18,6 +18,7 @@ import {
 } from '../core/tasks';
 import { getDateTimeForTimezone } from '../core/time';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
+import { isReliableExecutionEnabled } from '../core/flags';
 import { recordAgentTurnUsage, sumAgentTurnUsage } from '../core/telemetry';
 import type {
   AgentContext,
@@ -140,6 +141,14 @@ export const runWhatsappAgent = async (
     getUserCategories(userId),
   ]);
 
+  // Entrega 1 — resolved per user so the rollout can start with internal
+  // accounts only (see core/flags.ts). Off → legacy path: same prompts,
+  // schemas, retry guardrail and raw model text.
+  const profile: ChannelProfile = {
+    ...WHATSAPP_PROFILE,
+    reliableExecution: isReliableExecutionEnabled(email),
+  };
+
   const ctx: AgentContext = {
     userId,
     email,
@@ -157,7 +166,7 @@ export const runWhatsappAgent = async (
     whatsappMessageSid: options.whatsappMessageSid,
   };
 
-  const systemPrompt = buildSystemPrompt(ctx, WHATSAPP_PROFILE);
+  const systemPrompt = buildSystemPrompt(ctx, profile);
   const { isoDate, weekday, ddmm } = getDateTimeForTimezone(timezone);
 
   const history = await loadHistory(redis, userId, isoDate);
@@ -180,17 +189,16 @@ export const runWhatsappAgent = async (
     { role: 'user', content: userMessage },
   ];
 
-  let { text, toolCallNames, usage, traceId } = await runAgent(
-    WHATSAPP_PROFILE,
-    ctx,
-    systemPrompt,
-    initialMessages,
-    {},
-  );
+  const run = await runAgent(profile, ctx, systemPrompt, initialMessages, {});
+  let { text, toolCallNames, usage } = run;
+  const { traceId } = run;
   let retried = false;
 
+  // Legacy guardrail only. With reliable execution a wrong sentence is
+  // stripped by the backend, never "fixed" by forcing a new write.
   if (
-    WHATSAPP_PROFILE.enableAntiHallucinationRetry &&
+    !profile.reliableExecution &&
+    profile.enableAntiHallucinationRetry &&
     shouldRetryWithForcedTool(text, toolCallNames)
   ) {
     console.warn(
@@ -198,7 +206,7 @@ export const runWhatsappAgent = async (
       userId,
     );
     const retry = await runAgent(
-      WHATSAPP_PROFILE,
+      profile,
       ctx,
       systemPrompt,
       initialMessages,
@@ -219,6 +227,8 @@ export const runWhatsappAgent = async (
     usage,
     retried,
     traceId,
+    reliability: run.reliability,
+    operations: run.operations,
   });
 
   const finalResponse = text || 'Entendido! Como posso te ajudar?';

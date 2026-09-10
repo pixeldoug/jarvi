@@ -106,6 +106,18 @@ export interface EvalScenario extends RuleExpectations {
   turns?: EvalTurn[];
   /** Free-form gold standard used by the LLM-based scorer (single-turn). */
   idealOutput?: string;
+  /**
+   * Entrega 1 — run with `reliableExecution` on (backend confirmations,
+   * server-side validation, date guard). Unset → follows the harness default
+   * (`EVAL_RELIABLE_EXECUTION` env), which is off.
+   */
+  reliable?: boolean;
+  /**
+   * Tasks listed in the model's context but deliberately NOT inserted in the
+   * eval DB — simulates a stale/ghost reference so a write tool fails with
+   * `not_found` and the failure path can be asserted.
+   */
+  unseededTaskIds?: string[];
   tags: string[];
 }
 

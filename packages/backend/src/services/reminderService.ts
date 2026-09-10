@@ -1071,6 +1071,17 @@ const markReminderSkipped = async (reminderId: string, reason: string): Promise<
   }
 };
 
+type ReminderWhatsappSender = typeof sendReminderTemplateMessage;
+let reminderWhatsappSender: ReminderWhatsappSender = sendReminderTemplateMessage;
+
+/**
+ * Swap the WhatsApp transport for deterministic tests (no Twilio, no cost).
+ * Pass `null` to restore the real sender.
+ */
+export function __setReminderWhatsappSenderForTesting(sender: ReminderWhatsappSender | null): void {
+  reminderWhatsappSender = sender ?? sendReminderTemplateMessage;
+}
+
 const deliverReminder = async (
   row: ReminderRow,
   task: ReminderTaskRow,
@@ -1102,7 +1113,7 @@ const deliverReminder = async (
     if (row.channel === 'call') {
       await initiateReminderCall(user.whatsapp_phone, row.id);
     } else {
-      await sendReminderTemplateMessage(user.whatsapp_phone, task.title, buildReminderScheduleLabel(task));
+      await reminderWhatsappSender(user.whatsapp_phone, task.title, buildReminderScheduleLabel(task));
     }
   } catch (error) {
     return recordDeliveryFailure(row, error);

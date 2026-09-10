@@ -9,6 +9,11 @@ import { sendVerificationCode } from '../services/whatsappService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { cancelSubscriptionForDeletion } from '../services/stripeService';
 import { hasRealUserEmail, toPublicUser } from '../controllers/authController';
+import {
+  getDailySummarySettings,
+  parseDailySummaryTime,
+  updateDailySummarySettings,
+} from '../services/dailySummaryService';
 
 // Helper to generate secure token
 const generateSecureToken = (): string => {
@@ -1161,6 +1166,83 @@ router.put('/timezone', authenticateToken, async (req: Request, res: Response) =
 });
 
 /**
+ * GET /api/users/daily-summary
+ * Resumo do Dia preferences: { enabled, sendTime, timezone }.
+ * `timezone` is read-only here — it is the profile timezone and is what the
+ * scheduler uses to interpret `sendTime`.
+ */
+router.get('/daily-summary', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const settings = await getDailySummarySettings(userId);
+    if (!settings) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching daily summary settings:', error);
+    res.status(500).json({ error: 'Erro ao carregar o Resumo do Dia' });
+  }
+});
+
+/**
+ * PUT /api/users/daily-summary
+ * Body: { enabled?: boolean; sendTime?: "HH:MM" }
+ */
+router.put('/daily-summary', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const { enabled, sendTime } = (req.body ?? {}) as { enabled?: unknown; sendTime?: unknown };
+    const patch: { enabled?: boolean; sendTime?: string } = {};
+
+    if (enabled !== undefined) {
+      if (typeof enabled !== 'boolean') {
+        res.status(400).json({ error: 'enabled deve ser true ou false' });
+        return;
+      }
+      patch.enabled = enabled;
+    }
+
+    if (sendTime !== undefined) {
+      const normalized = parseDailySummaryTime(sendTime);
+      if (!normalized) {
+        res.status(400).json({ error: 'Horário inválido. Use o formato HH:MM.' });
+        return;
+      }
+      patch.sendTime = normalized;
+    }
+
+    if (patch.enabled === undefined && patch.sendTime === undefined) {
+      res.status(400).json({ error: 'Informe enabled e/ou sendTime' });
+      return;
+    }
+
+    const settings = await updateDailySummarySettings(userId, patch);
+    if (!settings) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    res.json({ success: true, ...settings });
+  } catch (error) {
+    console.error('Error updating daily summary settings:', error);
+    res.status(500).json({ error: 'Erro ao atualizar o Resumo do Dia' });
+  }
+});
+
+/**
  * DELETE /api/users/me
  * Hard-delete the authenticated user account.
  *
@@ -1221,6 +1303,9 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
         // Delete Gmail processed emails
         await client.query('DELETE FROM gmail_processed_emails WHERE user_id = $1', [userId]);
 
+        // Delete daily summary delivery log
+        await client.query('DELETE FROM daily_summary_deliveries WHERE user_id = $1', [userId]);
+
         // Delete the user row itself (also clears WhatsApp + Gmail OAuth fields)
         await client.query('DELETE FROM users WHERE id = $1', [userId]);
 
@@ -1246,6 +1331,7 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
       await db.run('DELETE FROM lists WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM user_memory_profiles WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM gmail_processed_emails WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM daily_summary_deliveries WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM users WHERE id = ?', [userId]);
     }
 

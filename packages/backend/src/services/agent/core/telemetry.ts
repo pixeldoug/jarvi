@@ -13,7 +13,7 @@
 import { captureServer } from '../../posthogService';
 import { PROMPT_VERSION } from './prompt';
 import { AGENT_MODEL } from './runAgent';
-import type { AgentTurnUsage } from './types';
+import type { AgentOperation, AgentRunReliability, AgentTurnUsage } from './types';
 
 export interface AgentTurnTelemetryInput {
   /** PostHog distinct_id — the user's email (see posthogService convention). */
@@ -26,10 +26,18 @@ export interface AgentTurnTelemetryInput {
   retried: boolean;
   /** PostHog AI observability trace id for this turn (see runAgent). */
   traceId?: string;
+  /** Entrega 1 — reliability signals for the flagged vs. legacy comparison. */
+  reliability?: AgentRunReliability;
+  /** Operations record; only counts are emitted (never args or titles). */
+  operations?: AgentOperation[];
 }
 
 export function recordAgentTurnUsage(input: AgentTurnTelemetryInput): void {
   if (!input.email) return;
+
+  const ops = input.operations ?? [];
+  const writes = ops.filter((op) => op.kind === 'write');
+  const failedWrites = writes.filter((op) => !op.success);
 
   captureServer(input.email, 'ai_turn_completed', {
     channel: input.channel,
@@ -45,6 +53,22 @@ export function recordAgentTurnUsage(input: AgentTurnTelemetryInput): void {
     guardrail_fired: input.retried,
     trace_id: input.traceId,
     prompt_version: PROMPT_VERSION,
+    reliable_execution: input.reliability?.enabled ?? false,
+    // Counted in both modes so the A/B can compare like with like.
+    write_operations: writes.length,
+    failed_write_operations: failedWrites.length,
+    failed_write_codes: Array.from(
+      new Set(failedWrites.map((op) => op.error?.code ?? 'tool_error')),
+    ),
+    ...(input.reliability?.enabled
+      ? {
+          claims_stripped: input.reliability.claimsStripped,
+          invalid_tool_calls: input.reliability.invalidToolCalls,
+          date_corrections: input.reliability.dateCorrections,
+          pending_questions: input.reliability.pendingQuestions,
+          time_to_first_text_ms: input.reliability.timeToFirstTextMs ?? null,
+        }
+      : {}),
   });
 }
 

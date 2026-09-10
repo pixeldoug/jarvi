@@ -51,9 +51,12 @@ export interface DateTimeForTimezone {
   ddmm: string;
 }
 
-export function getDateTimeForTimezone(timezone: string): DateTimeForTimezone {
+/**
+ * `now` is injectable so schedulers (and their tests) can evaluate "what is the
+ * local date/time for this person at instant X" without touching the clock.
+ */
+export function getDateTimeForTimezone(timezone: string, now: Date = new Date()): DateTimeForTimezone {
   const tz = resolveTimezone(timezone);
-  const now = new Date();
 
   const formatted = now.toLocaleString('pt-BR', {
     weekday: 'long',
@@ -111,6 +114,18 @@ export function getDynamicGreeting(timezone: string): string {
   if (hour >= 5 && hour < 12) return 'Bom dia';
   if (hour >= 12 && hour < 18) return 'Boa tarde';
   return 'Boa noite';
+}
+
+/**
+ * Portuguese weekday name ("quinta-feira") for a plain YYYY-MM-DD calendar
+ * date. Parsed via Date.UTC so the weekday never shifts with the server zone.
+ */
+export function getWeekdayNamePt(isoDate: string): string | null {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return null;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0));
+  if (Number.isNaN(date.getTime())) return null;
+  return PT_WEEKDAYS[date.getUTCDay()] ?? null;
 }
 
 /**

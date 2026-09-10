@@ -35,13 +35,28 @@ import {
 import { checkRules, type CapturedToolCall, type RuleExpectations } from './ruleChecker';
 import { SCENARIOS, type EvalScenario, type EvalTurn } from './datasets/whatsapp-scenarios';
 import { WEB_SCENARIOS } from './datasets/web-scenarios';
+import { RELIABLE_EXECUTION_SCENARIOS } from './datasets/reliable-execution-scenarios';
+import { TASK_REF_REGEX } from '../src/services/agent/core/confirmations';
 import type { ChannelProfile, TaskRow } from '../src/services/agent/core/types';
 
-const ALL_SCENARIOS: EvalScenario[] = [...SCENARIOS, ...WEB_SCENARIOS];
+// EVAL_ONLY=<regex> narrows the run to matching scenario names (e.g.
+// EVAL_ONLY='^reliable/' for the entrega-1 set only).
+const ONLY = process.env.EVAL_ONLY ? new RegExp(process.env.EVAL_ONLY) : null;
+const ALL_SCENARIOS: EvalScenario[] = [
+  ...SCENARIOS,
+  ...WEB_SCENARIOS,
+  ...RELIABLE_EXECUTION_SCENARIOS,
+].filter((s) => !ONLY || ONLY.test(s.name));
 
 const SATISFACTION_THRESHOLD = parseFloat(process.env.EVAL_MIN_SATISFACTION ?? '0.80');
 const MAX_CONCURRENCY = parseInt(process.env.EVAL_MAX_CONCURRENCY ?? '3', 10);
 const JUDGE_MODEL = process.env.EVAL_JUDGE_MODEL ?? 'gpt-4o';
+
+// Entrega 1 — A/B switch for the whole suite. Scenarios can pin their own
+// value with `reliable: true|false`; unset follows this default (off).
+const EVAL_RELIABLE_EXECUTION = /^(1|true|on)$/i.test(
+  process.env.EVAL_RELIABLE_EXECUTION ?? '',
+);
 
 // ---------------------------------------------------------------------------
 // Channel profiles — mirror production exactly (`whatsapp.ts` / `web.ts`),
@@ -238,25 +253,41 @@ function turnsOf(scenario: EvalScenario): EvalTurn[] {
 
 async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
   // Lazy-import services so they resolve AFTER setupEvalDatabase() ran
-  const { buildSystemPrompt, buildTaskFocusedPrompt, buildWhatsappExtras } = await import(
-    '../src/services/agent/core/prompt'
-  );
+  const { buildSystemPrompt, buildTaskFocusedPrompt, buildWhatsappExtras, buildWebExtras } =
+    await import('../src/services/agent/core/prompt');
   const { runAgent } = await import('../src/services/agent/core/runAgent');
   const { getTaskById } = await import('../src/services/agent/core/tasks');
 
   EVAL_WHATSAPP_PROFILE.systemPromptExtras = buildWhatsappExtras;
+  EVAL_WEB_PROFILE.systemPromptExtras = buildWebExtras;
 
-  const profile = scenario.channel === 'web' ? EVAL_WEB_PROFILE : EVAL_WHATSAPP_PROFILE;
+  const baseProfile = scenario.channel === 'web' ? EVAL_WEB_PROFILE : EVAL_WHATSAPP_PROFILE;
+  const reliableExecution = scenario.reliable ?? EVAL_RELIABLE_EXECUTION;
+  const nextQuestionPolicy = scenario.channel === 'web' && reliableExecution;
+  const profile: ChannelProfile = {
+    ...baseProfile,
+    reliableExecution,
+    // Mirrors web.ts: the tríade questions and the onboarding journey are the
+    // system's on the web; the legacy path keeps the model-driven tool.
+    enableNextQuestionPolicy: nextQuestionPolicy,
+    toolsAvailable: nextQuestionPolicy
+      ? baseProfile.toolsAvailable.filter((name) => name !== 'complete_onboarding_journey')
+      : baseProfile.toolsAvailable,
+  };
   const turns = turnsOf(scenario);
 
   const ctx = buildContext(
     scenario.contextOverrides as Parameters<typeof buildContext>[0],
   );
   await seedCategoriesForEval(ctx.categories);
-  await seedTasksForEval([
-    ...(ctx.activeTasks ?? []),
-    ...(ctx.focusedTask ? [ctx.focusedTask] : []),
-  ]);
+  // `unseededTaskIds` stay in the prompt but out of the DB, so a write against
+  // them must surface as `not_found` (entrega-1 failure-path scenarios).
+  const unseeded = new Set(scenario.unseededTaskIds ?? []);
+  await seedTasksForEval(
+    [...(ctx.activeTasks ?? []), ...(ctx.focusedTask ? [ctx.focusedTask] : [])].filter(
+      (t) => !unseeded.has(t.id),
+    ),
+  );
 
   // Tasks this scenario knows about: the seeded ones plus any the agent
   // creates along the way. Multi-turn scenarios refresh these from the DB
@@ -306,6 +337,18 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
             const id = String(data.id);
             if (!scenarioTaskIds.includes(id)) scenarioTaskIds.push(id);
           }
+          // Reliable execution: when the backend refused the model's due_date
+          // (period without a day, past date the user never named), the rules
+          // must judge what was persisted, not what the model proposed. The
+          // captured call keeps the proposal under `held_due_date` for logs.
+          const notes = Array.isArray(data?.notes) ? (data.notes as unknown[]) : [];
+          if (success && notes.some((n) => typeof n === 'string' && n.startsWith('due_date NÃO salvo'))) {
+            const captured = [...turnToolCalls].reverse().find((tc) => tc.name === name);
+            if (captured && 'due_date' in captured.args) {
+              captured.args = { ...captured.args, held_due_date: captured.args.due_date };
+              delete captured.args.due_date;
+            }
+          }
         },
       },
       {
@@ -314,15 +357,21 @@ async function runScenario(scenario: EvalScenario): Promise<ScenarioResult> {
           scenario: scenario.name,
           turn: turnIndex,
           git_sha: GIT_SHA,
+          reliable_execution: Boolean(profile.reliableExecution),
         },
       },
     );
 
-    const output = text || '(sem resposta)';
+    // The web renders `{{task:id|Title}}` as the inline mention; for the judge
+    // and the model history it is just the quoted title, like the web does
+    // when it sends the history back. Rules see the RAW text so a scenario
+    // can assert the mention itself (`mustContain: ['{{task:task-x|']`).
+    const rawOutput = text || '(sem resposta)';
+    const output = rawOutput.replace(TASK_REF_REGEX, (_m, _id, title: string) => `"${title.trim()}"`);
     history.push({ role: 'user', content: turn.input });
     history.push({ role: 'assistant', content: output });
 
-    const ruleFailures = checkRules(turn, output, turnToolCalls).map((f) =>
+    const ruleFailures = checkRules(turn, rawOutput, turnToolCalls).map((f) =>
       turns.length > 1 ? `turn ${turnIndex + 1}: ${f}` : f,
     );
 
@@ -384,7 +433,7 @@ async function main() {
   await setupEvalDatabase();
 
   console.log(
-    `[eval] running ${ALL_SCENARIOS.length} scenarios (concurrency=${MAX_CONCURRENCY}, judge=${JUDGE_MODEL}, git_sha=${GIT_SHA})`,
+    `[eval] running ${ALL_SCENARIOS.length} scenarios (concurrency=${MAX_CONCURRENCY}, judge=${JUDGE_MODEL}, git_sha=${GIT_SHA}, reliable_execution=${EVAL_RELIABLE_EXECUTION ? 'on' : 'off'}${ONLY ? `, only=${ONLY.source}` : ''})`,
   );
 
   const startedAt = Date.now();
@@ -393,6 +442,17 @@ async function main() {
       const result = await runScenario(scenario);
       const status = result.ruleScore === 1 && result.factualityScore === 1 ? 'ok' : 'FAIL';
       console.log(`[eval] ${status.padEnd(4)} ${scenario.name}`);
+      // EVAL_VERBOSE=1 prints what the agent actually said/called on failures,
+      // so a red scenario can be diagnosed without re-running it by hand.
+      if (status === 'FAIL' && /^(1|true)$/i.test(process.env.EVAL_VERBOSE ?? '')) {
+        for (const [i, turn] of result.turns.entries()) {
+          const tools = turn.toolCalls.map((t) => `${t.name}(${JSON.stringify(t.args)})`).join(', ');
+          console.log(`[eval]   turn ${i + 1} input : ${turn.input}`);
+          console.log(`[eval]   turn ${i + 1} tools : ${tools || 'none'}`);
+          console.log(`[eval]   turn ${i + 1} output: ${JSON.stringify(turn.output)}`);
+          if (turn.ruleFailures.length) console.log(`[eval]   turn ${i + 1} rules : ${turn.ruleFailures.join('; ')}`);
+        }
+      }
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

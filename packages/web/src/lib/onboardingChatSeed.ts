@@ -1,4 +1,4 @@
-import type { ChatMessageData, ToolCallData } from '../hooks/useChatStream';
+import type { ChatChoiceField, ChatMessageData, ToolCallData } from '../hooks/useChatStream';
 
 export const ONBOARDING_CHAT_STORAGE_KEY = 'jarvi_onboarding_chat';
 export const ONBOARDING_CHAT_CONSUMED_KEY = 'jarvi_onboarding_chat_consumed';
@@ -15,6 +15,15 @@ export interface OnboardingFollowUpSeed {
   question: string;
   choices: string[];
   taskTitle?: string;
+  /** Task + field the question is about (same shape the chat's `choices` event carries). */
+  taskId?: string;
+  field?: ChatChoiceField;
+  /** Nothing to ask: `question` is already the closing text of the journey. */
+  settled?: boolean;
+}
+
+function toChoiceField(value: unknown): ChatChoiceField | undefined {
+  return value === 'due_date' || value === 'time' || value === 'reminders' ? value : undefined;
 }
 
 export interface OnboardingChatSeed {
@@ -97,6 +106,9 @@ function resolveFollowUp(seed: OnboardingChatSeed): OnboardingFollowUpSeed {
       question: seed.followUp.question.trim(),
       choices: (seed.followUp.choices ?? []).map((item) => item.trim()).filter(Boolean).slice(0, 5),
       taskTitle: seed.followUp.taskTitle?.trim() || undefined,
+      taskId: seed.followUp.taskId?.trim() || undefined,
+      field: toChoiceField(seed.followUp.field),
+      settled: Boolean(seed.followUp.settled),
     };
   }
 
@@ -111,9 +123,11 @@ function resolveFollowUp(seed: OnboardingChatSeed): OnboardingFollowUpSeed {
 export function buildOnboardingChatMessages(seed: OnboardingChatSeed): ChatMessageData[] {
   const followUp = resolveFollowUp(seed);
   const focusedTitle = followUp.taskTitle?.trim().toLowerCase();
-  const focused = focusedTitle
-    ? seed.createdTasks.filter((task) => task.title.trim().toLowerCase() === focusedTitle)
-    : [];
+  const focused = followUp.taskId
+    ? seed.createdTasks.filter((task) => task.id === followUp.taskId)
+    : focusedTitle
+      ? seed.createdTasks.filter((task) => task.title.trim().toLowerCase() === focusedTitle)
+      : [];
   const tasksForArtifact = (focused.length > 0 ? focused : seed.createdTasks).slice(0, 1);
   const toolCalls: ToolCallData[] = tasksForArtifact.map((task) => ({
     toolName: 'create_task',
@@ -146,6 +160,9 @@ export function buildOnboardingChatMessages(seed: OnboardingChatSeed): ChatMessa
       toolCalls,
       choicePromptTitle: hasChoices ? followUp.question : undefined,
       choicePrompts: followUp.choices,
+      // Echoed back with the first reply so the backend resolves it directly.
+      choiceTaskId: hasChoices ? followUp.taskId : undefined,
+      choiceField: hasChoices ? followUp.field : undefined,
     },
   ];
 }

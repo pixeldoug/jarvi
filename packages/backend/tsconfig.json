@@ -25,5 +25,11 @@
     }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist"],
+  "ts-node": {
+    // `npm run dev` runs through ts-node, which ignores `include` by default and
+    // therefore never sees src/types/*.d.ts (the ambient `@posthog/ai/openai`
+    // declaration). `tsc` and the Railway build are unaffected.
+    "files": true
+  }
 }

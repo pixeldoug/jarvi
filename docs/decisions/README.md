@@ -18,3 +18,4 @@ Se a AI for **escrever UI**, o contrato do package manda. O ADR explica; não su
 | ID | Decisão | Superfície |
 |----|---------|------------|
 | [0001](0001-one-overlay.md) | Um overlay por vez (não empilhar Dialog) | Web |
+| [0002](0002-backend-owned-confirmations.md) | Confirmações são do backend, não do modelo (flag `AGENT_RELIABLE_EXECUTION`) | Agente (web + WhatsApp) |

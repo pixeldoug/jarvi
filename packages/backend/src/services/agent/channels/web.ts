@@ -26,9 +26,13 @@ import {
   getUserLists,
 } from '../core/tasks';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
+import { isReliableExecutionEnabled } from '../core/flags';
 import { recordAgentTurnUsage, sumAgentTurnUsage } from '../core/telemetry';
 import type {
   AgentContext,
+  AgentJourneyNudge,
+  AgentPendingQuestion,
+  AgentPendingQuestionRef,
   ChannelProfile,
   ChatMessage,
 } from '../core/types';
@@ -44,6 +48,26 @@ export type SSEEvent =
   | { type: 'tool_call'; toolName: string; toolArgs: Record<string, unknown> }
   | { type: 'tool_result'; toolName: string; success: boolean; data?: Record<string, unknown> }
   | { type: 'separator' }
+  /**
+   * Backend-decided next question with quick replies (see core/nextQuestion.ts).
+   * The web renders it as the choice artifact; the question is NOT repeated in
+   * the text stream.
+   */
+  | {
+      type: 'choices';
+      /** Empty when the question was already asked in the text (conversational intro). */
+      question: string;
+      choices: string[];
+      field: AgentPendingQuestion['field'];
+      reason: AgentPendingQuestion['reason'];
+      taskId?: string;
+      taskTitle?: string;
+    }
+  /**
+   * The first-tasks journey is paused with tasks still to organize (see
+   * core/onboardingJourney.ts). Rendered as a muted line + "Continuar".
+   */
+  | { type: 'journey_nudge'; text: string; remaining: number; resumeLabel: string }
   | { type: 'done' }
   | { type: 'error'; message: string };
 
@@ -74,7 +98,6 @@ const WEB_PROFILE: ChannelProfile = {
     'scan_gmail',
     'search_web',
     'offer_choices',
-    'complete_onboarding_journey',
   ],
   outputFormat: 'markdown',
   transport: 'stream',
@@ -116,6 +139,14 @@ function toolStatusLabel(toolName: string): string {
 // Public API
 // ---------------------------------------------------------------------------
 
+export interface StreamChatOptions {
+  /**
+   * The system question the user is answering (the choice artifact on the
+   * last assistant message). Lets the backend resolve quick replies itself.
+   */
+  pendingQuestion?: AgentPendingQuestionRef;
+}
+
 export async function streamChat(
   userId: string,
   _userName: string,
@@ -123,6 +154,7 @@ export async function streamChat(
   mode: 'task' | 'general',
   taskId: string | undefined,
   onEvent: (event: SSEEvent) => void,
+  options: StreamChatOptions = {},
 ): Promise<void> {
   try {
     onEvent({ type: 'status', message: 'Preparando contexto…' });
@@ -138,15 +170,37 @@ export async function streamChat(
       whatsappVerified,
     } = profileData;
 
+    // Entrega 1 — resolved per user so the rollout can start with internal
+    // accounts only (see core/flags.ts). Off → legacy path: same prompts,
+    // schemas, retry guardrail and raw model text.
+    const reliableExecution = isReliableExecutionEnabled(email);
+    const profile: ChannelProfile = {
+      ...WEB_PROFILE,
+      reliableExecution,
+      // The tríade questions (prazo, horário, lembrete) and the onboarding
+      // journey are run by the system, not by the model. Rides on the same
+      // flag as the rest of reliable execution; the legacy path keeps the
+      // model-driven `complete_onboarding_journey` tool.
+      enableNextQuestionPolicy: reliableExecution,
+      toolsAvailable: reliableExecution
+        ? WEB_PROFILE.toolsAvailable
+        : [...WEB_PROFILE.toolsAvailable, 'complete_onboarding_journey'],
+    };
+
     // Fallback trigger: reconciliation normally already ran when the user
     // entered the platform (login/session restore). This is fire-and-forget
     // and never blocks the response — it just catches long-lived tabs that
     // never hit those touchpoints. The current turn always proceeds with
     // whatever `memory` was already loaded above, even if a reconciliation
     // is now running in the background.
-    if (WEB_PROFILE.enableMemoryReconciliation) {
+    if (profile.enableMemoryReconciliation) {
       triggerMemoryReconciliation(userId);
     }
+
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((m) => m.role === 'user')
+      ?.content;
 
     let ctx: AgentContext;
     let systemPrompt: string;
@@ -177,8 +231,12 @@ export async function streamChat(
         focusedTask: task,
         onboardingJourneyPending,
         whatsappVerified,
+        // The date guard reads the user's own words. Only wired with the flag
+        // so the legacy task-mode path stays untouched (it never had it).
+        originalUserMessage: profile.reliableExecution ? lastUserMessage : undefined,
+        pendingQuestion: profile.reliableExecution ? options.pendingQuestion : undefined,
       };
-      systemPrompt = buildTaskFocusedPrompt(task, ctx, WEB_PROFILE);
+      systemPrompt = buildTaskFocusedPrompt(task, ctx, profile);
     } else {
       onEvent({ type: 'status', message: 'Consultando suas tarefas…' });
       const [activeTasks, activeTaskCount, completedTaskCount, lists, categories] =
@@ -189,11 +247,6 @@ export async function streamChat(
           getUserLists(userId),
           getUserCategories(userId),
         ]);
-
-      const lastUserMessage = [...messages]
-        .reverse()
-        .find((m) => m.role === 'user')
-        ?.content;
 
       ctx = {
         userId,
@@ -210,8 +263,9 @@ export async function streamChat(
         originalUserMessage: lastUserMessage,
         onboardingJourneyPending,
         whatsappVerified,
+        pendingQuestion: profile.reliableExecution ? options.pendingQuestion : undefined,
       };
-      systemPrompt = buildSystemPrompt(ctx, WEB_PROFILE);
+      systemPrompt = buildSystemPrompt(ctx, profile);
     }
 
     const initialMessages: ChatCompletionMessageParam[] = messages
@@ -254,19 +308,37 @@ export async function streamChat(
         onEvent({ type: 'tool_result', toolName, success, data });
       },
       onSeparator: () => onEvent({ type: 'separator' }),
+      onQuestion: (question: AgentPendingQuestion) =>
+        onEvent({
+          type: 'choices',
+          // With an intro the question was streamed as text; the artifact
+          // only carries the choices so it is not asked twice.
+          question: question.intro ? '' : question.text,
+          choices: question.choices,
+          field: question.field,
+          reason: question.reason,
+          ...(question.taskId ? { taskId: question.taskId } : {}),
+          ...(question.taskTitle ? { taskTitle: question.taskTitle } : {}),
+        }),
+      onJourneyNudge: (nudge: AgentJourneyNudge) =>
+        onEvent({
+          type: 'journey_nudge',
+          text: nudge.text,
+          remaining: nudge.remaining,
+          resumeLabel: nudge.resumeLabel,
+        }),
     };
 
-    let { text, toolCallNames, usage, traceId } = await runAgent(
-      WEB_PROFILE,
-      ctx,
-      systemPrompt,
-      initialMessages,
-      agentCallbacks,
-    );
+    const run = await runAgent(profile, ctx, systemPrompt, initialMessages, agentCallbacks);
+    let { text, toolCallNames, usage } = run;
+    const { traceId } = run;
     let retried = false;
 
+    // Legacy guardrail only. With reliable execution a wrong sentence is
+    // stripped by the backend, never "fixed" by forcing a new write.
     if (
-      WEB_PROFILE.enableAntiHallucinationRetry &&
+      !profile.reliableExecution &&
+      profile.enableAntiHallucinationRetry &&
       shouldRetryWithForcedTool(text, toolCallNames)
     ) {
       console.warn(
@@ -275,7 +347,7 @@ export async function streamChat(
       );
       onEvent({ type: 'separator' });
       const retry = await runAgent(
-        WEB_PROFILE,
+        profile,
         ctx,
         systemPrompt,
         initialMessages,
@@ -296,6 +368,8 @@ export async function streamChat(
       usage,
       retried,
       traceId,
+      reliability: run.reliability,
+      operations: run.operations,
     });
 
     onEvent({ type: 'done' });

@@ -25,6 +25,12 @@ export interface TaskRow {
   recurrence_type?: string | null;
   recurrence_config?: string | null;
   recurrence_until?: string | null;
+  /**
+   * JSON array of tríade fields the user explicitly declined to fill
+   * ("Ainda não sei", "Sem horário", "Sem lembrete") — see `nextQuestion.ts`.
+   * A skipped field is never asked again for this task.
+   */
+  agent_triad_skips?: string | null;
   created_at: string | Date;
 }
 
@@ -93,12 +99,150 @@ export type ToolName =
   | 'scan_gmail'
   | 'search_web'
   | 'offer_choices'
+  /** Legacy (flag off) only — with reliable execution the backend closes the journey itself. */
   | 'complete_onboarding_journey';
 
 export interface ToolExecutionResult {
   success: boolean;
   data?: Record<string, unknown>;
   message?: string;
+  /**
+   * Stable, machine-readable failure reason (e.g. `not_found`,
+   * `invalid_arguments`). Present only when `success === false`.
+   */
+  error_code?: string;
+  /**
+   * Fields the executor actually wrote, as persisted (post-normalization).
+   * Only set by write tools; read tools leave it undefined. This is what the
+   * backend confirmation echoes — never the model's own arguments.
+   */
+  changes?: Record<string, unknown>;
+  /**
+   * Field-level notes the executor wants surfaced to the model and to the
+   * operations record: arguments it ignored, corrected or held back (e.g. a
+   * guessed due_date dropped because "semana que vem" needs a concrete day).
+   */
+  notes?: string[];
+  /** Question the backend will ask the user before a held-back field can be written. */
+  pending_question?: AgentPendingQuestion;
+  /** Affected entity, for the operations record / confirmations. */
+  entity?: AgentOperationEntity;
+  /** Nothing new was written because an identical task already existed. */
+  duplicate?: boolean;
+  /** Update ran but no field changed. */
+  unchanged?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Operations record — what the run ACTUALLY did (source of truth for
+// confirmations; the model's text never is)
+// ---------------------------------------------------------------------------
+
+export type AgentOperationKind = 'write' | 'read';
+
+export type AgentOperationEntityType = 'task' | 'list' | 'category' | 'memory' | 'gmail';
+
+export interface AgentOperationEntity {
+  type: AgentOperationEntityType;
+  id?: string;
+  title?: string;
+}
+
+/**
+ * A question the backend decided to ask the user — the next step of the task
+ * "tríade" (o quê / quando / como lembrar) derived from persisted state, or a
+ * field it refused to write (e.g. "semana que vem" without a weekday → which
+ * day?). The question is product policy, not model creativity: it is emitted
+ * by the channel adapter as a structured quick-reply artifact (web) or as
+ * text (WhatsApp), and the model is told not to ask it again.
+ */
+export type AgentPendingQuestionReason =
+  /** The user named a period ("essa semana") that still needs a concrete day. */
+  | 'period_needs_day'
+  /** A task was created without any due_date. */
+  | 'missing_due_date'
+  /** The model proposed a past day the user never named; the task has no prazo. */
+  | 'past_date_held'
+  /** The prazo was just defined (task had none) and the task still has no time. */
+  | 'missing_time'
+  /** Prazo (and horário, or an explicit "sem horário") settled; no reminder yet. */
+  | 'missing_reminder';
+
+export type AgentTriadField = 'due_date' | 'time' | 'reminders';
+
+export interface AgentPendingQuestion {
+  field: AgentTriadField;
+  reason: AgentPendingQuestionReason;
+  /** The exact expression the user wrote that triggered the question (periods only). */
+  expression?: string;
+  /** Ready-to-send question text in Jarvi's voice. */
+  text: string;
+  /** 2–5 short quick replies. The web renders them as buttons. */
+  choices: string[];
+  /** Task the question is about, when known. */
+  taskId?: string;
+  /** Title of that task, so the UI can label the artifact without guessing. */
+  taskTitle?: string;
+  /**
+   * Conversational sentence, in Jarvi's voice, that names the task AND asks
+   * the question ("E sobre {{task}}, quando você pretende fazer?"). When set,
+   * the chat shows it as text and the quick-reply artifact omits `text`, so
+   * moving on to another task reads as a conversation, not as a wizard step.
+   */
+  intro?: string;
+}
+
+/**
+ * Discreet reminder that the first-tasks journey is paused: the person went
+ * off-script (a new task, a free message) and there are still first tasks to
+ * organize. The web renders it as a muted line with a "Continuar" action;
+ * text channels get the text alone.
+ */
+export interface AgentJourneyNudge {
+  text: string;
+  /** First tasks that still have a tríade question left. */
+  remaining: number;
+  /** Label of the resume action ("Continuar"). */
+  resumeLabel: string;
+}
+
+/**
+ * The question the user is answering — echoed back by the client with the
+ * next message (the web keeps it on the last assistant message). Lets the
+ * backend resolve quick-reply answers and bare acknowledgements itself,
+ * before (or instead of) calling the model. See `pendingAnswer.ts`.
+ *
+ * `field: 'journey'` is the resume nudge (`AgentJourneyNudge`) being answered
+ * — there is no task; "Continuar" resumes the first-tasks journey.
+ */
+export interface AgentPendingQuestionRef {
+  field: AgentTriadField | 'journey';
+  taskId?: string;
+  question?: string;
+  choices?: string[];
+}
+
+export interface AgentOperation {
+  /** Tool name as the model requested it. */
+  tool: ToolName | string;
+  kind: AgentOperationKind;
+  /** Parsed arguments as sent by the model (after JSON parsing, before validation). */
+  args: Record<string, unknown>;
+  success: boolean;
+  /** Structured failure reason when `success === false`. */
+  error?: { code: string; message: string };
+  entity?: AgentOperationEntity;
+  /** Values effectively persisted by this operation (write tools only). */
+  persisted?: Record<string, unknown>;
+  /** True when a create_task was suppressed by the dedup window (nothing new was written). */
+  duplicate?: boolean;
+  /** True when an update ran but no field changed (e.g. every arg was ignored). */
+  unchanged?: boolean;
+  /** Executor notes (ignored/corrected/held-back fields). */
+  notes?: string[];
+  pendingQuestion?: AgentPendingQuestion;
+  /** Zero-based run-loop iteration in which the tool ran. */
+  iteration: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +269,24 @@ export interface ChannelProfile {
   /** Whether modo `task` (chat escopado em uma tarefa) is supported. */
   supportsTaskMode: boolean;
   /** Channel-specific extra rules appended to the system prompt. */
-  systemPromptExtras?: (ctx: AgentContext) => string | null;
+  systemPromptExtras?: (ctx: AgentContext, profile: ChannelProfile) => string | null;
+  /**
+   * Entrega 1 — execução confiável (see `flags.ts`). When true:
+   *  - tool arguments are validated server-side against the tool schema;
+   *  - confirmations are generated by the backend from the operations record;
+   *  - the model's own confirmation claims are held back / stripped;
+   *  - the `tool_choice=required` retry is NOT used as a text fix;
+   *  - ambiguous date periods ("semana que vem") never become a due_date.
+   * Adapters resolve this per user from the feature flag; defaults to false.
+   */
+  reliableExecution?: boolean;
+  /**
+   * Backend-owned "next question" policy (requires `reliableExecution`). When
+   * a task is created or left without a prazo, the BACKEND asks when the
+   * person will do it (quick replies) — the model never has to remember to.
+   * See `nextQuestion.ts`.
+   */
+  enableNextQuestionPolicy?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +330,12 @@ export interface AgentContext {
   onboardingJourneyPending?: boolean;
   /** True when the user has a verified WhatsApp number on the account. */
   whatsappVerified?: boolean;
+  /**
+   * The system question the user is replying to, when the client knows it
+   * (web: the choice artifact on the last assistant message). Drives the
+   * backend fast path for quick replies / acknowledgements.
+   */
+  pendingQuestion?: AgentPendingQuestionRef;
   /** Channel-specific metadata (e.g. WhatsApp phone / message SID). */
   whatsappPhone?: string;
   whatsappMessageSid?: string;
@@ -195,17 +362,63 @@ export interface AgentCallbacks {
   ) => void;
   /** Fired between tool results and the next assistant turn (UI separator). */
   onSeparator?: () => void;
+  /**
+   * Fired when the backend decides the next question for the user (quick
+   * replies). Adapters that implement it get the question as structured data
+   * and NOT as text; adapters that omit it get the question in the text.
+   */
+  onQuestion?: (question: AgentPendingQuestion) => void;
+  /**
+   * Fired when the first-tasks journey is paused with tasks still to organize
+   * (see onboardingJourney.ts). Adapters that implement it get the nudge as
+   * structured data (text + resume action) and NOT as text.
+   */
+  onJourneyNudge?: (nudge: AgentJourneyNudge) => void;
 }
 
 export interface AgentRunResult {
-  /** Final assistant text after all tool iterations. */
+  /**
+   * Final assistant text after all tool iterations.
+   *
+   * With `profile.reliableExecution`, this is the COMPOSED text: backend
+   * confirmations (from `operations`) + pending questions + the model's text
+   * with confirmation claims stripped. Without the flag it is the raw model
+   * text, as before.
+   */
   text: string;
-  /** Names of every tool successfully invoked across iterations. */
+  /**
+   * Names of every tool invoked across iterations (successful or not).
+   * @deprecated Kept for compatibility — prefer `operations`.
+   */
   toolCallNames: string[];
+  /** Ordered record of every tool the run executed and what it persisted. */
+  operations: AgentOperation[];
   /** Token usage aggregated across every OpenAI call made within this run. */
   usage: AgentTurnUsage;
   /** PostHog AI observability trace id for this run (one per user turn). */
   traceId: string;
+  /** Reliability signals for telemetry (only meaningful with `reliableExecution`). */
+  reliability: AgentRunReliability;
+}
+
+export interface AgentRunReliability {
+  /** Whether the reliable-execution path ran for this turn. */
+  enabled: boolean;
+  /** Model sentences dropped because they claimed a write the record doesn't back. */
+  claimsStripped: number;
+  /** Tool calls rejected by server-side argument validation (no write happened). */
+  invalidToolCalls: number;
+  /** due_date values the backend corrected or held back. */
+  dateCorrections: number;
+  /** Continuity questions the backend emitted (e.g. "qual dia da semana que vem?"). */
+  pendingQuestions: number;
+  /**
+   * The turn was resolved by the backend alone (quick-reply answer applied,
+   * next question asked) — no model call was made.
+   */
+  fastPath: boolean;
+  /** ms from run start until the first user-visible text was emitted (stream only). */
+  timeToFirstTextMs?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -15,7 +15,6 @@ const SATURDAY = nextWeekday(TODAY, WEEKDAY.sabado);
 const SATURDAY_DISPLAY = SATURDAY.split('-').slice(1).reverse().join('/');
 // Every day the agent could silently pick when told only "essa semana".
 const THIS_WEEK_DAYS = Array.from({ length: 7 }, (_, i) => addDays(TODAY, i));
-
 export const WEB_SCENARIOS: EvalScenario[] = [
   // ── Task creation ─────────────────────────────────────────────────────────
   {
@@ -98,6 +97,31 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     // artifact is what shows the title, not the chat text.
     idealOutput: 'Feito! Tarefa criada (sem categoria, já que nenhuma das existentes se encaixa).',
     tags: ['web', 'task-creation', 'category', 'no-invent'],
+  },
+
+  // ── Task mentions in prose ────────────────────────────────────────────────
+  // Naming an existing task in the chat must use the `{{task:id|title}}`
+  // token (rendered as the clickable task mention), not bold or quotes.
+  {
+    name: 'web/priority-answer-uses-task-mention',
+    channel: 'web',
+    // "hoje" pins the scope so the scenario measures the mention, not the
+    // "qual período?" clarification the agent may ask for an open question.
+    input: 'oq preciso priorizar hoje',
+    contextOverrides: {
+      activeTasks: [
+        makeTask({ id: 'task-irpf', title: 'Pagar IRPF atrasado', priority: 'high', due_date: TODAY }),
+        makeTask({ id: 'task-mercado', title: 'Fazer compras do mês', due_date: TODAY }),
+      ],
+    },
+    mustNotCallTool: ['create_task', 'update_task', 'search_tasks'],
+    // Rules run on the raw text (the mention token); the judge sees the
+    // token collapsed to the quoted title, hence the plain idealOutput.
+    mustContain: ['{{task:task-irpf|'],
+    mustNotContain: ['**Pagar IRPF atrasado**', '"Pagar IRPF atrasado"', '**{{task:'],
+    idealOutput:
+      'Doug, hoje a prioridade é "Pagar IRPF atrasado" (prioridade alta). Depois vem "Fazer compras do mês". Curto, sem listar campos da tarefa.',
+    tags: ['web', 'priority', 'task-mention'],
   },
 
   // ── Task updates ──────────────────────────────────────────────────────────
@@ -345,8 +369,12 @@ export const WEB_SCENARIOS: EvalScenario[] = [
     tags: ['web', 'onboarding', 'ack', 'next-task', 'tool-calling'],
   },
   {
+    // Legacy path only: with reliable execution the journey is advanced and
+    // closed by the backend (`onboardingJourney.ts`) — no tool exists for the
+    // model to call. That path is covered by `reliable-execution.deterministic.ts`.
     name: 'web/onboarding-journey-close',
     channel: 'web',
+    reliable: false,
     contextOverrides: {
       preferredName: 'doug',
       onboardingJourneyPending: true,
