@@ -45,6 +45,7 @@ import {
 import { listRemindersForTask, rescheduleRemindersForTask } from '../../reminderService';
 import { generateNextOccurrenceIfRecurring } from '../../recurrenceService';
 import { recordTaskCreated } from '../../taskTelemetry';
+import { markOnboardingCompletedViaWhatsapp } from '../../onboardingCompletionService';
 import { searchWeb } from '../../webSearchService';
 import { capitalizeTaskTitle } from '../../../utils/taskTitle';
 import { reconcileDueDate } from './dateExpressions';
@@ -813,6 +814,21 @@ async function executeCreateTaskAsActive(
 
   if (source === 'whatsapp' && hasIO()) {
     getIO().to(`user:${ctx.userId}`).emit('task:created', { id: taskId, source });
+  }
+
+  // A rescued ghost finishes "primeiras tarefas" right here. Stamping
+  // completion unlocks the web app and closes the PostHog funnel.
+  if (source === 'whatsapp' && ctx.onboardingIncomplete) {
+    try {
+      const flipped = await markOnboardingCompletedViaWhatsapp({
+        userId: ctx.userId,
+        email: ctx.email,
+        now: new Date(now),
+      });
+      if (flipped) ctx.onboardingIncomplete = false;
+    } catch (error) {
+      console.error('[create_task] Failed to mark onboarding completed via WhatsApp:', error);
+    }
   }
 
   recordTaskCreated({

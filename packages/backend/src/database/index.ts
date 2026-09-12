@@ -304,6 +304,18 @@ const createTables = async (): Promise<void> => {
       UNIQUE (user_id, summary_date)
     );`,
 
+    `CREATE TABLE IF NOT EXISTS onboarding_rescue_deliveries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      attempt INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      message TEXT,
+      error TEXT,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      UNIQUE (user_id, attempt)
+    );`,
+
     `CREATE TABLE IF NOT EXISTS pending_tasks (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -1221,6 +1233,19 @@ const runMigrations = async (): Promise<void> => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (user_id, summary_date)
         )`,
+        // Onboarding rescue (WhatsApp nudge for accounts that never finished
+        // the wizard). One row per (user, attempt) — the claim is the dedupe.
+        `CREATE TABLE IF NOT EXISTS onboarding_rescue_deliveries (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          attempt INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          message TEXT,
+          error TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (user_id, attempt)
+        )`,
       ];
       for (const migration of dailySummaryMigrations) {
         try {
@@ -1691,6 +1716,21 @@ const runMigrations = async (): Promise<void> => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (user_id, summary_date)
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS onboarding_rescue_deliveries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        attempt INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT,
+        error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, attempt)
       )`);
     } catch (e) {
       // Table already exists, ignore

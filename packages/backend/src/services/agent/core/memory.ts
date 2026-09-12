@@ -75,6 +75,8 @@ export interface UserProfile {
   subscriptionStatus: string;
   /** Wizard done, first-tasks chat still open. */
   onboardingJourneyPending: boolean;
+  /** Signup wizard never finished (`onboarding_completed_at` null). */
+  onboardingIncomplete: boolean;
   whatsappVerified: boolean;
 }
 
@@ -109,6 +111,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
         email: userRow?.email || '',
         subscriptionStatus: userRow?.subscription_status || 'none',
         onboardingJourneyPending,
+        onboardingIncomplete: userRow != null && userRow.onboarding_completed_at == null,
         whatsappVerified:
           userRow?.whatsapp_verified === true ||
           userRow?.whatsapp_verified === 1 ||
@@ -149,6 +152,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       email: userRow?.email || '',
       subscriptionStatus: userRow?.subscription_status || 'none',
       onboardingJourneyPending,
+      onboardingIncomplete: userRow != null && userRow.onboarding_completed_at == null,
       whatsappVerified:
         userRow?.whatsapp_verified === true ||
         userRow?.whatsapp_verified === 1 ||
@@ -162,6 +166,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       email: '',
       subscriptionStatus: 'none',
       onboardingJourneyPending: false,
+      onboardingIncomplete: false,
       whatsappVerified: false,
     };
   }

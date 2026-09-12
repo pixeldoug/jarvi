@@ -90,6 +90,11 @@ Para produção:
 | `TWILIO_WHATSAPP_NUMBER` | Número do sender de WhatsApp | `+55XXXXXXXXXXX` |
 | `TWILIO_WEBHOOK_URL` | URL do webhook inbound de WhatsApp (validação de assinatura) | `https://SEU_BACKEND/api/webhooks/whatsapp` |
 | `TWILIO_ONBOARDING_WELCOME_CONTENT_SID` | Content SID do único template de onboarding (boas-vindas + como usar no WhatsApp + dica de fixar). Variável `1` = nome | `HX...` |
+| `TWILIO_ONBOARDING_RESCUE_CONTENT_SID` | Content SID do template de **resgate de onboarding** (quem confirmou o WhatsApp mas não criou as primeiras tarefas). Sem variáveis — o corpo aprovado deve ser igual a `ONBOARDING_RESCUE_BODY` em `whatsappService.ts`. Sem esta variável o job fica desligado | `HX...` |
+| `ONBOARDING_RESCUE_FREEFORM_FALLBACK` | Só dev/teste: `true` manda o resgate como texto livre quando não há template (só chega em números que falaram com a Jarvi nas últimas 24h) | `true` |
+| `ONBOARDING_RESCUE_FIRST_DELAY_MINUTES` | Minutos após criar a conta para o único resgate (padrão `180`) | `180` |
+| `ONBOARDING_RESCUE_SEND_FROM_HOUR` / `ONBOARDING_RESCUE_SEND_UNTIL_HOUR` | Janela local de envio, hora inicial inclusiva e final exclusiva (padrão `9` e `21`) | `9` / `21` |
+| `ONBOARDING_RESCUE_MAX_ACCOUNT_AGE_DAYS` | Só contas criadas nos últimos N dias entram no resgate (padrão `14`) | `14` |
 | `TWILIO_VOICE_NUMBER` | Número Twilio com capacidade de voz usado para lembretes por Ligação. Opcional — sem ele, cai para `TWILIO_WHATSAPP_NUMBER` (útil só em dev/teste, pois o sender de WhatsApp normalmente não tem voz habilitada) | `+55XXXXXXXXXXX` |
 | `BACKEND_PUBLIC_URL` | URL pública HTTPS do backend, usada para montar as URLs de TwiML/status callback que o Twilio busca ao processar uma Ligação de lembrete | `https://SEU_BACKEND` |
 

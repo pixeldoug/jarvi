@@ -128,7 +128,7 @@ export const runWhatsappAgent = async (
   options: RunWhatsappAgentOptions = {},
 ): Promise<string> => {
   const [
-    { memory, timezone, preferredName, email, subscriptionStatus },
+    { memory, timezone, preferredName, email, subscriptionStatus, onboardingIncomplete },
     activeTasks,
     activeTaskCount,
     completedTaskCount,
@@ -162,6 +162,8 @@ export const runWhatsappAgent = async (
     categories,
     mode: 'general',
     originalUserMessage: userMessage,
+    // Rescued ghost: never finished the wizard. create_task stamps completion.
+    onboardingIncomplete,
     whatsappPhone: options.whatsappPhone,
     whatsappMessageSid: options.whatsappMessageSid,
   };

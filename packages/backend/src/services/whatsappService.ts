@@ -188,6 +188,67 @@ export const sendOnboardingWelcomeTemplate = async (
   });
 };
 
+/**
+ * Onboarding rescue — nudge for people who confirmed the WhatsApp code but
+ * never finished the wizard (never created their first tasks).
+ *
+ * Almost none of them ever *sent* a message to the Jarvi number (they only
+ * typed the code on the site), so there is no 24h customer-service window
+ * and a freeform body would not be delivered. The send therefore goes
+ * through an approved Meta template (`TWILIO_ONBOARDING_RESCUE_CONTENT_SID`,
+ * zero variables — the copy is the same for everyone, on purpose: we do not
+ * know which screen most of them stopped at).
+ *
+ * `ONBOARDING_RESCUE_FREEFORM_FALLBACK=true` sends `ONBOARDING_RESCUE_BODY`
+ * as plain text when no template SID is configured — dev/testing only, it
+ * only reaches numbers that already talked to Jarvi in the last 24h.
+ */
+export const ONBOARDING_RESCUE_BODY = [
+  'Oi! Aqui é a Jarvi 💜',
+  '',
+  'Vi que você criou sua conta, mas ainda não colocou suas primeiras tarefas.',
+  '',
+  'Dá pra fazer por aqui mesmo: me manda 2 ou 3 coisas que você precisa fazer (pode ser áudio) e eu já organizo pra você.',
+  '',
+  'Depois, se quiser, você ajeita tudo com calma no computador em app.jarvi.life — ou continua por aqui. 😉',
+].join('\n');
+
+export type OnboardingRescueTransport = 'template' | 'freeform';
+
+/** Which transport the rescue can use right now, or null when it must not send. */
+export const resolveOnboardingRescueTransport = (): OnboardingRescueTransport | null => {
+  if (process.env.TWILIO_ONBOARDING_RESCUE_CONTENT_SID?.trim()) return 'template';
+  if ((process.env.ONBOARDING_RESCUE_FREEFORM_FALLBACK || '').toLowerCase() === 'true') {
+    return 'freeform';
+  }
+  return null;
+};
+
+export const sendOnboardingRescueMessage = async (to: string): Promise<void> => {
+  const transport = resolveOnboardingRescueTransport();
+  if (!transport) {
+    throw new Error(
+      'TWILIO_ONBOARDING_RESCUE_CONTENT_SID is not set (and freeform fallback is off)',
+    );
+  }
+
+  const client = getTwilioClient();
+  if (transport === 'freeform') {
+    await client.messages.create({
+      from: getTwilioWhatsappNumber(),
+      to: toWhatsappAddress(to),
+      body: ONBOARDING_RESCUE_BODY,
+    });
+    return;
+  }
+
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid: process.env.TWILIO_ONBOARDING_RESCUE_CONTENT_SID!.trim(),
+  });
+};
+
 export const downloadMedia = async (mediaUrl: string): Promise<Buffer> => {
   const { accountSid, authToken } = getTwilioCredentials();
   const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');

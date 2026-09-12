@@ -28,6 +28,7 @@ import { initializeGmailWorker } from './queues/gmailQueue';
 import { startRecurrenceScheduler } from './services/recurrenceService';
 import { startReminderScheduler } from './services/reminderService';
 import { startDailySummaryScheduler } from './services/dailySummaryService';
+import { startOnboardingRescueScheduler } from './services/onboardingRescueService';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { shutdownPostHog } from './services/posthogService';
 
@@ -75,12 +76,23 @@ app.use(helmet({
 }));
 
 // CORS - configuração para desenvolvimento e produção
-const PRODUCTION_FRONTEND = 'https://app.jarvi.life';
-const configuredOrigins = process.env.FRONTEND_ORIGINS
-  ? process.env.FRONTEND_ORIGINS.split(',').map((item) => item.trim()).filter(Boolean)
-  : [PRODUCTION_FRONTEND];
+const FIRST_PARTY_FRONTENDS = [
+  'https://app.jarvi.life',
+  'https://staging.jarvi.life',
+  'https://dev.jarvi.life',
+];
+const splitOrigins = (value?: string): string[] =>
+  (value || '')
+    .split(',')
+    .map((item) => item.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+const configuredOrigins = [
+  ...splitOrigins(process.env.FRONTEND_ORIGINS),
+  ...splitOrigins(process.env.FRONTEND_URL),
+  ...splitOrigins(process.env.CORS_ORIGIN),
+];
 const devOrigins = ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173'];
-const productionOrigins = [...new Set([PRODUCTION_FRONTEND, ...configuredOrigins])];
+const productionOrigins = [...new Set([...FIRST_PARTY_FRONTENDS, ...configuredOrigins])];
 
 console.log('🔧 CORS startup config:', {
   NODE_ENV: process.env.NODE_ENV,
@@ -218,7 +230,8 @@ initializeDatabase()
     startRecurrenceScheduler();
     startReminderScheduler();
     startDailySummaryScheduler();
-    
+    startOnboardingRescueScheduler();
+
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🤝 Collaboration service initialized`);
@@ -227,6 +240,7 @@ initializeDatabase()
       console.log('🔁 Recurrence scheduler initialized');
       console.log('🔔 Reminder scheduler initialized');
       console.log('☀️ Daily summary scheduler initialized');
+      console.log('💜 Onboarding rescue scheduler initialized');
     });
 
     // Flush buffered PostHog events before the process exits.

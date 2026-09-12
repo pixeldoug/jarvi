@@ -328,6 +328,13 @@ export interface AgentContext {
    * (`onboarding_completed_at` set, `onboarding_journey_completed_at` null).
    */
   onboardingJourneyPending?: boolean;
+  /**
+   * True when the account never finished the signup wizard
+   * (`onboarding_completed_at` null). Set by the WhatsApp adapter for
+   * rescued "ghosts": creating their first task through WhatsApp stamps the
+   * completion (see `onboardingCompletionService`).
+   */
+  onboardingIncomplete?: boolean;
   /** True when the user has a verified WhatsApp number on the account. */
   whatsappVerified?: boolean;
   /**

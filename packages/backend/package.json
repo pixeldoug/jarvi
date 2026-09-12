@@ -13,7 +13,8 @@
     "stripe:trigger:payment-failed": "stripe trigger invoice.payment_failed",
     "eval": "AGENT_SEED=42 AGENT_TEMPERATURE=0 npx ts-node --require dotenv/config -P tsconfig.eval.json evals/run-evals.ts",
     "eval:deterministic": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/reliable-execution.deterministic.ts",
-    "eval:daily-summary": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/daily-summary.deterministic.ts"
+    "eval:daily-summary": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/daily-summary.deterministic.ts",
+    "eval:onboarding-rescue": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/onboarding-rescue.deterministic.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
