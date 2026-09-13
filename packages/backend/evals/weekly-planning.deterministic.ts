@@ -168,8 +168,8 @@ async function main(): Promise<void> {
     check(weeklyPlanningFirstName('Ana\nMaria') === 'Ana', 'newline never reaches the variable');
 
     const preview = buildWeeklyPlanningPreview('Douglas');
-    check(preview.startsWith('Oi, Douglas! 💜'), 'preview mirrors the approved template', preview);
-    check(preview.includes('3 coisas') && preview.includes('domingos'), 'preview carries the ask and the opt-out hint');
+    check(preview.startsWith('Olá, Douglas! 💜'), 'preview mirrors the approved template', preview);
+    check(preview.includes('3 coisas') && preview.includes('lembretes'), 'preview carries the ask and the opt-out hint');
   });
 
   // ── 1. Sunday at 19:00 → one message with the first name ──────────────────
@@ -183,7 +183,7 @@ async function main(): Promise<void> {
     check(sent[0]?.firstName === 'Douglas', '{{1}} is the first name', sent[0]);
     const rows = await deliveriesFor('wp-u1');
     check(rows.length === 1 && rows[0].status === 'sent' && rows[0].week_start === SUNDAY, 'delivery recorded for this Sunday', rows);
-    check(rows[0]?.message?.startsWith('Oi, Douglas! 💜') === true, 'stored message reads like the template', rows[0]?.message);
+    check(rows[0]?.message?.startsWith('Olá, Douglas! 💜') === true, 'stored message reads like the template', rows[0]?.message);
   });
 
   // ── 2. Preferred name wins; empty name falls back ─────────────────────────

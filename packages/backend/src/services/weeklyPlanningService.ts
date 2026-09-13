@@ -102,15 +102,15 @@ export function isWeeklyPlanningDay(isoDate: string): boolean {
  */
 export function buildWeeklyPlanningPreview(firstName: string): string {
   return [
-    `Oi, ${firstName}! 💜`,
+    `Olá, ${firstName}! 💜 Amanhã é uma nova semana. Quer se preparar?`,
     '',
-    'Dominguinho, amanhã começa uma nova semana. 💪',
+    'Se quiser, me conta *3 coisas* que vc precisa resolver até sexta. Pode ser áudio ou texto. Eu anoto. Leva só 2 minutos.',
     '',
-    'Me conta 3 coisas que você precisa resolver até sexta. Pode ser áudio ou texto, do seu jeito.',
+    'Isso já ajuda a começar a semana com mais clareza.',
     '',
-    'Eu organizo tudo com data e te lembro na hora certa.',
+    'Vc pode depois ver e organizar tudo melhor pelo computador.',
     '',
-    'ℹ️ Não quer mais receber esse lembrete aos domingos? É só me falar.',
+    'ℹ️ Se não quiser mais receber esses lembretes, é so falar.',
   ].join('\n');
 }
 
