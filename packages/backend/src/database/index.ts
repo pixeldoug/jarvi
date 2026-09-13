@@ -78,6 +78,8 @@ const createTables = async (): Promise<void> => {
       onboarding_journey_completed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       daily_summary_enabled ${booleanType} DEFAULT TRUE,
       daily_summary_time TEXT DEFAULT '08:00',
+      weekly_planning_enabled ${booleanType} DEFAULT TRUE,
+      weekly_planning_time TEXT DEFAULT '19:00',
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -302,6 +304,21 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType},
       updated_at ${timestampType},
       UNIQUE (user_id, summary_date)
+    );`,
+
+    // One row per (user, local Sunday): idempotency record for the WhatsApp
+    // "Planejamento Semanal". `week_start` is the ISO date of the Sunday the
+    // message belongs to, so a restart mid-evening never sends twice.
+    `CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      week_start TEXT NOT NULL,
+      status TEXT NOT NULL,
+      message TEXT,
+      error TEXT,
+      created_at ${timestampType},
+      updated_at ${timestampType},
+      UNIQUE (user_id, week_start)
     );`,
 
     `CREATE TABLE IF NOT EXISTS onboarding_rescue_deliveries (
@@ -1246,6 +1263,21 @@ const runMigrations = async (): Promise<void> => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (user_id, attempt)
         )`,
+        // Planejamento Semanal (Sunday WhatsApp nudge). Default ON like the
+        // daily summary; one delivery row per (user, local Sunday).
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_enabled BOOLEAN DEFAULT TRUE',
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_time TEXT DEFAULT '19:00'",
+        `CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          week_start TEXT NOT NULL,
+          status TEXT NOT NULL,
+          message TEXT,
+          error TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (user_id, week_start)
+        )`,
       ];
       for (const migration of dailySummaryMigrations) {
         try {
@@ -1731,6 +1763,33 @@ const runMigrations = async (): Promise<void> => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (user_id, attempt)
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+
+    // Migration: Planejamento Semanal (Sunday WhatsApp nudge) for SQLite
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN weekly_planning_enabled BOOLEAN DEFAULT TRUE');
+    } catch (e) {
+      // Column already exists, ignore
+    }
+    try {
+      await db.exec("ALTER TABLE users ADD COLUMN weekly_planning_time TEXT DEFAULT '19:00'");
+    } catch (e) {
+      // Column already exists, ignore
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        week_start TEXT NOT NULL,
+        status TEXT NOT NULL,
+        message TEXT,
+        error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, week_start)
       )`);
     } catch (e) {
       // Table already exists, ignore

@@ -58,13 +58,40 @@ const WRITE_TASK_TOOLS = new Set(['create_task', 'update_task', 'complete_task',
 const WRITE_LIST_TOOLS = new Set(['create_list', 'update_list', 'delete_list']);
 const WRITE_CATEGORY_TOOLS = new Set(['create_category', 'update_category', 'delete_category']);
 
+const WRITE_SETTINGS_TOOLS = new Set(['update_notification_settings']);
+
 export function isWriteTool(tool: string): boolean {
   return (
     WRITE_TASK_TOOLS.has(tool) ||
     WRITE_LIST_TOOLS.has(tool) ||
     WRITE_CATEGORY_TOOLS.has(tool) ||
+    WRITE_SETTINGS_TOOLS.has(tool) ||
     tool === 'update_memory'
   );
+}
+
+/** "20:00" → "20h", "07:30" → "7h30". */
+function clockLabel(time: string): string {
+  const m = time.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return time;
+  const hour = String(Number(m[1]));
+  return m[2] === '00' ? `${hour}h` : `${hour}h${m[2]}`;
+}
+
+/**
+ * One sentence for a notification-settings change. Same on both surfaces —
+ * the settings page mirrors it, so the person recognises the wording.
+ */
+function notificationSentence(op: AgentOperation): string {
+  const name = op.entity?.title ?? 'a notificação';
+  const enabled = op.persisted?.enabled;
+  const time = typeof op.persisted?.time === 'string' ? clockLabel(op.persisted.time) : null;
+  const isWeekly = op.entity?.id === 'weekly_planning';
+  const when = isWeekly ? 'aos domingos' : 'todo dia';
+
+  if (enabled === false) return `Pronto, desliguei o ${name}. Se quiser voltar a receber, é só me falar.`;
+  if (time) return `Pronto, o ${name} agora chega ${when} às ${time}.`;
+  return `Pronto, o ${name} está ligado de novo.`;
 }
 
 /** Tools whose outcome the user must be told about (memory stays silent by design). */
@@ -440,6 +467,11 @@ export function buildConfirmation(
     if (op.tool === 'create_category') lines.push(`Categoria ${name} criada.`.replace('  ', ' '));
     else if (op.tool === 'update_category') lines.push(`Categoria ${name} atualizada.`.replace('  ', ' '));
     else lines.push('Categoria excluída.');
+  }
+
+  // ── Notification settings (Resumo do dia / Planejamento semanal) ───────
+  for (const op of ops.filter((o) => o.success && WRITE_SETTINGS_TOOLS.has(o.tool))) {
+    lines.push(notificationSentence(op));
   }
 
   // ── Failures — always last, always explicit ────────────────────────────

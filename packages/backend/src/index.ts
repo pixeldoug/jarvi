@@ -28,6 +28,7 @@ import { initializeGmailWorker } from './queues/gmailQueue';
 import { startRecurrenceScheduler } from './services/recurrenceService';
 import { startReminderScheduler } from './services/reminderService';
 import { startDailySummaryScheduler } from './services/dailySummaryService';
+import { startWeeklyPlanningScheduler } from './services/weeklyPlanningService';
 import { startOnboardingRescueScheduler } from './services/onboardingRescueService';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { shutdownPostHog } from './services/posthogService';
@@ -230,6 +231,7 @@ initializeDatabase()
     startRecurrenceScheduler();
     startReminderScheduler();
     startDailySummaryScheduler();
+    startWeeklyPlanningScheduler();
     startOnboardingRescueScheduler();
 
     server.listen(PORT, () => {

@@ -123,7 +123,7 @@ function scriptedStreamClient(turns: ScriptedTurn[]): { client: OpenAI; calls: (
 const WHATSAPP: ChannelProfile = {
   id: 'whatsapp',
   taskCreationTarget: 'tasks',
-  toolsAvailable: ['create_task', 'update_task', 'complete_task', 'delete_task', 'search_tasks', 'update_memory'],
+  toolsAvailable: ['create_task', 'update_task', 'complete_task', 'delete_task', 'search_tasks', 'update_memory', 'update_notification_settings'],
   outputFormat: 'plain',
   transport: 'single',
   enableBriefing: true,
@@ -141,7 +141,7 @@ const WEB: ChannelProfile = {
     'create_task', 'update_task', 'complete_task', 'delete_task', 'search_tasks', 'update_memory',
     'create_list', 'update_list', 'delete_list', 'show_list',
     'create_category', 'update_category', 'delete_category', 'show_category', 'scan_gmail',
-    'search_web', 'offer_choices',
+    'search_web', 'offer_choices', 'update_notification_settings',
   ],
   outputFormat: 'markdown',
   transport: 'stream',

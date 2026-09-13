@@ -631,4 +631,45 @@ export const SCENARIOS: EvalScenario[] = [
     ],
     tags: ['multiturn', 'no-create', 'explicit-negative', 'tool-calling'],
   },
+
+  // ── Notification settings (Resumo do dia / Planejamento semanal) ───────────
+  {
+    // Reply to the Sunday template's own footer ("Não quer mais receber esse
+    // lembrete aos domingos? É só me falar."). Must flip the setting, not
+    // create a task and not ask for the timezone.
+    name: 'notifications/opt-out-weekly-planning',
+    input: 'não quero mais receber esse lembrete de domingo',
+    mustCallTool: ['update_notification_settings'],
+    mustCallToolArgs: [
+      { tool: 'update_notification_settings', arg: 'notification', value: 'weekly_planning' },
+    ],
+    mustNotCallTool: ['create_task', 'update_task'],
+    mustNotContain: ['fuso', 'tarefa criada', 'Salvo!'],
+    idealOutput: 'Pronto, desliguei o Planejamento semanal. Se quiser voltar a receber, é só me falar.',
+    tags: ['notifications', 'weekly-planning', 'tool-calling'],
+  },
+  {
+    name: 'notifications/change-weekly-planning-time',
+    input: 'manda o planejamento da semana às 20h em vez de 19h',
+    mustCallTool: ['update_notification_settings'],
+    mustCallToolArgs: [
+      { tool: 'update_notification_settings', arg: 'notification', value: 'weekly_planning' },
+      { tool: 'update_notification_settings', arg: 'time', value: '20:00' },
+    ],
+    mustNotCallTool: ['create_task', 'update_task'],
+    mustNotContain: ['fuso'],
+    idealOutput: 'Pronto, o Planejamento semanal agora chega aos domingos às 20h.',
+    tags: ['notifications', 'weekly-planning', 'tool-calling'],
+  },
+  {
+    name: 'notifications/opt-out-daily-summary',
+    input: 'para de me mandar o resumo do dia',
+    mustCallTool: ['update_notification_settings'],
+    mustCallToolArgs: [
+      { tool: 'update_notification_settings', arg: 'notification', value: 'daily_summary' },
+    ],
+    mustNotCallTool: ['create_task', 'update_task'],
+    idealOutput: 'Pronto, desliguei o Resumo do dia. Se quiser voltar a receber, é só me falar.',
+    tags: ['notifications', 'daily-summary', 'tool-calling'],
+  },
 ];
