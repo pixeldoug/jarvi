@@ -50,6 +50,8 @@ import { searchWeb } from '../../webSearchService';
 import { capitalizeTaskTitle } from '../../../utils/taskTitle';
 import { reconcileDueDate } from './dateExpressions';
 import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './onboardingJourney';
+import { parseDailySummaryTime, updateDailySummarySettings } from '../../dailySummaryService';
+import { updateWeeklyPlanningSettings } from '../../weeklyPlanningService';
 import {
   decideNextQuestion,
   dueDateQuestion,
@@ -467,6 +469,34 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
       },
     },
   },
+  update_notification_settings: {
+    type: 'function',
+    function: {
+      name: 'update_notification_settings',
+      description:
+        'Liga, desliga ou muda o horário das mensagens proativas que a Jarvi manda no WhatsApp: o "Resumo do dia" (daily_summary, todo dia de manhã) e o "Planejamento semanal" (weekly_planning, todo domingo à noite). Use quando a pessoa disser coisas como "não quero mais o lembrete de domingo", "para de me mandar o resumo", "manda o planejamento às 20h", "volta a mandar o resumo". Não é para lembretes de tarefa (use update_task). O horário é sempre no fuso da pessoa — NUNCA pergunte o fuso. O sistema confirma sozinho; não repita a confirmação.',
+      parameters: {
+        type: 'object',
+        properties: {
+          notification: {
+            type: 'string',
+            enum: ['weekly_planning', 'daily_summary'],
+            description:
+              'weekly_planning = Planejamento semanal (domingo). daily_summary = Resumo do dia (manhã). "lembrete de domingo", "planejamento", "as 3 coisas da semana" → weekly_planning; "resumo", "bom dia da Jarvi", "resumo do dia" → daily_summary.',
+          },
+          enabled: {
+            type: 'boolean',
+            description: 'true para voltar a receber, false para parar de receber. Omita quando só o horário mudar.',
+          },
+          time: {
+            type: 'string',
+            description: 'Novo horário de envio em HH:MM (24h), no fuso da pessoa: "20h"→"20:00", "7 e meia"→"07:30". Omita quando só ligar/desligar.',
+          },
+        },
+        required: ['notification'],
+      },
+    },
+  },
   // Legacy path only (reliable execution off): the web adapter does not expose
   // this tool when the backend runs the onboarding journey itself.
   complete_onboarding_journey: {
@@ -548,7 +578,11 @@ export function getToolDefinition(name: string, profile: ChannelProfile): ChatCo
 // guardrail to detect "I created the task" claims that weren't backed by an
 // actual tool call.
 export const CREATION_TOOL_NAMES = new Set<ToolName>(['create_task']);
-export const UPDATE_TOOL_NAMES = new Set<ToolName>(['update_task', 'complete_task']);
+export const UPDATE_TOOL_NAMES = new Set<ToolName>([
+  'update_task',
+  'complete_task',
+  'update_notification_settings',
+]);
 
 // ---------------------------------------------------------------------------
 // Executor
@@ -2036,6 +2070,70 @@ function executeOfferChoices(args: Record<string, unknown>): ToolExecutionResult
   return { success: true, data: { question, choices } };
 }
 
+export type NotificationSettingKey = 'weekly_planning' | 'daily_summary';
+
+export const NOTIFICATION_LABELS: Record<NotificationSettingKey, string> = {
+  weekly_planning: 'Planejamento semanal',
+  daily_summary: 'Resumo do dia',
+};
+
+/**
+ * Ligar/desligar/mudar horário do Resumo do dia ou do Planejamento semanal.
+ * Persists through the same services the settings page uses, so the web UI
+ * and the agent never disagree. `changes` carries what was actually saved —
+ * the backend confirmation echoes it (see confirmations.ts).
+ */
+async function executeUpdateNotificationSettings(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const notification = args.notification as NotificationSettingKey | undefined;
+  if (notification !== 'weekly_planning' && notification !== 'daily_summary') {
+    return {
+      success: false,
+      error_code: 'invalid_arguments',
+      message: 'notification deve ser weekly_planning ou daily_summary',
+    };
+  }
+
+  const patch: { enabled?: boolean; sendTime?: string } = {};
+  if (args.enabled !== undefined && args.enabled !== null) {
+    if (typeof args.enabled !== 'boolean') {
+      return { success: false, error_code: 'invalid_arguments', message: 'enabled deve ser true ou false' };
+    }
+    patch.enabled = args.enabled;
+  }
+  if (args.time !== undefined && args.time !== null && args.time !== '') {
+    const normalized = parseDailySummaryTime(args.time);
+    if (!normalized) {
+      return { success: false, error_code: 'invalid_arguments', message: 'time deve estar no formato HH:MM' };
+    }
+    patch.sendTime = normalized;
+    // Changing the time is an implicit "keep sending" unless told otherwise.
+    if (patch.enabled === undefined) patch.enabled = true;
+  }
+  if (patch.enabled === undefined && patch.sendTime === undefined) {
+    return { success: false, error_code: 'invalid_arguments', message: 'Informe enabled e/ou time' };
+  }
+
+  const settings =
+    notification === 'weekly_planning'
+      ? await updateWeeklyPlanningSettings(ctx.userId, patch)
+      : await updateDailySummarySettings(ctx.userId, patch);
+  if (!settings) return { success: false, error_code: 'not_found', message: 'Usuário não encontrado' };
+
+  const changes: Record<string, unknown> = { notification };
+  if (patch.enabled !== undefined) changes.enabled = settings.enabled;
+  if (patch.sendTime !== undefined) changes.time = settings.sendTime;
+
+  return {
+    success: true,
+    data: { notification, enabled: settings.enabled, time: settings.sendTime, timezone: settings.timezone },
+    changes,
+    entity: { type: 'notification', id: notification, title: NOTIFICATION_LABELS[notification] },
+  };
+}
+
 /** Legacy (flag off) closure of the onboarding journey, driven by the model. */
 async function executeCompleteOnboardingJourney(
   ctx: AgentContext,
@@ -2107,6 +2205,8 @@ export async function executeToolCall(
       return executeSearchWeb(args, ctx);
     case 'offer_choices':
       return executeOfferChoices(args);
+    case 'update_notification_settings':
+      return executeUpdateNotificationSettings(args, ctx);
     case 'complete_onboarding_journey':
       return executeCompleteOnboardingJourney(ctx, profile);
     default:

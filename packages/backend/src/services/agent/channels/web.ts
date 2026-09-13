@@ -98,6 +98,7 @@ const WEB_PROFILE: ChannelProfile = {
     'scan_gmail',
     'search_web',
     'offer_choices',
+    'update_notification_settings',
   ],
   outputFormat: 'markdown',
   transport: 'stream',
@@ -127,6 +128,7 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   show_category: 'Buscando categoria…',
   update_memory: 'Atualizando memória…',
   offer_choices: 'Preparando opções…',
+  update_notification_settings: 'Atualizando notificações…',
 };
 
 const SILENT_WEB_TOOLS = new Set(['complete_onboarding_journey']);
