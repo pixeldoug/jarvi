@@ -168,11 +168,7 @@ export const sendDailySummaryMessage = async (
 
 /**
  * Approved template for the proactive Sunday "Planejamento Semanal"
- * (`what_weekly_planning`). Single variable: {{1}} = first name.
- *
- *   Oi, {{1}}! 💜 / Dominguinho, amanhã começa uma nova semana. 💪 /
- *   Me conta 3 coisas que você precisa resolver até sexta. (…) /
- *   ℹ️ Não quer mais receber esse lembrete aos domingos? É só me falar.
+ * (`sunday_reminder`). Single variable: {{1}} = first name.
  *
  * Meta categorised it as **Marketing** (it asks for a reply rather than
  * reporting account state), unlike the Utility daily-summary templates. That
@@ -181,7 +177,7 @@ export const sendDailySummaryMessage = async (
  * out of marketing messages at the WhatsApp level. Re-submitting the same body
  * as Utility would just get recategorised again.
  */
-export const WEEKLY_PLANNING_TEMPLATE_SID = 'HX3fff303efeb9c4615c27a4b32e3d85b6';
+export const WEEKLY_PLANNING_TEMPLATE_SID = 'HXed4f9593877bd77233ed1af033aa2feea8';
 
 export const sendWeeklyPlanningMessage = async (to: string, firstName: string): Promise<void> => {
   const client = getTwilioClient();
