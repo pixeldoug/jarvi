@@ -181,7 +181,7 @@ export const sendDailySummaryMessage = async (
  * out of marketing messages at the WhatsApp level. Re-submitting the same body
  * as Utility would just get recategorised again.
  */
-export const WEEKLY_PLANNING_TEMPLATE_SID = 'HX3fff505efeb9c4615c27a4b52e5d85b6';
+export const WEEKLY_PLANNING_TEMPLATE_SID = 'HX3fff303efeb9c4615c27a4b32e3d85b6';
 
 export const sendWeeklyPlanningMessage = async (to: string, firstName: string): Promise<void> => {
   const client = getTwilioClient();
