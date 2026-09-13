@@ -2,7 +2,7 @@
  * Planejamento Semanal — proactive WhatsApp nudge every Sunday evening.
  *
  * Once a week, on Sunday at the time the person configured (default 19:00 in
- * their own timezone), sends the approved `what_weekly_planning` template
+ * their own timezone), sends the approved `sunday_reminder` template
  * asking for the 3 things they need to solve by Friday. There is no task
  * selection: the message is the same for everyone (only the first name
  * changes) and goes out even when the person has an empty list — the whole
