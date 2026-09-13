@@ -99,6 +99,8 @@ export type ToolName =
   | 'scan_gmail'
   | 'search_web'
   | 'offer_choices'
+  /** Ligar/desligar/mudar horário do Resumo do dia e do Planejamento semanal (WhatsApp). */
+  | 'update_notification_settings'
   /** Legacy (flag off) only — with reliable execution the backend closes the journey itself. */
   | 'complete_onboarding_journey';
 
@@ -140,7 +142,7 @@ export interface ToolExecutionResult {
 
 export type AgentOperationKind = 'write' | 'read';
 
-export type AgentOperationEntityType = 'task' | 'list' | 'category' | 'memory' | 'gmail';
+export type AgentOperationEntityType = 'task' | 'list' | 'category' | 'memory' | 'gmail' | 'notification';
 
 export interface AgentOperationEntity {
   type: AgentOperationEntityType;

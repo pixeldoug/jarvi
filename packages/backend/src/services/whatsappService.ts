@@ -166,6 +166,32 @@ export const sendDailySummaryMessage = async (
   });
 };
 
+/**
+ * Approved template for the proactive Sunday "Planejamento Semanal"
+ * (`sunday_reminder`). Single variable: {{1}} = first name.
+ *
+ *   Olá, {{1}}! 💜 Amanhã é uma nova semana. Quer se preparar?
+ *   Se quiser, me conta *3 coisas* … Eu anoto. Leva só 2 minutos.
+ *
+ * Meta categorised it as **Marketing** (it asks for a reply rather than
+ * reporting account state), unlike the Utility daily-summary templates. That
+ * means it is still deliverable outside the 24h window, but it counts against
+ * Meta's marketing conversation caps and is not delivered to people who opted
+ * out of marketing messages at the WhatsApp level. Re-submitting the same body
+ * as Utility would just get recategorised again.
+ */
+export const WEEKLY_PLANNING_TEMPLATE_SID = 'HXed4f959387bd77323ed1af03aa2feea8';
+
+export const sendWeeklyPlanningMessage = async (to: string, firstName: string): Promise<void> => {
+  const client = getTwilioClient();
+  await client.messages.create({
+    from: getTwilioWhatsappNumber(),
+    to: toWhatsappAddress(to),
+    contentSid: WEEKLY_PLANNING_TEMPLATE_SID,
+    contentVariables: JSON.stringify({ '1': firstName }),
+  });
+};
+
 export const sendOnboardingWelcomeTemplate = async (
   to: string,
   name: string,

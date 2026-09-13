@@ -101,6 +101,7 @@ const WHATSAPP_PROFILE: ChannelProfile = {
     'delete_task',
     'search_tasks',
     'update_memory',
+    'update_notification_settings',
   ],
   outputFormat: 'plain',
   transport: 'single',
