@@ -204,13 +204,11 @@ export const sendOnboardingWelcomeTemplate = async (
  * only reaches numbers that already talked to Jarvi in the last 24h.
  */
 export const ONBOARDING_RESCUE_BODY = [
-  'Oi! Aqui é a Jarvi 💜',
+  'Oi! Jarvi aqui 💜 Sua conta está pronta.',
   '',
-  'Vi que você criou sua conta, mas ainda não colocou suas primeiras tarefas.',
+  'Agora é só me mandar qualquer coisa que vc precise fazer ou lembrar.',
   '',
-  'Dá pra fazer por aqui mesmo: me manda 2 ou 3 coisas que você precisa fazer (pode ser áudio) e eu já organizo pra você.',
-  '',
-  'Depois, se quiser, você ajeita tudo com calma no computador em app.jarvi.life — ou continua por aqui. 😉',
+  'Eu anoto tudo por aqui e depois, se quiser, vc pode organizar / ver melhor pelo computador.',
 ].join('\n');
 
 export type OnboardingRescueTransport = 'template' | 'freeform';
