@@ -12,9 +12,10 @@
  * send is deterministic and lives here. No model is involved.
  *
  * Idempotency: `weekly_planning_deliveries` has UNIQUE (user_id, week_start),
- * where `week_start` is the ISO date of the local Sunday. A row is claimed
- * BEFORE anything is sent, so two overlapping ticks (or a restart) can never
- * produce a second message for the same Sunday.
+ * where `week_start` is always the ISO date of that week's Sunday (never
+ * "today" on a weekday). A row is claimed BEFORE anything is sent, so two
+ * overlapping ticks (or a leftover FORCE_NOW on Monday) can never produce a
+ * second message for the same Sunday.
  *
  * Template category is **Marketing** on Meta's side (see whatsappService), so
  * deliveries may be throttled by Meta's marketing caps or suppressed for
@@ -23,6 +24,7 @@
  */
 import cron from 'node-cron';
 import { v4 as uuidv4 } from 'uuid';
+import { isProduction } from '../config/environment';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { getDateTimeForTimezone, getWeekdayNamePt } from './agent/core/time';
 import { classifySummaryMoment, parseDailySummaryTime } from './dailySummaryService';
@@ -46,12 +48,20 @@ const MAX_DELAY_MINUTES = Number(process.env.WEEKLY_PLANNING_MAX_DELAY_MINUTES |
 /**
  * Staging smoke-test kill switch. When `true`/`1`, the next tick treats every
  * eligible user as due — skips the Sunday check and the send-time window.
- * Still claims `weekly_planning_deliveries` for today's local date, so a
- * restart cannot double-send. Never set this on production.
+ * Still claims the week's Sunday (not "today"), so leaving the flag on
+ * overnight cannot send a second "amanhã é uma nova semana" on Monday.
+ * Ignored in production: a leftover env var must never text real users
+ * off-schedule.
  */
 const isForceNow = (): boolean => {
   const raw = (process.env.WEEKLY_PLANNING_FORCE_NOW ?? '').trim().toLowerCase();
-  return raw === 'true' || raw === '1';
+  const requested = raw === 'true' || raw === '1';
+  if (!requested) return false;
+  if (isProduction()) {
+    console.warn('[weeklyPlanning] WEEKLY_PLANNING_FORCE_NOW is ignored in production');
+    return false;
+  }
+  return true;
 };
 
 // ---------------------------------------------------------------------------
@@ -94,6 +104,20 @@ export function weeklyPlanningFirstName(name: string | null | undefined): string
 /** True when the local ISO date is a Sunday. */
 export function isWeeklyPlanningDay(isoDate: string): boolean {
   return getWeekdayNamePt(isoDate) === WEEKLY_PLANNING_WEEKDAY_PT;
+}
+
+/**
+ * ISO date of the Sunday that opens the week containing `isoDate` (Sun–Sat).
+ * Delivery idempotency is per week, not per calendar day — a Monday force-send
+ * must collide with Sunday's row instead of opening a new slot.
+ */
+export function weekStartSunday(isoDate: string): string {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return isoDate;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12, 0, 0));
+  if (Number.isNaN(date.getTime())) return isoDate;
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+  return date.toISOString().slice(0, 10);
 }
 
 /**
@@ -309,7 +333,8 @@ export async function processDueWeeklyPlanning(now: Date = new Date()): Promise<
     const moment = forceNow ? 'due' : classifySummaryMoment(sendTime, hourMinute, MAX_DELAY_MINUTES);
     if (moment === 'not_yet') continue;
 
-    const deliveryId = await claimDelivery(user.id, isoDate);
+    const weekStart = weekStartSunday(isoDate);
+    const deliveryId = await claimDelivery(user.id, weekStart);
     if (!deliveryId) continue; // already handled this Sunday
 
     stats.evaluated += 1;
@@ -344,6 +369,12 @@ let scheduledTask: cron.ScheduledTask | null = null;
 
 export function startWeeklyPlanningScheduler(): cron.ScheduledTask {
   if (scheduledTask) return scheduledTask;
+
+  if (isForceNow()) {
+    console.warn('[weeklyPlanning] WEEKLY_PLANNING_FORCE_NOW is on — Sunday/time checks are skipped (non-production only)');
+  } else if ((process.env.WEEKLY_PLANNING_FORCE_NOW ?? '').trim()) {
+    console.warn('[weeklyPlanning] WEEKLY_PLANNING_FORCE_NOW is set but ignored (production)');
+  }
 
   scheduledTask = cron.schedule('* * * * *', () => {
     processDueWeeklyPlanning()
