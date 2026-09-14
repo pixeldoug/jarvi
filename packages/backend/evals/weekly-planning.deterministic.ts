@@ -4,7 +4,8 @@
  * Drives `processDueWeeklyPlanning` against an in-memory SQLite with a
  * recorded WhatsApp transport and an injected clock, so every business rule
  * is asserted exactly: only on Sunday, at the configured local time, once per
- * week, never for people who opted out, and late Sundays are skipped.
+ * week, never for people who opted out, late Sundays are skipped, leftover
+ * FORCE_NOW cannot text again on Monday, and production ignores FORCE_NOW.
  *
  * Also covers the agent tool `update_notification_settings` end-to-end
  * (executor → service → settings row → backend confirmation sentence).
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
     __setWeeklyPlanningSenderForTesting,
     parseWeeklyPlanningTime,
     isWeeklyPlanningDay,
+    weekStartSunday,
     weeklyPlanningFirstName,
     buildWeeklyPlanningPreview,
     getWeeklyPlanningSettings,
@@ -162,6 +164,10 @@ async function main(): Promise<void> {
     check(isWeeklyPlanningDay(MONDAY) === false, 'Monday is not', MONDAY);
     check(isWeeklyPlanningDay(addDays(SUNDAY, 6)) === false, 'Saturday is not');
     check(isWeeklyPlanningDay(NEXT_SUNDAY) === true, 'the Sunday after is');
+    check(weekStartSunday(SUNDAY) === SUNDAY, 'Sunday is its own week start');
+    check(weekStartSunday(MONDAY) === SUNDAY, 'Monday maps back to that Sunday');
+    check(weekStartSunday(addDays(SUNDAY, 6)) === SUNDAY, 'Saturday still belongs to that Sunday');
+    check(weekStartSunday(NEXT_SUNDAY) === NEXT_SUNDAY, 'the next Sunday opens a new week');
 
     check(weeklyPlanningFirstName('Douglas Henrique') === 'Douglas', 'first name only');
     check(weeklyPlanningFirstName('  ') === 'tudo bem' && weeklyPlanningFirstName(null) === 'tudo bem', 'empty → "tudo bem"');
@@ -221,12 +227,50 @@ async function main(): Promise<void> {
     try {
       const stats = await processDueWeeklyPlanning(atLocal(MONDAY, '15:00', SP));
       check(stats.sent === 1 && sent.length === 1, 'force-now sends off-schedule', { stats, sent });
-      check((await deliveriesFor('wp-force'))[0]?.week_start === MONDAY, 'claims today even when it is not Sunday');
+      check((await deliveriesFor('wp-force'))[0]?.week_start === SUNDAY, 'claims the week\'s Sunday, not Monday');
       await processDueWeeklyPlanning(atLocal(MONDAY, '15:01', SP));
       check(sent.length === 1, 'force-now still idempotent for the same day', sent.length);
     } finally {
       if (previous === undefined) delete process.env.WEEKLY_PLANNING_FORCE_NOW;
       else process.env.WEEKLY_PLANNING_FORCE_NOW = previous;
+    }
+  });
+
+  await testCase('force-now leftover: Sunday already sent → Monday does not send again', async () => {
+    await reset();
+    await seedUser({ id: 'wp-force-left', phone: '+5511999990088' });
+    await processDueWeeklyPlanning(atLocal(SUNDAY, '19:00', SP));
+    check(sent.length === 1, 'Sunday send landed', sent.length);
+
+    const previous = process.env.WEEKLY_PLANNING_FORCE_NOW;
+    process.env.WEEKLY_PLANNING_FORCE_NOW = 'true';
+    try {
+      await processDueWeeklyPlanning(atLocal(MONDAY, '00:00', SP));
+      await processDueWeeklyPlanning(atLocal(MONDAY, '08:00', SP));
+      check(sent.length === 1, 'leftover FORCE_NOW must not text again on Monday', sent.length);
+      check((await deliveriesFor('wp-force-left')).length === 1, 'still one row for that Sunday');
+    } finally {
+      if (previous === undefined) delete process.env.WEEKLY_PLANNING_FORCE_NOW;
+      else process.env.WEEKLY_PLANNING_FORCE_NOW = previous;
+    }
+  });
+
+  await testCase('force-now: ignored in production even on Monday', async () => {
+    await reset();
+    await seedUser({ id: 'wp-force-prod', phone: '+5511999990077' });
+    const previousFlag = process.env.WEEKLY_PLANNING_FORCE_NOW;
+    const previousEnv = process.env.NODE_ENV;
+    process.env.WEEKLY_PLANNING_FORCE_NOW = 'true';
+    process.env.NODE_ENV = 'production';
+    try {
+      const stats = await processDueWeeklyPlanning(atLocal(MONDAY, '00:00', SP));
+      check(stats.sent === 0 && sent.length === 0, 'production ignores FORCE_NOW', { stats, sent });
+      check((await deliveriesFor('wp-force-prod')).length === 0, 'no row claimed in production off-Sunday');
+    } finally {
+      if (previousFlag === undefined) delete process.env.WEEKLY_PLANNING_FORCE_NOW;
+      else process.env.WEEKLY_PLANNING_FORCE_NOW = previousFlag;
+      if (previousEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnv;
     }
   });
 
