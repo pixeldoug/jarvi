@@ -372,6 +372,40 @@ const createTables = async (): Promise<void> => {
     `CREATE INDEX IF NOT EXISTS idx_tasks_recurrence_sweep ON tasks (recurrence_type, completed, due_date);`,
     `CREATE INDEX IF NOT EXISTS idx_task_reminders_trigger ON task_reminders (status, trigger_at);`,
     `CREATE INDEX IF NOT EXISTS idx_task_reminders_task ON task_reminders (task_id);`,
+
+    // Remote MCP: OAuth clients, one-time auth codes, and bearer credentials
+    // (OAuth access/refresh tokens and personal access keys).
+    `CREATE TABLE IF NOT EXISTS oauth_clients (
+      client_id TEXT PRIMARY KEY,
+      client_name TEXT,
+      redirect_uris TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );`,
+    `CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+      code_hash TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      resource TEXT,
+      expires_at TEXT NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0
+    );`,
+    `CREATE TABLE IF NOT EXISTS mcp_credentials (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL,
+      client_id TEXT,
+      user_id TEXT NOT NULL,
+      scopes TEXT NOT NULL,
+      resource TEXT,
+      name TEXT,
+      expires_at TEXT,
+      created_at TEXT NOT NULL,
+      revoked_at TEXT
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_mcp_credentials_user ON mcp_credentials (user_id);`,
   ];
   
   if (isPostgres) {

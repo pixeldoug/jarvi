@@ -16,6 +16,7 @@ import {
 import { composeOnboardingFollowUp, extractOnboardingTasks } from '../services/openaiService';
 import { capitalizeTaskTitle } from '../utils/taskTitle';
 import { identifyServer, captureServer } from '../services/posthogService';
+import { clientPlatformProperties } from '../utils/clientPlatform';
 import { getClientIp } from '../services/metaCapiService';
 import {
   persistOpenAiClickIds,
@@ -101,12 +102,17 @@ const parseOnboardingStep = (value: unknown): OnboardingStep | null => {
  * between `user_registered` and `onboarding_completed`, making every abandoned
  * onboarding look identical.
  */
-const recordOnboardingStep = (email: string, step: OnboardingStep): void => {
+const recordOnboardingStep = (
+  email: string,
+  step: OnboardingStep,
+  extra: Record<string, unknown> = {},
+): void => {
   captureServer(email, 'onboarding_step_completed', {
     step,
     step_index: ONBOARDING_STEPS.indexOf(step),
     step_count: ONBOARDING_STEPS.length,
     source: 'backend',
+    ...extra,
   });
 };
 
@@ -130,7 +136,7 @@ export const trackOnboardingStep = async (req: Request, res: Response): Promise<
       return;
     }
 
-    recordOnboardingStep(user.email, step);
+    recordOnboardingStep(user.email, step, clientPlatformProperties(req.headers['user-agent']));
     res.json({ success: true });
   } catch (error) {
     console.error('trackOnboardingStep error:', error);
@@ -692,11 +698,13 @@ export const completeOnboarding = async (req: Request, res: Response): Promise<v
         }
       }
 
-      recordOnboardingStep(user.email, 'first_tasks');
+      const platform = clientPlatformProperties(req.headers['user-agent']);
+      recordOnboardingStep(user.email, 'first_tasks', platform);
       captureServer(user.email, 'onboarding_completed', {
         task_count: finalized.tasks.length,
         d1_reminder_scheduled: false,
         source: 'backend',
+        ...platform,
       });
     }
 
@@ -1026,6 +1034,7 @@ export const verifyOnboardingWhatsapp = async (req: Request, res: Response): Pro
       captureServer(user.email, 'user_registered', {
         method: 'whatsapp',
         source: 'backend',
+        ...clientPlatformProperties(req.headers['user-agent']),
       });
 
       const clickIds = readOpenAiClickIdsFromBody(req.body);

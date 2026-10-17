@@ -21,6 +21,7 @@ import { Loading } from './components/ui/Loading';
 import { Layout } from './components/layout';
 import { Login } from './pages/Login';
 import { EmailLogin } from './pages/Login/EmailLogin';
+import { OAuthConsentPage } from './pages/OAuthConsent';
 import { TrialExpiredGate } from './components/features/subscription/TrialExpiredGate/TrialExpiredGate';
 
 // Lazy load pages
@@ -72,6 +73,7 @@ function AppSwitch() {
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/login/email" element={<EmailLogin />} />
+      <Route path="/oauth/consent" element={<OAuthConsentPage />} />
       <Route
         path="/criar-conta"
         element={

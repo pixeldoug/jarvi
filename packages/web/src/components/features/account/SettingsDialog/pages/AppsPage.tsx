@@ -9,10 +9,11 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft } from '@phosphor-icons/react';
+import { ArrowLeft, Plugs } from '@phosphor-icons/react';
 import { Button, ConnectionChip, Input, ListCard, ListCardGroup } from '../../../../ui';
 import { useAuth } from '../../../../../contexts/AuthContext';
 import { formatWhatsAppPhone } from '../../../../../lib/whatsappPhone';
+import { AiConnectPage } from './AiConnectPage';
 import styles from './AppsPage.module.css';
 
 // ============================================================================
@@ -35,6 +36,13 @@ const APPS: AppDefinition[] = [
     name: 'Whatsapp',
     description: 'Interaja com a Jarvi no seu whatsapp.',
     icon: '/icons/apps/whatsapp.svg',
+    available: true,
+  },
+  {
+    id: 'ai',
+    name: 'Assistentes de IA',
+    description: 'Use suas tarefas no ChatGPT, Claude e outros.',
+    icon: '',
     available: true,
   },
   {
@@ -96,13 +104,16 @@ const parseApiPayload = async (response: Response): Promise<Record<string, unkno
 // ROOT: VIEW CONTROLLER
 // ============================================================================
 
-type AppsView = 'list' | 'whatsapp' | 'gmail';
+type AppsView = 'list' | 'whatsapp' | 'gmail' | 'ai';
 
 export function AppsPage({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const [view, setView] = useState<AppsView>('list');
 
   if (view === 'whatsapp') {
     return <WhatsAppConnectPage onBack={() => setView('list')} />;
+  }
+  if (view === 'ai') {
+    return <AiConnectPage onBack={() => setView('list')} />;
   }
   if (view === 'gmail') {
     return <GmailConnectPage onBack={() => setView('list')} />;
@@ -113,6 +124,7 @@ export function AppsPage({ hideHeader = false }: { hideHeader?: boolean } = {}) 
       onConnect={(appId) => {
         if (appId === 'whatsapp') setView('whatsapp');
         else if (appId === 'gmail') setView('gmail');
+        else if (appId === 'ai') setView('ai');
       }}
     />
   );
@@ -131,6 +143,7 @@ function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
   const { token, user } = useAuth();
   const [whatsappLinked, setWhatsappLinked] = useState(Boolean(user?.whatsappVerified));
   const [whatsappPhone, setWhatsappPhone] = useState(user?.whatsappPhone || '');
+  const [aiLinked, setAiLinked] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -152,6 +165,22 @@ function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
     };
 
     void load();
+
+    const loadAi = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/mcp/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await parseApiPayload(res);
+        if (!res.ok || cancelled) return;
+        const tokens = Array.isArray(data.tokens) ? data.tokens : [];
+        const clients = Array.isArray(data.clients) ? data.clients : [];
+        setAiLinked(tokens.length > 0 || clients.length > 0);
+      } catch {
+        // Keep the list usable if the status request fails.
+      }
+    };
+    void loadAi();
 
     const handleChange = (event: Event) => {
       const detail = (event as CustomEvent<{ linked?: boolean }>).detail;
@@ -180,23 +209,30 @@ function AppsList({ onConnect, hideHeader = false }: AppsListProps) {
       <ListCardGroup>
         {APPS.map((app) => {
           const isWhatsapp = app.id === 'whatsapp';
-          const connected = isWhatsapp && whatsappLinked;
+          const isAi = app.id === 'ai';
+          const connected = (isWhatsapp && whatsappLinked) || (isAi && aiLinked);
           const description =
-            connected && whatsappPhone
+            isWhatsapp && connected && whatsappPhone
               ? `Conectado em ${formatWhatsAppPhone(whatsappPhone)}.`
-              : app.description;
+              : isAi && connected
+                ? 'Conectado.'
+                : app.description;
 
           return (
             <ListCard
               key={app.id}
               as="li"
               icon={
-                <img
-                  src={app.icon}
-                  alt={app.name}
-                  className={styles.appIcon}
-                  draggable={false}
-                />
+                isAi ? (
+                  <Plugs size={24} />
+                ) : (
+                  <img
+                    src={app.icon}
+                    alt={app.name}
+                    className={styles.appIcon}
+                    draggable={false}
+                  />
+                )
               }
               title={app.name}
               description={description}

@@ -1,12 +1,14 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Logo } from '../../components/ui';
 import { WhatsAppPhoneAuth } from '../../components/features/auth/WhatsAppPhoneAuth';
 import { useForceTheme } from '../../hooks/useForceTheme';
+import { readOAuthNext } from '../../lib/oauthNext';
 import styles from './Login.module.css';
 
 export const Login: React.FC = () => {
   useForceTheme('light');
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
     <div className={styles.container}>
@@ -17,6 +19,11 @@ export const Login: React.FC = () => {
           <WhatsAppPhoneAuth
             source="login"
             onSuccess={(user) => {
+              const next = readOAuthNext(location.search);
+              if (next) {
+                navigate(next, { replace: true });
+                return;
+              }
               navigate(user.onboardingCompletedAt ? '/' : '/criar-conta', { replace: true });
             }}
           >
@@ -35,7 +42,10 @@ export const Login: React.FC = () => {
                 <button
                   type="button"
                   className={styles.footerLink}
-                  onClick={() => navigate('/login/email')}
+                  onClick={() => {
+                    const next = readOAuthNext(location.search);
+                    navigate(next ? `/login/email?next=${encodeURIComponent(next)}` : '/login/email');
+                  }}
                 >
                   Fazer login com email
                 </button>

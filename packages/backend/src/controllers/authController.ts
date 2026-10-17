@@ -15,6 +15,7 @@ import {
   sendOpenAiRegistrationCompleted,
 } from '../services/openaiCapiService';
 import { identifyServer, captureServer } from '../services/posthogService';
+import { clientPlatformProperties } from '../utils/clientPlatform';
 import { notifyNewAccountCreated, persistOnboardingLead } from './earlyAccessController';
 import { triggerMemoryReconciliation } from '../services/agent/core/memory';
 
@@ -518,7 +519,11 @@ export const googleAuth = async (
       user_id: user.id,
     });
     if (isNewUser) {
-      captureServer(user.email, 'user_registered', { method: 'google', source: 'backend' });
+      captureServer(user.email, 'user_registered', {
+        method: 'google',
+        source: 'backend',
+        ...clientPlatformProperties(req.headers['user-agent']),
+      });
     }
 
     // Meta CAPI: a new Google account is created already verified, so it counts
@@ -675,6 +680,7 @@ export const register = async (
       method: 'email',
       pending_verification: true,
       source: 'backend',
+      ...clientPlatformProperties(req.headers['user-agent']),
     });
 
     // Meta CAPI: account submitted (pending verification). Mirrors the browser

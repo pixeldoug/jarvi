@@ -142,6 +142,10 @@
   min-width: 0;
 }
 
+.urlRow {
+  align-items: center;
+}
+
 .helperText {
   font-family: var(--typography-body-md-font-family);
   font-size: var(--typography-body-md-font-size);
@@ -164,6 +168,50 @@
   font-size: var(--typography-body-md-font-size);
   color: var(--semantic-content-positive);
   margin: 0;
+}
+
+.steps {
+  margin: 0;
+  padding-left: var(--sizes-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+  list-style: decimal;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.note {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.tokenValue {
+  margin: 0;
+  word-break: break-all;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
 }
 
 /* ============================================================================

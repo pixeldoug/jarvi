@@ -22,6 +22,7 @@ import voiceRoutes from './routes/voiceRoutes';
 import pendingTaskRoutes from './routes/pendingTaskRoutes';
 import aiRoutes from './routes/aiRoutes';
 import gmailRoutes from './routes/gmailRoutes';
+import mcpRoutes from './routes/mcpRoutes';
 import { CollaborationService } from './services/collaborationService';
 import { initializeWhatsappWorker } from './queues/whatsappQueue';
 import { initializeGmailWorker } from './queues/gmailQueue';
@@ -43,6 +44,9 @@ app.set('trust proxy', 1);
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 500 : 5000,
+  // MCP tool calls and OAuth can arrive from a shared client egress IP.
+  // Those routes have their own limits.
+  skip: (req) => req.path === '/mcp' || req.path.startsWith('/oauth'),
   message: { error: 'Too many requests from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -118,7 +122,18 @@ app.use((req, res, next) => {
 
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  const mcpDiscovery =
+    req.path === '/mcp' ||
+    req.path.startsWith('/.well-known/') ||
+    req.path.startsWith('/oauth');
+  if (mcpDiscovery && origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Requested-With, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID',
+  );
 
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
@@ -214,6 +229,7 @@ app.use('/api/pending-tasks', pendingTaskRoutes);
 app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/gmail', gmailRoutes);
 app.use('/api', noteShareRoutes);
+app.use(mcpRoutes);
 
 // Catch-all for unknown routes & central error handler
 app.use(notFoundHandler);

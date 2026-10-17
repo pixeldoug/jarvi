@@ -241,9 +241,15 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       transports: ['websocket', 'polling'],
     });
 
-    socket.on('task:created', () => {
+    socket.on('task:created', (payload?: { source?: string }) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Nova tarefa criada via WhatsApp.');
+      if (payload?.source === 'whatsapp') {
+        toast.success('Nova tarefa criada via WhatsApp.');
+      }
+    });
+
+    socket.on('task:changed', () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
 
     socket.on('connect_error', (err) => {
