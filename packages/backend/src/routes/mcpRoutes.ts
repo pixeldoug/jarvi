@@ -49,6 +49,15 @@ function metadata(res: Response, body: unknown): void {
   res.json(body);
 }
 
+router.get('/.well-known/openai-apps-challenge', (_req, res) => {
+  const token = process.env.OPENAI_APPS_CHALLENGE?.trim();
+  if (!token) {
+    res.status(404).end();
+    return;
+  }
+  res.type('text/plain').send(token);
+});
+
 router.get('/.well-known/oauth-protected-resource', (req, res) => {
   metadata(res, protectedResourceMetadata(publicBaseUrl(req)));
 });

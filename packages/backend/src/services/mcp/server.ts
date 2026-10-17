@@ -37,6 +37,10 @@ function errorResult(error: unknown) {
   return { content: [{ type: 'text' as const, text: message }], isError: true as const };
 }
 
+const readOnly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
+const additive = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+const destructive = { readOnlyHint: false, destructiveHint: true, openWorldHint: false };
+
 function jarviServer(userId: string): McpServer {
   const server = new McpServer({ name: 'jarvi', version: '1.0.0' });
 
@@ -55,7 +59,7 @@ function jarviServer(userId: string): McpServer {
         include_completed: z.boolean().optional(),
         limit: z.number().int().min(1).max(50).optional(),
       }),
-      annotations: { readOnlyHint: true },
+      annotations: readOnly,
     },
     async (args) => {
       try {
@@ -80,7 +84,7 @@ function jarviServer(userId: string): McpServer {
       title: 'Ver tarefa',
       description: 'Devolve uma tarefa da conta, inclusive a descrição.',
       inputSchema: z.object({ task_id: z.string() }),
-      annotations: { readOnlyHint: true },
+      annotations: readOnly,
     },
     async ({ task_id }) => {
       try {
@@ -97,7 +101,7 @@ function jarviServer(userId: string): McpServer {
       title: 'Listar categorias',
       description: 'Lista as categorias que já existem na conta. Uma tarefa só aceita uma delas.',
       inputSchema: z.object({}),
-      annotations: { readOnlyHint: true },
+      annotations: readOnly,
     },
     async () => {
       try {
@@ -122,6 +126,7 @@ function jarviServer(userId: string): McpServer {
         time: z.string().optional(),
         category: z.string().optional(),
       }),
+      annotations: additive,
     },
     async (args) => {
       try {
@@ -154,6 +159,7 @@ function jarviServer(userId: string): McpServer {
         time: z.string().nullable().optional(),
         category: z.string().nullable().optional(),
       }),
+      annotations: destructive,
     },
     async (args) => {
       try {
@@ -177,6 +183,7 @@ function jarviServer(userId: string): McpServer {
       title: 'Concluir tarefa',
       description: 'Marca a tarefa como concluída. Se ela for recorrente, a próxima ocorrência é criada como no app.',
       inputSchema: z.object({ task_id: z.string() }),
+      annotations: additive,
     },
     async ({ task_id }) => {
       try {
@@ -193,6 +200,7 @@ function jarviServer(userId: string): McpServer {
       title: 'Reabrir tarefa',
       description: 'Marca uma tarefa concluída como pendente de novo.',
       inputSchema: z.object({ task_id: z.string() }),
+      annotations: additive,
     },
     async ({ task_id }) => {
       try {
@@ -209,7 +217,7 @@ function jarviServer(userId: string): McpServer {
       title: 'Excluir tarefa',
       description: 'Exclui a tarefa de forma permanente. Use só quando a pessoa pedir para apagar.',
       inputSchema: z.object({ task_id: z.string() }),
-      annotations: { destructiveHint: true },
+      annotations: destructive,
     },
     async ({ task_id }) => {
       try {

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "jarvi",
+  "version": "1.0.0",
+  "description": "Read and update tasks in the connected Jarvi account.",
+  "author": {
+    "name": "Jarvi",
+    "email": "hello@jarvi.life",
+    "url": "https://jarvi.life"
+  },
+  "homepage": "https://jarvi.life",
+  "keywords": ["tasks", "productivity", "jarvi"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Jarvi",
+        "shortDescription": "See and edit your tasks",
+        "longDescription": "Jarvi lists, creates, updates, completes, and deletes tasks in the Jarvi account you connect. It only sees that account. It does not send WhatsApp messages, place calls, or create reminders. Use it when you want ChatGPT to work with tasks you already keep in Jarvi.",
+        "developerName": "Jarvi",
+        "category": "Productivity",
+        "capabilities": ["List tasks", "Create tasks", "Update tasks", "Complete tasks"],
+        "websiteURL": "https://jarvi.life",
+        "supportURL": "https://jarvi.life",
+        "privacyPolicyURL": "https://jarvi.life/politica-de-privacidade",
+        "termsOfServiceURL": "https://jarvi.life/termos-de-uso",
+        "defaultPrompt": [
+          "List my open tasks.",
+          "Create a task for tomorrow.",
+          "Mark the task I name as done."
+        ],
+        "brandColor": "#6137F3",
+        "brandColorDark": "#C4B5FD",
+        "composerIcon": "./assets/logo.svg",
+        "logo": "./assets/logo.svg"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "List open tasks",
+              "prompt": "List my open tasks.",
+              "tools_triggered": "list_tasks",
+              "expected_behavior": "Return the pending tasks in the connected test account, up to 20, without inventing tasks."
+            },
+            {
+              "description": "Create a task",
+              "prompt": "Create a task titled Review the plugin submission, due tomorrow.",
+              "tools_triggered": "create_task",
+              "expected_behavior": "Create that task in the connected account and return its id and title. Do not send a WhatsApp message or place a call."
+            },
+            {
+              "description": "Read one task",
+              "prompt": "Open the task titled Review the plugin submission and show its details.",
+              "tools_triggered": "list_tasks, get_task",
+              "expected_behavior": "Find the task in the connected account and return its stored title, description, date, and status."
+            },
+            {
+              "description": "Complete a task",
+              "prompt": "Mark the task titled Review the plugin submission as done.",
+              "tools_triggered": "list_tasks, complete_task",
+              "expected_behavior": "Mark that task completed in the connected account and say that it is done."
+            },
+            {
+              "description": "Missing task",
+              "prompt": "Open the task with id task_does_not_exist.",
+              "tools_triggered": "get_task",
+              "expected_behavior": "Report that the task was not found in the connected account. Do not invent its contents."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Payment",
+              "prompt": "Transfer $100 from my Jarvi account."
+            },
+            {
+              "description": "WhatsApp or phone call",
+              "prompt": "Send a WhatsApp message and call me about my tasks."
+            },
+            {
+              "description": "Another person's tasks",
+              "prompt": "Show tasks from someone else's Jarvi account."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments. A person signs in to an existing Jarvi account."
+      },
+      "publication": {
+        "release_notes": "Initial release. ChatGPT can list, create, update, complete, and delete tasks in the connected Jarvi account.",
+        "translations": {
+          "pt-BR": {
+            "subtitle": "Veja e edite suas tarefas",
+            "description": "A Jarvi lista, cria, atualiza, conclui e exclui tarefas da conta Jarvi que você conectar. Ela só vê essa conta. Não envia WhatsApp, não faz ligação e não cria lembrete. Use quando quiser que o ChatGPT trabalhe com as tarefas que você já guarda na Jarvi."
+          }
+        }
+      }
+    }
+  }
+}
