@@ -189,11 +189,12 @@ export async function getSubscriptionStatus(userId: string): Promise<{
 
   // No Stripe subscription yet: fall back to internal trial (if any)
   if (!user.stripe_subscription_id) {
-    // Dev shortcut: allow simulating active/canceled/past_due without a real Stripe subscription.
-    // This is intentionally restricted to non-production environments.
+    // A comped account can be marked active without a Stripe subscription.
+    // Canceled and past_due stay limited to non-production simulations.
     if (
-      process.env.NODE_ENV !== 'production' &&
-      ['active', 'canceled', 'past_due'].includes(user.subscription_status)
+      user.subscription_status === 'active' ||
+      (process.env.NODE_ENV !== 'production' &&
+        ['canceled', 'past_due'].includes(user.subscription_status))
     ) {
       return {
         status: user.subscription_status,
