@@ -82,6 +82,7 @@
             }
           ]
         },
+        "demo_recording_url": "https://github.com/pixeldoug/jarvi/raw/main/plugins/chatgpt/review/chatgpt-submission.mp4",
         "commerce": false,
         "commerce_description": "This plugin does not sell products or process payments. A person signs in to an existing Jarvi account."
       },
