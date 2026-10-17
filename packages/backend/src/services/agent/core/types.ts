@@ -408,6 +408,8 @@ export interface AgentRunResult {
   traceId: string;
   /** Reliability signals for telemetry (only meaningful with `reliableExecution`). */
   reliability: AgentRunReliability;
+  /** Model actually used for this run (premium or the monthly-cap fallback). */
+  model: string;
 }
 
 export interface AgentRunReliability {

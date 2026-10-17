@@ -27,6 +27,7 @@ import {
 } from '../core/tasks';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
 import { isReliableExecutionEnabled } from '../core/flags';
+import { chooseAgentModelForUser, notePremiumTurn } from '../core/agentTurnBudget';
 import { recordAgentTurnUsage, sumAgentTurnUsage } from '../core/telemetry';
 import type {
   AgentContext,
@@ -331,7 +332,15 @@ export async function streamChat(
         }),
     };
 
-    const run = await runAgent(profile, ctx, systemPrompt, initialMessages, agentCallbacks);
+    const { model, capped } = await chooseAgentModelForUser({ userId, email });
+    const run = await runAgent(
+      profile,
+      ctx,
+      systemPrompt,
+      initialMessages,
+      agentCallbacks,
+      { model },
+    );
     let { text, toolCallNames, usage } = run;
     const { traceId } = run;
     let retried = false;
@@ -355,7 +364,7 @@ export async function streamChat(
         initialMessages,
         agentCallbacks,
         // Same traceId: the retry belongs to the same user turn/trace.
-        { forceToolChoice: true, traceId },
+        { forceToolChoice: true, traceId, model },
       );
       text = retry.text || text;
       toolCallNames = [...toolCallNames, ...retry.toolCallNames];
@@ -366,6 +375,8 @@ export async function streamChat(
     recordAgentTurnUsage({
       email,
       channel: 'web',
+      model,
+      premiumCapped: capped,
       subscriptionStatus,
       usage,
       retried,
@@ -373,6 +384,7 @@ export async function streamChat(
       reliability: run.reliability,
       operations: run.operations,
     });
+    await notePremiumTurn({ userId, email, model, apiCalls: usage.apiCalls });
 
     onEvent({ type: 'done' });
 

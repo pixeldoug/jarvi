@@ -48,6 +48,7 @@ import {
 import { addTriadSkip, getTaskById, normalizeTaskDueDate, normalizeTaskTime } from './tasks';
 import { listRemindersForTask } from '../../reminderService';
 import { formatValidationIssues, validateToolArguments } from './toolValidation';
+import { chatCompletionsSamplingParams, getConfiguredAgentModel } from './models';
 import type {
   AgentCallbacks,
   AgentContext,
@@ -61,7 +62,8 @@ import type {
   ToolExecutionResult,
 } from './types';
 
-export const AGENT_MODEL = 'gpt-5.4-mini';
+/** @deprecated Per-turn model is `runAgent({ model })`; this is the configured default. */
+export const AGENT_MODEL = getConfiguredAgentModel();
 const MAX_ITERATIONS = 5;
 const MAX_TOKENS_STREAM = 4096;
 const MAX_TOKENS_SINGLE = 1024;
@@ -195,14 +197,14 @@ function getRetryAfterMs(err: unknown): number | null {
  */
 function recordRateLimit(
   err: unknown,
-  meta: { channel: string; userId: string; attempt: number; willRetry: boolean },
+  meta: { channel: string; userId: string; model: string; attempt: number; willRetry: boolean },
 ): void {
   const headers = (err as { headers?: unknown })?.headers;
   console.warn(
     '[ai_rate_limited] %s',
     JSON.stringify({
       event: 'ai_rate_limited',
-      model: AGENT_MODEL,
+      model: meta.model,
       channel: meta.channel,
       userId: meta.userId,
       attempt: meta.attempt,
@@ -222,7 +224,7 @@ function recordRateLimit(
  */
 async function callWithRetry<T>(
   fn: () => Promise<T>,
-  meta: { channel: string; userId: string },
+  meta: { channel: string; userId: string; model: string },
 ): Promise<T> {
   let attempt = 0;
   for (;;) {
@@ -266,6 +268,8 @@ export interface RunAgentOptions {
    * `git_sha`).
    */
   traceProperties?: Record<string, unknown>;
+  /** Override the configured agent model (monthly-cap fallback, evals). */
+  model?: string;
 }
 
 interface PendingToolCall {
@@ -325,6 +329,8 @@ export async function runAgent(
 ): Promise<AgentRunResult> {
   const openai = getOpenAIClient();
   const tools = getToolsForChannel(profile);
+  const model = options.model ?? getConfiguredAgentModel();
+  const samplingParams = chatCompletionsSamplingParams(model);
   const determinismParams = getDeterminismParams();
   const reliable = Boolean(profile.reliableExecution);
   const startedAt = Date.now();
@@ -338,6 +344,7 @@ export async function runAgent(
     mode: ctx.mode,
     prompt_version: PROMPT_VERSION,
     environment: process.env.NODE_ENV ?? 'development',
+    model,
     ...options.traceProperties,
   };
   const buildPosthogCallParams = (iteration: number): PosthogCallParams =>
@@ -610,7 +617,7 @@ export async function runAgent(
   if (await tryFastPath()) {
     reliability.fastPath = true;
     finalText = composedBlocks.filter(Boolean).join('\n\n');
-    return { text: finalText, toolCallNames, operations, usage: emptyUsage(), reliability, traceId };
+    return { text: finalText, toolCallNames, operations, usage: emptyUsage(), reliability, traceId, model };
   }
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
@@ -644,17 +651,18 @@ export async function runAgent(
       const stream = await callWithRetry(
         () =>
           openai.chat.completions.create({
-            model: AGENT_MODEL,
+            model,
             messages,
             tools,
             tool_choice: toolChoice,
             stream: true,
             stream_options: { include_usage: true },
             max_completion_tokens: MAX_TOKENS_STREAM,
+            ...samplingParams,
             ...determinismParams,
             ...buildPosthogCallParams(iteration),
           }),
-        { channel: profile.id, userId: ctx.userId },
+        { channel: profile.id, userId: ctx.userId, model },
       );
 
       const indexed = new Map<number, PendingToolCall>();
@@ -708,15 +716,16 @@ export async function runAgent(
       const response = await callWithRetry(
         () =>
           openai.chat.completions.create({
-            model: AGENT_MODEL,
+            model,
             messages,
             tools,
             tool_choice: toolChoice,
             max_completion_tokens: MAX_TOKENS_SINGLE,
+            ...samplingParams,
             ...determinismParams,
             ...buildPosthogCallParams(iteration),
           }),
-        { channel: profile.id, userId: ctx.userId },
+        { channel: profile.id, userId: ctx.userId, model },
       );
 
       apiCalls++;
@@ -1014,7 +1023,7 @@ export async function runAgent(
     finalText = composed;
   }
 
-  return { text: finalText, toolCallNames, operations, usage, reliability, traceId };
+  return { text: finalText, toolCallNames, operations, usage, reliability, traceId, model };
 }
 
 /**

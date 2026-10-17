@@ -321,6 +321,15 @@ const createTables = async (): Promise<void> => {
       UNIQUE (user_id, week_start)
     );`,
 
+    // Monthly cap on premium-model agent turns (UTC calendar month).
+    `CREATE TABLE IF NOT EXISTS agent_month_usage (
+      user_id TEXT NOT NULL,
+      month TEXT NOT NULL,
+      premium_turns INTEGER NOT NULL DEFAULT 0,
+      updated_at ${timestampType},
+      PRIMARY KEY (user_id, month)
+    );`,
+
     `CREATE TABLE IF NOT EXISTS onboarding_rescue_deliveries (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -1278,6 +1287,13 @@ const runMigrations = async (): Promise<void> => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (user_id, week_start)
         )`,
+        `CREATE TABLE IF NOT EXISTS agent_month_usage (
+          user_id TEXT NOT NULL,
+          month TEXT NOT NULL,
+          premium_turns INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (user_id, month)
+        )`,
       ];
       for (const migration of dailySummaryMigrations) {
         try {
@@ -1790,6 +1806,17 @@ const runMigrations = async (): Promise<void> => {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (user_id, week_start)
+      )`);
+    } catch (e) {
+      // Table already exists, ignore
+    }
+    try {
+      await db.exec(`CREATE TABLE IF NOT EXISTS agent_month_usage (
+        user_id TEXT NOT NULL,
+        month TEXT NOT NULL,
+        premium_turns INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, month)
       )`);
     } catch (e) {
       // Table already exists, ignore

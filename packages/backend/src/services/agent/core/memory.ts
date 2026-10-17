@@ -15,11 +15,9 @@ import { getDatabase, getPool, isPostgreSQL } from '../../../database';
 import { getPostHogClient } from '../../posthogService';
 import { getDateTimeForTimezone } from './time';
 import { getUserAllTasks } from './tasks';
+import { chatCompletionsSamplingParams, getMemoryModel } from './models';
 
 const FALLBACK_TIMEZONE = 'America/Sao_Paulo';
-
-// Cheap model used only for memory extraction / reconciliation
-const MEMORY_MODEL = 'gpt-4o-mini';
 
 // Same wrapper-with-fallback pattern as runAgent.ts: when PostHog is
 // configured, these satellite calls emit $ai_generation events (tagged with
@@ -226,8 +224,9 @@ export async function extractMemoryPostResponse(
   if (!userMessage.trim()) return;
 
   const openai = getOpenAIClient();
+  const model = getMemoryModel();
   const response = await openai.chat.completions.create({
-    model: MEMORY_MODEL,
+    model,
     messages: [
       {
         role: 'user',
@@ -245,7 +244,8 @@ export async function extractMemoryPostResponse(
         ].join('\n'),
       },
     ],
-    max_tokens: 800,
+    max_completion_tokens: 800,
+    ...chatCompletionsSamplingParams(model),
     ...buildMemoryPosthogParams('memory_extraction', userId),
   });
 
@@ -371,10 +371,12 @@ Regras:
 
   try {
     const openai = getOpenAIClient();
+    const model = getMemoryModel();
     const response = await openai.chat.completions.create({
-      model: MEMORY_MODEL,
+      model,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
+      max_completion_tokens: 800,
+      ...chatCompletionsSamplingParams(model),
       ...buildMemoryPosthogParams('memory_reconciliation', userId),
     });
     const updated = response.choices[0]?.message?.content?.trim();

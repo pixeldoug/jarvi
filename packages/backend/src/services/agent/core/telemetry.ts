@@ -12,13 +12,16 @@
 
 import { captureServer } from '../../posthogService';
 import { PROMPT_VERSION } from './prompt';
-import { AGENT_MODEL } from './runAgent';
 import type { AgentOperation, AgentRunReliability, AgentTurnUsage } from './types';
 
 export interface AgentTurnTelemetryInput {
   /** PostHog distinct_id — the user's email (see posthogService convention). */
   email: string;
   channel: 'web' | 'whatsapp';
+  /** Model that actually served this turn (premium or fallback). */
+  model: string;
+  /** True when the monthly premium cap sent this turn to the fallback model. */
+  premiumCapped?: boolean;
   /** Raw `users.subscription_status` (e.g. 'active' | 'trialing' | 'none'). */
   subscriptionStatus: string;
   usage: AgentTurnUsage;
@@ -41,7 +44,8 @@ export function recordAgentTurnUsage(input: AgentTurnTelemetryInput): void {
 
   captureServer(input.email, 'ai_turn_completed', {
     channel: input.channel,
-    model: AGENT_MODEL,
+    model: input.model,
+    premium_capped: Boolean(input.premiumCapped),
     subscription_status: input.subscriptionStatus,
     input_tokens: input.usage.inputTokens,
     output_tokens: input.usage.outputTokens,

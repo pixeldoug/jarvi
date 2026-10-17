@@ -1387,6 +1387,7 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
         // Delete daily summary delivery log
         await client.query('DELETE FROM daily_summary_deliveries WHERE user_id = $1', [userId]);
         await client.query('DELETE FROM weekly_planning_deliveries WHERE user_id = $1', [userId]);
+        await client.query('DELETE FROM agent_month_usage WHERE user_id = $1', [userId]);
 
         // Delete the user row itself (also clears WhatsApp + Gmail OAuth fields)
         await client.query('DELETE FROM users WHERE id = $1', [userId]);
@@ -1415,6 +1416,7 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
       await db.run('DELETE FROM gmail_processed_emails WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM daily_summary_deliveries WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM weekly_planning_deliveries WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM agent_month_usage WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM users WHERE id = ?', [userId]);
     }
 
