@@ -36,7 +36,7 @@
 }
 
 .navWrapper {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
@@ -44,9 +44,12 @@
   justify-content: center;
   padding: 24px 24px 16px;
   z-index: 10;
+  /* The full-width wrapper must not block clicks on content scrolling under it. */
+  pointer-events: none;
 }
 
 .navBar {
+  pointer-events: auto;
   width: 548px;
   border-radius: 20px;
   padding: 6px 6px 6px 16px;
@@ -785,6 +788,16 @@
 
   .navBar {
     width: 100%;
+  }
+
+  /* Three nav actions plus the brand must fit in a 375px-wide bar. */
+  .navActions {
+    gap: 0;
+  }
+
+  .navActions a {
+    padding: 0 8px;
+    font-size: 14px;
   }
 
   .heroContent {

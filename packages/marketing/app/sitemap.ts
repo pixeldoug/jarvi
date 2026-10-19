@@ -13,6 +13,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     {
+      url: `${SITE_URL}/manifesto`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
       url: `${SITE_URL}/termos-de-uso`,
       lastModified,
       changeFrequency: 'yearly',

@@ -298,6 +298,9 @@ export default function LandingPage({
           </div>
           <div className={styles.navActions}>
             <span className={styles.navGhostButton}>
+              <Button href="/manifesto" variant="ghost" size="default">
+                Manifesto
+              </Button>
               <Button href={loginHref} variant="ghost" size="default" onClick={(event) => goAttributed(event, 'login')}>
                 Login
               </Button>
@@ -506,7 +509,7 @@ export default function LandingPage({
         <div
           className={`${styles.ctaContent} ${isCtaInView ? `${styles.reveal} ${styles.revealDelay2}` : styles.revealHidden}`}
         >
-          <h2>Garanta seu acesso antecipado</h2>
+          <h2>Pronto para experimentar?</h2>
           <p>Seja um dos primeiros a testar a Jarvi e contribuir com feedbacks</p>
           <Button
             href={signupHref}
@@ -514,7 +517,7 @@ export default function LandingPage({
             size="lg"
             onClick={(event) => goAttributed(event, 'cta_section')}
           >
-            Criar conta grátis
+            Criar conta
           </Button>
         </div>
 
@@ -534,6 +537,9 @@ export default function LandingPage({
                 Strides Digital
               </a>
             </p>
+            <a href="/manifesto" className={styles.footerLink}>
+              Manifesto
+            </a>
             <a href="/termos-de-uso" className={styles.footerLink}>
               Termos de Uso
             </a>

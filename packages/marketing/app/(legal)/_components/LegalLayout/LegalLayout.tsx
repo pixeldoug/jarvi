@@ -45,6 +45,7 @@ export function LegalLayout({ children }: LegalLayoutProps) {
             </a>
           </p>
           <div className={styles.footerLinks}>
+            <Link href="/manifesto">Manifesto</Link>
             <Link href="/termos-de-uso">Termos de Uso</Link>
             <Link href="/politica-de-privacidade">Política de Privacidade</Link>
           </div>
