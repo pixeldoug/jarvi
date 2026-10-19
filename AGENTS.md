@@ -78,4 +78,6 @@ Override when you need to test integrations locally:
 - Backend: `JARVI_EMIT_EXTERNAL_INTEGRATIONS=true` in `packages/backend/.env`
 - Web: `VITE_EMIT_PRODUCT_ANALYTICS=true` in `packages/web/.env`
 
+The proactive WhatsApp schedulers (daily summary, weekly planning, onboarding rescue) only start on the production deployment — local, staging and prod share the same Twilio sender, so any other environment would re-text real people. To test them, set `JARVI_PROACTIVE_WHATSAPP=true` and make sure every verified `whatsapp_phone` in that DB is a number you own.
+
 Test accounts still persist in SQLite (`jarvi.db`). Delete test rows manually if needed.
