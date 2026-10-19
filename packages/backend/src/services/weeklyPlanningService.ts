@@ -1,8 +1,9 @@
 /**
  * Planejamento Semanal — proactive WhatsApp nudge every Sunday evening.
  *
- * Once a week, on Sunday at the time the person configured (default 19:00 in
- * their own timezone), sends the approved `sunday_reminder` template
+ * Opt-in: off for every account until the person turns it on (Configurações →
+ * Notificações, or by asking the agent). Once a week, on Sunday at the time
+ * the person configured (default 19:00 in their own timezone), sends the approved `sunday_reminder` template
  * asking for the 3 things they need to solve by Friday. There is no task
  * selection: the message is the same for everyone (only the first name
  * changes) and goes out even when the person has an empty list — the whole
@@ -51,7 +52,8 @@ const MAX_DELAY_MINUTES = Number(process.env.WEEKLY_PLANNING_MAX_DELAY_MINUTES |
  * Still claims the week's Sunday (not "today"), so leaving the flag on
  * overnight cannot send a second "amanhã é uma nova semana" on Monday.
  * Ignored in production: a leftover env var must never text real users
- * off-schedule.
+ * off-schedule. Outside production the scheduler only starts with
+ * JARVI_PROACTIVE_WHATSAPP=true (see shouldRunProactiveWhatsapp).
  */
 const isForceNow = (): boolean => {
   const raw = (process.env.WEEKLY_PLANNING_FORCE_NOW ?? '').trim().toLowerCase();
@@ -149,9 +151,8 @@ interface SettingsRow {
 }
 
 const rowToSettings = (row: SettingsRow | undefined | null): WeeklyPlanningSettings => ({
-  // NULL (row predates the column and the DB did not backfill) means ON —
-  // the feature is opt-out.
-  enabled: row?.weekly_planning_enabled == null ? true : Boolean(row.weekly_planning_enabled),
+  // NULL means OFF — the feature is opt-in.
+  enabled: Boolean(row?.weekly_planning_enabled),
   sendTime: parseWeeklyPlanningTime(row?.weekly_planning_time) ?? DEFAULT_WEEKLY_PLANNING_TIME,
   timezone: row?.timezone || FALLBACK_TIMEZONE,
 });
@@ -183,6 +184,7 @@ export async function updateWeeklyPlanningSettings(
       `UPDATE users
        SET weekly_planning_enabled = COALESCE($1, weekly_planning_enabled),
            weekly_planning_time = COALESCE($2, weekly_planning_time),
+           weekly_planning_opt_in_at = CASE WHEN $1 = TRUE THEN $3::timestamp ELSE weekly_planning_opt_in_at END,
            updated_at = $3
        WHERE id = $4`,
       [patch.enabled ?? null, patch.sendTime ?? null, now, userId],
@@ -192,9 +194,17 @@ export async function updateWeeklyPlanningSettings(
       `UPDATE users
        SET weekly_planning_enabled = COALESCE(?, weekly_planning_enabled),
            weekly_planning_time = COALESCE(?, weekly_planning_time),
+           weekly_planning_opt_in_at = CASE WHEN ? = 1 THEN ? ELSE weekly_planning_opt_in_at END,
            updated_at = ?
        WHERE id = ?`,
-      [patch.enabled === undefined ? null : patch.enabled ? 1 : 0, patch.sendTime ?? null, now, userId],
+      [
+        patch.enabled === undefined ? null : patch.enabled ? 1 : 0,
+        patch.sendTime ?? null,
+        patch.enabled ? 1 : 0,
+        now,
+        now,
+        userId,
+      ],
     );
   }
 
@@ -212,7 +222,7 @@ const fetchCandidateUsers = async (): Promise<CandidateUserRow[]> => {
     const result = await getPool().query<CandidateUserRow>(
       `SELECT ${columns}
        FROM users
-       WHERE COALESCE(weekly_planning_enabled, TRUE) = TRUE
+       WHERE weekly_planning_enabled = TRUE
          AND whatsapp_verified = TRUE
          AND whatsapp_phone IS NOT NULL`,
     );
@@ -222,7 +232,7 @@ const fetchCandidateUsers = async (): Promise<CandidateUserRow[]> => {
   return (await getDatabase().all(
     `SELECT ${columns}
      FROM users
-     WHERE COALESCE(weekly_planning_enabled, 1) = 1
+     WHERE weekly_planning_enabled = 1
        AND whatsapp_verified = 1
        AND whatsapp_phone IS NOT NULL`,
   )) as CandidateUserRow[];

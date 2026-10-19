@@ -54,10 +54,15 @@ const optionsIncluding = (sendTime: string): SelectOption[] => {
  * Fetch + optimistic save for one `/api/users/<endpoint>` notification
  * preference. Both Resumo do dia and Planejamento semanal use it.
  */
-function useNotificationSetting(endpoint: string, defaultSendTime: string, labels: NotificationLabels) {
+function useNotificationSetting(
+  endpoint: string,
+  defaultSendTime: string,
+  defaultEnabled: boolean,
+  labels: NotificationLabels,
+) {
   const { token } = useAuth();
   const [settings, setSettings] = useState<NotificationSettings>({
-    enabled: true,
+    enabled: defaultEnabled,
     sendTime: defaultSendTime,
     timezone: 'America/Sao_Paulo',
   });
@@ -79,7 +84,7 @@ function useNotificationSetting(endpoint: string, defaultSendTime: string, label
         if (!cancelled) setSettings(data);
       })
       .catch(() => {
-        // Keep the defaults; the switch still reflects the opt-out nature.
+        // Keep the defaults: Resumo do dia is opt-out, Planejamento semanal opt-in.
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -147,8 +152,8 @@ export function NotificationsPage({ onGoToApps }: { onGoToApps?: () => void }) {
   const { user } = useAuth();
   const whatsappLinked = Boolean(user?.whatsappVerified);
 
-  const daily = useNotificationSetting('daily-summary', '08:00', DAILY_LABELS);
-  const weekly = useNotificationSetting('weekly-planning', '19:00', WEEKLY_LABELS);
+  const daily = useNotificationSetting('daily-summary', '08:00', true, DAILY_LABELS);
+  const weekly = useNotificationSetting('weekly-planning', '19:00', false, WEEKLY_LABELS);
 
   const anyEnabled = daily.settings.enabled || weekly.settings.enabled;
 
