@@ -131,6 +131,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
   // render, where `placeholderData` returned a synthetic `status:'none'`.
   const hasRealData = !query.isPlaceholderData && query.dataUpdatedAt > 0;
   const trialExpired =
+    !import.meta.env.DEV &&
     hasToken &&
     hasRealData &&
     !hasActiveSubscription &&

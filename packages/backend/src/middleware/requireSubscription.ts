@@ -28,6 +28,12 @@ export async function requireActiveSubscription(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Local dev skips the paywall so an expired trial can still load tasks.
+    if (process.env.NODE_ENV !== 'production') {
+      next();
+      return;
+    }
+
     const userId = req.user?.id;
 
     if (!userId) {

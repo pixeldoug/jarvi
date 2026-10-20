@@ -79,7 +79,8 @@ export function TrialExpiredGate() {
     return url.toString();
   };
 
-  if (!trialExpired) return null;
+  // Local Vite dev skips the paywall so UI work can be reviewed on an expired trial.
+  if (import.meta.env.DEV || !trialExpired) return null;
 
   const handleExtendTrial = async () => {
     setIsExtending(true);
