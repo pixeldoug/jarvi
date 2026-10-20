@@ -9,7 +9,9 @@
           "auth": {
             "type": "oauth",
             "client": {
-              "mode": "cimd"
+              "mode": "provided",
+              "clientId": "https://chatgpt.com/oauth/client.json",
+              "tokenEndpointAuthMethod": "none"
             },
             "baseScopes": ["tasks"],
             "resource": "https://jarvi-production.up.railway.app/mcp"
