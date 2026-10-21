@@ -33,6 +33,7 @@ import { startWeeklyPlanningScheduler } from './services/weeklyPlanningService';
 import { startOnboardingRescueScheduler } from './services/onboardingRescueService';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { shutdownPostHog } from './services/posthogService';
+import { shouldRunProactiveWhatsapp } from './config/environment';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -246,9 +247,14 @@ initializeDatabase()
     initializeGmailWorker();
     startRecurrenceScheduler();
     startReminderScheduler();
-    startDailySummaryScheduler();
-    startWeeklyPlanningScheduler();
-    startOnboardingRescueScheduler();
+    // Broadcasts to every eligible user in this DB — production only, or a
+    // second environment re-texts the same people (see shouldRunProactiveWhatsapp).
+    const proactiveWhatsapp = shouldRunProactiveWhatsapp();
+    if (proactiveWhatsapp) {
+      startDailySummaryScheduler();
+      startWeeklyPlanningScheduler();
+      startOnboardingRescueScheduler();
+    }
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
@@ -257,8 +263,16 @@ initializeDatabase()
       console.log('📧 Gmail worker initialized');
       console.log('🔁 Recurrence scheduler initialized');
       console.log('🔔 Reminder scheduler initialized');
-      console.log('☀️ Daily summary scheduler initialized');
-      console.log('💜 Onboarding rescue scheduler initialized');
+      if (proactiveWhatsapp) {
+        console.log('☀️ Daily summary scheduler initialized');
+        console.log('🗓️ Weekly planning scheduler initialized');
+        console.log('💜 Onboarding rescue scheduler initialized');
+      } else {
+        console.log(
+          '⏸️ Proactive WhatsApp schedulers (daily summary, weekly planning, onboarding rescue) are off ' +
+            'outside production — set JARVI_PROACTIVE_WHATSAPP=true to test them',
+        );
+      }
     });
 
     // Flush buffered PostHog events before the process exits.
