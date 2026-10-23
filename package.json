@@ -59,8 +59,11 @@
     "vite": "^5.0.8"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": "24.22.1",
     "npm": ">=9.0.0"
+  },
+  "volta": {
+    "node": "24.22.1"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.4.6"
