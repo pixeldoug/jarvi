@@ -78,8 +78,9 @@ const createTables = async (): Promise<void> => {
       onboarding_journey_completed_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       daily_summary_enabled ${booleanType} DEFAULT TRUE,
       daily_summary_time TEXT DEFAULT '08:00',
-      weekly_planning_enabled ${booleanType} DEFAULT TRUE,
+      weekly_planning_enabled ${booleanType} DEFAULT FALSE,
       weekly_planning_time TEXT DEFAULT '19:00',
+      weekly_planning_opt_in_at ${timestampType.replace('DEFAULT CURRENT_TIMESTAMP', '')},
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -1306,9 +1307,10 @@ const runMigrations = async (): Promise<void> => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (user_id, attempt)
         )`,
-        // Planejamento Semanal (Sunday WhatsApp nudge). Default ON like the
-        // daily summary; one delivery row per (user, local Sunday).
-        'ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_enabled BOOLEAN DEFAULT TRUE',
+        // Planejamento Semanal (Sunday WhatsApp nudge). Opt-in (see the
+        // one-time switch-off below); one delivery row per (user, local Sunday).
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_enabled BOOLEAN DEFAULT FALSE',
+        'ALTER TABLE users ALTER COLUMN weekly_planning_enabled SET DEFAULT FALSE',
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_time TEXT DEFAULT '19:00'",
         `CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
           id TEXT PRIMARY KEY,
@@ -1335,6 +1337,25 @@ const runMigrations = async (): Promise<void> => {
         } catch (e) {
           // Column/table already exists, ignore
         }
+      }
+
+      // One-time: Planejamento Semanal became opt-in. The marker column is
+      // created here, so the switch-off runs exactly once; afterwards it
+      // records when the person turned the nudge on.
+      try {
+        const optInColumn = await client.query(
+          `SELECT 1
+           FROM information_schema.columns
+           WHERE table_schema = 'public'
+             AND table_name = 'users'
+             AND column_name = 'weekly_planning_opt_in_at'`
+        );
+        if (optInColumn.rows.length === 0) {
+          await client.query('ALTER TABLE users ADD COLUMN weekly_planning_opt_in_at TIMESTAMP');
+          await client.query('UPDATE users SET weekly_planning_enabled = FALSE');
+        }
+      } catch (e) {
+        console.error('[Migration] Weekly planning opt-in switch-off failed:', e);
       }
     } finally {
       client.release();
@@ -1818,11 +1839,20 @@ const runMigrations = async (): Promise<void> => {
       // Table already exists, ignore
     }
 
-    // Migration: Planejamento Semanal (Sunday WhatsApp nudge) for SQLite
+    // Migration: Planejamento Semanal (Sunday WhatsApp nudge) for SQLite.
+    // SQLite cannot change a column default, so older local DBs keep TRUE for
+    // new rows; the scheduler is off outside production anyway.
     try {
-      await db.exec('ALTER TABLE users ADD COLUMN weekly_planning_enabled BOOLEAN DEFAULT TRUE');
+      await db.exec('ALTER TABLE users ADD COLUMN weekly_planning_enabled BOOLEAN DEFAULT FALSE');
     } catch (e) {
       // Column already exists, ignore
+    }
+    try {
+      // One-time opt-in switch-off (marker column, same as PostgreSQL).
+      await db.exec('ALTER TABLE users ADD COLUMN weekly_planning_opt_in_at DATETIME');
+      await db.exec('UPDATE users SET weekly_planning_enabled = 0');
+    } catch (e) {
+      // Column already exists — do not switch everyone off again
     }
     try {
       await db.exec("ALTER TABLE users ADD COLUMN weekly_planning_time TEXT DEFAULT '19:00'");
