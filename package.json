@@ -4,7 +4,11 @@
   "description": "Aplicativo completo de tarefas, notas, finanças e hábitos",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/backend",
+    "packages/handbook",
+    "packages/marketing",
+    "packages/shared",
+    "packages/web"
   ],
   "scripts": {
     "dev:web": "cd packages/web && npm run dev",
