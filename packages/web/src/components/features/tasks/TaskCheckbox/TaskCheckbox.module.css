@@ -58,6 +58,26 @@
   box-shadow: none;
 }
 
+/* Disabled: shown, not toggleable (no hover / press feedback) */
+.checkbox:disabled {
+  cursor: default;
+  opacity: 0.4;
+  transform: none;
+}
+
+.checkbox:disabled:hover {
+  border-color: var(--semantic-content-secondary);
+}
+
+.checked:disabled:hover {
+  background: var(--semantic-content-info);
+  border-color: var(--semantic-content-info);
+}
+
+.checked:disabled:hover .icon {
+  color: var(--color-brand-primary-100);
+}
+
 /* Checked state */
 .checked {
   background: var(--semantic-content-info);

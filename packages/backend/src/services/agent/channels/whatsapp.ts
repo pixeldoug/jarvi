@@ -160,7 +160,6 @@ export const runWhatsappAgent = async (
     activeTasks,
     activeTaskCount,
     completedTaskCount,
-    lists: [],
     categories,
     mode: 'general',
     originalUserMessage: userMessage,

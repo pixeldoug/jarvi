@@ -98,6 +98,12 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) =>
   // Calculate position dynamically based on ControlBar
   useEffect(() => {
     const updatePosition = () => {
+      // A full-screen takeover (the Recap) covers the ControlBar: toasts sit at its bottom
+      if (document.querySelector('[data-toast-floor]')) {
+        setBottomPosition('24px');
+        return;
+      }
+
       // Find ControlBar element
       const controlBar = document.querySelector('[data-control-bar]') as HTMLElement;
       if (controlBar) {
@@ -117,7 +123,8 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) =>
       }
     };
 
-    // Initial calculation with a small delay to ensure ControlBar is rendered
+    // Now, and again once the ControlBar has rendered
+    updatePosition();
     const timeoutId = setTimeout(updatePosition, 100);
     
     // Recalculate on resize and when toasts change
@@ -128,6 +135,8 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) =>
     if (controlBar) {
       observer.observe(controlBar, { attributes: true, childList: true, subtree: true });
     }
+    // A full-screen takeover ([data-toast-floor]) is portaled into body: follow it opening and closing
+    observer.observe(document.body, { childList: true });
 
     return () => {
       clearTimeout(timeoutId);

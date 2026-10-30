@@ -578,3 +578,134 @@ export const toggleTaskCompletion = async (
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// A recurring series ignored for months still fits (an hourly one adds ~720 a month)
+const MAX_COMPLETION_IDS = 5000;
+// Older SQLite builds cap bound variables at 999
+const SQLITE_ID_CHUNK = 500;
+
+const chunk = <T,>(values: T[], size: number): T[][] =>
+  Array.from({ length: Math.ceil(values.length / size) }, (_, i) => values.slice(i * size, (i + 1) * size));
+
+/**
+ * PATCH /api/tasks/completion
+ * Body: { ids: string[]; completed: boolean }
+ *
+ * Sets (never flips) completion on several tasks at once: the overdue Recap
+ * clears every overdue occurrence of a recurring series in one go, and a task
+ * already completed elsewhere stays completed. Only tasks whose state changes
+ * are touched; for those, reminders follow and a recurring task just
+ * completed gets its next occurrence like the toggle does (none when the
+ * series already has one). Returns the requested tasks as they are now and
+ * any occurrence created.
+ */
+export const setTasksCompletion = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { ids, completed } = (req.body ?? {}) as { ids?: unknown; completed?: unknown };
+    if (typeof completed !== 'boolean') {
+      res.status(400).json({ error: 'completed must be true or false' });
+      return;
+    }
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > MAX_COMPLETION_IDS ||
+      !ids.every((id) => typeof id === 'string' && id.trim() !== '')
+    ) {
+      res.status(400).json({ error: `ids must list 1 to ${MAX_COMPLETION_IDS} task ids` });
+      return;
+    }
+
+    const uniqueIds = [...new Set(ids as string[])];
+    const now = new Date().toISOString();
+    let tasks: any[];
+    let changedIds: string[];
+
+    if (isPostgreSQL()) {
+      // PostgreSQL
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        const changed = await client.query(
+          `UPDATE tasks
+           SET completed = $1, updated_at = $2
+           WHERE user_id = $3 AND id = ANY($4::text[]) AND completed IS DISTINCT FROM $1
+           RETURNING id`,
+          [completed, now, userId, uniqueIds]
+        );
+        changedIds = changed.rows.map((row: { id: string }) => row.id);
+
+        const result = await client.query(
+          'SELECT * FROM tasks WHERE user_id = $1 AND id = ANY($2::text[])',
+          [userId, uniqueIds]
+        );
+        tasks = result.rows;
+      } finally {
+        client.release();
+      }
+    } else {
+      // SQLite
+      const db = getDatabase();
+      const inList = (values: string[]) => values.map(() => '?').join(', ');
+
+      changedIds = [];
+      for (const ids of chunk(uniqueIds, SQLITE_ID_CHUNK)) {
+        const before = await db.all(
+          `SELECT id, completed FROM tasks WHERE user_id = ? AND id IN (${inList(ids)})`,
+          [userId, ...ids]
+        );
+        changedIds.push(
+          ...before
+            .filter((row: { completed: unknown }) => Boolean(row.completed) !== completed)
+            .map((row: { id: string }) => row.id)
+        );
+      }
+
+      for (const ids of chunk(changedIds, SQLITE_ID_CHUNK)) {
+        await db.run(
+          `UPDATE tasks
+           SET completed = ?, updated_at = ?
+           WHERE user_id = ? AND id IN (${inList(ids)})`,
+          [completed ? 1 : 0, now, userId, ...ids]
+        );
+      }
+
+      tasks = [];
+      for (const ids of chunk(uniqueIds, SQLITE_ID_CHUNK)) {
+        tasks.push(
+          ...(await db.all(`SELECT * FROM tasks WHERE user_id = ? AND id IN (${inList(ids)})`, [userId, ...ids]))
+        );
+      }
+    }
+
+    const changed = new Set(changedIds);
+    const nextOccurrences = [];
+    for (const task of tasks) {
+      if (!changed.has(task.id)) continue;
+      if (completed) {
+        await cancelPendingRemindersForTask(task.id);
+        if (task.recurrence_type && task.recurrence_type !== 'none') {
+          const nextOccurrence = await generateNextOccurrenceIfRecurring(task.id);
+          if (nextOccurrence) nextOccurrences.push(nextOccurrence);
+        }
+      } else {
+        await rescheduleRemindersForTask(task.id);
+      }
+    }
+
+    res.json({ tasks, next_occurrences: nextOccurrences });
+  } catch (error) {
+    console.error('Error setting task completion:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

@@ -1,0 +1,8 @@
+/**
+ * AppDialog styles
+ */
+
+/* Same height for every app so the dialog doesn't jump between steps */
+.dialog {
+  min-height: min(560px, calc(100vh - 80px));
+}

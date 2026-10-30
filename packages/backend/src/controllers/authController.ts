@@ -134,6 +134,7 @@ export const toPublicUser = (user: {
   whatsapp_phone?: string | null;
   email_verified?: boolean | number | null;
   subscription_status?: string | null;
+  overdue_recap_enabled?: boolean | number | null;
 }) => {
   const authProvider =
     user.auth_provider === 'google' || user.auth_provider === 'whatsapp'
@@ -158,6 +159,9 @@ export const toPublicUser = (user: {
     whatsappPhone: parseDbBoolean(user.whatsapp_verified) ? whatsappPhone : undefined,
     emailVerified: Boolean(email) && parseDbBoolean(user.email_verified),
     subscription_status: user.subscription_status ?? undefined,
+    // NULL (row predates the column) counts as on, like the other opt-out preferences
+    overdueRecapEnabled:
+      user.overdue_recap_enabled == null ? true : parseDbBoolean(user.overdue_recap_enabled),
   };
 };
 
@@ -841,7 +845,7 @@ export const getProfile = async (
         const result = await client.query(
           `SELECT id, email, name, preferred_name, avatar, auth_provider, has_password,
                   created_at, onboarding_completed_at, whatsapp_verified, whatsapp_phone,
-                  email_verified, subscription_status
+                  email_verified, subscription_status, overdue_recap_enabled
            FROM users WHERE id = $1`,
           [userId]
         );
@@ -855,7 +859,7 @@ export const getProfile = async (
       user = await db.get(
         `SELECT id, email, name, preferred_name, avatar, auth_provider, has_password,
                 created_at, onboarding_completed_at, whatsapp_verified, whatsapp_phone,
-                email_verified, subscription_status
+                email_verified, subscription_status, overdue_recap_enabled
          FROM users WHERE id = ?`,
         [userId]
       );

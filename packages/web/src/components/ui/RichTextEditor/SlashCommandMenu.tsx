@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import Suggestion, { SuggestionOptions } from '@tiptap/suggestion';
 import { ReactRenderer, type Editor } from '@tiptap/react';
 import { TextSelection } from '@tiptap/pm/state';
-import { CheckSquare, CodeBlock, ImageSquare, ListBullets, ListNumbers, TextHOne, TextHTwo, TextHThree } from '@phosphor-icons/react';
+import { CheckSquare, CodeBlock, ImageSquare, ListBullets, ListNumbers, TextHOne, TextHTwo, TextHThree, TextT } from '@phosphor-icons/react';
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import tippy, { Instance as TippyInstance, Props as TippyProps } from 'tippy.js';
 import styles from './RichTextEditor.module.css';
@@ -18,6 +18,7 @@ export interface SlashCommand {
 
 function getSlashCommands(): Omit<SlashCommand, 'command'>[] {
   return [
+    { title: 'Texto', shortcut: '⌘⌥0', icon: <TextT size={16} weight="regular" /> },
     { title: 'Título 1', shortcut: '⌘⌥1', icon: <TextHOne size={16} weight="regular" /> },
     { title: 'Título 2', shortcut: '⌘⌥2', icon: <TextHTwo size={16} weight="regular" /> },
     { title: 'Título 3', shortcut: '⌘⌥3', icon: <TextHThree size={16} weight="regular" /> },
@@ -95,10 +96,17 @@ SlashCommandList.displayName = 'SlashCommandList';
 
 const ALL_COMMANDS = getSlashCommands();
 
+/** Lowercase + strip diacritics so `/titulo` matches "Título". */
+function foldForSearch(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+const ALL_COMMAND_KEYS = ALL_COMMANDS.map(c => foldForSearch(c.title));
+
 function filterCommands(query: string) {
   if (!query) return ALL_COMMANDS;
-  const q = query.toLowerCase();
-  return ALL_COMMANDS.filter(c => c.title.toLowerCase().includes(q));
+  const q = foldForSearch(query);
+  return ALL_COMMANDS.filter((_, idx) => ALL_COMMAND_KEYS[idx].includes(q));
 }
 
 function moveCursorToTaskItemTextStart(editor: Editor) {
@@ -222,6 +230,10 @@ const suggestionConfig: Omit<SuggestionOptions, 'editor'> = {
     editor.chain().focus().deleteRange(range).run();
 
     switch (item.title) {
+      case 'Texto':
+        // Back to a plain paragraph (also lifts the line out of lists/quotes)
+        editor.chain().focus().clearNodes().setParagraph().run();
+        break;
       case 'Título 1':
         editor.chain().focus().toggleHeading({ level: 1 }).run();
         break;

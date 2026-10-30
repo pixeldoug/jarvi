@@ -1,0 +1,57 @@
+/**
+ * NoteHeader styles
+ */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  width: 100%;
+}
+
+/* The note view turns off MainLayout's scrolling body and its right gutter
+   (`scrollableBody={false}`), so the bar already spans the card's content
+   box and the actions mirror the back button with no compensation. */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
+/* Borderless page title — typography of MainLayout `.mainTitle` */
+.titleInput {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  caret-color: var(--semantic-control-border-active);
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.titleInput::placeholder {
+  color: var(--semantic-content-tertiary);
+  opacity: 1;
+}
+
+.titleInput:read-only {
+  cursor: default;
+}
+

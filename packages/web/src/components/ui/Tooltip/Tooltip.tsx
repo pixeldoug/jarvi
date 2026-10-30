@@ -174,7 +174,8 @@ export function Tooltip({
         {children}
       </span>
 
-      {isVisible &&
+      {/* `disabled` also hides one already showing (e.g. its menu just opened) */}
+      {isVisible && !disabled &&
         createPortal(
           <div
             ref={tooltipRef}

@@ -142,25 +142,6 @@
   max-height: 240px;
 }
 
-/* Scrollbar customization */
-.timePickerList::-webkit-scrollbar {
-  width: 6px;
-}
-
-.timePickerList::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: var(--radius-round);
-}
-
-.timePickerList::-webkit-scrollbar-thumb {
-  background: var(--semantic-surface-tertiary);
-  border-radius: var(--radius-round);
-}
-
-.timePickerList::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
 .timePickerFooter {
   display: flex;
   flex-direction: column;

@@ -51,7 +51,10 @@
   container-type: inline-size;
   container-name: main-panel;
   height: calc(100vh - var(--sizes-6) - var(--sizes-16));
-  padding: var(--sizes-8) var(--sizes-12) 0 var(--sizes-12);
+  /* Exposed so a page can reach the card edges (e.g. a full-bleed scroll area) */
+  --main-padding-top: var(--sizes-8);
+  --main-padding-x: var(--sizes-12);
+  padding: var(--main-padding-top) var(--main-padding-x) 0;
   background: linear-gradient(
     178deg,
     var(--semantic-gradient-primary-stop-0) 2.45%,
@@ -64,7 +67,8 @@
   gap: var(--sizes-10);
   overflow-y: auto;
   position: relative;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* No background transition: gradient ↔ solid (.mainSolid) can't interpolate,
+     so only the color animated and the wallpaper flashed through on view switches */
 }
 
 /*
@@ -169,6 +173,19 @@
   align-items: center;
   gap: var(--sizes-3);
   flex-shrink: 0;
+  /* Room for the pinned action (0 without one) */
+  margin-right: var(--main-pinned-action-space, 0px);
+}
+
+/* Top-right of the panel, centered on the title row; one instance across views */
+.pinnedAction {
+  position: absolute;
+  top: var(--main-padding-top);
+  right: var(--main-padding-x);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  height: var(--main-title-row-height, 48px);
 }
 
 .mainDescription {
@@ -182,57 +199,52 @@
 
 /* Body slot */
 .mainBody {
+  composes: scrollbar-panel from global;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: var(--sizes-10);
   padding-bottom: var(--sizes-24);
+  --scrollbar-panel-padding-block: var(--sizes-24);
 }
 
 .mainBodyNoScroll {
-  overflow-y: hidden;
+  /* clip, not hidden: hidden also clips sideways, and full-height content
+     (the calendar) bleeds over the card's right padding */
+  overflow-x: visible;
+  overflow-y: clip;
   padding-right: 0;
   padding-bottom: 0;
 }
 
-/* Scrollbar customizada para a área de tasks */
-.mainBody::-webkit-scrollbar {
-  width: 6px;
+/* scrollableBody={false}: the child scrolls itself and may bleed over the
+   card's padding (e.g. to put its scrollbar at the card edge), so nothing is
+   clipped here — `hidden` would also turn overflow-x into a scrollbar. */
+.mainBodyContained {
+  overflow: visible;
+  padding-right: 0;
+  padding-bottom: 0;
 }
 
-.mainBody::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: var(--radius-round);
+/*
+ * Desktop: the body bleeds over the card's right padding so its scrollbar sits
+ * by the card's edge, as on the note page, while the same padding moved inside
+ * keeps the content where it was. The small inset keeps the bar off the edge.
+ * (Mobile scrolls the document.) A body that doesn't scroll itself doesn't bleed.
+ */
+@media (min-width: 769px) {
+  .mainBody {
+    --main-body-bleed: calc(var(--main-padding-x) - var(--sizes-2));
+    margin-right: calc(var(--main-body-bleed) * -1);
+    padding-right: calc(var(--sizes-10) + var(--main-body-bleed));
+  }
+
+  .mainBodyNoScroll,
+  .mainBodyContained {
+    margin-right: 0;
+    padding-right: 0;
+  }
 }
-
-.mainBody::-webkit-scrollbar-thumb {
-  background: var(--semantic-surface-tertiary);
-  border-radius: var(--radius-round);
-}
-
-.mainBody::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
-.main::-webkit-scrollbar {
-  width: 6px;
-}
-
-.main::-webkit-scrollbar-track {
-  background: transparent;
-  border-radius: var(--radius-round);
-}
-
-.main::-webkit-scrollbar-thumb {
-  background: var(--semantic-surface-tertiary);
-  border-radius: var(--radius-round);
-}
-
-.main::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
-
 
 /* Responsive adjustments for smaller screens */
 @media (max-width: 824px) {
@@ -243,8 +255,7 @@
 
 @media (max-width: 1600px) {
   .main {
-    padding-left: var(--sizes-10);
-    padding-right: var(--sizes-10);
+    --main-padding-x: var(--sizes-10);
   }
 
   .rightSidebar {
@@ -321,7 +332,8 @@
     width: 100%;
     height: auto;
     min-height: calc(100dvh - var(--sizes-6) - var(--sizes-16));
-    padding: var(--sizes-4) var(--sizes-4) 0;
+    --main-padding-top: var(--sizes-4);
+    --main-padding-x: var(--sizes-4);
     gap: var(--sizes-2);
   }
 

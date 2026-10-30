@@ -1,4 +1,5 @@
 import { Chip } from '../../../ui';
+import type { ChatMode } from '../../../../hooks/useChatStream';
 import styles from './AIChatPanel.module.css';
 
 const TASK_SKILLS = [
@@ -17,13 +18,26 @@ const GENERAL_SKILLS = [
   'Resumir minha semana',
 ];
 
+const NOTE_SKILLS = [
+  'Criar tarefas dos próximos passos',
+  'Quais foram as decisões?',
+  'Resumir em 3 tópicos',
+  'O que ficou em aberto?',
+];
+
+const SKILLS_BY_MODE: Record<ChatMode, string[]> = {
+  task: TASK_SKILLS,
+  general: GENERAL_SKILLS,
+  note: NOTE_SKILLS,
+};
+
 interface SkillChipsProps {
-  mode: 'task' | 'general';
+  mode: ChatMode;
   onSelect: (skill: string) => void;
 }
 
 export function SkillChips({ mode, onSelect }: SkillChipsProps) {
-  const skills = mode === 'task' ? TASK_SKILLS : GENERAL_SKILLS;
+  const skills = SKILLS_BY_MODE[mode];
 
   return (
     <div className={styles.skillChips}>

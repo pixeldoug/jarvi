@@ -16,8 +16,10 @@ type ListItemButtonProps = Omit<
 };
 
 export interface ListItemProps {
-  /** Text label */
-  label: string;
+  /** Text label (a node when parts of it are highlighted) */
+  label: ReactNode;
+  /** Second line under the label (e.g. a search result's snippet) */
+  description?: ReactNode;
   /** Icon component (Phosphor icon) */
   icon?: ElementType;
   /** Icon weight (Phosphor icon prop) */
@@ -34,6 +36,8 @@ export interface ListItemProps {
   counter?: number;
   /** Counter visual style */
   counterVariant?: 'text' | 'chip';
+  /** Shown at the end of the row (e.g. a submenu caret) */
+  trailing?: ReactNode;
   /** Click handler */
   onClick?: () => void;
   /** Additional className */
@@ -48,6 +52,7 @@ export interface ListItemProps {
 
 export function ListItem({
   label,
+  description,
   icon: Icon,
   iconWeight = 'regular',
   iconNode,
@@ -56,6 +61,7 @@ export function ListItem({
   disabled = false,
   counter,
   counterVariant = 'text',
+  trailing,
   onClick,
   className = '',
   as: Component = 'button',
@@ -63,6 +69,7 @@ export function ListItem({
 }: ListItemProps) {
   const itemClasses = [
     styles.listItem,
+    description && styles.withDescription,
     active && styles.active,
     disabled && styles.disabled,
     className,
@@ -87,8 +94,15 @@ export function ListItem({
         </span>
       )}
 
-      {/* Label */}
-      <span className={styles.label}>{label}</span>
+      {/* Label (+ description) */}
+      {description ? (
+        <span className={styles.text}>
+          <span className={styles.label}>{label}</span>
+          <span className={styles.description}>{description}</span>
+        </span>
+      ) : (
+        <span className={styles.label}>{label}</span>
+      )}
 
       {/* Counter */}
       {counter !== undefined && counter > 0 && (
@@ -101,6 +115,8 @@ export function ListItem({
           {counter}
         </span>
       )}
+
+      {trailing && <span className={styles.trailing}>{trailing}</span>}
     </>
   );
 

@@ -21,6 +21,7 @@
   --color-gray-700: #757D88;
   --color-gray-800: #4B5058;
   --color-gray-900: #2B2D31;
+  --color-gray-925: #1F2023;
   --color-gray-950: #18191B;
   --color-brand-primary-50: #F3F1FC;
   --color-brand-primary-100: #EEE9FE;
@@ -373,6 +374,7 @@
   --component-sidebar-group-header-button-bg-hover: #EEEFF2;
   --component-tooltip-bg: #18191B;
   --component-tooltip-content: #F3F1FC;
+  --component-scrollbar-thumb: #F9F9FA;
 }
 
 /* ========================================
@@ -394,7 +396,7 @@
   --semantic-content-info: #8D6EF7;
   --semantic-surface-primary: #18191B;
   --semantic-surface-secondary: #2B2D31;
-  --semantic-surface-tertiary: #4B5058;
+  --semantic-surface-tertiary: #1F2023;
   --semantic-surface-accent: #4F26E4;
   --semantic-surface-accent-subtle: #160F2B;
   --semantic-border-primary: #2B2D31;
@@ -517,6 +519,7 @@
   --component-sidebar-group-header-button-bg-hover: #4B5058;
   --component-tooltip-bg: #F9F9FA;
   --component-tooltip-content: #18191B;
+  --component-scrollbar-thumb: #4B5058;
 }
 
 /* ========================================

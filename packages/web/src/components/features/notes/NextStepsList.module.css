@@ -1,0 +1,60 @@
+/**
+ * NextStepsList styles — the title matches the summary editor's section
+ * headings (document variant h2); task rows are TaskItem's own.
+ */
+
+.nextSteps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-5);
+  /* With the summary's gap above, the same space as between editor sections */
+  margin-top: var(--sizes-1);
+}
+
+/* The title, and "Adicionar às tarefas" on the right */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  min-height: var(--sizes-8);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A step without a task in the user's list: its text, and the answer it waits for */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  padding: var(--sizes-2) 0;
+}
+
+.text {
+  min-width: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* These tasks came from this note: their "Nota" source chip would only point here. */
+.list :global([data-source-chip='true']) {
+  display: none;
+}

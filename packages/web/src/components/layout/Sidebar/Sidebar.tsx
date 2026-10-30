@@ -4,26 +4,26 @@
  * Global application sidebar. Handles:
  *  - User profile header (avatar, name, plan label, settings/collapse toggle)
  *  - Optional Pro CTA for trialing / free users
- *  - Task navigation items (Todas as tarefas, Hoje, Esta semana, Futuro, Caixa de entrada, Vencidas)
+ *  - Task navigation item (Tarefas); Vencidas / Caixa de entrada are filters on the page
+ *  - "Buscar" entry (also ⌘K / Ctrl+K anywhere) opening the CommandPalette
+ *  - "Notas" and "Apps" entries (route to /notes and /apps; task items then navigate back to /tasks with router state)
+ *  - "Chats" entry (routes to /chats): there the menu is the icon rail + the conversation history
  *  - Collapsible "Categorias" group with hover add-button
- *  - Collapsible "Filtros" group (custom lists)
  *  - Expanded (320 px) / Collapsed (56 px) states, toggled internally
  *
  * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001333-125371
  */
 
-import { useState, useRef, useEffect, type RefObject, type MutableRefObject } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type RefObject, type MutableRefObject } from 'react';
 import {
   Checks,
-  CalendarDots,
-  Tray,
-  HourglassLow,
   Hash,
-  FunnelSimple,
   SidebarSimple,
   Bug,
   Lightbulb,
-  Repeat,
+  CirclesFour,
+  ChatCircle,
+  MagnifyingGlass,
 } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -31,7 +31,7 @@ import { useSubscription } from '../../../contexts/SubscriptionContext';
 import { Avatar } from '../../ui/Avatar/Avatar';
 import { Button } from '../../ui/Button/Button';
 import { ListItem } from '../../ui/ListItem/ListItem';
-import { Dialog, Dropdown, Tooltip, Divider, BottomSheet, WhatsNewCard } from '../../ui';
+import { Dialog, Dropdown, Tooltip, Divider, BottomSheet, WhatsNewCard, NoteIcon } from '../../ui';
 import {
   SettingsDialog,
   SettingsPageContent,
@@ -46,6 +46,7 @@ import { DisconnectEmailDialog } from '../../features/account/SettingsDialog/Dis
 import { AddEmailDialog } from '../../features/account/SettingsDialog/AddEmailDialog';
 import { DeleteAccountDialog } from '../../features/account/SettingsDialog/DeleteAccountDialog';
 import { useMobileSidebar } from '../MainLayout/MainLayout';
+import { useMergedTaskCategories } from '../../../hooks/useMergedTaskCategories';
 import { SidebarEmptyState } from './SidebarEmptyState';
 import { SidebarGroupHeader } from './SidebarGroupHeader';
 import { SidebarUserMenu } from './SidebarUserMenu';
@@ -55,6 +56,13 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignOut, Gear } from '@phosphor-icons/react';
 import { FeedbackDialog } from '../../features/feedback/FeedbackDialog';
+import { ChatHistoryPanel } from '../../features/chats';
+import {
+  CommandPalette,
+  CommandPaletteShortcut,
+  COMMAND_PALETTE_SHORTCUT,
+  useCommandPaletteHotkey,
+} from '../../features/search';
 import type { FeedbackKind } from '../../../lib/posthogFeedback';
 import styles from './Sidebar.module.css';
 
@@ -112,10 +120,8 @@ export const LIST_TO_SECTION: Partial<Record<ListType, SectionId>> = {
 
 export interface SidebarProps {
   selectedList?: ListType | null;
-  selectedCustomListId?: string | null;
   selectedCategory?: CategoryType | null;
   onListSelect?: (listType: ListType) => void;
-  onCustomListSelect?: (listId: string) => void;
   onCategorySelect?: (category: CategoryType) => void;
   addButtonRef?: RefObject<HTMLButtonElement>;
   taskCounts?: {
@@ -125,8 +131,8 @@ export interface SidebarProps {
     later?: number;
     noDate?: number;
   };
+  /** Omit to let the Sidebar derive them (same data the Tasks page passes) */
   categories?: Array<{ id: string; name: string; count: number }>;
-  customLists?: Array<{ id: string; name: string }>;
   /** Imperative ref — caller sets this to open the SettingsDialog on any page */
   openSettingsRef?: MutableRefObject<((page: SettingsPage) => void) | null>;
   /** When true, collapses the sidebar; restores previous state when false */
@@ -136,12 +142,35 @@ export interface SidebarProps {
 // ── Nav items ─────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: Array<{ id: ListType; label: string; icon: typeof Checks }> = [
-  { id: 'all', label: 'Lista de tarefas', icon: Checks },
-  { id: 'later', label: 'Calendário', icon: CalendarDots },
-  { id: 'noDate', label: 'Caixa de entrada', icon: Tray },
-  { id: 'overdue', label: 'Vencidas', icon: HourglassLow },
-  { id: 'recurring', label: 'Recorrentes', icon: Repeat },
+  // The calendar is a view of "Tarefas" (Lista / Calendário switch on the page)
+  { id: 'all', label: 'Tarefas', icon: Checks },
 ];
+
+const NOTES_NAV_LABEL = 'Notas';
+
+const isNotesPath = (pathname: string): boolean =>
+  pathname === '/notes' || pathname.startsWith('/notes/');
+
+const APPS_NAV_LABEL = 'Apps';
+
+const isAppsPath = (pathname: string): boolean => pathname === '/apps';
+
+const CHATS_NAV_LABEL = 'Chats';
+
+const isChatsPath = (pathname: string): boolean =>
+  pathname === '/chats' || pathname.startsWith('/chats/');
+
+/** Router state the Tasks page reads on mount to open a view from another page. */
+export interface TasksNavigationState {
+  tasksView?: ListType;
+  tasksCategory?: string;
+  /** Opens this task's details once tasks load (a note's "Tarefa" marker) */
+  openTaskId?: string;
+}
+
+// Desktop collapsed/locked preference. Module-level so it survives the Sidebar
+// remount when switching pages (Tasks ↔ Notes); resets on reload as before.
+let desktopCollapsedPreference = false;
 
 type WhatsAppPromoPlacement = 'hidden' | 'modal' | 'floating';
 
@@ -204,34 +233,44 @@ const dismissWhatsAppPromo = async (userId: string, token: string): Promise<void
 
 export function Sidebar({
   selectedList = 'all',
-  selectedCustomListId = null,
   selectedCategory,
   onListSelect,
-  onCustomListSelect,
   onCategorySelect,
   addButtonRef,
   taskCounts: _taskCounts = {},
-  categories = [],
-  customLists = [],
+  categories: categoriesProp,
   openSettingsRef,
   forceCollapsed,
 }: SidebarProps) {
   const { isMobile, close: closeMobileSidebar } = useMobileSidebar();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Pages that don't own task state (e.g. Notes) omit these; derive them the
+  // same way the Tasks page does so the groups don't show empty states.
+  const mergedTaskCategories = useMergedTaskCategories();
+  const derivedCategories = useMemo(
+    () =>
+      categoriesProp
+        ? []
+        : mergedTaskCategories.map((category) => ({
+            id: category.id,
+            name: category.name,
+            count: category.count,
+          })),
+    [categoriesProp, mergedTaskCategories]
+  );
+  const categories = categoriesProp ?? derivedCategories;
+
+  const [isCollapsed, setIsCollapsed] = useState(() => desktopCollapsedPreference);
   const [isHoverExpanded, setIsHoverExpanded] = useState(false);
-  const prevCollapsedRef = useRef<boolean>(false);
+  const prevCollapsedRef = useRef<boolean>(desktopCollapsedPreference);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
-  const [isFiltersExpanded, setIsFiltersExpanded] = useState(() => customLists.length > 0);
   const [whatsAppPromoPlacement, setWhatsAppPromoPlacement] =
     useState<WhatsAppPromoPlacement>('hidden');
+
 
   useEffect(() => {
     if (categories.length > 0) setIsCategoriesExpanded(true);
   }, [categories.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (customLists.length > 0) setIsFiltersExpanded(true);
-  }, [customLists.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialPage, setSettingsInitialPage] = useState<SettingsPage>('profile');
@@ -275,18 +314,35 @@ export function Sidebar({
   const collapsedProfileButtonRef = useRef<HTMLButtonElement>(null);
   const expandedProfileButtonRef = useRef<HTMLButtonElement>(null);
 
-  const isDesktopCollapsed =
-    !isMobile && (forceCollapsed || (isCollapsed && !isHoverExpanded));
-
-  const profileButtonRef =
-    isDesktopCollapsed ? collapsedProfileButtonRef : expandedProfileButtonRef;
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Chats page: the icon rail + the conversation history, whatever the
+  // collapse preference (the full menu is back on any other page).
+  const isChatsRoute = isChatsPath(location.pathname);
+
+  const isDesktopCollapsed =
+    !isMobile && !isChatsRoute && (forceCollapsed || (isCollapsed && !isHoverExpanded));
+  const showsRail = isDesktopCollapsed || isChatsRoute;
+
+  const profileButtonRef =
+    showsRail ? collapsedProfileButtonRef : expandedProfileButtonRef;
+
   const { user, token, logout } = useAuth();
+
+  // Once closed, the promo stays closed for this page load. The placement
+  // effect re-runs when the Sidebar remounts (Tasks ↔ Notas / Apps) or the query
+  // changes (note tabs, `?app=`), and would otherwise replay the cached placement.
+  const hideWhatsAppPromo = () => {
+    setWhatsAppPromoPlacement('hidden');
+    if (user?.id) whatsAppPromoPlacementRequests.set(user.id, Promise.resolve('hidden'));
+  };
   const { subscription, daysLeftInTrial } = useSubscription();
   const { isLight } = useTheme();
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const toggleSearch = useCallback(() => setIsSearchOpen((open) => !open), []);
+  useCommandPaletteHotkey(isSearchOpen, toggleSearch);
 
   const showProCta = subscription?.status !== 'active';
 
@@ -346,23 +402,66 @@ export function Sidebar({
   }, [location.pathname, isMobile]);
 
   // ── Nav click handler ───────────────────────────────────────────────────────
+  // On /notes, /apps and /chats the task callbacks belong to no page; go to
+  // /tasks with router state instead (the Tasks page reads it on mount).
+  const isNotesRoute = isNotesPath(location.pathname);
+  const isAppsRoute = isAppsPath(location.pathname);
+  const isOffTasksRoute = isNotesRoute || isAppsRoute || isChatsRoute;
+
+  const navigateToTasks = (state: TasksNavigationState) => {
+    navigate('/tasks', { state });
+  };
+
   const handleNavClick = (listType: ListType) => {
-    onListSelect?.(listType);
+    if (isOffTasksRoute) navigateToTasks({ tasksView: listType });
+    else onListSelect?.(listType);
     closeMobileSidebar();
   };
 
   const handleCategoryClick = (category: CategoryType) => {
-    onCategorySelect?.(category);
+    if (isOffTasksRoute) navigateToTasks({ tasksCategory: category });
+    else onCategorySelect?.(category);
     closeMobileSidebar();
   };
 
-  const handleCustomListClick = (listId: string) => {
-    onCustomListSelect?.(listId);
+  const handleNotesClick = () => {
+    navigate('/notes');
+    closeMobileSidebar();
+  };
+
+  const handleAppsClick = () => {
+    navigate('/apps');
+    closeMobileSidebar();
+  };
+
+  const handleChatsClick = () => {
+    navigate('/chats');
+    closeMobileSidebar();
+  };
+
+  const handleSearchClick = () => {
+    setIsSearchOpen(true);
+    closeMobileSidebar();
+  };
+
+  /**
+   * Leaves Minha Conta for the Apps page (replace, not a nested dialog):
+   * `appId` opens that app's dialog there.
+   */
+  const goToApps = (appId?: string) => {
+    setIsSettingsOpen(false);
+    setMobileSettingsPage(null);
+    navigate(appId ? `/apps?app=${appId}` : '/apps');
     closeMobileSidebar();
   };
 
   const isNavItemActive = (itemId: ListType): boolean =>
-    selectedList === itemId && !selectedCategory && !selectedCustomListId;
+    !isOffTasksRoute &&
+    (selectedList === itemId || (itemId === 'all' && selectedList === 'later')) &&
+    !selectedCategory;
+
+  const isCategoryActive = (categoryName: string): boolean =>
+    !isOffTasksRoute && selectedCategory === categoryName;
 
   // ── User info ───────────────────────────────────────────────────────────────
   const userName = user?.preferred_name || user?.name || 'Usuário';
@@ -392,13 +491,10 @@ export function Sidebar({
     openSettings('categories');
   };
 
-  const handleAddFilter = () => {
-    openSettings('filters');
-  };
-
   const handleCloseSettings = () => {
     setIsSettingsOpen(false);
-    navigate('/tasks', { replace: true });
+    // Stay on the notes / apps / chats page; elsewhere keep the old /settings → /tasks reset.
+    if (!isOffTasksRoute) navigate('/tasks', { replace: true });
   };
 
   const handleCloseMobileSettings = () => {
@@ -422,7 +518,9 @@ export function Sidebar({
       closeMobileSidebar();
       return;
     }
-    setIsCollapsed((prev) => !prev);
+    const next = !isCollapsed;
+    desktopCollapsedPreference = next;
+    setIsCollapsed(next);
   };
 
   const sidebarToggleLabel = isMobile
@@ -432,7 +530,7 @@ export function Sidebar({
       : 'Fixar menu expandido';
 
   const handleSidebarMouseEnter = () => {
-    if (!isMobile && !forceCollapsed) setIsHoverExpanded(true);
+    if (!isMobile && !forceCollapsed && !isChatsRoute) setIsHoverExpanded(true);
   };
 
   const handleSidebarMouseLeave = () => {
@@ -461,6 +559,7 @@ export function Sidebar({
       className={styles.sidebar}
       data-collapsed={isDesktopCollapsed || undefined}
       data-locked={isSidebarLocked || undefined}
+      data-chats={isChatsRoute || undefined}
       onMouseEnter={handleSidebarMouseEnter}
       onMouseLeave={handleSidebarMouseLeave}
     >
@@ -496,6 +595,53 @@ export function Sidebar({
               </Tooltip>
             );
           })}
+          <Tooltip label={NOTES_NAV_LABEL} position="right" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={NoteIcon}
+              iconPosition="icon-only"
+              active={isNotesRoute}
+              className={`${styles.collapsedNavButton} ${isNotesRoute ? styles.collapsedNavButtonActive : ''}`}
+              onClick={handleNotesClick}
+              aria-label={NOTES_NAV_LABEL}
+            />
+          </Tooltip>
+          <Tooltip label={CHATS_NAV_LABEL} position="right" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={ChatCircle}
+              iconPosition="icon-only"
+              active={isChatsRoute}
+              className={`${styles.collapsedNavButton} ${isChatsRoute ? styles.collapsedNavButtonActive : ''}`}
+              onClick={handleChatsClick}
+              aria-label={CHATS_NAV_LABEL}
+            />
+          </Tooltip>
+          <Tooltip label={APPS_NAV_LABEL} position="right" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={CirclesFour}
+              iconPosition="icon-only"
+              active={isAppsRoute}
+              className={`${styles.collapsedNavButton} ${isAppsRoute ? styles.collapsedNavButtonActive : ''}`}
+              onClick={handleAppsClick}
+              aria-label={APPS_NAV_LABEL}
+            />
+          </Tooltip>
+          <Tooltip label={`Buscar (${COMMAND_PALETTE_SHORTCUT})`} position="right" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={MagnifyingGlass}
+              iconPosition="icon-only"
+              className={styles.collapsedNavButton}
+              onClick={handleSearchClick}
+              aria-label="Buscar"
+            />
+          </Tooltip>
         </div>
 
         {/* Categories icon */}
@@ -514,21 +660,6 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Custom lists icon */}
-        {customLists.length > 0 && (
-          <div className={styles.collapsedNavList}>
-            <Tooltip label="Filtros" position="right" showDelay={300}>
-              <Button
-                variant="ghost"
-                size="small"
-                icon={FunnelSimple}
-                iconPosition="icon-only"
-                className={styles.collapsedNavButton}
-                aria-label="Filtros"
-              />
-            </Tooltip>
-          </div>
-        )}
 
         {/* Collapsed footer: action buttons + compact ThemeToggle last */}
         <div className={styles.collapsedFooter}>
@@ -561,6 +692,13 @@ export function Sidebar({
           </Tooltip>
         </div>
       </div>
+
+      {/* ── Chats page: the conversation history, next to the rail ── */}
+      {isChatsRoute && (
+        <div className={styles.chatsPanel}>
+          <ChatHistoryPanel onNavigate={closeMobileSidebar} />
+        </div>
+      )}
 
       {/* ── Expanded panel (fades out when collapsed) ── */}
       <div className={styles.expandedPanel}>
@@ -609,11 +747,35 @@ export function Sidebar({
                   onClick={() => handleNavClick(item.id)}
                 />
               ))}
+              <ListItem
+                label={NOTES_NAV_LABEL}
+                icon={NoteIcon}
+                active={isNotesRoute}
+                onClick={handleNotesClick}
+              />
+              <ListItem
+                label={CHATS_NAV_LABEL}
+                icon={ChatCircle}
+                active={isChatsRoute}
+                onClick={handleChatsClick}
+              />
+              <ListItem
+                label={APPS_NAV_LABEL}
+                icon={CirclesFour}
+                active={isAppsRoute}
+                onClick={handleAppsClick}
+              />
+              <ListItem
+                label="Buscar"
+                icon={MagnifyingGlass}
+                trailing={isMobile ? undefined : <CommandPaletteShortcut />}
+                onClick={handleSearchClick}
+              />
             </div>
           </div>
 
           {/* Categorias group */}
-          <div className={styles.groupSection}>
+          <div className={`${styles.groupSection} ${styles.groupSectionLast}`}>
             <div className={styles.groupHeaderWrapper}>
               <SidebarGroupHeader
                 label="Categorias"
@@ -632,7 +794,7 @@ export function Sidebar({
                       key={category.id}
                       label={category.name}
                       icon={Hash}
-                      active={selectedCategory === category.name}
+                      active={isCategoryActive(category.name)}
                       onClick={() => handleCategoryClick(category.name)}
                     />
                   ))
@@ -641,40 +803,6 @@ export function Sidebar({
                     description="Use categorias para filtrar, priorizar e visualizar melhor o que importa."
                     buttonLabel="Criar categoria"
                     onButtonClick={handleAddCategory}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Filtros group */}
-          <div className={`${styles.groupSection} ${styles.groupSectionLast}`}>
-            <div className={styles.groupHeaderWrapper}>
-              <SidebarGroupHeader
-                label="Filtros"
-                isExpanded={isFiltersExpanded}
-                onToggle={() => setIsFiltersExpanded((v) => !v)}
-                showAddButton
-                onAdd={handleAddFilter}
-              />
-            </div>
-            {isFiltersExpanded && (
-              <div className={`${styles.navList} ${styles.navListScrollable}`}>
-                {customLists.length > 0 ? (
-                  customLists.map((list) => (
-                    <ListItem
-                      key={list.id}
-                      label={list.name}
-                      icon={FunnelSimple}
-                      active={selectedCustomListId === list.id}
-                      onClick={() => handleCustomListClick(list.id)}
-                    />
-                  ))
-                ) : (
-                  <SidebarEmptyState
-                    description="Use filtros para organizar tarefas com critérios personalizados."
-                    buttonLabel="Criar filtro"
-                    onButtonClick={handleAddFilter}
                   />
                 )}
               </div>
@@ -722,8 +850,8 @@ export function Sidebar({
         anchorRef={profileButtonRef}
         align="left"
         width={isMobile ? 240 : 200}
-        gap={isDesktopCollapsed ? 6 : 8}
-        offsetX={isDesktopCollapsed ? 2 : 0}
+        gap={showsRail ? 6 : 8}
+        offsetX={showsRail ? 2 : 0}
       >
         {isMobile ? (
           <>
@@ -750,7 +878,7 @@ export function Sidebar({
       {/* First impression: centered modal with overlay */}
       <Dialog
         isOpen={whatsAppPromoPlacement === 'modal'}
-        onClose={() => setWhatsAppPromoPlacement('hidden')}
+        onClose={hideWhatsAppPromo}
         width="md"
         showCloseButton={false}
         className={styles.whatsNewModal}
@@ -760,10 +888,10 @@ export function Sidebar({
         <WhatsNewCard
           variant="welcome"
           onAction={() => {
-            setWhatsAppPromoPlacement('hidden');
-            openSettings('apps');
+            hideWhatsAppPromo();
+            goToApps('whatsapp');
           }}
-          onSecondaryAction={() => setWhatsAppPromoPlacement('hidden')}
+          onSecondaryAction={hideWhatsAppPromo}
         />
       </Dialog>
 
@@ -772,13 +900,13 @@ export function Sidebar({
         createPortal(
           <div className={styles.whatsNewFloatingCard}>
             <WhatsNewCard
-              onClose={() => setWhatsAppPromoPlacement('hidden')}
+              onClose={hideWhatsAppPromo}
               onAction={() => {
-                setWhatsAppPromoPlacement('hidden');
-                openSettings('apps');
+                hideWhatsAppPromo();
+                goToApps('whatsapp');
               }}
               onSecondaryAction={() => {
-                setWhatsAppPromoPlacement('hidden');
+                hideWhatsAppPromo();
                 if (user?.id && token) {
                   void dismissWhatsAppPromo(user.id, token).catch((error) => {
                     console.error('Error dismissing WhatsApp promo:', error);
@@ -790,6 +918,16 @@ export function Sidebar({
           </div>,
           document.body
         )}
+
+      <CommandPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        categories={categories}
+        onSelectList={handleNavClick}
+        onSelectCategory={handleCategoryClick}
+        onOpenSettings={openSettings}
+        onOpenFeedback={setFeedbackKind}
+      />
 
       <FeedbackDialog
         kind={feedbackKind}
@@ -803,6 +941,7 @@ export function Sidebar({
         onClose={handleCloseSettings}
         initialPage={settingsInitialPage}
         onOpenProfileOverlay={setProfileOverlay}
+        onGoToApps={goToApps}
       />
 
       {/* Mobile: single settings page in a bottom sheet */}
@@ -817,7 +956,7 @@ export function Sidebar({
             onClose={handleCloseMobileSettings}
             hideHeader
             onOpenProfileOverlay={setProfileOverlay}
-            onGoToApps={() => setMobileSettingsPage('apps')}
+            onGoToApps={() => goToApps('whatsapp')}
           />
         )}
       </BottomSheet>

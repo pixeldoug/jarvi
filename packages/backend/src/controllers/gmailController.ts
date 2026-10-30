@@ -138,7 +138,7 @@ export const gmailCallback = async (req: Request, res: Response): Promise<void> 
 
     if (oauthError) {
       const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-      res.redirect(`${redirectBase}/settings?gmail=error&reason=${oauthError}`);
+      res.redirect(`${redirectBase}/apps?app=gmail&gmail=error&reason=${oauthError}`);
       return;
     }
 
@@ -163,7 +163,7 @@ export const gmailCallback = async (req: Request, res: Response): Promise<void> 
 
     if (!tokens.access_token || !tokens.refresh_token) {
       const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-      res.redirect(`${redirectBase}/settings?gmail=error&reason=no_refresh_token`);
+      res.redirect(`${redirectBase}/apps?app=gmail&gmail=error&reason=no_refresh_token`);
       return;
     }
 
@@ -173,7 +173,7 @@ export const gmailCallback = async (req: Request, res: Response): Promise<void> 
     });
 
     const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${redirectBase}/settings?gmail=connected`);
+    res.redirect(`${redirectBase}/apps?app=gmail&gmail=connected`);
   } catch (error) {
     console.error('[gmailController] callback error:', error);
     res.status(500).json({ error: 'Failed to complete Gmail OAuth' });

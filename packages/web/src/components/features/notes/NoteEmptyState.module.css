@@ -1,0 +1,82 @@
+/**
+ * NoteEmptyState styles
+ */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-4);
+  min-height: 360px;
+  padding: var(--sizes-10) var(--sizes-4);
+  text-align: center;
+}
+
+.compact {
+  min-height: 0;
+  padding: var(--sizes-12) var(--sizes-4);
+}
+
+.iconTile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-target-standard);
+  height: var(--size-target-standard);
+  border-radius: var(--radius-md);
+  background: var(--semantic-surface-secondary);
+  color: var(--semantic-content-primary);
+}
+
+.illustration {
+  display: block;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-1);
+  max-width: 420px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-sm-font-family);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.description {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sizes-3);
+  margin-top: var(--sizes-2);
+}
+
+.helper {
+  margin: 0;
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-tertiary);
+}

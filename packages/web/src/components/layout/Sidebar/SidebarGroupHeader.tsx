@@ -1,9 +1,9 @@
 /**
  * SidebarGroupHeader Component
  *
- * Collapsible group header row used inside the Sidebar for "Categorias" and
- * "Filtros" sections. Shows a label + caret; on hover reveals an optional
- * add (+) action button.
+ * Collapsible group header row used inside the Sidebar for the "Categorias"
+ * section. Shows a label + caret; on hover reveals an optional add (+) action
+ * button.
  *
  * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001332-124364
  */

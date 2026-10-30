@@ -10,7 +10,8 @@
  * checklists — similar to the structured descriptions seen in tools like Linear.
  *
  * Intentionally focused (not a full CommonMark parser): headings, bullet /
- * ordered lists, task checklists, blockquotes, bold / italic / inline code.
+ * ordered lists, task checklists, blockquotes, bold / italic / strike /
+ * inline code / links.
  *
  * Keep in sync with `packages/backend/src/utils/markdownToTiptapDoc.ts`.
  */
@@ -20,7 +21,7 @@ export interface PMNode {
   attrs?: Record<string, unknown>;
   content?: PMNode[];
   text?: string;
-  marks?: { type: string }[];
+  marks?: { type: string; attrs?: Record<string, unknown> }[];
 }
 
 export interface PMDoc {
@@ -28,24 +29,39 @@ export interface PMDoc {
   content: PMNode[];
 }
 
-const INLINE_TOKEN = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*|_[^_\s][^_]*_)/g;
+// Bold, strike, code, link and italic spans (outermost first; bold / strike /
+// link contents are parsed again, so marks can nest, e.g. **[link](url)**).
+// `_italic_` only outside words, so snake_case stays text.
+const INLINE_TOKEN =
+  /(\*\*.+?\*\*|~~.+?~~|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|\*[^*\s][^*]*\*|(?<!\w)_[^_\s][^_]*_(?!\w))/g;
+const LINK_RE = /^\[([^\]]+)\]\(([^)\s]+)\)$/;
 
-/** Parses inline marks (bold, italic, code) within a single line of text. */
+type PMMark = { type: string; attrs?: Record<string, unknown> };
+
+const withMark = (nodes: PMNode[], mark: PMMark): PMNode[] =>
+  nodes.map((node) => ({ ...node, marks: [...(node.marks ?? []), mark] }));
+
+/** Parses inline marks (bold, italic, strike, code, links) within a single line of text. */
 function parseInline(text: string): PMNode[] {
   if (!text) return [];
   const parts = text.split(INLINE_TOKEN).filter((s) => s !== '' && s !== undefined);
   const nodes: PMNode[] = [];
 
   for (const part of parts) {
-    if (part.length >= 4 && part.startsWith('**') && part.endsWith('**')) {
-      nodes.push({ type: 'text', text: part.slice(2, -2), marks: [{ type: 'bold' }] });
+    const link = part.match(LINK_RE);
+    if (part.length >= 5 && part.startsWith('**') && part.endsWith('**')) {
+      nodes.push(...withMark(parseInline(part.slice(2, -2)), { type: 'bold' }));
+    } else if (part.length >= 5 && part.startsWith('~~') && part.endsWith('~~')) {
+      nodes.push(...withMark(parseInline(part.slice(2, -2)), { type: 'strike' }));
+    } else if (link) {
+      nodes.push(...withMark(parseInline(link[1]), { type: 'link', attrs: { href: link[2] } }));
     } else if (part.length >= 2 && part.startsWith('`') && part.endsWith('`')) {
       nodes.push({ type: 'text', text: part.slice(1, -1), marks: [{ type: 'code' }] });
     } else if (
       part.length >= 2 &&
       ((part.startsWith('*') && part.endsWith('*')) || (part.startsWith('_') && part.endsWith('_')))
     ) {
-      nodes.push({ type: 'text', text: part.slice(1, -1), marks: [{ type: 'italic' }] });
+      nodes.push(...withMark(parseInline(part.slice(1, -1)), { type: 'italic' }));
     } else {
       nodes.push({ type: 'text', text: part });
     }
@@ -90,7 +106,8 @@ export function markdownToTiptapDoc(markdown: string): PMDoc {
     if (heading) {
       content.push({
         type: 'heading',
-        attrs: { level: heading[1].length },
+        // The editor only knows H1–H3 (it renders deeper levels as H1).
+        attrs: { level: Math.min(heading[1].length, 3) },
         content: parseInline(heading[2]),
       });
       i++;

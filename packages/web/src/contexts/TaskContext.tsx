@@ -19,6 +19,8 @@ export interface Task {
   id: string;
   user_id: string;
   source?: string | null;
+  /** Note the task was created from (`source === 'notes'`); null once the note is deleted */
+  source_note_id?: string | null;
   title: string;
   description?: string;
   original_whatsapp_content?: string | null;
@@ -42,6 +44,12 @@ export interface Task {
 /** Response from PATCH /api/tasks/:id/toggle — may include a spawned recurrence. */
 interface ToggleTaskResponse extends Task {
   next_occurrence?: Task | null;
+}
+
+/** Response from PATCH /api/tasks/completion */
+interface SetCompletionResponse {
+  tasks: Task[];
+  next_occurrences: Task[];
 }
 
 export interface CreateTaskData {
@@ -92,6 +100,11 @@ interface TaskContextType {
   deleteTask: (taskId: string, showLoading?: boolean) => Promise<Task | null>;
   undoDeleteTask: (taskId: string) => Promise<boolean>;
   toggleTaskCompletion: (taskId: string) => Promise<Task | null>;
+  /**
+   * Sets (never flips) completion on several tasks in one request. Returns the
+   * recurrence occurrences it created. Throws after reverting on failure.
+   */
+  setTasksCompleted: (taskIds: string[], completed: boolean) => Promise<Task[]>;
   reorderTasks: (reorderedTasks: Task[]) => void;
   subtasksByTaskId: Record<string, SubTask[]>;
   fetchSubTasks: (taskId: string) => Promise<void>;
@@ -492,6 +505,42 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   }, [token, queryClient, posthog, createTask]);
 
+  const setTasksCompleted = useCallback(async (taskIds: string[], completed: boolean): Promise<Task[]> => {
+    if (!token || taskIds.length === 0) return [];
+
+    const ids = new Set(taskIds);
+    const previous = new Map<string, boolean>();
+    queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+      (old ?? []).map((task) => {
+        if (!ids.has(task.id)) return task;
+        previous.set(task.id, task.completed);
+        return { ...task, completed };
+      }),
+    );
+
+    try {
+      const response = await apiClient.patch<SetCompletionResponse>('/api/tasks/completion', {
+        ids: taskIds,
+        completed,
+      });
+      const updated = new Map(response.tasks.map((task) => [task.id, task]));
+      queryClient.setQueryData<Task[]>(['tasks'], (old) => {
+        const merged = (old ?? []).map((task) => updated.get(task.id) ?? task);
+        const known = new Set(merged.map((task) => task.id));
+        const created = response.next_occurrences.filter((task) => !known.has(task.id));
+        return created.length > 0 ? sortTasks([...merged, ...created]) : merged;
+      });
+      return response.next_occurrences;
+    } catch (err) {
+      queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+        (old ?? []).map((task) =>
+          previous.has(task.id) ? { ...task, completed: previous.get(task.id) as boolean } : task,
+        ),
+      );
+      throw err;
+    }
+  }, [token, queryClient]);
+
   const reorderTasks = useCallback((reorderedTasks: Task[]) => {
     queryClient.setQueryData<Task[]>(['tasks'], reorderedTasks);
   }, [queryClient]);
@@ -613,6 +662,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     deleteTask,
     undoDeleteTask,
     toggleTaskCompletion,
+    setTasksCompleted,
     reorderTasks,
     subtasksByTaskId,
     fetchSubTasks,

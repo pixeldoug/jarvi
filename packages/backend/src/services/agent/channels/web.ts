@@ -23,7 +23,6 @@ import {
   getTaskById,
   getUserActiveTasks,
   getUserCategories,
-  getUserLists,
 } from '../core/tasks';
 import { shouldRetryWithForcedTool } from '../core/guardrails';
 import { isReliableExecutionEnabled } from '../core/flags';
@@ -88,10 +87,6 @@ const WEB_PROFILE: ChannelProfile = {
     'delete_task',
     'search_tasks',
     'update_memory',
-    'create_list',
-    'update_list',
-    'delete_list',
-    'show_list',
     'create_category',
     'update_category',
     'delete_category',
@@ -119,10 +114,6 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   update_task: 'Atualizando tarefa…',
   complete_task: 'Concluindo tarefa…',
   delete_task: 'Excluindo tarefa…',
-  create_list: 'Criando lista…',
-  update_list: 'Atualizando lista…',
-  delete_list: 'Excluindo lista…',
-  show_list: 'Buscando lista…',
   create_category: 'Criando categoria…',
   update_category: 'Atualizando categoria…',
   delete_category: 'Excluindo categoria…',
@@ -148,6 +139,12 @@ export interface StreamChatOptions {
    * last assistant message). Lets the backend resolve quick replies itself.
    */
   pendingQuestion?: AgentPendingQuestionRef;
+  /**
+   * Notas: the open note (notes, summary, transcript) as a system-prompt
+   * block, built by noteService.buildNoteChatContext. Only read in general
+   * mode, appended after the regular prompt.
+   */
+  noteContext?: string;
 }
 
 export async function streamChat(
@@ -228,7 +225,6 @@ export async function streamChat(
         memory,
         activeTasks: [],
         completedTaskCount: 0,
-        lists: [],
         categories: [],
         mode: 'task',
         focusedTask: task,
@@ -242,12 +238,11 @@ export async function streamChat(
       systemPrompt = buildTaskFocusedPrompt(task, ctx, profile);
     } else {
       onEvent({ type: 'status', message: 'Consultando suas tarefas…' });
-      const [activeTasks, activeTaskCount, completedTaskCount, lists, categories] =
+      const [activeTasks, activeTaskCount, completedTaskCount, categories] =
         await Promise.all([
           getUserActiveTasks(userId),
           getActiveTaskCount(userId),
           getCompletedTaskCount(userId),
-          getUserLists(userId),
           getUserCategories(userId),
         ]);
 
@@ -260,7 +255,6 @@ export async function streamChat(
         activeTasks,
         activeTaskCount,
         completedTaskCount,
-        lists,
         categories,
         mode: 'general',
         originalUserMessage: lastUserMessage,
@@ -269,6 +263,9 @@ export async function streamChat(
         pendingQuestion: profile.reliableExecution ? options.pendingQuestion : undefined,
       };
       systemPrompt = buildSystemPrompt(ctx, profile);
+      if (options.noteContext) {
+        systemPrompt = `${systemPrompt}\n\n${options.noteContext}`;
+      }
     }
 
     const initialMessages: ChatCompletionMessageParam[] = messages

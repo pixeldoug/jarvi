@@ -1,0 +1,23 @@
+/**
+ * MicPicker styles
+ */
+
+.anchor {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  min-width: 0;
+}
+
+.labelText {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -81,6 +81,25 @@ const WEEKDAY_INDEX: Record<string, number> = {
 
 const WEEKDAY_WORDS = 'domingo|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado';
 
+/** 1-based month by name ("março" folded to "marco"). */
+const MONTH_INDEX: Record<string, number> = {
+  janeiro: 1,
+  fevereiro: 2,
+  marco: 3,
+  abril: 4,
+  maio: 5,
+  junho: 6,
+  julho: 7,
+  agosto: 8,
+  setembro: 9,
+  outubro: 10,
+  novembro: 11,
+  dezembro: 12,
+};
+
+const MONTH_WORDS =
+  'janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro';
+
 // Web attachments are appended to the user's turn under this header; their
 // contents (PDF text, image descriptions) are not the user's own words and
 // must not drive the date guard.
@@ -203,8 +222,10 @@ const MATCHERS: Matcher[] = [
   {
     kind: 'weekday',
     // "sexta passada" / "sexta retrasada" is narrative about the past, not a date.
+    // The second lookahead keeps "sexta-feira passada" / "sexta feira passada"
+    // from matching as a bare "sexta" (backtracking off the optional "-feira").
     regex: new RegExp(
-      `(?:\\b(pr[óo]xim[ao])\\s+)?\\b(${WEEKDAY_WORDS})(?:-feira)?\\b(?!\\s+(?:passad|retrasad))(\\s+(?:que\\s+vem|da\\s+semana\\s+que\\s+vem|da\\s+pr[óo]xima\\s+semana|pr[óo]xim[ao]))?`,
+      `(?:\\b(pr[óo]xim[ao])\\s+)?\\b(${WEEKDAY_WORDS})(?!(?:-|\\s+)feira\\s+(?:passad|retrasad))(?:-feira)?\\b(?!\\s+(?:passad|retrasad))(\\s+(?:que\\s+vem|da\\s+semana\\s+que\\s+vem|da\\s+pr[óo]xima\\s+semana|pr[óo]xim[ao]))?`,
       'gi',
     ),
     build: (m, today) => {
@@ -244,14 +265,37 @@ const MATCHERS: Matcher[] = [
   {
     kind: 'explicit_day',
     // "dia 24" — but not "dia 24/07" (explicit_date) nor "24 dias" (in_days).
-    regex: /\bdia\s+(\d{1,2})\b(?!\s*\/)/gi,
+    // "dia 5 de dezembro [de 2027]" names the month (and year): same rules as
+    // "05/12[/2027]"; an impossible day ("dia 31 de fevereiro") is no date.
+    regex: new RegExp(
+      `\\bdia\\s+(\\d{1,2})\\b(?!\\s*\\/)(?:\\s+de\\s+(${MONTH_WORDS})(?![\\p{L}\\p{N}])(?:\\s+de\\s+(\\d{4})(?!\\p{N}))?)?`,
+      'giu',
+    ),
     build: (m, today) => {
       const day = Number(m[1]);
       if (day < 1 || day > 31) return null;
+      if (m[2]) {
+        const month = MONTH_INDEX[m[2].toLowerCase().replace('ç', 'c')];
+        const resolved = resolveExplicitDate(
+          day,
+          month,
+          m[3] !== undefined ? Number(m[3]) : undefined,
+          today,
+        );
+        return resolved ? { resolved } : null;
+      }
       return { resolved: nextOccurrenceOfMonthDay(today, day) };
     },
   },
 ];
+
+export interface DetectDateOptions {
+  /**
+   * YYYY-MM-DD the relative expressions resolve against, instead of today in
+   * `timezone` (e.g. a note's day: "amanhã" said in that meeting).
+   */
+  todayIso?: string;
+}
 
 /**
  * Find every supported date expression in `message`, in order of appearance.
@@ -260,10 +304,14 @@ const MATCHERS: Matcher[] = [
 export function detectDateExpressions(
   message: string | undefined | null,
   timezone: string,
+  options: DetectDateOptions = {},
 ): DateExpression[] {
   if (!message) return [];
   const text = userAuthoredPortion(message);
-  const { isoDate: today } = getDateTimeForTimezone(timezone);
+  const today =
+    options.todayIso && /^\d{4}-\d{2}-\d{2}$/.test(options.todayIso)
+      ? options.todayIso
+      : getDateTimeForTimezone(timezone).isoDate;
 
   const found: DateExpression[] = [];
   for (const matcher of MATCHERS) {

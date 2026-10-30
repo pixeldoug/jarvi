@@ -1,0 +1,51 @@
+/**
+ * RecordControl styles — content of ControlBarToggleButton (dark group).
+ */
+
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-2);
+  min-width: 40px;
+  height: 40px;
+  padding: 0 var(--sizes-2);
+  color: var(--semantic-content-secondary);
+}
+
+/* Live: the meter turns green, like an "on air" light */
+.indicatorLive {
+  padding-left: var(--sizes-3);
+}
+
+.indicatorLive .bar {
+  background: var(--semantic-content-positive);
+}
+
+.meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: var(--sizes-4);
+}
+
+.bar {
+  display: block;
+  width: 3px;
+  height: 100%;
+  border-radius: var(--radius-round);
+  background: var(--semantic-content-primary);
+  transform: scaleY(0.18);
+  transform-origin: center;
+  will-change: transform;
+}
+
+.label,
+.elapsed {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  color: var(--semantic-content-primary);
+  font-variant-numeric: tabular-nums;
+}

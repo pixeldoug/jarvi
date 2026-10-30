@@ -15,14 +15,6 @@
   overflow-y: auto;
 }
 
-/* Expanded variant: renders as its own floating card (see
-   Tasks.module.css .centerPanelCard for the surface/shadow/radius), so it
-   needs its own inset padding rather than relying on an outer container. */
-.sidebar.expanded {
-  padding: 0 0 var(--sizes-16) var(--sizes-10);
-  overflow-x: hidden;
-}
-
 /* Top block: title row + metadata chips */
 .topSection {
   display: flex;
@@ -60,10 +52,6 @@
 .titleContainer > button {
   margin-top: 0;
   flex-shrink: 0;
-}
-
-.sidebar.expanded .titleContainer {
-  padding-top: var(--sizes-8);
 }
 
 /* Action buttons (AI + Expand/Collapse + Close) */
@@ -184,3 +172,125 @@
   line-height: 1.4;
 }
 
+
+/*
+ * Expanded variant — the note page layout (NoteDetailView.module.css): a
+ * full-width top bar over a centered document column, all in one scroll area
+ * whose edges fade only while there is content to scroll to (`useScrollFade`).
+ * The card bleeds over MainLayout's side padding (Tasks.module.css
+ * `.centerPanelCard` sets `--center-panel-bleed`) so the scrollbar sits by the
+ * card's edge; the same space comes back here as padding.
+ */
+.page {
+  composes: scrollbar-panel from global;
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-8);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  /* Gutter on both sides keeps the column centered under the scrollbar */
+  scrollbar-gutter: stable both-edges;
+  padding-inline: var(--center-panel-bleed, 0px);
+  /* Room for the floating ControlBar under the last line */
+  padding-bottom: var(--sizes-24);
+  --scrollbar-panel-padding-block: var(--sizes-24);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--fade-top),
+    black calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--fade-top),
+    black calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+}
+
+/* Overscroll room: the end of the task can scroll up to the middle of the card */
+.page::after {
+  content: '';
+  flex-shrink: 0;
+  height: calc(50% - var(--sizes-24) - var(--sizes-8));
+}
+
+.page[data-fade-top] {
+  --fade-top: var(--sizes-12);
+}
+
+/* Taller at the bottom: the text dissolves behind the floating ControlBar */
+.page[data-fade-bottom] {
+  --fade-bottom: var(--sizes-24);
+}
+
+/* Back button on the left, task actions on the right (NoteHeader `.topBar`) */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
+/* Title → chips → description */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-8);
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sizes-3);
+}
+
+/* Checkbox centered on the title's first line */
+.pageHeader > button {
+  flex-shrink: 0;
+  margin-top: calc((var(--typography-heading-lg-line-height) - var(--sizes-7)) / 2);
+}
+
+/* Borderless page title — same as the note title (NoteHeader `.titleInput`) */
+.pageTitleInput {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--typography-heading-lg-font-family);
+  font-size: var(--typography-heading-lg-font-size);
+  font-weight: var(--typography-heading-lg-font-weight);
+  line-height: var(--typography-heading-lg-line-height);
+  letter-spacing: var(--typography-heading-lg-letter-spacing);
+  color: var(--semantic-content-primary);
+  caret-color: var(--semantic-control-border-active);
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.pageTitleInput::placeholder {
+  color: var(--semantic-content-tertiary);
+  opacity: 1;
+}

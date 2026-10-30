@@ -1,8 +1,8 @@
 /**
  * Task-creation telemetry — emits one `task_created` PostHog event whenever a
- * live task row is inserted (web form, agent chat, WhatsApp, or confirmed
- * Gmail pending). Recurrence copies are NOT tracked: those are system-
- * generated, not a user creating a task.
+ * live task row is inserted (web form, agent chat, WhatsApp, confirmed Gmail
+ * pending, MCP, or a note's next steps). Recurrence copies are NOT tracked:
+ * those are system-generated, not a user creating a task.
  *
  * distinct_id is the user's email, matching `posthogService` / the browser
  * SDK so the same person is not split across profiles.
@@ -10,7 +10,7 @@
 
 import { captureServer } from './posthogService';
 
-export type TaskCreatedSource = 'web' | 'agent_web' | 'whatsapp' | 'gmail' | 'mcp';
+export type TaskCreatedSource = 'web' | 'agent_web' | 'whatsapp' | 'gmail' | 'mcp' | 'notes';
 
 export interface TaskCreatedTelemetryInput {
   email: string;

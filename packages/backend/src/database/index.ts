@@ -80,6 +80,7 @@ const createTables = async (): Promise<void> => {
       daily_summary_time TEXT DEFAULT '08:00',
       weekly_planning_enabled ${booleanType} DEFAULT TRUE,
       weekly_planning_time TEXT DEFAULT '19:00',
+      overdue_recap_enabled ${booleanType} DEFAULT TRUE,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -176,6 +177,9 @@ const createTables = async (): Promise<void> => {
       recurrence_parent_id TEXT,
       -- Idempotency marker: set once this task's next occurrence has been generated
       recurrence_next_task_id TEXT,
+      -- Notas: the note whose summary the task came from (source = 'notes');
+      -- NULL once that note is deleted
+      source_note_id TEXT,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -188,6 +192,18 @@ const createTables = async (): Promise<void> => {
       category TEXT,
       tags TEXT,
       is_favorite ${booleanType} DEFAULT FALSE,
+      -- Notas: AI summary (TipTap doc JSON), when it was generated, and a
+      -- server-maintained plain-text snippet for the list.
+      summary TEXT,
+      summary_updated_at ${isPostgres ? 'TIMESTAMP' : 'DATETIME'},
+      -- Fingerprint of the notes text the summary was generated from (notesFingerprint)
+      summary_notes_fingerprint TEXT,
+      -- One AI sentence about the note, written with the summary: the list's description
+      summary_brief TEXT,
+      preview TEXT,
+      note_date TEXT,
+      -- The user removed the note's date (the chip's "×"): no date shown
+      note_date_removed ${booleanType} DEFAULT FALSE,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -204,6 +220,96 @@ const createTables = async (): Promise<void> => {
       FOREIGN KEY (shared_with_user_id) REFERENCES users (id),
       UNIQUE(note_id, shared_with_user_id)
     );`,
+
+    // Notas: transcript of the recorded audio, one row per ~30 s segment.
+    // The audio itself is never stored. SQLite does not enforce the FK, so
+    // deleteNote and account deletion remove these rows by hand.
+    `CREATE TABLE IF NOT EXISTS note_transcript_segments (
+      id TEXT PRIMARY KEY,
+      note_id TEXT NOT NULL${isPostgres ? ' REFERENCES notes (id) ON DELETE CASCADE' : ''},
+      user_id TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      recorded_at ${isPostgres ? 'TIMESTAMP' : 'DATETIME'} NOT NULL,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      created_at ${timestampType}
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_note_transcript_segments_note ON note_transcript_segments (note_id, recorded_at);`,
+
+    // Notas: a summary next step (taskItem attrs.stepId) → the task created
+    // from it. The source of truth for the link: the summary's attrs.taskId
+    // mirrors it. The primary key makes "Criar tarefas" idempotent per step.
+    // SQLite does not enforce FKs here either: deleteNote and account deletion
+    // remove these rows by hand. A deleted task keeps its row, so the step is
+    // never offered again.
+    `CREATE TABLE IF NOT EXISTS note_step_tasks (
+      note_id TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      step_text TEXT NOT NULL DEFAULT '',
+      created_at ${timestampType},
+      PRIMARY KEY (note_id, step_id)
+    );`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_note_step_tasks_task ON note_step_tasks (note_id, task_id);`,
+
+    // Notas: notes a user pinned to the top of their list. Per user, so a
+    // shared note is pinned only for whoever pinned it. Removed by hand with
+    // the note and the account (SQLite does not enforce FKs here).
+    `CREATE TABLE IF NOT EXISTS note_pins (
+      user_id TEXT NOT NULL,
+      note_id TEXT NOT NULL,
+      pinned_at ${timestampType},
+      PRIMARY KEY (user_id, note_id)
+    );`,
+
+    // Notas: wordings a next step is known by (normalized → step), so a
+    // regenerated summary recognizes them: the text a step had when it became
+    // a task, a rewording confirmed on regeneration, and the user's answers to
+    // "is this the same step?" ('same' / 'distinct', which win over the rest;
+    // distinct_from = the step with a task it is not). Removed by hand with
+    // the note, like note_step_tasks.
+    `CREATE TABLE IF NOT EXISTS note_step_wordings (
+      note_id TEXT NOT NULL,
+      wording TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      source TEXT NOT NULL,
+      distinct_from TEXT,
+      user_id TEXT,
+      created_at ${timestampType},
+      PRIMARY KEY (note_id, wording)
+    );`,
+
+    // Chats: the user's conversations with the agent on the web (chat panel
+    // on Tarefas / Notas, Chats page), recorded by /api/ai/chat. `mode` +
+    // task_id / note_id: the context of the latest turn. See chatHistoryService.
+    `CREATE TABLE IF NOT EXISTS chat_conversations (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      mode TEXT NOT NULL DEFAULT 'general',
+      task_id TEXT,
+      note_id TEXT,
+      created_at ${timestampType},
+      updated_at ${timestampType}
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_chat_conversations_user ON chat_conversations (user_id, updated_at);`,
+
+    // Chats: the messages, in order (`seq`). `content` is the plain text, `data`
+    // the JSON the web rebuilds the message from. SQLite does not enforce the
+    // FK: deleting a conversation or the account removes these by hand.
+    `CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL${isPostgres ? ' REFERENCES chat_conversations (id) ON DELETE CASCADE' : ''},
+      user_id TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      data TEXT,
+      created_at ${timestampType}
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages (conversation_id, seq);`,
     
     `CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
@@ -1310,6 +1416,8 @@ const runMigrations = async (): Promise<void> => {
         // daily summary; one delivery row per (user, local Sunday).
         'ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_enabled BOOLEAN DEFAULT TRUE',
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_time TEXT DEFAULT '19:00'",
+        // Recap de tarefas vencidas (web, once a day on the Tasks page). Opt-out like the others.
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS overdue_recap_enabled BOOLEAN DEFAULT TRUE',
         `CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -1334,6 +1442,36 @@ const runMigrations = async (): Promise<void> => {
           await client.query(migration);
         } catch (e) {
           // Column/table already exists, ignore
+        }
+      }
+
+      // Migration: Notas (AI summary + list preview). The transcript table is
+      // created in createTables, which runs on every startup.
+      // `category` is in CREATE TABLE but older production tables predate it,
+      // while the legacy notes PUT and category rename/delete still
+      // `UPDATE notes SET category` (they fail with 42703 without it).
+      const notesSummaryMigrations = [
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS category TEXT',
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS summary TEXT',
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS summary_updated_at TIMESTAMP',
+        // What the notes said when the summary was generated (notesFingerprint)
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS summary_notes_fingerprint TEXT',
+        // One AI sentence about the note, written with the summary (the list's description)
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS summary_brief TEXT',
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS preview TEXT',
+        // User-editable note date (YYYY-MM-DD); NULL = the creation day
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS note_date TEXT',
+        // The user removed the note's date: no date shown
+        'ALTER TABLE notes ADD COLUMN IF NOT EXISTS note_date_removed BOOLEAN DEFAULT FALSE',
+        // Tasks created from a note's next steps point back to it
+        'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source_note_id TEXT',
+        'CREATE INDEX IF NOT EXISTS idx_tasks_source_note_id ON tasks (source_note_id) WHERE source_note_id IS NOT NULL',
+      ];
+      for (const migration of notesSummaryMigrations) {
+        try {
+          await client.query(migration);
+        } catch (e) {
+          // Column already exists, ignore
         }
       }
     } finally {
@@ -1829,6 +1967,13 @@ const runMigrations = async (): Promise<void> => {
     } catch (e) {
       // Column already exists, ignore
     }
+
+    // Migration: Recap de tarefas vencidas (web, once a day on the Tasks page) for SQLite
+    try {
+      await db.exec('ALTER TABLE users ADD COLUMN overdue_recap_enabled BOOLEAN DEFAULT TRUE');
+    } catch (e) {
+      // Column already exists, ignore
+    }
     try {
       await db.exec(`CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
         id TEXT PRIMARY KEY,
@@ -1854,6 +1999,31 @@ const runMigrations = async (): Promise<void> => {
       )`);
     } catch (e) {
       // Table already exists, ignore
+    }
+
+    // Migration: Notas (AI summary + list preview) for SQLite
+    const notesSummaryMigrations = [
+      'ALTER TABLE notes ADD COLUMN summary TEXT',
+      'ALTER TABLE notes ADD COLUMN summary_updated_at DATETIME',
+      // What the notes said when the summary was generated (notesFingerprint)
+      'ALTER TABLE notes ADD COLUMN summary_notes_fingerprint TEXT',
+      // One AI sentence about the note, written with the summary (the list's description)
+      'ALTER TABLE notes ADD COLUMN summary_brief TEXT',
+      'ALTER TABLE notes ADD COLUMN preview TEXT',
+      // User-editable note date (YYYY-MM-DD); NULL = the creation day
+      'ALTER TABLE notes ADD COLUMN note_date TEXT',
+      // The user removed the note's date: no date shown
+      'ALTER TABLE notes ADD COLUMN note_date_removed BOOLEAN DEFAULT 0',
+      // Tasks created from a note's next steps point back to it
+      'ALTER TABLE tasks ADD COLUMN source_note_id TEXT',
+      'CREATE INDEX IF NOT EXISTS idx_tasks_source_note_id ON tasks (source_note_id) WHERE source_note_id IS NOT NULL',
+    ];
+    for (const migration of notesSummaryMigrations) {
+      try {
+        await db.exec(migration);
+      } catch (e) {
+        // Column already exists, ignore
+      }
     }
   }
 };

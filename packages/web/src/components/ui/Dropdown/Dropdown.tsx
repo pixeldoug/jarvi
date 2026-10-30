@@ -39,6 +39,11 @@ export interface DropdownProps {
    *   instead of drifting past the bottom of the viewport.
    */
   position?: 'top' | 'bottom' | 'auto' | 'auto-top';
+  /**
+   * Open beside the anchor instead (a submenu): to its right, or to its left
+   * when there's no room, top-aligned with it. `align` and `position` are ignored.
+   */
+  beside?: boolean;
   /** Additional CSS classes */
   className?: string;
   /** Gap between anchor and dropdown */
@@ -54,7 +59,7 @@ export interface DropdownProps {
   /**
    * When true, the outside-click handler closes even if the click target is
    * inside a [data-dialog-outside-click-ignore] ancestor. Use this for
-   * dropdowns that live inside another overlay (e.g. Select inside FilterPopover)
+   * dropdowns that live inside another overlay (e.g. a Select inside a popover)
    * so that clicking anywhere in the parent overlay still closes the nested one.
    */
   disableOutsideIgnoreCheck?: boolean;
@@ -75,6 +80,7 @@ export function Dropdown({
   width = 256,
   align = 'left',
   position = 'auto',
+  beside = false,
   className = '',
   gap = 8,
   offsetX = 0,
@@ -97,7 +103,9 @@ export function Dropdown({
     // Calculate vertical position
     let top: number;
 
-    if (position === 'auto-top') {
+    if (beside) {
+      top = anchorRect.top;
+    } else if (position === 'auto-top') {
       // Prefer above the anchor (matching TaskDatePicker/PriorityPicker/
       // CategoryPicker's hand-rolled positioning), falling back below only
       // if there's no room above.
@@ -123,17 +131,17 @@ export function Dropdown({
 
     // Calculate horizontal position based on alignment
     let left: number;
-    switch (align) {
-      case 'right':
-        left = anchorRect.right - dropdownWidth;
-        break;
-      case 'center':
-        left = anchorRect.left + (anchorRect.width - dropdownWidth) / 2;
-        break;
-      case 'left':
-      default:
-        left = anchorRect.left;
-        break;
+    if (beside) {
+      left = anchorRect.right + gap;
+      if (left + dropdownWidth > window.innerWidth - margin) {
+        left = anchorRect.left - dropdownWidth - gap;
+      }
+    } else if (align === 'right') {
+      left = anchorRect.right - dropdownWidth;
+    } else if (align === 'center') {
+      left = anchorRect.left + (anchorRect.width - dropdownWidth) / 2;
+    } else {
+      left = anchorRect.left;
     }
 
     left += offsetX;
@@ -151,7 +159,7 @@ export function Dropdown({
     top = Math.max(margin, Math.min(top, window.innerHeight - dropdownHeight - margin));
 
     setCalculatedPosition({ top, left });
-  }, [anchorRef, width, align, position, gap, offsetX, offsetY]);
+  }, [anchorRef, width, align, position, beside, gap, offsetX, offsetY]);
 
   // Calculate dropdown position
   useEffect(() => {
@@ -253,6 +261,10 @@ export function Dropdown({
         className={styles.backdrop}
         data-dialog-outside-click-ignore="true"
         onClick={onClose}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
       />
       
       {/* Dropdown */}

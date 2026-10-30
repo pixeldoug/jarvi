@@ -3,11 +3,21 @@
  * Following JarviDS Web design system from Figma
  */
 
-/* Content */
+/* Content — same centered column as the Notes list (NotesListView .list) */
 .content {
   display: flex;
   flex-direction: column;
   gap: var(--sizes-8);
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 0 var(--sizes-10);
+}
+
+@media (max-width: 768px) {
+  .content {
+    padding: 0;
+  }
 }
 
 /*
@@ -44,6 +54,13 @@
   overflow: hidden;
 }
 
+/* Calendar's pinned action: the Caixa de entrada button + the view switch */
+.pinnedActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
 .centerPanelCalendarContent {
   display: flex;
   flex-direction: column;
@@ -76,17 +93,50 @@
   will-change: transform;
 }
 
-/* Empty state should span the full available width, cancelling the
-   .mainBody right padding (and the .sectionContent left offset when nested). */
+/*
+ * Desktop: the calendar bleeds over the card's right padding so its scroll
+ * surfaces put their scrollbar by the card's edge, as the list and the note
+ * page do. CalendarView moves the same space back inside (`--calendar-bleed`),
+ * so its content stays put.
+ *
+ * The task card bleeds over both side paddings, like the note page, so its
+ * scrollbar sits by the card's edge and its column stays centered; the task
+ * page moves `--center-panel-bleed` back inside as padding. The locked host
+ * stops clipping so the card can reach past it (the base layer clips itself,
+ * `.baseLayerLocked`, and MainLayout's card clips the rest).
+ */
+@media (min-width: 769px) {
+  .centerPanelHostFullHeight {
+    --calendar-bleed: calc(var(--main-padding-x, 0px) - var(--sizes-2));
+    margin-right: calc(var(--calendar-bleed) * -1);
+  }
+
+  .centerPanelHostLocked {
+    overflow: visible;
+  }
+
+  .centerPanelCard {
+    --center-panel-bleed: calc(var(--main-padding-x, 0px) - var(--sizes-2));
+    left: calc(var(--center-panel-bleed) * -1);
+    right: calc(var(--center-panel-bleed) * -1);
+  }
+
+  /* The calendar host already bleeds on the right */
+  .centerPanelHostFullHeight .centerPanelCard {
+    right: 0;
+  }
+}
+
+/* Empty state spans the .content column (cancelling the .sectionContent
+   offsets when nested). */
 .emptyStateFull {
   width: auto;
-  margin-right: calc(var(--sizes-10) * -1);
 }
 
 .emptyStateFullInSection {
   width: auto;
   margin-left: calc(var(--sizes-4) * -1);
-  margin-right: calc((var(--sizes-10) + var(--sizes-1)) * -1);
+  margin-right: calc(var(--sizes-1) * -1);
 }
 
 
