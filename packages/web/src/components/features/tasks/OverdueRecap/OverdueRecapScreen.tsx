@@ -17,7 +17,15 @@
  * date picker swaps the content in place (compliance: one overlay).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   AnimatePresence,
@@ -270,7 +278,7 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
       const root = rootRef.current;
       if (event.key !== 'Tab' || event.defaultPrevented || !root) return;
       const active = document.activeElement;
-      // In the menu or a toast: their own order, the focusin guard catches a way out
+      // In the menu (it moves between its items) or a toast: the focusin guard catches a way out
       if (active && !root.contains(active) && inRecap(active)) return;
       const focusables = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
         (node) => node.getClientRects().length > 0,
@@ -296,6 +304,45 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
       document.removeEventListener('focusin', onFocusIn);
     };
   }, []);
+
+  // The Reagendar menu is portaled outside the Recap, so the Tab order never
+  // reaches it: it takes focus when it opens, moves between its items with
+  // ↑ ↓ Home End and Tab, and Escape gives focus back to Reagendar.
+  const focusFirstMenuItem = useCallback((menu: HTMLDivElement | null) => {
+    menu?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
+  }, []);
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const menuItems = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    if (menuItems.length === 0) return;
+    const index = menuItems.findIndex((item) => item === document.activeElement);
+    const forward = index < 0 ? 0 : index + 1;
+    const back = index < 0 ? menuItems.length - 1 : index - 1;
+    let next: number;
+    switch (event.key) {
+      case 'ArrowDown':
+        next = forward;
+        break;
+      case 'ArrowUp':
+        next = back;
+        break;
+      case 'Tab':
+        next = event.shiftKey ? back : forward;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = menuItems.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    menuItems[(next + menuItems.length) % menuItems.length].focus();
+  };
+  const focusRescheduleButton = () => {
+    rescheduleRef.current?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+  };
 
   // Resolved elsewhere meanwhile (another tab, WhatsApp, the agent): skip it.
   useEffect(() => {
@@ -472,8 +519,10 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
       // Closes one layer: the Reagendar menu, the date view, then the Recap
       event.preventDefault();
       event.stopPropagation();
-      if (menuOpen) setMenuOpen(false);
-      else if (view !== 'card') setView('card');
+      if (menuOpen) {
+        setMenuOpen(false);
+        focusRescheduleButton();
+      } else if (view !== 'card') setView('card');
       else onClose();
       return;
     }
@@ -756,7 +805,7 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
             gap={8}
             zIndex={1100}
           >
-            <div role="menu" aria-label="Reagendar para">
+            <div role="menu" aria-label="Reagendar para" ref={focusFirstMenuItem} onKeyDown={handleMenuKeyDown}>
               <ListItem
                 label="Hoje"
                 icon={Flag}
@@ -775,6 +824,8 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
                 onClick={() => {
                   setMenuOpen(false);
                   setView('date');
+                  // The Reagendar button leaves with the menu
+                  rootRef.current?.focus({ preventScroll: true });
                 }}
                 buttonProps={{ role: 'menuitem' }}
               />
