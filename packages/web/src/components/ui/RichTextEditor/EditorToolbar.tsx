@@ -20,6 +20,8 @@ import {
 } from '@phosphor-icons/react';
 import { useState, useRef, useEffect, useCallback, useReducer, MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { Button } from '../Button';
+import { ListItem } from '../ListItem';
 import { toast } from '../Sonner';
 import type { TextRewriteAction } from '../../../lib/aiApi';
 import { AI_REWRITE_ACTIONS, aiRewriteUnavailableReason, runAiRewrite } from './aiRewrite';
@@ -308,15 +310,16 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
 
       <div className={styles.floatingToolbarDivider} />
 
-      {/* AI actions on the selection */}
-      <div ref={aiRef}>
-        <button
-          type="button"
-          className={[
-            styles.aiToolbarBtn,
-            showAiMenu ? styles.floatingToolbarBtnActive : '',
-            aiUnavailableReason && !aiBusy ? styles.floatingToolbarBtnDisabled : '',
-          ].filter(Boolean).join(' ')}
+      {/* AI actions on the selection (dark tokens, like the toolbar) */}
+      <div ref={aiRef} data-theme="dark">
+        <Button
+          variant="ghost"
+          size="small"
+          icon={Sparkle}
+          iconPosition="left"
+          active={showAiMenu}
+          disabled={!!aiUnavailableReason}
+          loading={aiBusy}
           onClick={() => {
             if (aiBusy || aiUnavailableReason) return;
             const rect = aiRef.current?.getBoundingClientRect();
@@ -327,15 +330,12 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
             closeLinkDialog();
           }}
           title={aiUnavailableReason ?? 'Melhorar com IA'}
-          aria-label={aiBusy ? 'Melhorando o texto com IA' : 'Melhorar com IA'}
           aria-haspopup="menu"
           aria-expanded={showAiMenu}
-          aria-disabled={!!aiUnavailableReason || aiBusy}
           aria-busy={aiBusy || undefined}
         >
-          <Sparkle size={ICON_SIZE} weight="regular" className={aiBusy ? styles.aiBusyIcon : undefined} />
-          <span>{aiBusy ? 'Melhorando…' : 'Melhorar'}</span>
-        </button>
+          {aiBusy ? 'Melhorando…' : 'Melhorar'}
+        </Button>
       </div>
 
       {showAiMenu && aiMenuPos && createPortal(
@@ -351,15 +351,12 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
           onMouseDown={(event) => event.preventDefault()}
         >
           {AI_REWRITE_ACTIONS.map(({ action, label }) => (
-            <button
+            <ListItem
               key={action}
-              type="button"
-              className={overflowButtonClassName()}
+              label={label}
               onClick={() => void applyAiRewrite(action)}
-              role="menuitem"
-            >
-              <span>{label}</span>
-            </button>
+              buttonProps={{ role: 'menuitem' }}
+            />
           ))}
         </div>,
         document.body,

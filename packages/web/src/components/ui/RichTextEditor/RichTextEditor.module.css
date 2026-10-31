@@ -112,39 +112,6 @@
   cursor: not-allowed;
 }
 
-/* "✨ Melhorar": a toolbar button with a label */
-.aiToolbarBtn {
-  composes: floatingToolbarBtn;
-  width: auto;
-  gap: 6px;
-  padding: 0 12px 0 10px;
-  font-family: var(--typography-label-md-font-family);
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 22px;
-  letter-spacing: -0.25px;
-}
-
-.aiBusyIcon {
-  animation: aiPulse 1.2s ease-in-out infinite;
-}
-
-@keyframes aiPulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .aiBusyIcon {
-    animation: none;
-  }
-}
-
 .floatingToolbarDivider {
   width: 0.5px;
   height: 24px;
