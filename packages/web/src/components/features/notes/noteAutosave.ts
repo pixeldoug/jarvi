@@ -133,15 +133,13 @@ function handleSaveError(
     return;
   }
 
-  if (!isRetryable(error)) {
-    toast.error('Não foi possível salvar a nota.');
-    return;
-  }
-
   // Keep the failed fields unless newer values were typed since. Saves are
-  // serialized, so nothing newer can be in flight.
+  // serialized, so nothing newer can be in flight. A client error (e.g. an
+  // expired session or lost write access) would fail the same way again, so
+  // it gets no background retry, but its fields stay pending (and guarded)
+  // until the next edit, flush or reopen of the note.
   setPending(noteId, { ...patch, ...getPending(noteId) });
-  scheduleRetry(queryClient, noteId);
+  if (isRetryable(error)) scheduleRetry(queryClient, noteId);
   if (!errorShown.has(noteId)) {
     errorShown.add(noteId);
     toast.error('Não foi possível salvar a nota.');

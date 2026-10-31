@@ -75,19 +75,10 @@ interface CardMotion {
   reduced: boolean;
 }
 
-/** `pending` is the save (set right after the task moves on); an undo waits for it so the two requests reach the server in order. */
 type Entry =
-  | { kind: 'complete'; item: OverdueRecapItem; position: number; taskIds: string[]; pending: Promise<unknown> }
-  | {
-      kind: 'reschedule';
-      item: OverdueRecapItem;
-      position: number;
-      taskId: string;
-      from: string;
-      to: string;
-      pending: Promise<unknown>;
-    }
-  | { kind: 'skip'; item: OverdueRecapItem; position: number; pending: Promise<unknown> };
+  | { kind: 'complete'; item: OverdueRecapItem; position: number; taskIds: string[] }
+  | { kind: 'reschedule'; item: OverdueRecapItem; position: number; taskId: string; from: string; to: string }
+  | { kind: 'skip'; item: OverdueRecapItem; position: number };
 
 type Input = 'swipe' | 'button' | 'key' | 'toast';
 type RescheduleAction = 'today' | 'tomorrow' | 'date';
@@ -97,6 +88,11 @@ const ENTRY_SIDE: Record<Entry['kind'], Side> = { complete: 'right', skip: 'left
 
 /** Above this many tasks the progress is one bar instead of one segment each */
 const MAX_SEGMENTS = 12;
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+/** Portaled layers that belong to the Recap: its menu and the toasts */
+const RECAP_LAYERS_SELECTOR = '[data-dialog-outside-click-ignore], [data-toast-container]';
 
 // ── Motion ───────────────────────────────────────────────────────────────────
 
@@ -211,6 +207,23 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
     setHistory(next);
   };
 
+  /**
+   * Each task's latest write, settled. A save, its undo and a new action on
+   * the restored task all reach the server in the order they were made, so
+   * an undo still running never overwrites what came after it.
+   */
+  const writesRef = useRef(new Map<string, Promise<void>>());
+  const queueWrite = <T,>(taskIds: string[], write: () => Promise<T>): Promise<T> => {
+    const before = Promise.all(taskIds.map((id) => writesRef.current.get(id)));
+    const result = before.then(write);
+    const settled = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    taskIds.forEach((id) => writesRef.current.set(id, settled));
+    return result;
+  };
+
   const current: OverdueRecapItem | null = position < items.length ? items[position] : null;
 
   /** Overdue occurrences of the item still open right now */
@@ -246,6 +259,43 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
   useEffect(() => {
     rootRef.current?.focus({ preventScroll: true });
   }, [position, isDone]);
+
+  // Modal: Tab and Shift+Tab cycle inside the Recap, and focus that reaches the
+  // page behind comes back. Its Reagendar menu (portaled, marked as a layer
+  // above) and the toasts (Desfazer) are part of it.
+  useEffect(() => {
+    const inRecap = (node: Element) =>
+      !!rootRef.current?.contains(node) || !!node.closest(RECAP_LAYERS_SELECTOR);
+    const onKeyDown = (event: KeyboardEvent) => {
+      const root = rootRef.current;
+      if (event.key !== 'Tab' || event.defaultPrevented || !root) return;
+      const active = document.activeElement;
+      // In the menu or a toast: their own order, the focusin guard catches a way out
+      if (active && !root.contains(active) && inRecap(active)) return;
+      const focusables = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (node) => node.getClientRects().length > 0,
+      );
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const atEdge = event.shiftKey
+        ? active === first || active === root || !root.contains(active)
+        : active === last || !root.contains(active);
+      if (!atEdge) return;
+      event.preventDefault();
+      (event.shiftKey ? last : first)?.focus();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (event.target instanceof Element && !inRecap(event.target)) {
+        rootRef.current?.focus({ preventScroll: true });
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, []);
 
   // Resolved elsewhere meanwhile (another tab, WhatsApp, the agent): skip it.
   useEffect(() => {
@@ -332,11 +382,11 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
 
   const complete = (input: Input): boolean => {
     if (!current || !task || openIds.length === 0 || !isCurrentRender()) return false;
-    const entry: Entry = { kind: 'complete', item: current, position, taskIds: openIds, pending: Promise.resolve() };
+    const entry: Entry = { kind: 'complete', item: current, position, taskIds: openIds };
     // Move on first: the optimistic cache update must never render with this task still current
     moveOn(entry);
-    const pending = setTasksCompleted(openIds, true);
-    entry.pending = pending;
+    const ids = openIds;
+    const pending = queueWrite(ids, () => setTasksCompleted(ids, true));
     track('complete', input, openIds.length);
     captureProductEvent('task_completed', {
       task_id: task.id,
@@ -355,7 +405,7 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
 
   const skip = (input: Input): boolean => {
     if (!current || !isCurrentRender()) return false;
-    moveOn({ kind: 'skip', item: current, position, pending: Promise.resolve() });
+    moveOn({ kind: 'skip', item: current, position });
     track('skip', input);
     return true;
   };
@@ -371,11 +421,10 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
       taskId: task.id,
       from,
       to: toKey,
-      pending: Promise.resolve(),
     };
     moveOn(entry);
-    const pending = updateTask(task.id, { dueDate: toKey });
-    entry.pending = pending;
+    const taskId = task.id;
+    const pending = queueWrite([taskId], () => updateTask(taskId, { dueDate: toKey }));
     track(action, input);
     const when =
       toKey === todayKey ? 'hoje' : toKey === tomorrowKey ? 'amanhã' : formatShortDate(toKey) ?? toKey;
@@ -396,12 +445,11 @@ function RecapBody({ session, onClose }: { session: OverdueRecapSession; onClose
     setPosition(entry.position);
     captureProductEvent('overdue_recap_action_undone', { action: entry.kind, input });
     const undoFailed = () => toast.error('Não foi possível desfazer.');
-    // After the save it reverses, whatever its outcome, so the server sees them in order
-    const afterSave = entry.pending.catch(() => undefined);
+    // Queued after the save it reverses (whatever its outcome) and before any new action on the task
     if (entry.kind === 'complete') {
-      void afterSave.then(() => setTasksCompleted(entry.taskIds, false)).catch(undoFailed);
+      void queueWrite(entry.taskIds, () => setTasksCompleted(entry.taskIds, false)).catch(undoFailed);
     } else if (entry.kind === 'reschedule') {
-      void afterSave.then(() => updateTask(entry.taskId, { dueDate: entry.from })).catch(undoFailed);
+      void queueWrite([entry.taskId], () => updateTask(entry.taskId, { dueDate: entry.from })).catch(undoFailed);
     }
   };
 

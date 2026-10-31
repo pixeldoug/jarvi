@@ -181,15 +181,14 @@ export function AIChatPanel({
     const hasInitialAttachments = (initialAttachments?.length ?? 0) > 0;
     if ((initialMessage || hasInitialAttachments) && !initialSentRef.current) {
       initialSentRef.current = true;
-      // The initial message bypasses handleSend, so replicate its attachment
-      // persistence here — otherwise files sent with the first message (e.g.
-      // from the ControlBar) never reach the task the AI creates this turn.
-      if (hasInitialAttachments && initialAttachments) {
-        if (mode === 'task') {
-          onAttachToTask?.(initialAttachments);
-        } else {
-          onAttachmentsSent?.(initialAttachments);
-        }
+      // The initial message bypasses handleSend and sendFromUser, so replicate
+      // their attachment persistence here — otherwise files sent with the first
+      // message (e.g. from the ControlBar) never reach the task the AI creates
+      // this turn, and files held from an earlier turn could.
+      if (mode === 'task') {
+        if (hasInitialAttachments && initialAttachments) onAttachToTask?.(initialAttachments);
+      } else {
+        onAttachmentsSent?.(initialAttachments ?? []);
       }
       sendMessage(initialMessage ?? '', initialAttachments ?? []);
     }
@@ -215,9 +214,13 @@ export function AIChatPanel({
   const sendFromUser = useCallback(
     (text: string, attachments: ChatAttachment[] = []) => {
       stickToBottomRef.current = true;
+      // Outside task mode, hand this turn's files to the parent so they can be
+      // attached to a task the AI creates in it. Reported even when empty, so
+      // files from an earlier turn (or another chat) never reach that task.
+      if (mode !== 'task') onAttachmentsSent?.(attachments);
       return sendMessage(text, attachments);
     },
-    [sendMessage],
+    [sendMessage, mode, onAttachmentsSent],
   );
 
   // Fire onTaskMutated exactly once per new successful tool result.
@@ -297,22 +300,15 @@ export function AIChatPanel({
     const payload: ChatAttachment[] = toChatAttachmentPayload(attachments);
     setInput('');
     setAttachments([]);
-    // Persist the files into a task's context so they live on after the
-    // message is sent (and the input chips are cleared): in task mode, attach
-    // to the current task; in general mode, hand them to the parent so they can
-    // be attached to a task the AI creates in this same turn.
-    if (payload.length > 0) {
-      if (mode === 'task') {
-        onAttachToTask?.(payload);
-      } else {
-        onAttachmentsSent?.(payload);
-      }
-    }
+    // In task mode, persist the files into the current task so they live on
+    // after the message is sent (and the input chips are cleared). Other modes
+    // hand them to the parent in sendFromUser.
+    if (mode === 'task' && payload.length > 0) onAttachToTask?.(payload);
     sendFromUser(text, payload);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, attachments, isStreaming, trialExpired, sendFromUser, mode, onAttachToTask, onAttachmentsSent]);
+  }, [input, attachments, isStreaming, trialExpired, sendFromUser, mode, onAttachToTask]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

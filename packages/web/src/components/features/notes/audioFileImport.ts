@@ -36,6 +36,11 @@ export interface AudioImportState {
 
 export class AudioImportError extends Error {}
 
+/** How an import ended: `failedChunks` of the file are missing from the transcript. */
+export type AudioImportResult =
+  | { cancelled: true }
+  | { cancelled: false; failedChunks: number; totalChunks: number };
+
 let current: AudioImportState | null = null;
 let cancelRequested = false;
 const listeners = new Set<() => void>();
@@ -110,16 +115,19 @@ async function decode(file: File): Promise<AudioBuffer> {
 export const audioFileImport = {
   /**
    * Transcribes `file` into `noteId`. Resolves once every chunk is
-   * transcribed; throws `AudioImportError` for files it cannot take. Returns
-   * false when the user cancelled (chunks already queued still finish).
+   * transcribed or failed for good (counted in `failedChunks`, retried with
+   * `transcriptionQueue.retryFailed`); throws `AudioImportError` for files it
+   * cannot take. Cancelled by the user: chunks already queued still finish.
    */
-  async start(queryClient: QueryClient, noteId: string, file: File): Promise<boolean> {
+  async start(queryClient: QueryClient, noteId: string, file: File): Promise<AudioImportResult> {
     if (current) throw new AudioImportError('Já tem um arquivo sendo transcrito. Aguarde terminar.');
     if (file.size > AUDIO_IMPORT_MAX_BYTES) {
       throw new AudioImportError('O arquivo passa de 200 MB.');
     }
 
     cancelRequested = false;
+    // Failures left on the note by something else (e.g. an earlier recording)
+    const failedBefore = transcriptionQueue.failedCount(noteId);
     setState({ noteId, fileName: file.name, phase: 'decoding', sentChunks: 0, totalChunks: 0 });
     try {
       const buffer = await decode(file);
@@ -127,7 +135,7 @@ export const audioFileImport = {
       if (durationMs > AUDIO_IMPORT_MAX_DURATION_MS) {
         throw new AudioImportError('O áudio passa de 2 horas. Envie um arquivo mais curto.');
       }
-      if (cancelRequested) return false;
+      if (cancelRequested) return { cancelled: true };
 
       const chunkSamples = CHUNK_SECONDS * buffer.sampleRate;
       const totalChunks = Math.max(1, Math.ceil(buffer.length / chunkSamples));
@@ -138,7 +146,7 @@ export const audioFileImport = {
 
       for (let index = 0; index < totalChunks; index += 1) {
         await waitForRoom(noteId, MAX_IN_FLIGHT);
-        if (cancelRequested) return false;
+        if (cancelRequested) return { cancelled: true };
         const start = index * chunkSamples;
         const end = Math.min(start + chunkSamples, buffer.length);
         transcriptionQueue.enqueue(queryClient, {
@@ -152,7 +160,8 @@ export const audioFileImport = {
       }
       // Keep reporting progress until the last chunk is transcribed.
       await transcriptionQueue.whenIdle(noteId);
-      return true;
+      const failedChunks = transcriptionQueue.failedCount(noteId) - failedBefore;
+      return { cancelled: false, failedChunks, totalChunks };
     } finally {
       setState(null);
     }

@@ -153,6 +153,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) =>
       className={styles.toastContainer}
       style={{ bottom: bottomPosition }}
       data-theme="dark"
+      data-toast-container
     >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
@@ -354,6 +355,7 @@ export const toast = {
         label,
         hasButton: options?.hasButton || false,
         duration: options?.duration,
+        action: options?.action,
       });
     }
   },

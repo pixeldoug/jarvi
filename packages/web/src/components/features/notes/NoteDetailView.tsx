@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion, type Variants } from 'motion/react';
 import { toast } from '../../ui';
@@ -24,8 +24,14 @@ import { NoteTranscriptTab } from './NoteTranscriptTab';
 import { RecordingChip } from './RecordingChip';
 import { useNoteAutosave } from './noteAutosave';
 import { generateNoteSummary, scheduleAutoSummary, useIsGeneratingSummary } from './summaryGeneration';
-import { AudioImportError, audioFileImport, useAudioImport, useIsImportingAudio } from './audioFileImport';
-import { usePendingTranscriptions } from './transcriptionQueue';
+import {
+  AudioImportError,
+  audioFileImport,
+  useAudioImport,
+  useIsImportingAudio,
+  type AudioImportResult,
+} from './audioFileImport';
+import { transcriptionQueue, usePendingTranscriptions } from './transcriptionQueue';
 import { useNoteRecorder } from './useNoteRecorder';
 import { useScrollFade } from './useScrollFade';
 import { useSummaryTasks } from './useSummaryTasks';
@@ -65,6 +71,54 @@ const panelVariants: Variants = {
     transition: NOTE_TAB_TRANSITION,
   }),
 };
+
+/**
+ * An imported file is fully transcribed: generate the summary. Some chunks
+ * failed for good: say so and offer to send them again, rather than
+ * summarizing a transcript with holes.
+ */
+function finishAudioImport(
+  queryClient: QueryClient,
+  noteId: string,
+  failedChunks: number,
+  totalChunks: number,
+  onSummaryReady: () => void,
+): void {
+  if (failedChunks > 0) {
+    toast.error(
+      failedChunks >= totalChunks
+        ? 'Não foi possível transcrever o áudio.'
+        : `${failedChunks} de ${totalChunks} trechos do áudio não foram transcritos. O resumo não foi gerado.`,
+      {
+        hasButton: true,
+        duration: 15_000,
+        action: {
+          label: 'Tentar de novo',
+          onClick: () => {
+            transcriptionQueue.retryFailed(noteId);
+            void transcriptionQueue.whenIdle(noteId).then(() => {
+              finishAudioImport(
+                queryClient,
+                noteId,
+                transcriptionQueue.failedCount(noteId),
+                totalChunks,
+                onSummaryReady,
+              );
+            });
+          },
+        },
+      },
+    );
+    return;
+  }
+  void scheduleAutoSummary(queryClient, noteId, {
+    shouldSkip: () => {
+      const current = audioFileImport.getSnapshot();
+      return current !== null && current.noteId === noteId;
+    },
+    onReady: onSummaryReady,
+  });
+}
 
 export interface NoteDetailViewProps {
   note: NoteDetail;
@@ -281,30 +335,25 @@ export function NoteDetailView({
   // queue, then the summary is generated if the note has none yet.
   const handleImportAudio = useCallback(async (file: File) => {
     const noteId = note.id;
+    let result: AudioImportResult;
     try {
-      const finished = await audioFileImport.start(queryClient, noteId, file);
-      if (!finished) {
-        toast.info('Envio do arquivo cancelado.');
-        return;
-      }
+      result = await audioFileImport.start(queryClient, noteId, file);
     } catch (error) {
       toast.error(
         error instanceof AudioImportError ? error.message : 'Não foi possível transcrever o arquivo.',
       );
       return;
     }
-    void scheduleAutoSummary(queryClient, noteId, {
-      shouldSkip: () => {
-        const current = audioFileImport.getSnapshot();
-        return current !== null && current.noteId === noteId;
-      },
-      onReady: () => {
-        toast.success('Resumo pronto', {
-          hasButton: true,
-          duration: 6000,
-          action: { label: 'Ver', onClick: () => navigate(`/notes/${noteId}?tab=resumo`) },
-        });
-      },
+    if (result.cancelled) {
+      toast.info('Envio do arquivo cancelado.');
+      return;
+    }
+    finishAudioImport(queryClient, noteId, result.failedChunks, result.totalChunks, () => {
+      toast.success('Resumo pronto', {
+        hasButton: true,
+        duration: 6000,
+        action: { label: 'Ver', onClick: () => navigate(`/notes/${noteId}?tab=resumo`) },
+      });
     });
   }, [note.id, queryClient, navigate]);
 

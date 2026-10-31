@@ -536,23 +536,25 @@ export function Tasks() {
   // loaded, open that task's details like a row click, then drop the state so
   // a refresh doesn't reopen it. A task created moments ago may still be on
   // its way (tasks refetching): wait for it. Unknown id → nothing opens.
+  // Handled once per navigation, not per id: picking the same task again
+  // (e.g. from search, after closing it) opens it again.
   const openTaskIdFromState = nonEmptyString(
     (location.state as TasksNavigationState | null)?.openTaskId,
   );
-  const handledOpenTaskIdRef = useRef<string | null>(null);
+  const handledOpenTaskNavigationRef = useRef<string | null>(null);
   useEffect(() => {
     if (!openTaskIdFromState || isLoading) return;
-    if (handledOpenTaskIdRef.current === openTaskIdFromState) return;
+    if (handledOpenTaskNavigationRef.current === location.key) return;
     const task = tasks.find((t) => t.id === openTaskIdFromState);
     if (!task && isFetchingTasks) return;
-    handledOpenTaskIdRef.current = openTaskIdFromState;
+    handledOpenTaskNavigationRef.current = location.key;
     if (task) handleTaskClick(task);
     const { openTaskId: _handled, ...rest } = location.state as TasksNavigationState;
     navigate(`${location.pathname}${location.search}`, {
       replace: true,
       state: Object.keys(rest).length > 0 ? rest : null,
     });
-  }, [openTaskIdFromState, isLoading, isFetchingTasks, tasks]);
+  }, [openTaskIdFromState, location.key, isLoading, isFetchingTasks, tasks]);
 
   // Recap das tarefas vencidas: opens on its own (once a day) only over an
   // idle page — not over the onboarding chat, a deep link, or a task or chat

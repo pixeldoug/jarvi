@@ -51,6 +51,11 @@ const OFFLINE_RETRY_DELAYS_MS = [2000, 5000, 10_000, 20_000, 30_000];
 const OFFLINE_GIVE_UP_MS = 10 * 60 * 1000;
 
 const items: QueueItem[] = [];
+/**
+ * Segments whose upload failed for good, kept (with their place in the
+ * transcript and their id) until `retryFailed` sends them again.
+ */
+const failedItems: QueueItem[] = [];
 const deletedNoteIds = new Set<string>();
 /** Wall-clock end of the latest segment queued per note this session */
 const queuedAudioEnd = new Map<string, number>();
@@ -210,6 +215,7 @@ async function processQueue() {
       } catch (error) {
         console.error('Transcription upload failed:', error);
         toast.error('Não foi possível transcrever um trecho do áudio.');
+        if (!deletedNoteIds.has(item.noteId)) failedItems.push(item);
       }
       // Remove by identity: dropNote() may already have spliced it out.
       const index = items.indexOf(item);
@@ -238,10 +244,32 @@ export const transcriptionQueue = {
     for (let i = items.length - 1; i >= firstRemovable; i -= 1) {
       if (items[i].noteId === noteId) items.splice(i, 1);
     }
+    for (let i = failedItems.length - 1; i >= 0; i -= 1) {
+      if (failedItems[i].noteId === noteId) failedItems.splice(i, 1);
+    }
     notify();
   },
 
   pendingCount,
+
+  /** Segments of `noteId` whose upload failed for good (missing from its transcript). */
+  failedCount(noteId: string): number {
+    return failedItems.filter((item) => item.noteId === noteId).length;
+  },
+
+  /**
+   * Queues the failed segments of `noteId` again, at their original place in
+   * the transcript and with the same id (never appended twice).
+   */
+  retryFailed(noteId: string): void {
+    if (deletedNoteIds.has(noteId)) return;
+    for (let i = 0; i < failedItems.length; ) {
+      if (failedItems[i].noteId === noteId) items.push(...failedItems.splice(i, 1));
+      else i += 1;
+    }
+    notify();
+    void processQueue();
+  },
 
   /** Resolves once no segment of `noteId` is queued or uploading. */
   whenIdle(noteId: string): Promise<void> {
