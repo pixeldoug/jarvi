@@ -1192,15 +1192,30 @@ export function Tasks() {
     return categories;
   }, [visibleTasks, movingTask]);
 
-  // The peek toolbar's prev / next: the tasks in screen order through the open
-  // sections (through all of them when the open task sits in a closed one)
+  // The peek toolbar's prev / next walk the tasks the current view shows, in
+  // screen order, picked like the render below picks the view: the week's
+  // days, the calendar (no order: no arrows), a flat list (a list or a
+  // category), or the grouped "Tarefas". Closed groups are skipped, unless the
+  // open task sits in one.
   const peekNavigation = useMemo(() => {
+    const groups: Array<{ open: boolean; tasks: Task[] }> | null =
+      selectedList === 'week'
+        ? weekViewData.map((day) => ({ open: weekSectionOpen[day.dateStr] ?? true, tasks: day.tasks }))
+        : selectedList === 'later'
+          ? null
+          : selectedList !== 'all' || selectedCategoryName
+            ? [{
+                open: true,
+                tasks: selectedCategoryName ? visibleTasks.filter((task) => !task.completed) : filteredTasks,
+              }]
+            : PEEK_NAVIGATION_SECTIONS.map(([key, sectionId]) => ({
+                open: !!openSections[sectionId],
+                tasks: categorizedTasks[key],
+              }));
     const id = selectedTask?.id;
-    if (!id) return { previous: undefined, next: undefined };
+    if (!groups || !id) return { available: !!groups, previous: undefined, next: undefined };
     const inOrder = (onlyOpen: boolean) =>
-      PEEK_NAVIGATION_SECTIONS.flatMap(([key, sectionId]) =>
-        onlyOpen && !openSections[sectionId] ? [] : categorizedTasks[key],
-      );
+      groups.flatMap((group) => (onlyOpen && !group.open ? [] : group.tasks));
     let order = inOrder(true);
     if (!order.some((task) => task.id === id)) order = inOrder(false);
     const index = order.findIndex((task) => task.id === id);
@@ -1211,8 +1226,18 @@ export function Tasks() {
             setSelectedPendingTask(null);
           }
         : undefined;
-    return { previous: open(order[index - 1]), next: open(order[index + 1]) };
-  }, [selectedTask?.id, categorizedTasks, openSections]);
+    return { available: true, previous: open(order[index - 1]), next: open(order[index + 1]) };
+  }, [
+    selectedTask?.id,
+    selectedList,
+    selectedCategoryName,
+    weekViewData,
+    weekSectionOpen,
+    visibleTasks,
+    filteredTasks,
+    categorizedTasks,
+    openSections,
+  ]);
 
   const sidebarCategories = useMemo(
     () =>
@@ -1837,7 +1862,7 @@ export function Tasks() {
             onExpand={handleExpandTaskDetails}
             peekMode={taskPeekMode}
             onPeekModeChange={handlePeekModeChange}
-            showNavigation
+            showNavigation={peekNavigation.available}
             onPrevious={peekNavigation.previous}
             onNext={peekNavigation.next}
           />
@@ -1916,7 +1941,7 @@ export function Tasks() {
               // no default-open switch; the task-mode chat is bound to this task
               peekMode={taskPeekMode}
               onPeekModeChange={isChatOpen ? undefined : handlePeekModeChange}
-              showNavigation={!(isChatOpen && chatMode === 'task')}
+              showNavigation={peekNavigation.available && !(isChatOpen && chatMode === 'task')}
               onPrevious={peekNavigation.previous}
               onNext={peekNavigation.next}
             />
