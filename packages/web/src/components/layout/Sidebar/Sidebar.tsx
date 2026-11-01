@@ -7,9 +7,10 @@
  *  - Task navigation item (Tarefas); Vencidas / Caixa de entrada are filters on the page
  *  - "Buscar" entry (also ⌘K / Ctrl+K anywhere) opening the CommandPalette
  *  - "Notas" and "Apps" entries (route to /notes and /apps; task items then navigate back to /tasks with router state)
- *  - "Chats" entry (routes to /chats): there the menu is the icon rail + the conversation history
+ *  - "Chats" group below Categorias (ChatHistoryPanel): closed, the latest chats, or the whole
+ *    history in place of the menu and Categorias; the rail's Chats icon routes to /chats
  *  - Collapsible "Categorias" group with hover add-button
- *  - Expanded (320 px) / Collapsed (56 px) states, toggled internally
+ *  - Expanded (320 px) / Collapsed (56 px) states, switched only by the toggle (no hover expand)
  *
  * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001333-125371
  */
@@ -56,11 +57,9 @@ import { useTheme } from '../../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SignOut, Gear } from '@phosphor-icons/react';
 import { FeedbackDialog } from '../../features/feedback/FeedbackDialog';
-import { ChatHistoryPanel } from '../../features/chats';
+import { ChatHistoryPanel, useChatsSectionMode } from '../../features/chats';
 import {
   CommandPalette,
-  CommandPaletteShortcut,
-  COMMAND_PALETTE_SHORTCUT,
   useCommandPaletteHotkey,
 } from '../../features/search';
 import type { FeedbackKind } from '../../../lib/posthogFeedback';
@@ -123,7 +122,7 @@ export interface SidebarProps {
   selectedCategory?: CategoryType | null;
   onListSelect?: (listType: ListType) => void;
   onCategorySelect?: (category: CategoryType) => void;
-  addButtonRef?: RefObject<HTMLButtonElement>;
+  addButtonRef?: RefObject<HTMLSpanElement>;
   taskCounts?: {
     all?: number;
     today?: number;
@@ -135,7 +134,7 @@ export interface SidebarProps {
   categories?: Array<{ id: string; name: string; count: number }>;
   /** Imperative ref — caller sets this to open the SettingsDialog on any page */
   openSettingsRef?: MutableRefObject<((page: SettingsPage) => void) | null>;
-  /** When true, collapses the sidebar; restores previous state when false */
+  /** Collapses the sidebar when it turns true (the toggle can still open it); restores the user's state when false */
   forceCollapsed?: boolean;
 }
 
@@ -261,7 +260,6 @@ export function Sidebar({
   const categories = categoriesProp ?? derivedCategories;
 
   const [isCollapsed, setIsCollapsed] = useState(() => desktopCollapsedPreference);
-  const [isHoverExpanded, setIsHoverExpanded] = useState(false);
   const prevCollapsedRef = useRef<boolean>(desktopCollapsedPreference);
   const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
   const [whatsAppPromoPlacement, setWhatsAppPromoPlacement] =
@@ -317,16 +315,16 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Chats page: the icon rail + the conversation history, whatever the
-  // collapse preference (the full menu is back on any other page).
   const isChatsRoute = isChatsPath(location.pathname);
+  // Expanded, the Chats group takes the place of the menu and Categorias
+  const [chatsMode, setChatsMode] = useChatsSectionMode();
 
   const isDesktopCollapsed =
-    !isMobile && !isChatsRoute && (forceCollapsed || (isCollapsed && !isHoverExpanded));
-  const showsRail = isDesktopCollapsed || isChatsRoute;
+    // `forceCollapsed` collapses it (see the effect above); the toggle can still open it
+    !isMobile && isCollapsed;
 
   const profileButtonRef =
-    showsRail ? collapsedProfileButtonRef : expandedProfileButtonRef;
+    isDesktopCollapsed ? collapsedProfileButtonRef : expandedProfileButtonRef;
 
   const { user, token, logout } = useAuth();
 
@@ -463,6 +461,8 @@ export function Sidebar({
   const isCategoryActive = (categoryName: string): boolean =>
     !isOffTasksRoute && selectedCategory === categoryName;
 
+  const isCategorySelected = !isOffTasksRoute && Boolean(selectedCategory);
+
   // ── User info ───────────────────────────────────────────────────────────────
   const userName = user?.preferred_name || user?.name || 'Usuário';
   const userAvatar = user?.avatar;
@@ -520,22 +520,19 @@ export function Sidebar({
     }
     const next = !isCollapsed;
     desktopCollapsedPreference = next;
+    // Also what comes back once a page stops forcing it collapsed
+    prevCollapsedRef.current = next;
     setIsCollapsed(next);
+    // The clicked toggle is about to be hidden (the other panel's toggle takes
+    // over); keeping focus would leave its tooltip up
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   };
 
   const sidebarToggleLabel = isMobile
     ? 'Fechar menu'
     : isSidebarLocked
       ? 'Recolher menu'
-      : 'Fixar menu expandido';
-
-  const handleSidebarMouseEnter = () => {
-    if (!isMobile && !forceCollapsed && !isChatsRoute) setIsHoverExpanded(true);
-  };
-
-  const handleSidebarMouseLeave = () => {
-    if (!isMobile) setIsHoverExpanded(false);
-  };
+      : 'Expandir menu';
 
   const renderSidebarToggleButton = () => (
     <span className={styles.sidebarToggleWrap}>
@@ -544,11 +541,8 @@ export function Sidebar({
         size="small"
         icon={SidebarSimple}
         iconPosition="icon-only"
-        iconWeight={isSidebarLocked ? 'fill' : 'regular'}
-        active={isSidebarLocked}
         onClick={handleSidebarLockToggle}
         aria-label={sidebarToggleLabel}
-        aria-pressed={!isMobile ? isSidebarLocked : undefined}
       />
     </span>
   );
@@ -559,9 +553,6 @@ export function Sidebar({
       className={styles.sidebar}
       data-collapsed={isDesktopCollapsed || undefined}
       data-locked={isSidebarLocked || undefined}
-      data-chats={isChatsRoute || undefined}
-      onMouseEnter={handleSidebarMouseEnter}
-      onMouseLeave={handleSidebarMouseLeave}
     >
       {/* ── Collapsed panel (absolutely fills root, fades in when collapsed) ── */}
       <div className={styles.collapsedPanel}>
@@ -576,7 +567,25 @@ export function Sidebar({
           <Avatar src={userAvatar} name={userName} size="medium" />
         </button>
 
-        {/* Nav items — icon only */}
+        {/* Expands the menu (the expanded header's toggle), also while a page
+            collapsed it (a task's details or a chat open on the right) */}
+        <Tooltip
+          label={sidebarToggleLabel}
+          position="right"
+          showDelay={300}
+          disabled={!isDesktopCollapsed}
+        >
+          {renderSidebarToggleButton()}
+        </Tooltip>
+
+        {/* Pro CTA, as in the expanded header */}
+        {showProCta && (
+          <Tooltip label="Fazer upgrade" position="right" showDelay={300}>
+            <UpgradeButton label="Fazer upgrade" size="medium" iconOnly onClick={handleUpgradeClick} />
+          </Tooltip>
+        )}
+
+        {/* Nav items — icon only, same order as the expanded menu */}
         <div className={styles.collapsedNavList}>
           {NAV_ITEMS.map((item) => {
             const active = isNavItemActive(item.id);
@@ -607,18 +616,6 @@ export function Sidebar({
               aria-label={NOTES_NAV_LABEL}
             />
           </Tooltip>
-          <Tooltip label={CHATS_NAV_LABEL} position="right" showDelay={300}>
-            <Button
-              variant="ghost"
-              size="small"
-              icon={ChatCircle}
-              iconPosition="icon-only"
-              active={isChatsRoute}
-              className={`${styles.collapsedNavButton} ${isChatsRoute ? styles.collapsedNavButtonActive : ''}`}
-              onClick={handleChatsClick}
-              aria-label={CHATS_NAV_LABEL}
-            />
-          </Tooltip>
           <Tooltip label={APPS_NAV_LABEL} position="right" showDelay={300}>
             <Button
               variant="ghost"
@@ -631,7 +628,7 @@ export function Sidebar({
               aria-label={APPS_NAV_LABEL}
             />
           </Tooltip>
-          <Tooltip label={`Buscar (${COMMAND_PALETTE_SHORTCUT})`} position="right" showDelay={300}>
+          <Tooltip label="Buscar" position="right" showDelay={300}>
             <Button
               variant="ghost"
               size="small"
@@ -644,25 +641,45 @@ export function Sidebar({
           </Tooltip>
         </div>
 
-        {/* Categories icon */}
-        {categories.length > 0 && (
-          <div className={styles.collapsedNavList}>
-            <Tooltip label="Categorias" position="right" showDelay={300}>
-              <Button
-                variant="ghost"
-                size="small"
-                icon={Hash}
-                iconPosition="icon-only"
-                className={styles.collapsedNavButton}
-                aria-label="Categorias"
-              />
-            </Tooltip>
-          </div>
-        )}
+        {/* The expanded menu's groups: Categorias (its settings; active while a
+            category is open) and Chats */}
+        <div className={styles.collapsedNavList}>
+          <Tooltip label="Categorias" position="right" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={Hash}
+              iconPosition="icon-only"
+              active={isCategorySelected}
+              className={`${styles.collapsedNavButton} ${isCategorySelected ? styles.collapsedNavButtonActive : ''}`}
+              onClick={handleAddCategory}
+              aria-label="Categorias"
+            />
+          </Tooltip>
+          <Tooltip label={CHATS_NAV_LABEL} position="right" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={ChatCircle}
+              iconPosition="icon-only"
+              active={isChatsRoute}
+              className={`${styles.collapsedNavButton} ${isChatsRoute ? styles.collapsedNavButtonActive : ''}`}
+              onClick={handleChatsClick}
+              aria-label={CHATS_NAV_LABEL}
+            />
+          </Tooltip>
+        </div>
 
 
-        {/* Collapsed footer: action buttons + compact ThemeToggle last */}
+        {/* Collapsed footer: the expanded footer top to bottom (ThemeToggle, ideias, problema) */}
         <div className={styles.collapsedFooter}>
+          <Tooltip
+            label={isLight ? 'Ativar modo escuro' : 'Ativar modo claro'}
+            position="right"
+            showDelay={300}
+          >
+            <ThemeToggle compact />
+          </Tooltip>
           <Tooltip label="Sugerir ideias" position="right" showDelay={300}>
             <button
               type="button"
@@ -683,22 +700,8 @@ export function Sidebar({
               <Bug size={20} />
             </button>
           </Tooltip>
-          <Tooltip
-            label={isLight ? 'Ativar modo escuro' : 'Ativar modo claro'}
-            position="right"
-            showDelay={300}
-          >
-            <ThemeToggle compact />
-          </Tooltip>
         </div>
       </div>
-
-      {/* ── Chats page: the conversation history, next to the rail ── */}
-      {isChatsRoute && (
-        <div className={styles.chatsPanel}>
-          <ChatHistoryPanel onNavigate={closeMobileSidebar} />
-        </div>
-      )}
 
       {/* ── Expanded panel (fades out when collapsed) ── */}
       <div className={styles.expandedPanel}>
@@ -715,7 +718,12 @@ export function Sidebar({
               onClick={() => setIsDropdownOpen((v) => !v)}
             />
 
-            <Tooltip label={sidebarToggleLabel} position="bottom" showDelay={300}>
+            <Tooltip
+              label={sidebarToggleLabel}
+              position="bottom"
+              showDelay={300}
+              disabled={isDesktopCollapsed}
+            >
               {renderSidebarToggleButton()}
             </Tooltip>
           </div>
@@ -736,7 +744,7 @@ export function Sidebar({
         {/* SidebarBody */}
         <div className={styles.body}>
           {/* Primary nav group */}
-          <div className={styles.groupNav}>
+          <div className={`${styles.groupNav} ${chatsMode === 'expanded' ? styles.groupHidden : ''}`}>
             <div className={styles.navList}>
               {NAV_ITEMS.map((item) => (
                 <ListItem
@@ -754,12 +762,6 @@ export function Sidebar({
                 onClick={handleNotesClick}
               />
               <ListItem
-                label={CHATS_NAV_LABEL}
-                icon={ChatCircle}
-                active={isChatsRoute}
-                onClick={handleChatsClick}
-              />
-              <ListItem
                 label={APPS_NAV_LABEL}
                 icon={CirclesFour}
                 active={isAppsRoute}
@@ -768,14 +770,13 @@ export function Sidebar({
               <ListItem
                 label="Buscar"
                 icon={MagnifyingGlass}
-                trailing={isMobile ? undefined : <CommandPaletteShortcut />}
                 onClick={handleSearchClick}
               />
             </div>
           </div>
 
           {/* Categorias group */}
-          <div className={`${styles.groupSection} ${styles.groupSectionLast}`}>
+          <div className={`${styles.groupSection} ${chatsMode === 'expanded' ? styles.groupHidden : ''}`}>
             <div className={styles.groupHeaderWrapper}>
               <SidebarGroupHeader
                 label="Categorias"
@@ -808,6 +809,14 @@ export function Sidebar({
               </div>
             )}
           </div>
+
+          {/* Chats group */}
+          <ChatHistoryPanel
+            mode={chatsMode}
+            onModeChange={setChatsMode}
+            onSearch={handleSearchClick}
+            onNavigate={closeMobileSidebar}
+          />
         </div>
 
         {/* Expanded footer: ThemeToggle + label + action buttons */}
@@ -850,8 +859,8 @@ export function Sidebar({
         anchorRef={profileButtonRef}
         align="left"
         width={isMobile ? 240 : 200}
-        gap={showsRail ? 6 : 8}
-        offsetX={showsRail ? 2 : 0}
+        gap={isDesktopCollapsed ? 6 : 8}
+        offsetX={isDesktopCollapsed ? 2 : 0}
       >
         {isMobile ? (
           <>

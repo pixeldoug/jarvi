@@ -25,6 +25,7 @@ import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, ListType } from '../../components/layout/Sidebar';
 import type { SettingsPage, TasksNavigationState } from '../../components/layout/Sidebar';
+import type { TaskPeekMode } from '../../components/features/tasks/TaskDetailsSidebar';
 import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { formatRecurrenceSchedule } from '../../lib/utils';
@@ -39,7 +40,7 @@ import {
 import { TaskEmptyState } from '../../components/features/tasks/EmptyState';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { usePendingTasks } from '../../hooks/usePendingTasks';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, animate } from 'motion/react';
 import {
   DndContext,
   closestCenter,
@@ -155,6 +156,29 @@ function getLocalDateKey(date: Date): string {
 // ── Module-level constants (stable, never recreated) ─────────────────────────
 
 /** Default open/collapsed state for every section in the all-view. */
+/** How a task opens from the list (the peek toolbar's switch), kept per browser */
+const TASK_PEEK_MODE_KEY = 'jarvi_task_peek_mode';
+
+function readTaskPeekMode(): TaskPeekMode {
+  try {
+    return localStorage.getItem(TASK_PEEK_MODE_KEY) === 'full' ? 'full' : 'side';
+  } catch {
+    return 'side';
+  }
+}
+
+/** The list's sections in screen order, for the peek toolbar's prev / next */
+const PEEK_NAVIGATION_SECTIONS = [
+  ['vencidas', 'vencidas'],
+  ['hoje', 'hoje'],
+  ['amanha', 'amanha'],
+  ['estaSemana', 'esta-semana'],
+  ['proximaSemana', 'proxima-semana'],
+  ['maisTarde', 'mais-tarde'],
+  ['semData', 'sem-data'],
+  ['completadas', 'completadas'],
+] as const;
+
 const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   integracoes: true,
   vencidas: false,
@@ -216,6 +240,12 @@ function readTasksNavigationState(locationState: unknown): {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** The full-screen task card leaving: back into the right panel (fade) or closed (slide) */
+const CENTER_CARD_VARIANTS = {
+  leaving: (toPanel: boolean) =>
+    toPanel ? { opacity: 0, transition: { duration: 0.16 } } : { x: 60 },
+};
 
 export function Tasks() {
   const location = useLocation();
@@ -401,6 +431,9 @@ export function Tasks() {
     if (isChatOpen) {
       setExpandedFromList(false);
       setTaskPinnedInCenter(true);
+    } else if (taskPeekMode === 'full') {
+      // The peek toolbar's "Página inteira": tasks open as a full page
+      setExpandedFromList(true);
     }
     setSelectedTask(task);
     setSelectedPendingTask(null);
@@ -456,14 +489,72 @@ export function Tasks() {
     }
   }, [chatMode]);
 
-  const handleExpandTaskDetails = useCallback(() => {
-    setExpandedFromList(true);
-    setTaskPinnedInCenter(false);
+  // Expanding a task's details to full screen (and back) morphs the card
+  // between the right panel and the main card instead of sliding one out and
+  // another in: the panel leaves at once (MainLayout `morph`), and the center
+  // card is revealed from where the panel was (`revealCenterCard`).
+  const [isDetailsMorphing, setIsDetailsMorphing] = useState(false);
+  const detailsMorphTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightDetailsPanelRef = useRef<HTMLDivElement>(null);
+  /** The right panel's screen box when expanding, read once by the center card */
+  const detailsExpandOriginRef = useRef<{ left: number; right: number } | null>(null);
+
+  const startDetailsMorph = useCallback(() => {
+    setIsDetailsMorphing(true);
+    if (detailsMorphTimerRef.current) clearTimeout(detailsMorphTimerRef.current);
+    detailsMorphTimerRef.current = setTimeout(() => setIsDetailsMorphing(false), 450);
   }, []);
 
+  useEffect(() => () => {
+    if (detailsMorphTimerRef.current) clearTimeout(detailsMorphTimerRef.current);
+  }, []);
+
+  const handleExpandTaskDetails = useCallback(() => {
+    const panel = rightDetailsPanelRef.current?.getBoundingClientRect();
+    detailsExpandOriginRef.current = panel ? { left: panel.left, right: panel.right } : null;
+    startDetailsMorph();
+    setExpandedFromList(true);
+    setTaskPinnedInCenter(false);
+  }, [startDetailsMorph]);
+
   const handleCollapseTaskDetails = useCallback(() => {
+    startDetailsMorph();
     setExpandedFromList(false);
     setTaskPinnedInCenter(false);
+  }, [startDetailsMorph]);
+
+  const [taskPeekMode, setTaskPeekMode] = useState<TaskPeekMode>(readTaskPeekMode);
+
+  /** The peek toolbar's switch: the default for the next tasks, and this one moves now */
+  const handlePeekModeChange = useCallback((mode: TaskPeekMode) => {
+    setTaskPeekMode(mode);
+    try {
+      localStorage.setItem(TASK_PEEK_MODE_KEY, mode);
+    } catch {
+      // Kept for this page load only
+    }
+    if (isChatOpen) return;
+    if (mode === 'full' && !expandedFromList) handleExpandTaskDetails();
+    if (mode === 'side' && expandedFromList) handleCollapseTaskDetails();
+  }, [isChatOpen, expandedFromList, handleExpandTaskDetails, handleCollapseTaskDetails]);
+
+  /**
+   * The center card mounts at its full size; a clip shaped like the panel it
+   * came from opens up to the whole card, so it grows out of the panel without
+   * scaling (and squashing) its content.
+   */
+  const revealCenterCard = useCallback((card: HTMLDivElement | null) => {
+    const origin = detailsExpandOriginRef.current;
+    if (!card || !origin) return;
+    detailsExpandOriginRef.current = null;
+    const box = card.getBoundingClientRect();
+    const left = Math.min(Math.max(origin.left - box.left, 0), box.width);
+    const right = Math.min(Math.max(box.right - origin.right, 0), box.width - left);
+    void animate(
+      card,
+      { clipPath: [`inset(0px ${right}px 0px ${left}px round 18px)`, 'inset(0px 0px 0px 0px round 18px)'] },
+      { duration: 0.36, ease: [0.4, 0, 0.2, 1] },
+    );
   }, []);
 
   const handleOpenChatFromTask = useCallback(() => {
@@ -1101,6 +1192,53 @@ export function Tasks() {
     return categories;
   }, [visibleTasks, movingTask]);
 
+  // The peek toolbar's prev / next walk the tasks the current view shows, in
+  // screen order, picked like the render below picks the view: the week's
+  // days, the calendar (no order: no arrows), a flat list (a list or a
+  // category), or the grouped "Tarefas". Closed groups are skipped, unless the
+  // open task sits in one.
+  const peekNavigation = useMemo(() => {
+    const groups: Array<{ open: boolean; tasks: Task[] }> | null =
+      selectedList === 'week'
+        ? weekViewData.map((day) => ({ open: weekSectionOpen[day.dateStr] ?? true, tasks: day.tasks }))
+        : selectedList === 'later'
+          ? null
+          : selectedList !== 'all' || selectedCategoryName
+            ? [{
+                open: true,
+                tasks: selectedCategoryName ? visibleTasks.filter((task) => !task.completed) : filteredTasks,
+              }]
+            : PEEK_NAVIGATION_SECTIONS.map(([key, sectionId]) => ({
+                open: !!openSections[sectionId],
+                tasks: categorizedTasks[key],
+              }));
+    const id = selectedTask?.id;
+    if (!groups || !id) return { available: !!groups, previous: undefined, next: undefined };
+    const inOrder = (onlyOpen: boolean) =>
+      groups.flatMap((group) => (onlyOpen && !group.open ? [] : group.tasks));
+    let order = inOrder(true);
+    if (!order.some((task) => task.id === id)) order = inOrder(false);
+    const index = order.findIndex((task) => task.id === id);
+    const open = (task: Task | undefined) =>
+      index >= 0 && task
+        ? () => {
+            setSelectedTask(task);
+            setSelectedPendingTask(null);
+          }
+        : undefined;
+    return { available: true, previous: open(order[index - 1]), next: open(order[index + 1]) };
+  }, [
+    selectedTask?.id,
+    selectedList,
+    selectedCategoryName,
+    weekViewData,
+    weekSectionOpen,
+    visibleTasks,
+    filteredTasks,
+    categorizedTasks,
+    openSections,
+  ]);
+
   const sidebarCategories = useMemo(
     () =>
       mergedTaskCategories
@@ -1318,7 +1456,8 @@ export function Tasks() {
         taskCounts={sidebarTaskCounts}
         categories={sidebarCategories}
         openSettingsRef={openSettingsRef}
-        forceCollapsed={hasRightPanelContent}
+        // Also while a task is expanded to full screen (the toggle can still open it)
+        forceCollapsed={hasRightPanelContent || showTaskInCenter}
       />
       <FilterMenu
         isOpen={isFilterOpen}
@@ -1705,6 +1844,7 @@ export function Tasks() {
       ) : selectedTask ? (
         <motion.div
           key="task-details-panel"
+          ref={rightDetailsPanelRef}
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
           initial={{ opacity: 0, x: 60 }}
           animate={{ opacity: 1, x: 0 }}
@@ -1720,6 +1860,11 @@ export function Tasks() {
             onDelete={handleDeleteTask}
             onOpenChat={handleOpenChatFromTask}
             onExpand={handleExpandTaskDetails}
+            peekMode={taskPeekMode}
+            onPeekModeChange={handlePeekModeChange}
+            showNavigation={peekNavigation.available}
+            onPrevious={peekNavigation.previous}
+            onNext={peekNavigation.next}
           />
         </motion.div>
       ) : null}
@@ -1760,14 +1905,23 @@ export function Tasks() {
         {content}
       </motion.div>
 
-      <AnimatePresence initial={false} onExitComplete={() => setCenterPanelTask(null)}>
+      {/* `custom`: a card going back to the right panel fades (the panel takes
+          over); otherwise it slides out */}
+      <AnimatePresence
+        initial={false}
+        custom={isDetailsMorphing}
+        onExitComplete={() => setCenterPanelTask(null)}
+      >
         {showTaskInCenter && centerPanelTask && (
           <motion.div
             key="task-details-center"
+            ref={revealCenterCard}
             className={styles.centerPanelCard}
-            initial={{ x: 60 }}
+            custom={isDetailsMorphing}
+            variants={CENTER_CARD_VARIANTS}
+            initial={isDetailsMorphing ? false : { x: 60 }}
             animate={{ x: 0 }}
-            exit={{ x: 60 }}
+            exit="leaving"
             transition={panelTransition}
           >
             <TaskDetailsSidebar
@@ -1783,6 +1937,13 @@ export function Tasks() {
               // Hide back only for task-mode chat split; with general chat open,
               // keep a way to return to the list without closing the conversation.
               showCloseButton={!(isChatOpen && chatMode === 'task')}
+              // With a chat open the task sits in the center to share the screen:
+              // no default-open switch; the task-mode chat is bound to this task
+              peekMode={taskPeekMode}
+              onPeekModeChange={isChatOpen ? undefined : handlePeekModeChange}
+              showNavigation={peekNavigation.available && !(isChatOpen && chatMode === 'task')}
+              onPrevious={peekNavigation.previous}
+              onNext={peekNavigation.next}
             />
           </motion.div>
         )}
@@ -1829,6 +1990,7 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1856,6 +2018,7 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1884,6 +2047,7 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1955,6 +2119,7 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -2008,6 +2173,7 @@ export function Tasks() {
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -2067,6 +2233,7 @@ export function Tasks() {
         onOpenTaskDetails={handleTaskClick}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}

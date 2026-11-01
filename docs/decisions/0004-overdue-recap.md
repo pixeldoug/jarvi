@@ -12,7 +12,7 @@ Tarefas vencidas se acumulam na seção **Vencidas**, que começa fechada, e nin
 2. **Vencida é a regra da seção Vencidas:** não concluída, com data anterior a hoje; o horário não conta.
 3. **Uma série recorrente é um card só.** As ocorrências vencidas da mesma série (`recurrence_parent_id`) viram um card com "N vencidas desde …". Concluir marca todas como feitas, numa chamada (`PATCH /api/tasks/completion`, que define o estado em vez de alternar, então uma tarefa já concluída em outro lugar continua concluída). As próximas ocorrências não mudam. Série não tem reagendar nem excluir: ela já tem a próxima data.
 4. **Abre sozinho no máximo uma vez por dia, só numa página ociosa.** A decisão é tomada uma vez, quando a página de Tarefas recebe as tarefas: se houver vencidas, se não estiver aberto um chat, uma tarefa, o onboarding ou outro dialog. Se o momento passar, espera a próxima visita, em vez de aparecer no meio de outra coisa. O botão **Recap (N)** no cabeçalho abre a qualquer hora.
-5. **É desligável.** Configurações › Tarefas › "Recap de tarefas vencidas" (`users.overdue_recap_enabled`, ligado por padrão como os outros avisos). Desligado, não abre sozinho e o botão some.
+5. **É desligável.** Configurações › Tarefas › "Recap de tarefas vencidas" (`users.overdue_recap_enabled`, desligado por padrão: quem quiser liga; decidido em 2026-10-31). Desligado, não abre sozinho e o botão some.
 6. **A fila é fixa enquanto o Recap está aberto.** A ordem vem do momento em que ele abre (mais recente primeiro), para os cards não pularem quando as tarefas recarregam. Um card resolvido em outro lugar (outra aba, WhatsApp, agente) sai da fila sozinho.
 
 ## Alternativas descartadas

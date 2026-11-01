@@ -45,7 +45,8 @@ export function useOverdueRecap({ canAutoOpen }: { canAutoOpen: boolean }) {
   const { tasks, isLoading } = useTasks();
   const isFetching = useIsFetching({ queryKey: ['tasks'] }) > 0;
   const userId = user?.id;
-  const enabled = user?.overdueRecapEnabled !== false;
+  // Opt-in: off unless the user turned it on in Settings › Tarefas
+  const enabled = user?.overdueRecapEnabled === true;
 
   const todayKey = toLocalDateKey(new Date());
   const items = useMemo(() => buildOverdueRecapItems(tasks, todayKey), [tasks, todayKey]);

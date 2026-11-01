@@ -159,9 +159,9 @@ export const toPublicUser = (user: {
     whatsappPhone: parseDbBoolean(user.whatsapp_verified) ? whatsappPhone : undefined,
     emailVerified: Boolean(email) && parseDbBoolean(user.email_verified),
     subscription_status: user.subscription_status ?? undefined,
-    // NULL (row predates the column) counts as on, like the other opt-out preferences
+    // Opt-in: NULL (no value yet) counts as off
     overdueRecapEnabled:
-      user.overdue_recap_enabled == null ? true : parseDbBoolean(user.overdue_recap_enabled),
+      user.overdue_recap_enabled == null ? false : parseDbBoolean(user.overdue_recap_enabled),
   };
 };
 
@@ -339,8 +339,8 @@ export const googleAuth = async (
           isNewUser = true;
           const userId = uuidv4();
           await client.query(
-            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at, overdue_recap_enabled)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, FALSE)`,
             [
               userId,
               email,
@@ -421,8 +421,8 @@ export const googleAuth = async (
         isNewUser = true;
         const userId = uuidv4();
         await db.run(
-          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at, overdue_recap_enabled)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)`,
           [
             userId,
             email,
@@ -622,8 +622,8 @@ export const register = async (
 
         // Create new user with email_verified = false
         await client.query(
-          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at, overdue_recap_enabled)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, FALSE)`,
           [userId, normalizedEmail, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
         );
 
@@ -645,8 +645,8 @@ export const register = async (
 
       // Create new user with email_verified = false
       await db.run(
-        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at, overdue_recap_enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)`,
         [userId, normalizedEmail, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
       );
 

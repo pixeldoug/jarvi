@@ -23,7 +23,18 @@
   flex-shrink: 0;
 }
 
-/* Header: full row — title container + action buttons */
+/* Peek toolbar row: its ghost buttons' icons line up with the checkbox below
+   (they reach into the panel's padding) */
+.peekBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+  margin: calc(var(--sizes-2) * -1) calc(var(--sizes-2) * -1) 0 calc(var(--sizes-25) * -1);
+  flex-shrink: 0;
+}
+
+/* Header: full row — title container (the actions moved to .peekBar) */
 .header {
   display: flex;
   gap: var(--sizes-2);
@@ -55,16 +66,6 @@
 }
 
 /* Action buttons (AI + Expand/Collapse + Close) */
-.headerActions {
-  display: flex;
-  gap: var(--sizes-1);
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.headerMultiLine .headerActions {
-  align-items: flex-start;
-}
 
 .title {
   font-family: var(--typography-heading-sm-font-family);

@@ -36,14 +36,15 @@
   min-height: 0;
 }
 
-/* The typed text lines up with the rows' icons below */
+/* The typed text lines up with the rows' icons below (16px row inset + the
+   row's own 16px); 8px of air above the 56px field */
 .searchRow {
   display: flex;
   align-items: center;
   gap: var(--sizes-2);
   flex-shrink: 0;
-  height: var(--sizes-14);
-  padding: 0 var(--sizes-3) 0 var(--sizes-6);
+  height: var(--sizes-16);
+  padding: var(--sizes-2) var(--sizes-4) 0 var(--sizes-8);
 }
 
 .searchInput {
@@ -81,16 +82,19 @@
 
 /* ── Results ──────────────────────────────────────────────────────────────── */
 
-/* The dialog's body: panel scrollbar, 8px off the dialog's right edge (the
-   right padding gives up the same 8px, so rows keep 8px on both sides) */
+/* The dialog's body: rows keep 16px from both edges, like the tabs above.
+   The panel scrollbar sits 8px off the right edge in a gutter kept whether or
+   not it shows (8px margin + 6px bar + 2px padding = 16px), so rows never
+   move; 16px of room under the last row */
 .results {
   composes: scrollbar-panel from global;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   margin-right: var(--sizes-2);
-  padding: 0 0 var(--sizes-2) var(--sizes-2);
-  --scrollbar-panel-padding-block: var(--sizes-2);
+  padding: 0 2px var(--sizes-4) var(--sizes-4);
+  --scrollbar-panel-padding-block: var(--sizes-4);
 }
 
 .group + .group {

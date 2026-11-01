@@ -875,8 +875,8 @@ const createWhatsappUser = async (phone: string) => {
     await getPool().query(
       `INSERT INTO users (
          id, email, name, password, auth_provider, has_password, email_verified,
-         subscription_status, trial_ends_at, whatsapp_phone, whatsapp_verified, created_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+         subscription_status, trial_ends_at, whatsapp_phone, whatsapp_verified, created_at, updated_at, overdue_recap_enabled
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, FALSE)`,
       [
         userId,
         email,
@@ -897,8 +897,8 @@ const createWhatsappUser = async (phone: string) => {
     await getDatabase().run(
       `INSERT INTO users (
          id, email, name, password, auth_provider, has_password, email_verified,
-         subscription_status, trial_ends_at, whatsapp_phone, whatsapp_verified, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         subscription_status, trial_ends_at, whatsapp_phone, whatsapp_verified, created_at, updated_at, overdue_recap_enabled
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)`,
       [
         userId,
         email,

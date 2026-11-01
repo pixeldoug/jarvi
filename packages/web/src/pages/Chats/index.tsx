@@ -2,20 +2,25 @@
  * Chats Page
  *
  * `/chats` starts a conversation with the Jarvi agent; `/chats/:chatId` opens
- * one from the history (the sidebar's Chats panel) to read it and keep going.
+ * one from the history (the sidebar's Chats section) to read it and keep going.
  * The backend records every turn: a new chat's first message creates the
  * conversation, and the URL moves to its id without remounting the chat.
+ * A task card in the chat opens the task's details on the right, like on
+ * Tarefas, without leaving the conversation.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
-import { ChatCircle } from '@phosphor-icons/react';
+import { ChatCircle, NotePencil } from '@phosphor-icons/react';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, type TasksNavigationState } from '../../components/layout/Sidebar';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
+import { TaskDetailsSidebar } from '../../components/features/tasks/TaskDetailsSidebar';
 import { DeleteChatDialog, UNTITLED_CHAT } from '../../components/features/chats';
 import { NoteActionsMenu, NoteEmptyState } from '../../components/features/notes';
 import { Button, Loading } from '../../components/ui';
+import { toast } from '../../components/ui/Sonner';
+import { useTasks } from '../../contexts/TaskContext';
 import { isChatNotFoundError, useChat } from '../../hooks/useChats';
 import { restoreChatMessages, type ChatConversationRef } from '../../hooks/useChatStream';
 import { useChatTaskSync } from '../../hooks/useChatTaskSync';
@@ -87,9 +92,61 @@ export function Chats() {
 
   const { onTaskMutated, onAttachmentsSent } = useChatTaskSync();
 
+  // The task opened from a card, read live from the task list so edits made
+  // in the chat show up in the panel (and a deleted task closes it)
+  const { tasks, updateTask, toggleTaskCompletion, deleteTask, undoDeleteTask } = useTasks();
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const openTask = openTaskId ? tasks.find((task) => task.id === openTaskId) ?? null : null;
+
+  // Another chat on screen closes the task panel
+  useEffect(() => {
+    setOpenTaskId(null);
+  }, [session.key]);
+
   const handleTaskCardClick = useCallback((taskId: string) => {
+    if (tasks.some((task) => task.id === taskId)) {
+      setOpenTaskId(taskId);
+      return;
+    }
+    // Not in the loaded list (e.g. still loading): Tarefas opens it
     navigate('/tasks', { state: { openTaskId: taskId } satisfies TasksNavigationState });
-  }, [navigate]);
+  }, [tasks, navigate]);
+
+  const handleUpdateTask = useCallback(async (taskId: string, taskData: any) => {
+    await updateTask(taskId, taskData, false);
+  }, [updateTask]);
+
+  const handleToggleCompletion = useCallback(async (taskId: string) => {
+    await toggleTaskCompletion(taskId);
+  }, [toggleTaskCompletion]);
+
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    try {
+      const deletedTask = await deleteTask(taskId, false);
+      if (!deletedTask) return;
+      setOpenTaskId(null);
+      toast.success('Tarefa excluída com sucesso', {
+        hasButton: true,
+        action: {
+          label: 'Desfazer',
+          onClick: async () => {
+            try {
+              if (await undoDeleteTask(deletedTask.id)) {
+                toast.success('Tarefa restaurada', {
+                  hasButton: true,
+                  action: { label: 'Visualizar', onClick: () => setOpenTaskId(deletedTask.id) },
+                });
+              }
+            } catch (error) {
+              console.error('Failed to restore task:', error);
+            }
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
+  }, [deleteTask, undoDeleteTask]);
 
   const handleCategoryCardClick = useCallback((categoryName: string) => {
     navigate('/tasks', { state: { tasksCategory: categoryName } satisfies TasksNavigationState });
@@ -158,16 +215,41 @@ export function Chats() {
         hideHeader={!conversationId}
         headerActions={
           conversationId ? (
-            <NoteActionsMenu
-              items={[{ label: 'Excluir conversa', onSelect: () => setDeleteTargetId(conversationId) }]}
-              triggerVariant="secondary"
-              triggerSize="medium"
-            />
+            <>
+              <Button
+                variant="secondary"
+                size="medium"
+                icon={NotePencil}
+                iconPosition="left"
+                onClick={() => navigate('/chats')}
+              >
+                Novo chat
+              </Button>
+              <NoteActionsMenu
+                items={[{ label: 'Excluir conversa', onSelect: () => setDeleteTargetId(conversationId) }]}
+                triggerVariant="secondary"
+                triggerSize="medium"
+              />
+            </>
           ) : undefined
         }
         // The chat scrolls its own messages, with the input pinned below them
         scrollableBody={false}
         hideControlBar
+        rightSidebar={
+          openTask ? (
+            <TaskDetailsSidebar
+              isOpen
+              task={openTask}
+              onClose={() => setOpenTaskId(null)}
+              onUpdateTask={handleUpdateTask}
+              onToggleCompletion={handleToggleCompletion}
+              onDelete={handleDeleteTask}
+            />
+          ) : undefined
+        }
+        rightSidebarAsSheet={!!openTask}
+        onRightSidebarClose={() => setOpenTaskId(null)}
       >
         <div className={styles.chat}>{renderChat()}</div>
       </MainLayout>
