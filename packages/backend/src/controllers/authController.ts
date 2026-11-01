@@ -159,9 +159,9 @@ export const toPublicUser = (user: {
     whatsappPhone: parseDbBoolean(user.whatsapp_verified) ? whatsappPhone : undefined,
     emailVerified: Boolean(email) && parseDbBoolean(user.email_verified),
     subscription_status: user.subscription_status ?? undefined,
-    // NULL (row predates the column) counts as on, like the other opt-out preferences
+    // Opt-in: NULL (no value yet) counts as off
     overdueRecapEnabled:
-      user.overdue_recap_enabled == null ? true : parseDbBoolean(user.overdue_recap_enabled),
+      user.overdue_recap_enabled == null ? false : parseDbBoolean(user.overdue_recap_enabled),
   };
 };
 

@@ -80,7 +80,7 @@ const createTables = async (): Promise<void> => {
       daily_summary_time TEXT DEFAULT '08:00',
       weekly_planning_enabled ${booleanType} DEFAULT TRUE,
       weekly_planning_time TEXT DEFAULT '19:00',
-      overdue_recap_enabled ${booleanType} DEFAULT TRUE,
+      overdue_recap_enabled ${booleanType} DEFAULT FALSE,
       created_at ${timestampType},
       updated_at ${timestampType}
     );`,
@@ -1416,8 +1416,11 @@ const runMigrations = async (): Promise<void> => {
         // daily summary; one delivery row per (user, local Sunday).
         'ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_enabled BOOLEAN DEFAULT TRUE',
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_planning_time TEXT DEFAULT '19:00'",
-        // Recap de tarefas vencidas (web, once a day on the Tasks page). Opt-out like the others.
-        'ALTER TABLE users ADD COLUMN IF NOT EXISTS overdue_recap_enabled BOOLEAN DEFAULT TRUE',
+        // Recap de tarefas vencidas (web, once a day on the Tasks page). Opt-in: off
+        // by default. The SET DEFAULT covers databases that got the column while it
+        // defaulted on (staging); rows that already have a value keep it.
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS overdue_recap_enabled BOOLEAN DEFAULT FALSE',
+        'ALTER TABLE users ALTER COLUMN overdue_recap_enabled SET DEFAULT FALSE',
         `CREATE TABLE IF NOT EXISTS weekly_planning_deliveries (
           id TEXT PRIMARY KEY,
           user_id TEXT NOT NULL,
@@ -1968,9 +1971,10 @@ const runMigrations = async (): Promise<void> => {
       // Column already exists, ignore
     }
 
-    // Migration: Recap de tarefas vencidas (web, once a day on the Tasks page) for SQLite
+    // Migration: Recap de tarefas vencidas (web, once a day on the Tasks page) for SQLite.
+    // Opt-in: off by default.
     try {
-      await db.exec('ALTER TABLE users ADD COLUMN overdue_recap_enabled BOOLEAN DEFAULT TRUE');
+      await db.exec('ALTER TABLE users ADD COLUMN overdue_recap_enabled BOOLEAN DEFAULT FALSE');
     } catch (e) {
       // Column already exists, ignore
     }

@@ -16,6 +16,16 @@ import { BottomSheet } from '../../ui/BottomSheet/BottomSheet';
 import { useBackground } from '../../../contexts/BackgroundContext';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 
+const RIGHT_SIDEBAR_VARIANTS = {
+  hidden: (transition: 'slide' | 'morph') =>
+    transition === 'morph' ? { opacity: 0, x: -24 } : { opacity: 0, x: 100 },
+  shown: { opacity: 1, x: 0 },
+  leaving: (transition: 'slide' | 'morph') =>
+    transition === 'morph'
+      ? { opacity: 0, transition: { duration: 0 } }
+      : { opacity: 0, x: 100 },
+};
+
 /** Breakpoint used to switch the layout into mobile (overlay sidebar) mode. */
 export const MOBILE_BREAKPOINT = '(max-width: 768px)';
 
@@ -70,6 +80,13 @@ export interface MainLayoutProps {
    * side panel. Desktop is unaffected.
    */
   rightSidebarAsSheet?: boolean;
+  /**
+   * How the desktop right panel comes and goes: `slide` (default) from the
+   * right; `morph` when its content moves to / from the main card (a task's
+   * details expanding to full screen): it leaves at once, so the main card
+   * takes its room right away, and comes back with a short settle.
+   */
+  rightSidebarTransition?: 'slide' | 'morph';
   /** Close handler used by the mobile bottom sheet (backdrop / drag-to-close). */
   onRightSidebarClose?: () => void;
   /** Callback to open AI chat panel */
@@ -122,6 +139,7 @@ export function MainLayout({
   onOpenTaskDetails,
   rightSidebar,
   rightSidebarAsSheet = false,
+  rightSidebarTransition = 'slide',
   onRightSidebarClose,
   onOpenChat,
   onSubmitPrompt,
@@ -354,13 +372,16 @@ export function MainLayout({
         </main>
 
         {/* Right Sidebar — desktop, or mobile when not presented as a bottom sheet */}
-        <AnimatePresence>
+        {/* `custom` reaches the panel while it leaves, too */}
+        <AnimatePresence custom={rightSidebarTransition}>
           {rightSidebar && !(isMobile && rightSidebarAsSheet) && (
             <motion.aside
               className={styles.rightSidebar}
-              initial={{ opacity: 0, x: 100 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 100 }}
+              custom={rightSidebarTransition}
+              variants={RIGHT_SIDEBAR_VARIANTS}
+              initial="hidden"
+              animate="shown"
+              exit="leaving"
               transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             >
               {rightSidebar}

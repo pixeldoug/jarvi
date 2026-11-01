@@ -4,7 +4,7 @@
  * "Tarefas" tab: what Jarvi does on its own on the Tasks page.
  *
  *   - Recap de tarefas vencidas → once a day, on opening Tarefas, review the
- *     overdue tasks one by one (on by default)
+ *     overdue tasks one by one (off by default)
  *
  * The value lives on the user (`overdueRecapEnabled`, from the profile) so the
  * Tasks page reads it without another request. Saving is optimistic and
@@ -24,7 +24,7 @@ const SAVE_ERROR = 'Erro ao salvar o Recap de tarefas vencidas';
 
 export function TasksPage() {
   const { user, token, updateUser } = useAuth();
-  const enabled = user?.overdueRecapEnabled !== false;
+  const enabled = user?.overdueRecapEnabled === true;
   const [saving, setSaving] = useState(false);
 
   const save = async (next: boolean) => {

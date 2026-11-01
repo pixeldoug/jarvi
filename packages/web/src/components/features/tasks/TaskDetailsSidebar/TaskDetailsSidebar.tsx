@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Sparkle, Bell, Repeat, ArrowsOutSimple, ArrowLeft, Trash } from '@phosphor-icons/react';
+import { Calendar, Hash, Fire, Sparkle, Bell, Repeat, Trash } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -26,6 +26,7 @@ import { formatRemindersChipLabel } from '../../../../lib/reminders';
 import { toast } from '../../../ui/Sonner';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
 import { TaskDetailsFooter } from './TaskDetailsFooter';
+import { TaskPeekToolbar, type TaskPeekMode } from './TaskPeekToolbar';
 import styles from './TaskDetailsSidebar.module.css';
 
 export interface TaskDetailsSidebarProps {
@@ -44,6 +45,13 @@ export interface TaskDetailsSidebarProps {
   variant?: 'sidebar' | 'expanded';
   /** Show the back button in expanded mode — e.g. after the user closes task-mode chat */
   showCloseButton?: boolean;
+  /** The peek toolbar's default-open switch (Painel lateral / Página inteira) */
+  peekMode?: TaskPeekMode;
+  onPeekModeChange?: (mode: TaskPeekMode) => void;
+  /** The peek toolbar's arrows: undefined when there's no task before / after */
+  onPrevious?: () => void;
+  onNext?: () => void;
+  showNavigation?: boolean;
 }
 
 export function TaskDetailsSidebar({
@@ -58,6 +66,11 @@ export function TaskDetailsSidebar({
   onCollapse,
   variant = 'sidebar',
   showCloseButton = false,
+  peekMode,
+  onPeekModeChange,
+  onPrevious,
+  onNext,
+  showNavigation,
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -793,7 +806,6 @@ export function TaskDetailsSidebar({
 
   if (variant === 'expanded') {
     const menuItems = [
-      ...(onCollapse ? [{ label: 'Abrir na lateral', onSelect: onCollapse }] : []),
       ...(onOpenChat && showCloseButton ? [{ label: 'Abrir assistente AI', onSelect: onOpenChat }] : []),
     ];
 
@@ -805,22 +817,19 @@ export function TaskDetailsSidebar({
         className={styles.page}
         role="complementary"
         aria-label="Detalhes da tarefa"
+        data-peek-root
       >
         <div className={styles.topBar}>
-          {showCloseButton ? (
-            <Tooltip label="Tarefas" position="bottom">
-              <Button
-                variant="secondary"
-                size="medium"
-                icon={ArrowLeft}
-                iconPosition="icon-only"
-                aria-label="Voltar para lista de tarefas"
-                onClick={onClose}
-              />
-            </Tooltip>
-          ) : (
-            <span />
-          )}
+          <TaskPeekToolbar
+            variant="full"
+            onClose={showCloseButton ? onClose : undefined}
+            onToggleSize={onCollapse}
+            peekMode={peekMode}
+            onPeekModeChange={onPeekModeChange}
+            onPrevious={onPrevious}
+            onNext={onNext}
+            showNavigation={showNavigation}
+          />
           <div className={styles.topBarActions}>
             <TaskDetailsFooter task={task} />
             {onDelete && (
@@ -900,7 +909,34 @@ export function TaskDetailsSidebar({
       className={styles.sidebar}
       role="complementary"
       aria-label="Detalhes da tarefa"
+      data-peek-root
     >
+      {/* Peek toolbar (close, page size, default open, prev / next) + the assistant */}
+      <div className={styles.peekBar}>
+        <TaskPeekToolbar
+          variant="side"
+          onClose={onClose}
+          onToggleSize={onExpand}
+          peekMode={peekMode}
+          onPeekModeChange={onPeekModeChange}
+          onPrevious={onPrevious}
+          onNext={onNext}
+          showNavigation={showNavigation}
+        />
+        {onOpenChat && (
+          <Tooltip label="Abrir assistente AI" position="bottom" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={Sparkle}
+              iconPosition="icon-only"
+              onClick={onOpenChat}
+              aria-label="Abrir assistente AI"
+            />
+          </Tooltip>
+        )}
+      </div>
+
       {/* Header + chips grouped as in Figma task details */}
       <div className={styles.topSection}>
       {/* Header: Checkbox + Title + Action Buttons (same flex row) */}
@@ -956,34 +992,6 @@ export function TaskDetailsSidebar({
               <h2 ref={titleRef} className={styles.title}>{title || task.title}</h2>
             </div>
           )}
-        </div>
-
-        <div className={styles.headerActions}>
-          {onExpand && (
-            <Button
-              variant="ghost"
-              icon={ArrowsOutSimple}
-              iconPosition="icon-only"
-              onClick={onExpand}
-              aria-label="Expandir para tela cheia"
-            />
-          )}
-          {onOpenChat && (
-            <Button
-              variant="secondary"
-              icon={Sparkle}
-              iconPosition="icon-only"
-              onClick={onOpenChat}
-              aria-label="Abrir assistente AI"
-            />
-          )}
-          <Button
-            variant="secondary"
-            icon={X}
-            iconPosition="icon-only"
-            onClick={onClose}
-            aria-label="Fechar sidebar"
-          />
         </div>
       </div>
 
