@@ -11,7 +11,7 @@
 
 import { type RefObject } from 'react';
 import { CaretDown, Plus, type Icon } from '@phosphor-icons/react';
-import { Tooltip } from '../../ui';
+import { Button, Tooltip } from '../../ui';
 import styles from './SidebarGroupHeader.module.css';
 
 export interface SidebarGroupHeaderAction {
@@ -27,7 +27,8 @@ export interface SidebarGroupHeaderProps {
   /** Show the + action button on hover */
   showAddButton?: boolean;
   onAdd?: () => void;
-  addButtonRef?: RefObject<HTMLButtonElement>;
+  /** The + button's wrapper (an anchor for popovers) */
+  addButtonRef?: RefObject<HTMLSpanElement>;
   /** Icon buttons revealed on hover, before the + button */
   actions?: SidebarGroupHeaderAction[];
   /** Keep the actions shown, not only on hover */
@@ -65,29 +66,32 @@ export function SidebarGroupHeader({
         <div className={styles.actions} data-visible={actionsVisible || undefined}>
           {actions.map(({ icon: ActionIcon, label: actionLabel, onClick }) => (
             <Tooltip key={actionLabel} label={actionLabel} position="top" showDelay={300}>
-              <button
-                className={styles.actionButton}
-                onClick={onClick}
-                type="button"
+              <Button
+                variant="ghost"
+                size="small"
+                icon={ActionIcon}
+                iconPosition="icon-only"
                 aria-label={actionLabel}
-              >
-                <ActionIcon size={20} />
-              </button>
+                onClick={onClick}
+              />
             </Tooltip>
           ))}
         </div>
       )}
 
       {showAddButton && (
-        <button
-          ref={addButtonRef}
-          className={styles.addButton}
-          onClick={onAdd}
-          type="button"
-          aria-label={`Adicionar em ${label}`}
-        >
-          <Plus size={20} />
-        </button>
+        <span ref={addButtonRef} className={styles.addButton}>
+          <Tooltip label={`Adicionar em ${label}`} position="top" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={Plus}
+              iconPosition="icon-only"
+              aria-label={`Adicionar em ${label}`}
+              onClick={onAdd}
+            />
+          </Tooltip>
+        </span>
       )}
     </div>
   );

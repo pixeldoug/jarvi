@@ -1972,7 +1972,8 @@ const runMigrations = async (): Promise<void> => {
     }
 
     // Migration: Recap de tarefas vencidas (web, once a day on the Tasks page) for SQLite.
-    // Opt-in: off by default.
+    // Opt-in: off by default. SQLite can't change the default of a column that
+    // already exists (it defaulted on), so account creation also sets FALSE.
     try {
       await db.exec('ALTER TABLE users ADD COLUMN overdue_recap_enabled BOOLEAN DEFAULT FALSE');
     } catch (e) {

@@ -61,82 +61,34 @@
 }
 
 /* ============================================================================
-   ADD BUTTON
-   Hidden by default; revealed when the header row is hovered.
+   ACTIONS + ADD BUTTON
+   The design system's ghost / small Button. Hidden until the header row is
+   hovered or focused (the actions also while `data-visible`). The 40px
+   buttons reach into the header's padding (-9px each side leaves the label's
+   22px) instead of making the row taller.
    ============================================================================ */
 
-/* Same size as the actions; reaches into the header's padding too */
+.actions,
 .addButton {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-block: -5px;
-  background: var(--component-sidebar-group-header-button-bg-default);
-  border: none;
-  border-radius: var(--radius-button-icon-radius);
-  color: var(--semantic-content-secondary);
-  cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.15s ease;
-
-  /* Hidden until the header is hovered */
+  margin-block: -9px;
   opacity: 0;
   pointer-events: none;
 }
 
-.header:hover .addButton {
-  opacity: 1;
-  pointer-events: auto;
-  background: var(--component-sidebar-group-header-button-bg-default);
-}
-
-.addButton:hover {
-  background: var(--component-sidebar-group-header-button-bg-hover) !important;
-}
-
-/* ============================================================================
-   ACTIONS
-   Same look as the add button; hidden until the header row is hovered or
-   focused, unless `data-visible`.
-   ============================================================================ */
-
-/* 32px buttons reach into the header's padding instead of making it taller */
 .actions {
-  display: flex;
-  align-items: center;
   gap: 2px;
-  flex-shrink: 0;
-  margin-block: -5px;
-  opacity: 0;
-  pointer-events: none;
 }
 
 .header:hover .actions,
 .header:focus-within .actions,
-.actions[data-visible] {
+.actions[data-visible],
+.header:hover .addButton,
+.header:focus-within .addButton {
   opacity: 1;
   pointer-events: auto;
-}
-
-.actionButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: var(--component-sidebar-group-header-button-bg-default);
-  border: none;
-  border-radius: var(--radius-button-icon-radius);
-  color: var(--semantic-content-secondary);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background-color 0.15s ease;
-}
-
-.actionButton:hover {
-  background: var(--component-sidebar-group-header-button-bg-hover);
 }
 
 /* Touch: no hover, keep the actions reachable */

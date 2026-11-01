@@ -122,7 +122,7 @@ export interface SidebarProps {
   selectedCategory?: CategoryType | null;
   onListSelect?: (listType: ListType) => void;
   onCategorySelect?: (category: CategoryType) => void;
-  addButtonRef?: RefObject<HTMLButtonElement>;
+  addButtonRef?: RefObject<HTMLSpanElement>;
   taskCounts?: {
     all?: number;
     today?: number;
