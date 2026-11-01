@@ -1,0 +1,178 @@
+/**
+ * CommandPalette — search field with Limpar / close on top, the Tudo /
+ * Tarefas / Notas tabs, then one list of results (recents while the field is
+ * empty). Built on Dialog (overrides its padding/size only), SegmentedControl
+ * and ListItem rows; the list has the panel scrollbar.
+ */
+
+/* ── Dialog overrides ─────────────────────────────────────────────────────── */
+
+.overlay {
+  align-items: flex-start;
+  padding-top: 12vh;
+  padding-bottom: 0;
+}
+
+/* Fixed height: the dialog doesn't jump while the results change */
+.dialog {
+  height: min(480px, calc(100vh - 160px));
+  padding: 0;
+  --dialog-padding-x: 0px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.dialogContent {
+  gap: 0;
+  overflow: hidden;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────── */
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The typed text lines up with the rows' icons below (16px row inset + the
+   row's own 16px); 8px of air above the 56px field */
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+  height: var(--sizes-16);
+  padding: var(--sizes-2) var(--sizes-4) 0 var(--sizes-8);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-primary);
+}
+
+.searchInput::placeholder {
+  color: var(--semantic-content-tertiary);
+}
+
+.searchInput:focus-visible {
+  outline: none;
+}
+
+.headerDivider {
+  height: var(--sizes-5);
+}
+
+.tabs {
+  flex-shrink: 0;
+  padding: 0 var(--sizes-4) var(--sizes-2);
+}
+
+/* ── Results ──────────────────────────────────────────────────────────────── */
+
+/* The dialog's body: rows keep 16px from both edges, like the tabs above.
+   The panel scrollbar sits 8px off the right edge in a gutter kept whether or
+   not it shows (8px margin + 6px bar + 2px padding = 16px), so rows never
+   move; 16px of room under the last row */
+.results {
+  composes: scrollbar-panel from global;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  margin-right: var(--sizes-2);
+  padding: 0 2px var(--sizes-4) var(--sizes-4);
+  --scrollbar-panel-padding-block: var(--sizes-4);
+}
+
+.group + .group {
+  margin-top: var(--sizes-2);
+}
+
+.groupLabel {
+  padding: var(--sizes-2) var(--sizes-4) var(--sizes-1);
+
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+/* Element-qualified to win over ListItem's own height and padding */
+button.optionOneLine {
+  height: var(--sizes-10);
+}
+
+button.optionTwoLines {
+  padding-top: var(--sizes-2);
+  padding-bottom: var(--sizes-2);
+}
+
+/* The keyboard highlight is ListItem's hover look; the pointer moves it too */
+.option[data-highlighted] {
+  background: var(--component-list-item-bg-hover);
+}
+
+.option:hover:not([data-highlighted]) {
+  background: var(--component-list-item-bg-default);
+}
+
+/* The query's words, in the title and the snippet */
+.match {
+  background: none;
+  color: var(--semantic-content-primary);
+  font-weight: 600;
+}
+
+.meta {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  white-space: nowrap;
+}
+
+.appLogo {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sizes-6) var(--sizes-3);
+  text-align: center;
+
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .overlay {
+    padding-top: 24px;
+  }
+
+  .dialog {
+    padding: 0;
+    height: min(560px, calc(100dvh - 48px));
+  }
+}

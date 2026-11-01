@@ -322,13 +322,14 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.29360824823379517,
-            0.31472164392471313,
-            0.3463917374610901
+            0.12156862745098039,
+            0.12549019607843137,
+            0.13725490196078433
           ],
           "alpha": 1,
-          "hex": "#4B5058"
+          "hex": "#1F2023"
         },
+        "$description": "Subtlest surface, like light mode's (between primary and secondary). Was Colors/gray/800, brighter than secondary. Changed in code on 2026-10-21: re-point it in Figma.",
         "$extensions": {
           "com.figma.variableId": "VariableID:13102:65690",
           "com.figma.scopes": [
@@ -336,8 +337,7 @@
             "SHAPE_FILL"
           ],
           "com.figma.aliasData": {
-            "targetVariableId": "VariableID:0f478546aef3ec096302cc62e400957083ee4333/-1:-1",
-            "targetVariableName": "Colors/gray/800",
+            "targetVariableName": "Colors/gray/925",
             "targetVariableSetId": "VariableCollectionId:bd9eab8967abc6c7a67edcebf51d4508f3dd383a/-1:-1",
             "targetVariableSetName": "Primitives"
           },
@@ -3016,6 +3016,30 @@
             "targetVariableSetName": "Primitives"
           },
           "com.figma.isOverride": true
+        }
+      }
+    },
+    "scrollbar": {
+      "thumb": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.29411764705882354,
+            0.3137254901960784,
+            0.34509803921568627
+          ],
+          "alpha": 1,
+          "hex": "#4B5058"
+        },
+        "$description": "Scrollbar thumb. Added in code on 2026-10-21 (was Semantic/surface/tertiary): create Components/scrollbar/thumb in Figma.",
+        "$extensions": {
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.aliasData": {
+            "targetVariableName": "Colors/gray/800"
+          }
         }
       }
     }

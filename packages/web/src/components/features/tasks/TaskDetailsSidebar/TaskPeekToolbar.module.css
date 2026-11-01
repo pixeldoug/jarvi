@@ -1,0 +1,53 @@
+/**
+ * TaskPeekToolbar styles
+ */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Shown while the pointer is over the details (`data-peek-root`), the toolbar
+   has keyboard focus (not a mouse click's), or the mode menu is open */
+.extras {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+:global([data-peek-root]:hover) .extras,
+.toolbar:has(:focus-visible) .extras,
+.extras[data-open] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Touch: no hover, keep them reachable */
+@media (hover: none) {
+  .extras {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--sizes-1);
+  background: var(--semantic-border-primary);
+}
+
+.anchor {
+  display: inline-flex;
+}
+
+/* Side peek: the panel on the right (SidebarSimple draws it on the left) */
+.mirrored svg,
+.mirroredIcon svg {
+  transform: scaleX(-1);
+}

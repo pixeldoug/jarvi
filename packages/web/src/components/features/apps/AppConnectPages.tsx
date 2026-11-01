@@ -1,0 +1,656 @@
+/**
+ * App connection pages — the body of the app dialog opened from the Apps page.
+ * WhatsApp and the AI assistants are available; the other apps stay disabled.
+ *
+ * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
+ * Nodes: 40001302-3829 / 40001305-4219 / 40001305-4296 (WA flow)
+ */
+
+import { useEffect, useState } from 'react';
+import { Button, ConnectionChip, Input } from '../../ui';
+import { useAuth } from '../../../contexts/AuthContext';
+import { formatWhatsAppPhone } from '../../../lib/whatsappPhone';
+import styles from './AppConnectPages.module.css';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+
+export type AppId =
+  | 'whatsapp'
+  | 'ai'
+  | 'gmail'
+  | 'outlook-mail'
+  | 'google-calendar'
+  | 'alexa'
+  | 'siri';
+
+export interface AppDefinition {
+  id: AppId;
+  name: string;
+  description: string;
+  icon: string;
+  available: boolean;
+}
+
+export const APPS: AppDefinition[] = [
+  {
+    id: 'whatsapp',
+    name: 'Whatsapp',
+    description: 'Interaja com a Jarvi no seu whatsapp.',
+    icon: '/icons/apps/whatsapp.svg',
+    available: true,
+  },
+  {
+    id: 'ai',
+    name: 'Assistentes de IA',
+    description: 'Use suas tarefas no ChatGPT, Claude e outros.',
+    icon: '',
+    available: true,
+  },
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    description: 'Deixe a Jarvi te ajudar com seus emails do Google.',
+    icon: '/icons/apps/gmail.svg',
+    available: false,
+  },
+  {
+    id: 'outlook-mail',
+    name: 'Outlook Mail',
+    description: 'Deixe a Jarvi te ajudar com seus emails do Outlook.',
+    icon: '/icons/apps/outlook.svg',
+    available: false,
+  },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    description: 'Compartilhe sua agenda do Google com a Jarvi.',
+    icon: '/icons/apps/google-calendar.svg',
+    available: false,
+  },
+  {
+    id: 'alexa',
+    name: 'Alexa',
+    description: 'Use a Alexa para conversar com a Jarvi.',
+    icon: '/icons/apps/alexa.svg',
+    available: false,
+  },
+  {
+    id: 'siri',
+    name: 'Siri',
+    description: 'Use a Siri para conversar com a Jarvi.',
+    icon: '/icons/apps/siri.png',
+    available: false,
+  },
+];
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+export const parseApiPayload = async (response: Response): Promise<Record<string, unknown>> => {
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json() as Promise<Record<string, unknown>>;
+  }
+  const rawText = await response.text();
+  if (!rawText) return {};
+  try {
+    return JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return { error: rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() };
+  }
+};
+
+// ============================================================================
+// WHATSAPP CONNECTION SUB-PAGE
+// ============================================================================
+
+type WhatsAppState = 'initial' | 'awaitingCode' | 'connected';
+
+export function WhatsAppConnectPage() {
+  const { token, user, unlinkWhatsApp } = useAuth();
+  const canUnlinkWhatsapp = Boolean(user?.email && user?.emailVerified);
+
+  const [whatsappState, setWhatsappState] = useState<WhatsAppState>('initial');
+  const [phone, setPhone] = useState('');
+  const [linkedPhone, setLinkedPhone] = useState<string | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const clearFeedback = () => {
+    setError('');
+    setSuccessMsg('');
+  };
+
+  // Load current WhatsApp link status on mount
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const load = async () => {
+      setStatusLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/api/users/whatsapp-link`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await parseApiPayload(res);
+        if (!res.ok) return;
+        if (cancelled) return;
+
+        const fetchedPhone = typeof data.phone === 'string' ? data.phone : '';
+        setLinkedPhone(fetchedPhone || null);
+        setPhone(fetchedPhone);
+
+        if (data.linked) {
+          setWhatsappState('connected');
+        } else if (data.awaitingCode) {
+          setWhatsappState('awaitingCode');
+        } else {
+          setWhatsappState('initial');
+        }
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  // Send verification code
+  const handleRequestCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+    setRequestLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-link/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao enviar código de verificação'));
+
+      setSuccessMsg(String(data.message || 'Código enviado com sucesso.'));
+      setLinkedPhone(typeof data.phone === 'string' ? data.phone : phone);
+      setWhatsappState('awaitingCode');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao enviar código');
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
+  // Resend verification code
+  const handleResendCode = async () => {
+    clearFeedback();
+    setRequestLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-link/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao reenviar código'));
+      setSuccessMsg(String(data.message || 'Código reenviado com sucesso.'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao reenviar código');
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
+  // Confirm verification code
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearFeedback();
+    setVerifyLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/whatsapp-link/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ code: verificationCode }),
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao validar código'));
+
+      setSuccessMsg(String(data.message || 'WhatsApp vinculado com sucesso.'));
+      setLinkedPhone(typeof data.phone === 'string' ? data.phone : linkedPhone);
+      setVerificationCode('');
+      setWhatsappState('connected');
+      window.dispatchEvent(
+        new CustomEvent('jarvi:whatsapp-link-changed', { detail: { linked: true } })
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao validar código');
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // Unlink WhatsApp
+  const handleUnlink = async () => {
+    clearFeedback();
+    setUnlinkLoading(true);
+    try {
+      await unlinkWhatsApp();
+      setSuccessMsg('WhatsApp desvinculado com sucesso.');
+      setLinkedPhone(null);
+      setPhone('');
+      setVerificationCode('');
+      setWhatsappState('initial');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao desvincular WhatsApp');
+    } finally {
+      setUnlinkLoading(false);
+    }
+  };
+
+  return (
+    <div className={styles.subPageWrapper}>
+      {/* App identity header */}
+      <div className={styles.subPageAppHeader}>
+        <div className={styles.iconContainer}>
+          <img
+            src="/icons/apps/whatsapp.svg"
+            alt="WhatsApp"
+            className={styles.appIcon}
+            draggable={false}
+          />
+        </div>
+        <h1 className={styles.subPageAppName}>Whatsapp</h1>
+      </div>
+
+      <p className={styles.pageSubtitle}>Interaja com a Jarvi no seu WhatsApp.</p>
+
+      {/* Feedback */}
+      {statusLoading && <p className={styles.pageSubtitle}>Carregando...</p>}
+      {error && <p className={styles.feedbackError}>{error}</p>}
+      {successMsg && <p className={styles.feedbackSuccess}>{successMsg}</p>}
+
+      {/* ── INITIAL STATE ─────────────────────────────────────────── */}
+      {whatsappState === 'initial' && (
+        <form className={styles.formSection} onSubmit={handleRequestCode}>
+          <div>
+            <label className={styles.fieldLabel} htmlFor="wa-phone-initial">
+              Número do WhatsApp
+            </label>
+            <div className={styles.inputRow}>
+              <Input
+                id="wa-phone-initial"
+                name="phone"
+                type="tel"
+                placeholder="+551199999999"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                showLabel={false}
+                required
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                loading={requestLoading}
+                disabled={requestLoading}
+              >
+                Enviar Código
+              </Button>
+            </div>
+            <p className={styles.helperText}>Use DDI + DDD + número</p>
+          </div>
+        </form>
+      )}
+
+      {/* ── AWAITING CODE STATE ────────────────────────────────────── */}
+      {whatsappState === 'awaitingCode' && (
+        <form className={styles.formSection} onSubmit={handleVerifyCode}>
+          <div>
+            <label className={styles.fieldLabel} htmlFor="wa-phone-await">
+              Número do WhatsApp
+            </label>
+            <div className={styles.inputRow}>
+              <Input
+                id="wa-phone-await"
+                name="phone"
+                type="tel"
+                placeholder="+551199999999"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                showLabel={false}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                loading={requestLoading}
+                disabled={requestLoading}
+                onClick={handleResendCode}
+              >
+                Renviar Código
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <label className={styles.fieldLabel} htmlFor="wa-code">
+              Código de verificação
+            </label>
+            <div className={styles.inputRow}>
+              <Input
+                id="wa-code"
+                name="code"
+                type="text"
+                placeholder="Digite o código de 6 dígitos"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                showLabel={false}
+                required
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                loading={verifyLoading}
+                disabled={verifyLoading}
+              >
+                Confirmar
+              </Button>
+            </div>
+            <p className={styles.helperText}>Use DDI + DDD + número</p>
+          </div>
+        </form>
+      )}
+
+      {/* ── CONNECTED STATE ────────────────────────────────────────── */}
+      {whatsappState === 'connected' && (
+        <div className={styles.formSection}>
+          <div className={styles.connectedRow}>
+            <ConnectionChip />
+            <p className={styles.connectedPhone}>
+              {linkedPhone ? formatWhatsAppPhone(linkedPhone) : linkedPhone}
+            </p>
+            {canUnlinkWhatsapp && (
+              <div className={styles.connectedActions}>
+                <Button
+                  variant="secondary"
+                  loading={unlinkLoading}
+                  disabled={unlinkLoading}
+                  onClick={handleUnlink}
+                >
+                  Desconectar
+                </Button>
+              </div>
+            )}
+          </div>
+          {!canUnlinkWhatsapp && (
+            <p className={styles.helperText}>
+              Adicione um email em Meu perfil para poder desconectar o WhatsApp.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// GMAIL CONNECTION SUB-PAGE
+// ============================================================================
+
+export function GmailConnectPage() {
+  const { token } = useAuth();
+
+  const [connected, setConnected] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [disconnectLoading, setDisconnectLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [resyncLoading, setResyncLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const clearFeedback = () => {
+    setError('');
+    setSuccessMsg('');
+  };
+
+  // Check connection status on mount and when returning from OAuth redirect
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const checkStatus = async () => {
+      setStatusLoading(true);
+      try {
+        const res = await fetch(`${API_URL}/api/gmail/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await parseApiPayload(res);
+        if (cancelled) return;
+        setConnected(Boolean(data.connected));
+
+        // Handle query params set by the OAuth callback redirect
+        const params = new URLSearchParams(window.location.search);
+        const gmailParam = params.get('gmail');
+        if (gmailParam === 'connected') {
+          setSuccessMsg('Gmail conectado com sucesso!');
+          setConnected(true);
+          // Clean up URL
+          const url = new URL(window.location.href);
+          url.searchParams.delete('gmail');
+          window.history.replaceState({}, '', url.toString());
+        } else if (gmailParam === 'error') {
+          const reason = params.get('reason') ?? 'unknown';
+          setError(`Falha ao conectar Gmail: ${reason}`);
+          const errorUrl = new URL(window.location.href);
+          errorUrl.searchParams.delete('gmail');
+          errorUrl.searchParams.delete('reason');
+          window.history.replaceState({}, '', errorUrl.toString());
+        }
+      } catch (err) {
+        if (!cancelled) setError('Erro ao verificar status do Gmail');
+      } finally {
+        if (!cancelled) setStatusLoading(false);
+      }
+    };
+
+    void checkStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const handleConnect = async () => {
+    clearFeedback();
+    setConnectLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/gmail/connect`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao iniciar conexão com Gmail'));
+      const url = typeof data.url === 'string' ? data.url : '';
+      if (url) window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao conectar Gmail');
+    } finally {
+      setConnectLoading(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    clearFeedback();
+    setDisconnectLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/gmail/disconnect`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao desconectar Gmail'));
+      setConnected(false);
+      setSuccessMsg('Gmail desconectado com sucesso.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao desconectar Gmail');
+    } finally {
+      setDisconnectLoading(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    clearFeedback();
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/gmail/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao sincronizar emails'));
+      const created = typeof data.created === 'number' ? data.created : 0;
+      const analyzed = typeof data.analyzed === 'number' ? data.analyzed : 0;
+      setSuccessMsg(
+        created > 0
+          ? `${created} tarefa(s) sugerida(s) a partir de ${analyzed} email(s) analisado(s).`
+          : `${analyzed} email(s) analisado(s). Nenhuma ação necessária encontrada.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao sincronizar emails');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleResync = async () => {
+    clearFeedback();
+    setResyncLoading(true);
+    try {
+      // Clear processed history first so all emails are re-analyzed
+      await fetch(`${API_URL}/api/gmail/processed`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Then run a fresh sync
+      const res = await fetch(`${API_URL}/api/gmail/sync`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseApiPayload(res);
+      if (!res.ok) throw new Error(String(data.error || 'Erro ao re-sincronizar emails'));
+      const created = typeof data.created === 'number' ? data.created : 0;
+      const analyzed = typeof data.analyzed === 'number' ? data.analyzed : 0;
+      setSuccessMsg(
+        created > 0
+          ? `${created} tarefa(s) sugerida(s) a partir de ${analyzed} email(s) analisado(s).`
+          : `${analyzed} email(s) analisado(s). Nenhuma ação necessária encontrada.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao re-sincronizar emails');
+    } finally {
+      setResyncLoading(false);
+    }
+  };
+
+  return (
+    <div className={styles.subPageWrapper}>
+      {/* App identity header */}
+      <div className={styles.subPageAppHeader}>
+        <div className={styles.iconContainer}>
+          <img
+            src="/icons/apps/gmail.svg"
+            alt="Gmail"
+            className={styles.appIcon}
+            draggable={false}
+          />
+        </div>
+        <h1 className={styles.subPageAppName}>Gmail</h1>
+      </div>
+
+      <p className={styles.pageSubtitle}>
+        Conecte seu Gmail para que a Jarvi identifique emails que precisam de ação e os transforme
+        em tarefas automaticamente.
+      </p>
+
+      {/* Feedback */}
+      {statusLoading && <p className={styles.pageSubtitle}>Carregando...</p>}
+      {error && <p className={styles.feedbackError}>{error}</p>}
+      {successMsg && <p className={styles.feedbackSuccess}>{successMsg}</p>}
+
+      {/* ── NOT CONNECTED ─────────────────────────────────────────── */}
+      {!statusLoading && !connected && (
+        <div className={styles.formSection}>
+          <Button
+            variant="primary"
+            loading={connectLoading}
+            disabled={connectLoading}
+            onClick={handleConnect}
+          >
+            Conectar com Google
+          </Button>
+          <p className={styles.helperText}>
+            Você será redirecionado para autenticação do Google. Jarvi solicitará apenas acesso de
+            leitura aos seus emails.
+          </p>
+        </div>
+      )}
+
+      {/* ── CONNECTED ─────────────────────────────────────────────── */}
+      {!statusLoading && connected && (
+        <div className={styles.formSection}>
+          <div className={styles.connectedRow}>
+            <ConnectionChip />
+            <div className={styles.connectedActions}>
+              <Button
+                variant="secondary"
+                loading={syncLoading}
+                disabled={syncLoading || resyncLoading || disconnectLoading}
+                onClick={handleSyncNow}
+              >
+                Sincronizar novos
+              </Button>
+              <Button
+                variant="secondary"
+                loading={resyncLoading}
+                disabled={resyncLoading || syncLoading || disconnectLoading}
+                onClick={handleResync}
+              >
+                Re-analisar tudo
+              </Button>
+              <Button
+                variant="secondary"
+                loading={disconnectLoading}
+                disabled={disconnectLoading || syncLoading || resyncLoading}
+                onClick={handleDisconnect}
+              >
+                Desconectar
+              </Button>
+            </div>
+          </div>
+          <p className={styles.helperText}>
+            "Sincronizar novos" analisa apenas emails ainda não verificados. "Re-analisar tudo" refaz a análise dos últimos 3 dias completos.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}

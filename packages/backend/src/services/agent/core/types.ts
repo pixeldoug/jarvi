@@ -88,10 +88,6 @@ export type ToolName =
   | 'delete_task'
   | 'search_tasks'
   | 'update_memory'
-  | 'create_list'
-  | 'update_list'
-  | 'delete_list'
-  | 'show_list'
   | 'create_category'
   | 'update_category'
   | 'delete_category'
@@ -142,7 +138,7 @@ export interface ToolExecutionResult {
 
 export type AgentOperationKind = 'write' | 'read';
 
-export type AgentOperationEntityType = 'task' | 'list' | 'category' | 'memory' | 'gmail' | 'notification';
+export type AgentOperationEntityType = 'task' | 'category' | 'memory' | 'gmail' | 'notification';
 
 export interface AgentOperationEntity {
   type: AgentOperationEntityType;
@@ -315,8 +311,6 @@ export interface AgentContext {
   activeTaskCount?: number;
   /** Count of completed tasks for the prompt header. */
   completedTaskCount: number;
-  /** User's saved filter lists (web only — empty for WhatsApp). */
-  lists: ListRow[];
   /** User's categories (web only — empty for WhatsApp). */
   categories: CategoryRow[];
   /** Mode for web: 'task' = chat scoped to a single task, 'general' = default. */

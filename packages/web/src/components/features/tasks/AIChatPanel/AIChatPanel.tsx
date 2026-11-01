@@ -3,7 +3,14 @@ import type { ClipboardEvent, DragEvent } from 'react';
 import { X, PaperPlaneRight, NotePencil, Sparkle, Paperclip, FileText, UploadSimple } from '@phosphor-icons/react';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSubscription } from '../../../../contexts/SubscriptionContext';
-import { useChatStream, ToolCallData, ChatAttachment, type ChatMessageData } from '../../../../hooks/useChatStream';
+import {
+  useChatStream,
+  ToolCallData,
+  ChatAttachment,
+  type ChatConversationRef,
+  type ChatMessageData,
+  type ChatMode,
+} from '../../../../hooks/useChatStream';
 import {
   MAX_CHAT_ATTACHMENTS,
   PendingAttachment,
@@ -24,10 +31,14 @@ import jarviLogo from '../../../../assets/logo/symbol.svg';
 import styles from './AIChatPanel.module.css';
 
 export interface AIChatPanelProps {
-  mode: 'task' | 'general';
+  /** `note`: general agent + the note as context (needs `noteId`) */
+  mode: ChatMode;
   taskId?: string;
+  /** Note the chat is about (note mode only) */
+  noteId?: string;
   taskTitle?: string;
-  onClose: () => void;
+  /** The header's close button (`panel` variant) */
+  onClose?: () => void;
   /** Called once per new successful tool call, with the tool call data */
   onTaskMutated: (toolCalls: ToolCallData[]) => void;
   /**
@@ -40,8 +51,6 @@ export interface AIChatPanelProps {
   initialAttachments?: ChatAttachment[];
   /** Called when the user clicks a task card artifact inside the chat */
   onTaskCardClick?: (taskId: string) => void;
-  /** Called when the user clicks a list/filter card artifact inside the chat */
-  onListCardClick?: (listId: string) => void;
   /** Called when the user clicks a category card artifact inside the chat */
   onCategoryCardClick?: (categoryName: string) => void;
   /**
@@ -50,25 +59,38 @@ export interface AIChatPanelProps {
    */
   onAttachToTask?: (attachments: ChatAttachment[]) => void;
   /**
-   * Called when a message with attachments is sent in general mode, so the
-   * parent can attach those files to a task the AI creates in the same turn.
+   * Called when a message with attachments is sent in general (or note) mode,
+   * so the parent can attach those files to a task the AI creates in the same turn.
    */
   onAttachmentsSent?: (attachments: ChatAttachment[]) => void;
+  /** The recorded conversation `seededMessages` come from (Chats history): the chat continues it */
+  conversationId?: string;
+  /** Each turn's recorded conversation (a new chat's first message creates it) */
+  onConversation?: (conversation: ChatConversationRef) => void;
+  /**
+   * `panel` (default): right sidebar / sheet, with its header. `page`: the
+   * Chats page's main card — no header (the page shows the title), messages
+   * and input in one centered column.
+   */
+  variant?: 'panel' | 'page';
 }
 
 export function AIChatPanel({
   mode,
   taskId,
+  noteId,
   onClose,
   onTaskMutated,
   initialMessage,
   initialAttachments,
   seededMessages,
   onTaskCardClick,
-  onListCardClick,
   onCategoryCardClick,
   onAttachToTask,
   onAttachmentsSent,
+  conversationId,
+  onConversation,
+  variant = 'panel',
 }: AIChatPanelProps) {
   const { user } = useAuth();
   const { trialExpired } = useSubscription();
@@ -76,13 +98,17 @@ export function AIChatPanel({
     mode,
     taskId,
     seededMessages,
+    noteId,
+    { conversationId, onConversation },
   );
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [viewingAttachment, setViewingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dismissedChoiceId, setDismissedChoiceId] = useState<string | null>(null);
-  const stickToBottomRef = useRef((seededMessages?.length ?? 0) === 0);
+  // A seeded follow-up reads from the top; a conversation reopened from the
+  // history opens at its latest messages.
+  const stickToBottomRef = useRef((seededMessages?.length ?? 0) === 0 || !!conversationId);
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -155,15 +181,14 @@ export function AIChatPanel({
     const hasInitialAttachments = (initialAttachments?.length ?? 0) > 0;
     if ((initialMessage || hasInitialAttachments) && !initialSentRef.current) {
       initialSentRef.current = true;
-      // The initial message bypasses handleSend, so replicate its attachment
-      // persistence here — otherwise files sent with the first message (e.g.
-      // from the ControlBar) never reach the task the AI creates this turn.
-      if (hasInitialAttachments && initialAttachments) {
-        if (mode === 'task') {
-          onAttachToTask?.(initialAttachments);
-        } else {
-          onAttachmentsSent?.(initialAttachments);
-        }
+      // The initial message bypasses handleSend and sendFromUser, so replicate
+      // their attachment persistence here — otherwise files sent with the first
+      // message (e.g. from the ControlBar) never reach the task the AI creates
+      // this turn, and files held from an earlier turn could.
+      if (mode === 'task') {
+        if (hasInitialAttachments && initialAttachments) onAttachToTask?.(initialAttachments);
+      } else {
+        onAttachmentsSent?.(initialAttachments ?? []);
       }
       sendMessage(initialMessage ?? '', initialAttachments ?? []);
     }
@@ -174,7 +199,9 @@ export function AIChatPanel({
     if (chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
     }
-  }, []);
+    // Chats page on mobile: the document scrolls, not the chat body
+    if (variant === 'page') window.scrollTo({ top: document.documentElement.scrollHeight });
+  }, [variant]);
 
   useEffect(() => {
     if (!stickToBottomRef.current) {
@@ -187,9 +214,13 @@ export function AIChatPanel({
   const sendFromUser = useCallback(
     (text: string, attachments: ChatAttachment[] = []) => {
       stickToBottomRef.current = true;
+      // Outside task mode, hand this turn's files to the parent so they can be
+      // attached to a task the AI creates in it. Reported even when empty, so
+      // files from an earlier turn (or another chat) never reach that task.
+      if (mode !== 'task') onAttachmentsSent?.(attachments);
       return sendMessage(text, attachments);
     },
-    [sendMessage],
+    [sendMessage, mode, onAttachmentsSent],
   );
 
   // Fire onTaskMutated exactly once per new successful tool result.
@@ -269,22 +300,15 @@ export function AIChatPanel({
     const payload: ChatAttachment[] = toChatAttachmentPayload(attachments);
     setInput('');
     setAttachments([]);
-    // Persist the files into a task's context so they live on after the
-    // message is sent (and the input chips are cleared): in task mode, attach
-    // to the current task; in general mode, hand them to the parent so they can
-    // be attached to a task the AI creates in this same turn.
-    if (payload.length > 0) {
-      if (mode === 'task') {
-        onAttachToTask?.(payload);
-      } else {
-        onAttachmentsSent?.(payload);
-      }
-    }
+    // In task mode, persist the files into the current task so they live on
+    // after the message is sent (and the input chips are cleared). Other modes
+    // hand them to the parent in sendFromUser.
+    if (mode === 'task' && payload.length > 0) onAttachToTask?.(payload);
     sendFromUser(text, payload);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [input, attachments, isStreaming, trialExpired, sendFromUser, mode, onAttachToTask, onAttachmentsSent]);
+  }, [input, attachments, isStreaming, trialExpired, sendFromUser, mode, onAttachToTask]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -315,32 +339,34 @@ export function AIChatPanel({
   const firstName = user?.name?.split(' ')[0] || '';
 
   return (
-    <div className={styles.panel}>
-      {/* Header */}
-      <div className={styles.header}>
-        <Sparkle weight="fill" size={20} className={styles.headerIcon} />
-        <span className={styles.headerTitle}>
-          {hasMessages ? 'Conversa' : 'Nova conversa'}
-        </span>
-        <div className={styles.headerActions}>
-          {hasMessages && (
+    <div className={`${styles.panel} ${variant === 'page' ? styles.panelPage : ''}`}>
+      {/* Header (the Chats page shows its own title) */}
+      {variant === 'panel' && (
+        <div className={styles.header}>
+          <Sparkle weight="fill" size={20} className={styles.headerIcon} />
+          <span className={styles.headerTitle}>
+            {hasMessages ? 'Conversa' : 'Nova conversa'}
+          </span>
+          <div className={styles.headerActions}>
+            {hasMessages && (
+              <Button
+                variant="secondary"
+                icon={NotePencil}
+                iconPosition="icon-only"
+                aria-label="Nova conversa"
+                onClick={handleNewConversation}
+              />
+            )}
             <Button
               variant="secondary"
-              icon={NotePencil}
+              icon={X}
               iconPosition="icon-only"
-              aria-label="Nova conversa"
-              onClick={handleNewConversation}
+              aria-label="Fechar"
+              onClick={onClose}
             />
-          )}
-          <Button
-            variant="secondary"
-            icon={X}
-            iconPosition="icon-only"
-            aria-label="Fechar"
-            onClick={onClose}
-          />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Chat Body */}
       <div className={styles.chatBody} ref={chatBodyRef}>
@@ -353,7 +379,9 @@ export function AIChatPanel({
               Como posso te ajudar?
             </h3>
             <p className={styles.emptySubtitle}>
-              Algumas ideias do que posso fazer:
+              {mode === 'note'
+                ? 'Pergunte algo sobre esta nota:'
+                : 'Algumas ideias do que posso fazer:'}
             </p>
             <SkillChips mode={mode} onSelect={handleSkillSelect} />
           </div>
@@ -371,7 +399,6 @@ export function AIChatPanel({
                 }
                 taskArtifactOwner={taskArtifactOwner}
                 onTaskCardClick={onTaskCardClick}
-                onListCardClick={onListCardClick}
                 onCategoryCardClick={onCategoryCardClick}
                 onJourneyResume={
                   index === messages.length - 1 &&

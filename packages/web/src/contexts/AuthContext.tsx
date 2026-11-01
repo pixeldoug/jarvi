@@ -18,6 +18,8 @@ interface User {
   whatsappVerified?: boolean;
   whatsappPhone?: string;
   emailVerified?: boolean;
+  /** Recap de tarefas vencidas on the Tasks page (Settings › Tarefas); absent = on */
+  overdueRecapEnabled?: boolean;
 }
 
 interface RegisterMeta {

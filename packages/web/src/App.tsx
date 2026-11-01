@@ -10,9 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaskProvider } from './contexts/TaskContext';
-import { NoteProvider } from './contexts/NoteContext';
 import { CategoryProvider } from './contexts/CategoryContext';
-import { ListProvider } from './contexts/ListContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { BackgroundProvider } from './contexts/BackgroundContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
@@ -141,7 +139,23 @@ function AppSwitch() {
         }
       />
       <Route
-        path="/notes"
+        path="/notes/*"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/chats/*"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/apps"
         element={
           <ProtectedRoute>
             <Layout />
@@ -205,15 +219,11 @@ function App() {
         <AuthProvider>
           <SubscriptionProvider>
             <CategoryProvider>
-              <ListProvider>
-                <TaskProvider>
-                  <NoteProvider>
-                    <ToastProvider>
-                      <AppRoutes />
-                    </ToastProvider>
-                  </NoteProvider>
-                </TaskProvider>
-              </ListProvider>
+              <TaskProvider>
+                <ToastProvider>
+                  <AppRoutes />
+                </ToastProvider>
+              </TaskProvider>
             </CategoryProvider>
           </SubscriptionProvider>
         </AuthProvider>

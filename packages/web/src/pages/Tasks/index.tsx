@@ -5,12 +5,12 @@
  */
 
 import { useState, useMemo, useCallback, memo, useEffect, useRef, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { MOBILE_BREAKPOINT } from '../../components/layout/MainLayout/MainLayout';
-import { BottomSheet } from '../../components/ui';
-import { Gear, ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple } from '@phosphor-icons/react';
-import { useQueryClient } from '@tanstack/react-query';
+import { BottomSheet, SegmentedControl, type SegmentedControlItem } from '../../components/ui';
+import { ArrowsInLineVertical, ArrowsOutLineVertical, FunnelSimple, Checks, Kanban, CalendarDots, CardsThree, Tray } from '@phosphor-icons/react';
+import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { useTasks, Task } from '../../contexts/TaskContext';
 import type { ToolCallData, ChatAttachment, ChatMessageData } from '../../hooks/useChatStream';
 import { consumeOnboardingChatSeed, buildOnboardingChatMessages } from '../../lib/onboardingChatSeed';
@@ -19,23 +19,28 @@ import {
   isChoicePreviewRequested,
 } from '../../lib/choiceUiInstrumentation';
 import { mergeAttachmentsIntoDescription, buildAiTaskDescription } from '../../utils/chatAttachments';
-import { useLists } from '../../contexts/ListContext';
 import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
 import type { PendingTask } from '../../hooks/usePendingTasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
 import { MainLayout } from '../../components/layout';
 import { Sidebar, ListType } from '../../components/layout/Sidebar';
-import type { SettingsPage } from '../../components/layout/Sidebar';
+import type { SettingsPage, TasksNavigationState } from '../../components/layout/Sidebar';
+import type { TaskPeekMode } from '../../components/features/tasks/TaskDetailsSidebar';
 import { Button, TaskCreationData, Collapsible, Tooltip } from '../../components/ui';
 import { toast } from '../../components/ui/Sonner';
 import { formatRecurrenceSchedule } from '../../lib/utils';
-import { CreateListPopover } from '../../components/features/tasks/CreateListPopover/CreateListPopover';
-import { FilterPopover, DEFAULT_FILTER_STATE } from '../../components/features/tasks/FilterPopover/FilterPopover';
-import type { FilterState } from '../../components/features/tasks/FilterPopover/FilterPopover';
+import { FilterMenu } from '../../components/features/tasks/FilterMenu/FilterMenu';
+import { OverdueRecapScreen, useOverdueRecap } from '../../components/features/tasks/OverdueRecap';
+import {
+  applyTaskFilters,
+  countActiveFilters,
+  EMPTY_TASK_FILTERS,
+  type TaskFilters,
+} from '../../lib/taskFilters';
 import { TaskEmptyState } from '../../components/features/tasks/EmptyState';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { usePendingTasks } from '../../hooks/usePendingTasks';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, animate } from 'motion/react';
 import {
   DndContext,
   closestCenter,
@@ -151,6 +156,29 @@ function getLocalDateKey(date: Date): string {
 // ── Module-level constants (stable, never recreated) ─────────────────────────
 
 /** Default open/collapsed state for every section in the all-view. */
+/** How a task opens from the list (the peek toolbar's switch), kept per browser */
+const TASK_PEEK_MODE_KEY = 'jarvi_task_peek_mode';
+
+function readTaskPeekMode(): TaskPeekMode {
+  try {
+    return localStorage.getItem(TASK_PEEK_MODE_KEY) === 'full' ? 'full' : 'side';
+  } catch {
+    return 'side';
+  }
+}
+
+/** The list's sections in screen order, for the peek toolbar's prev / next */
+const PEEK_NAVIGATION_SECTIONS = [
+  ['vencidas', 'vencidas'],
+  ['hoje', 'hoje'],
+  ['amanha', 'amanha'],
+  ['estaSemana', 'esta-semana'],
+  ['proximaSemana', 'proxima-semana'],
+  ['maisTarde', 'mais-tarde'],
+  ['semData', 'sem-data'],
+  ['completadas', 'completadas'],
+] as const;
+
 const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   integracoes: true,
   vencidas: false,
@@ -164,17 +192,70 @@ const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   completadas: false,
 };
 
+type TasksViewMode = 'list' | 'week' | 'month';
+
+/** Lista / Semana / Mês switch: same compact SegmentedControl as the note tabs */
+const TASKS_VIEW_ITEMS: ReadonlyArray<SegmentedControlItem<TasksViewMode>> = [
+  { value: 'list', label: 'Lista', icon: Checks },
+  { value: 'week', label: 'Semana', icon: Kanban },
+  { value: 'month', label: 'Mês', icon: CalendarDots },
+];
+
+/** Every `ListType`, so router state from other pages can be validated. */
+const LIST_TYPES: Record<ListType, true> = {
+  all: true,
+  important: true,
+  today: true,
+  tomorrow: true,
+  week: true,
+  later: true,
+  noDate: true,
+  overdue: true,
+  recurring: true,
+  completed: true,
+};
+
+const isListType = (value: unknown): value is ListType =>
+  typeof value === 'string' && Object.prototype.hasOwnProperty.call(LIST_TYPES, value);
+
+const nonEmptyString = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value : null;
+
+/**
+ * Initial view requested by another page through router state (the Sidebar on
+ * /notes or /apps navigates here with `{ tasksView | tasksCategory }`).
+ * Mirrors the Sidebar handlers: a category implies the 'all' list.
+ */
+function readTasksNavigationState(locationState: unknown): {
+  list: ListType;
+  categoryName: string | null;
+} {
+  const state = (
+    locationState && typeof locationState === 'object' ? locationState : {}
+  ) as TasksNavigationState;
+  const categoryName = nonEmptyString(state.tasksCategory);
+  const list = !categoryName && isListType(state.tasksView) ? state.tasksView : 'all';
+  return { list, categoryName };
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** The full-screen task card leaving: back into the right panel (fade) or closed (slide) */
+const CENTER_CARD_VARIANTS = {
+  leaving: (toPanel: boolean) =>
+    toPanel ? { opacity: 0, transition: { duration: 0.16 } } : { x: 60 },
+};
+
 export function Tasks() {
   const location = useLocation();
-  const [selectedList, setSelectedList] = useState<ListType>('all');
-  const [selectedCustomListId, setSelectedCustomListId] = useState<string | null>(null);
-  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
-  const [isCreateListOpen, setIsCreateListOpen] = useState(false);
-  const [isEditListOpen, setIsEditListOpen] = useState(false);
-  const addListButtonRef = useRef<HTMLButtonElement>(null);
+  const navigate = useNavigate();
+  // Read once on mount; later state changes (e.g. onboarding seed) don't reset the view.
+  const [initialView] = useState(() => readTasksNavigationState(location.state));
+  const [selectedList, setSelectedList] = useState<ListType>(initialView.list);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(
+    initialView.categoryName
+  );
   // Ref forwarded to MainLayout's .mainBody — used as IntersectionObserver root
   const mainBodyRef = useRef<HTMLDivElement>(null);
 
@@ -195,14 +276,14 @@ export function Tasks() {
   const onboardingChatOpenedRef = useRef(false);
   const choicePreviewOpenedRef = useRef(false);
   const [onboardingChatReveal, setOnboardingChatReveal] = useState(false);
-  const [isCustomListCompletedOpen, setIsCustomListCompletedOpen] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(ALL_SECTIONS_OPEN);
   const [weekSectionOpen, setWeekSectionOpen] = useState<Record<string, boolean>>({});
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
+  const [activeFilters, setActiveFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
   const filterAnchorRef = useRef<HTMLDivElement>(null);
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week');
   const [calendarAnchorDate, setCalendarAnchorDate] = useState(() => getLocalDateKey(new Date()));
+  const [isCalendarInboxOpen, setIsCalendarInboxOpen] = useState(false);
 
   const showTaskInCenter =
     !!selectedTask &&
@@ -220,8 +301,9 @@ export function Tasks() {
 
 
   const queryClient = useQueryClient();
-  const { 
-    tasks, 
+  const isFetchingTasks = useIsFetching({ queryKey: ['tasks'] }) > 0;
+  const {
+    tasks,
     isLoading, 
     error, 
     createTask,
@@ -232,7 +314,6 @@ export function Tasks() {
     reorderTasks,
   } = useTasks();
 
-  const { lists: customLists } = useLists();
   const mergedTaskCategories = useMergedTaskCategories();
   const {
     pendingTasks,
@@ -344,21 +425,15 @@ export function Tasks() {
     setTaskPinnedInCenter(false);
   }, []);
 
-  const handleEdit = (task: any) => {
-    // Keep an open chat on the right; open task details in the center column.
-    if (isChatOpen) {
-      setExpandedFromList(false);
-      setTaskPinnedInCenter(true);
-    }
-    setSelectedTask(task);
-  };
-
   const handleTaskClick = (task: Task) => {
     // Keep an open chat on the right; open task details in the center column
     // (over the list) instead of replacing the conversation panel.
     if (isChatOpen) {
       setExpandedFromList(false);
       setTaskPinnedInCenter(true);
+    } else if (taskPeekMode === 'full') {
+      // The peek toolbar's "Página inteira": tasks open as a full page
+      setExpandedFromList(true);
     }
     setSelectedTask(task);
     setSelectedPendingTask(null);
@@ -414,14 +489,72 @@ export function Tasks() {
     }
   }, [chatMode]);
 
-  const handleExpandTaskDetails = useCallback(() => {
-    setExpandedFromList(true);
-    setTaskPinnedInCenter(false);
+  // Expanding a task's details to full screen (and back) morphs the card
+  // between the right panel and the main card instead of sliding one out and
+  // another in: the panel leaves at once (MainLayout `morph`), and the center
+  // card is revealed from where the panel was (`revealCenterCard`).
+  const [isDetailsMorphing, setIsDetailsMorphing] = useState(false);
+  const detailsMorphTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightDetailsPanelRef = useRef<HTMLDivElement>(null);
+  /** The right panel's screen box when expanding, read once by the center card */
+  const detailsExpandOriginRef = useRef<{ left: number; right: number } | null>(null);
+
+  const startDetailsMorph = useCallback(() => {
+    setIsDetailsMorphing(true);
+    if (detailsMorphTimerRef.current) clearTimeout(detailsMorphTimerRef.current);
+    detailsMorphTimerRef.current = setTimeout(() => setIsDetailsMorphing(false), 450);
   }, []);
 
+  useEffect(() => () => {
+    if (detailsMorphTimerRef.current) clearTimeout(detailsMorphTimerRef.current);
+  }, []);
+
+  const handleExpandTaskDetails = useCallback(() => {
+    const panel = rightDetailsPanelRef.current?.getBoundingClientRect();
+    detailsExpandOriginRef.current = panel ? { left: panel.left, right: panel.right } : null;
+    startDetailsMorph();
+    setExpandedFromList(true);
+    setTaskPinnedInCenter(false);
+  }, [startDetailsMorph]);
+
   const handleCollapseTaskDetails = useCallback(() => {
+    startDetailsMorph();
     setExpandedFromList(false);
     setTaskPinnedInCenter(false);
+  }, [startDetailsMorph]);
+
+  const [taskPeekMode, setTaskPeekMode] = useState<TaskPeekMode>(readTaskPeekMode);
+
+  /** The peek toolbar's switch: the default for the next tasks, and this one moves now */
+  const handlePeekModeChange = useCallback((mode: TaskPeekMode) => {
+    setTaskPeekMode(mode);
+    try {
+      localStorage.setItem(TASK_PEEK_MODE_KEY, mode);
+    } catch {
+      // Kept for this page load only
+    }
+    if (isChatOpen) return;
+    if (mode === 'full' && !expandedFromList) handleExpandTaskDetails();
+    if (mode === 'side' && expandedFromList) handleCollapseTaskDetails();
+  }, [isChatOpen, expandedFromList, handleExpandTaskDetails, handleCollapseTaskDetails]);
+
+  /**
+   * The center card mounts at its full size; a clip shaped like the panel it
+   * came from opens up to the whole card, so it grows out of the panel without
+   * scaling (and squashing) its content.
+   */
+  const revealCenterCard = useCallback((card: HTMLDivElement | null) => {
+    const origin = detailsExpandOriginRef.current;
+    if (!card || !origin) return;
+    detailsExpandOriginRef.current = null;
+    const box = card.getBoundingClientRect();
+    const left = Math.min(Math.max(origin.left - box.left, 0), box.width);
+    const right = Math.min(Math.max(box.right - origin.right, 0), box.width - left);
+    void animate(
+      card,
+      { clipPath: [`inset(0px ${right}px 0px ${left}px round 18px)`, 'inset(0px 0px 0px 0px round 18px)'] },
+      { duration: 0.36, ease: [0.4, 0, 0.2, 1] },
+    );
   }, []);
 
   const handleOpenChatFromTask = useCallback(() => {
@@ -436,6 +569,15 @@ export function Tasks() {
       setIsChatOpen(true);
     }
   }, [isMobile]);
+
+  // Row right-click menu → "Perguntar pra Jarvi": the task-mode chat about
+  // that task, as from its details (a fresh panel for the new task).
+  const handleAskJarviAboutTask = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setSelectedPendingTask(null);
+    setChatKey((k) => k + 1);
+    handleOpenChatFromTask();
+  }, [handleOpenChatFromTask]);
 
   const handleCloseMobileChatOverlay = useCallback(() => {
     setIsMobileChatOverlayOpen(false);
@@ -481,6 +623,53 @@ export function Tasks() {
     void queryClient.invalidateQueries({ queryKey: ['tasks'] });
   }, [location.state, queryClient]);
 
+  // `{ openTaskId }` router state (a note's "Tarefa" marker): once tasks are
+  // loaded, open that task's details like a row click, then drop the state so
+  // a refresh doesn't reopen it. A task created moments ago may still be on
+  // its way (tasks refetching): wait for it. Unknown id → nothing opens.
+  // Handled once per navigation, not per id: picking the same task again
+  // (e.g. from search, after closing it) opens it again.
+  const openTaskIdFromState = nonEmptyString(
+    (location.state as TasksNavigationState | null)?.openTaskId,
+  );
+  const handledOpenTaskNavigationRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!openTaskIdFromState || isLoading) return;
+    if (handledOpenTaskNavigationRef.current === location.key) return;
+    const task = tasks.find((t) => t.id === openTaskIdFromState);
+    if (!task && isFetchingTasks) return;
+    handledOpenTaskNavigationRef.current = location.key;
+    if (task) handleTaskClick(task);
+    const { openTaskId: _handled, ...rest } = location.state as TasksNavigationState;
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: Object.keys(rest).length > 0 ? rest : null,
+    });
+  }, [openTaskIdFromState, location.key, isLoading, isFetchingTasks, tasks]);
+
+  // Recap das tarefas vencidas: opens on its own (once a day) only over an
+  // idle page — not over the onboarding chat, a deep link, or a task or chat
+  // the user already has open.
+  const overdueRecap = useOverdueRecap({
+    canAutoOpen:
+      !onboardingChatOpenedRef.current &&
+      !choicePreviewOpenedRef.current &&
+      !openTaskIdFromState &&
+      !isChatOpen &&
+      !selectedTask &&
+      !selectedPendingTask &&
+      !isMobileChatOverlayOpen,
+  });
+
+  const handleOpenOverdueRecap = () => {
+    // The task panel listens for Escape too; it would close under the Recap.
+    setSelectedTask(null);
+    setSelectedPendingTask(null);
+    setExpandedFromList(false);
+    setTaskPinnedInCenter(false);
+    overdueRecap.open('button');
+  };
+
   useEffect(() => {
     if (choicePreviewOpenedRef.current || onboardingChatOpenedRef.current) return;
     if (!isChoicePreviewRequested()) return;
@@ -525,14 +714,8 @@ export function Tasks() {
     setSelectedPendingTask(null);
   }, [tasks, chatMode, dismissChatForTaskPanel]);
 
-  const handleChatListCardClick = useCallback((listId: string) => {
-    setSelectedCustomListId(listId);
-    setSelectedCategoryName(null);
-  }, []);
-
   const handleChatCategoryCardClick = useCallback((categoryName: string) => {
     setSelectedCategoryName(categoryName);
-    setSelectedCustomListId(null);
   }, []);
 
   // Persist files sent in a task-mode chat into the task's description so they
@@ -656,11 +839,6 @@ export function Tasks() {
           queryClient.setQueryData<Task[]>(['tasks'], (old) =>
             (old ?? []).filter((t) => t.id !== (d.id as string)),
           );
-          break;
-        case 'create_list':
-        case 'update_list':
-        case 'delete_list':
-          queryClient.invalidateQueries({ queryKey: ['lists'] });
           break;
         case 'create_category':
         case 'update_category':
@@ -804,12 +982,13 @@ export function Tasks() {
   // Get list name for header
   const getListName = (listType: ListType): string => {
     const listNames: Record<ListType, string> = {
-      all: 'Lista de tarefas',
+      all: 'Tarefas',
       important: 'Prioridades',
       today: 'Hoje',
       tomorrow: 'Amanhã',
       week: 'Esta semana',
-      later: 'Calendário',
+      // Calendar is a view of "Tarefas" (Lista / Calendário switch)
+      later: 'Tarefas',
       noDate: 'Caixa de entrada',
       overdue: 'Vencidas',
       recurring: 'Recorrentes',
@@ -818,59 +997,17 @@ export function Tasks() {
     return listNames[listType] || 'Tarefas';
   };
 
-  // Apply custom list/category filters (keeps the same main view structure)
-  const visibleTasks = useMemo(() => {
-    let result = tasks;
+  // Apply the category filter (keeps the same main view structure)
+  const scopedTasks = useMemo(
+    () => (selectedCategoryName ? tasks.filter((t) => t.category === selectedCategoryName) : tasks),
+    [tasks, selectedCategoryName],
+  );
 
-    if (selectedCustomListId) {
-      const selectedListObj = customLists.find((l) => l.id === selectedCustomListId);
-      if (!selectedListObj) return tasks;
-
-      // Apply category filter from list
-      const allowed = new Set(selectedListObj.category_names || []);
-      if (allowed.size > 0) {
-        result = result.filter((t) => !!t.category && allowed.has(t.category));
-      }
-
-      // Apply priority filter from list
-      if (selectedListObj.priority) {
-        result = result.filter((t) => t.priority === selectedListObj.priority);
-      }
-
-      // Apply connected app filter from list
-      if (selectedListObj.connected_app === 'whatsapp') {
-        result = result.filter((t) => !!t.original_whatsapp_content);
-      }
-
-      // Apply no-category filter from list
-      if (selectedListObj.filter_no_category) {
-        result = result.filter((t) => !t.category);
-      }
-
-      // Apply show_completed filter from list
-      if (selectedListObj.show_completed === false) {
-        result = result.filter((t) => !t.completed);
-      }
-    } else if (selectedCategoryName) {
-      result = tasks.filter((t) => t.category === selectedCategoryName);
-    }
-
-    // Apply popover filters
-    if (activeFilters.priority) {
-      result = result.filter((t) => t.priority === activeFilters.priority);
-    }
-    if (activeFilters.category.length > 0) {
-      result = result.filter((t) => !!t.category && activeFilters.category.includes(t.category));
-    }
-    if (activeFilters.connectedApp === 'whatsapp') {
-      result = result.filter((t) => !!t.original_whatsapp_content);
-    }
-    if (!activeFilters.showCompleted) {
-      result = result.filter((t) => !t.completed);
-    }
-
-    return result;
-  }, [tasks, selectedCustomListId, selectedCategoryName, customLists, activeFilters]);
+  // Then the "Filtrar" menu
+  const visibleTasks = useMemo(
+    () => applyTaskFilters(scopedTasks, activeFilters),
+    [scopedTasks, activeFilters],
+  );
 
   // Filter tasks based on selected list
   const filteredTasks = useMemo(() => {
@@ -919,14 +1056,16 @@ export function Tasks() {
     });
   }, [visibleTasks, selectedList]);
 
+  // The calendar has no Filtrar: it ignores the list's filters (custom list /
+  // category scope still applies)
   const calendarDatedTasks = useMemo(
-    () => visibleTasks.filter((task) => !!task.due_date),
-    [visibleTasks],
+    () => scopedTasks.filter((task) => !!task.due_date),
+    [scopedTasks],
   );
 
   const calendarUndatedTasks = useMemo(
-    () => visibleTasks.filter((task) => !task.due_date && !task.completed),
-    [visibleTasks],
+    () => scopedTasks.filter((task) => !task.due_date && !task.completed),
+    [scopedTasks],
   );
 
   // Week view: tasks grouped by each day (Mon–Sun) of the current week
@@ -1053,6 +1192,53 @@ export function Tasks() {
     return categories;
   }, [visibleTasks, movingTask]);
 
+  // The peek toolbar's prev / next walk the tasks the current view shows, in
+  // screen order, picked like the render below picks the view: the week's
+  // days, the calendar (no order: no arrows), a flat list (a list or a
+  // category), or the grouped "Tarefas". Closed groups are skipped, unless the
+  // open task sits in one.
+  const peekNavigation = useMemo(() => {
+    const groups: Array<{ open: boolean; tasks: Task[] }> | null =
+      selectedList === 'week'
+        ? weekViewData.map((day) => ({ open: weekSectionOpen[day.dateStr] ?? true, tasks: day.tasks }))
+        : selectedList === 'later'
+          ? null
+          : selectedList !== 'all' || selectedCategoryName
+            ? [{
+                open: true,
+                tasks: selectedCategoryName ? visibleTasks.filter((task) => !task.completed) : filteredTasks,
+              }]
+            : PEEK_NAVIGATION_SECTIONS.map(([key, sectionId]) => ({
+                open: !!openSections[sectionId],
+                tasks: categorizedTasks[key],
+              }));
+    const id = selectedTask?.id;
+    if (!groups || !id) return { available: !!groups, previous: undefined, next: undefined };
+    const inOrder = (onlyOpen: boolean) =>
+      groups.flatMap((group) => (onlyOpen && !group.open ? [] : group.tasks));
+    let order = inOrder(true);
+    if (!order.some((task) => task.id === id)) order = inOrder(false);
+    const index = order.findIndex((task) => task.id === id);
+    const open = (task: Task | undefined) =>
+      index >= 0 && task
+        ? () => {
+            setSelectedTask(task);
+            setSelectedPendingTask(null);
+          }
+        : undefined;
+    return { available: true, previous: open(order[index - 1]), next: open(order[index + 1]) };
+  }, [
+    selectedTask?.id,
+    selectedList,
+    selectedCategoryName,
+    weekViewData,
+    weekSectionOpen,
+    visibleTasks,
+    filteredTasks,
+    categorizedTasks,
+    openSections,
+  ]);
+
   const sidebarCategories = useMemo(
     () =>
       mergedTaskCategories
@@ -1119,17 +1305,7 @@ export function Tasks() {
       if (isChatOpen) dismissChatForTaskPanel();
     }
     setSelectedList(listType);
-    setSelectedCustomListId(null);
     setSelectedCategoryName(null);
-    setSelectedTask(null);
-  };
-
-  const handleCustomListSelect = (listId: string) => {
-    const isDeselecting = selectedCustomListId === listId;
-    if (isDeselecting) setOpenSections(ALL_SECTIONS_OPEN);
-    setSelectedList('all');
-    setSelectedCategoryName(null);
-    setSelectedCustomListId((prev) => (prev === listId ? null : listId));
     setSelectedTask(null);
   };
 
@@ -1137,7 +1313,6 @@ export function Tasks() {
     const isDeselecting = selectedCategoryName === categoryName;
     if (isDeselecting) setOpenSections(ALL_SECTIONS_OPEN);
     setSelectedList('all');
-    setSelectedCustomListId(null);
     setSelectedCategoryName((prev) => (prev === categoryName ? null : categoryName));
     setSelectedTask(null);
   };
@@ -1153,34 +1328,28 @@ export function Tasks() {
     );
   };
 
-  const pageTitle =
-    selectedCustomListId
-      ? customLists.find((l) => l.id === selectedCustomListId)?.name || 'Tarefas'
-      : selectedCategoryName
-        ? selectedCategoryName
-        : getListName(selectedList);
-  const selectedCustomList = selectedCustomListId
-    ? customLists.find((l) => l.id === selectedCustomListId) || null
-    : null;
+  const pageTitle = selectedCategoryName ?? getListName(selectedList);
 
-  // When a category or single-category custom list is active, pre-fill that
-  // category in the ControlBar task creation form.
-  const contextTaskCategory: string | undefined = useMemo(() => {
-    if (selectedCategoryName) return selectedCategoryName;
-    if (selectedCustomList?.category_names?.length === 1) return selectedCustomList.category_names[0];
-    return undefined;
-  }, [selectedCategoryName, selectedCustomList]);
-  const isCustomListView = Boolean(selectedCustomList);
-  const pageDescription = selectedCustomList?.description?.trim() || undefined;
+  // When a category is active, pre-fill it in the ControlBar task creation form.
+  const contextTaskCategory: string | undefined = selectedCategoryName ?? undefined;
   const toggleSectionsLabel = allSectionsExpanded ? 'Colapsar tudo' : 'Expandir tudo';
-  const activeFilterCount = [
-    activeFilters.priority,
-    activeFilters.category.length > 0,
-    activeFilters.connectedApp,
-    !activeFilters.showCompleted,
-  ].filter(Boolean).length;
+  const activeFilterCount = countActiveFilters(activeFilters);
   const hasFilters = activeFilterCount > 0;
   const filterLabel = hasFilters ? `Filtrar (${activeFilterCount})` : 'Filtrar';
+
+  // Vencidas and Concluídas start collapsed: picking that status opens its section
+  const handleFiltersChange = (next: TaskFilters) => {
+    const picked = (status: TaskFilters['status'][number]) =>
+      next.status.includes(status) && !activeFilters.status.includes(status);
+    if (picked('overdue') || picked('completed')) {
+      setOpenSections((prev) => ({
+        ...prev,
+        vencidas: prev.vencidas || picked('overdue'),
+        completadas: prev.completadas || picked('completed'),
+      }));
+    }
+    setActiveFilters(next);
+  };
 
   const filterButton = (
     <div ref={filterAnchorRef} style={{ display: 'inline-flex' }}>
@@ -1201,6 +1370,62 @@ export function Tasks() {
     </div>
   );
 
+  // Only on the two main views (no category picked), and not over an open
+  // task page (it would sit on top of the task's own top bar)
+  const isMainTasksView =
+    !selectedCategoryName &&
+    (selectedList === 'all' || selectedList === 'later');
+  const tasksViewSwitch = isMainTasksView && !showTaskInCenter ? (
+    <SegmentedControl
+      items={TASKS_VIEW_ITEMS}
+      value={selectedList === 'later' ? calendarView : 'list'}
+      onChange={(mode) => {
+        if (mode === 'list') {
+          handleListSelect('all');
+          return;
+        }
+        setCalendarView(mode);
+        if (selectedList !== 'later') handleListSelect('later');
+      }}
+      aria-label="Visualização das tarefas"
+      display="compact"
+    />
+  ) : null;
+
+  // Month view only (the week view already lists the Caixa de entrada): opens
+  // the panel beside the grid, to drag undated tasks onto a day
+  const calendarInboxButton = selectedList === 'later' && calendarView === 'month' && !isMobile ? (
+    <Tooltip label="Caixa de entrada" position="bottom">
+      <Button
+        type="button"
+        variant="secondary"
+        size="small"
+        icon={Tray}
+        iconPosition="icon-only"
+        active={isCalendarInboxOpen}
+        aria-pressed={isCalendarInboxOpen}
+        aria-label="Caixa de entrada"
+        onClick={() => setIsCalendarInboxOpen((open) => !open)}
+      />
+    </Tooltip>
+  ) : null;
+
+  const overdueRecapButton = overdueRecap.count > 0 ? (
+    <Tooltip label="Revisar tarefas vencidas" position="bottom" disabled={!isCompactHeader}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="medium"
+        icon={CardsThree}
+        iconPosition={isCompactHeader ? 'icon-only' : 'left'}
+        onClick={handleOpenOverdueRecap}
+        aria-label={isCompactHeader ? 'Revisar tarefas vencidas' : undefined}
+      >
+        {!isCompactHeader && 'Recap'}
+      </Button>
+    </Tooltip>
+  ) : null;
+
   const tableControls = (
     <>
       <Tooltip label={toggleSectionsLabel} position="bottom">
@@ -1214,88 +1439,34 @@ export function Tasks() {
           onClick={handleToggleAllSections}
         />
       </Tooltip>
-      {!isCustomListView && filterButton}
+      {overdueRecapButton}
+      {filterButton}
     </>
   );
 
-  const headerActions = isCustomListView ? (
-    <>
-      {tableControls}
-      <Button
-        type="button"
-        variant="secondary"
-        size="medium"
-        icon={Gear}
-        iconPosition="left"
-        onClick={() => setIsEditListOpen(true)}
-      >
-        Editar
-      </Button>
-    </>
-  ) : tableControls;
-
-  useEffect(() => {
-    if (!selectedCustomListId) {
-      setIsEditListOpen(false);
-    }
-  }, [selectedCustomListId]);
-
-  // Keep custom list completed section collapsed on first load and when switching lists.
-  useEffect(() => {
-    setIsCustomListCompletedOpen(false);
-  }, [selectedCustomListId]);
+  const headerActions = tableControls;
 
   const sidebarNode = (
     <>
       <Sidebar
         selectedList={selectedList}
-        selectedCustomListId={selectedCustomListId}
         selectedCategory={selectedCategoryName}
         onListSelect={handleListSelect}
-        onCustomListSelect={handleCustomListSelect}
         onCategorySelect={handleCategorySelect}
-        addButtonRef={addListButtonRef}
         taskCounts={sidebarTaskCounts}
         categories={sidebarCategories}
-        customLists={customLists.map((l) => ({ id: l.id, name: l.name }))}
         openSettingsRef={openSettingsRef}
-        forceCollapsed={hasRightPanelContent}
+        // Also while a task is expanded to full screen (the toggle can still open it)
+        forceCollapsed={hasRightPanelContent || showTaskInCenter}
       />
-      <FilterPopover
+      <FilterMenu
         isOpen={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}
         anchorRef={filterAnchorRef}
+        tasks={scopedTasks}
         filters={activeFilters}
-        onFiltersChange={setActiveFilters}
-        categoryOptions={popoverCategories.map((c) => ({ value: c.name, label: c.name }))}
-        onListSaved={(listId: string) => {
-          handleCustomListSelect(listId);
-          setActiveFilters(DEFAULT_FILTER_STATE);
-        }}
-      />
-      <CreateListPopover
-        isOpen={isCreateListOpen}
-        onClose={() => setIsCreateListOpen(false)}
-        categories={popoverCategories}
-      />
-      <CreateListPopover
-        isOpen={isEditListOpen}
-        onClose={() => setIsEditListOpen(false)}
-        mode="edit"
-        categories={popoverCategories}
-        listToEdit={selectedCustomList
-          ? {
-              id: selectedCustomList.id,
-              name: selectedCustomList.name,
-              description: selectedCustomList.description,
-              categoryNames: selectedCustomList.category_names || [],
-            }
-          : null}
-        onDeleted={() => {
-          setIsEditListOpen(false);
-          setSelectedCustomListId(null);
-          setSelectedList('all');
-        }}
+        onFiltersChange={handleFiltersChange}
+        categories={popoverCategories.map((c) => c.name)}
       />
     </>
   );
@@ -1474,11 +1645,11 @@ export function Tasks() {
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
     onToggleCompletion: (taskId: string) => Promise<void>;
-    onEdit: (task: Task) => void;
-    onDelete: (taskId: string) => Promise<void>;
     onUpdateTask: (taskId: string, taskData: any) => Promise<void>;
     onOpenDatePicker: (task: Task) => void;
     onClick?: (task: Task) => void;
+    onDelete?: (taskId: string) => void;
+    onAskJarvi?: (task: Task) => void;
     insertionIndicator: { sectionId: string; index: number } | null;
     movingTask: { taskId: string; fromSection: string; toSection: string } | null;
     selectedTaskId?: string | null;
@@ -1494,11 +1665,11 @@ export function Tasks() {
     isOpen: controlledIsOpen,
     onOpenChange,
     onToggleCompletion,
-    onEdit,
-    onDelete,
     onUpdateTask,
     onOpenDatePicker,
     onClick,
+    onDelete,
+    onAskJarvi,
     insertionIndicator,
     movingTask,
     selectedTaskId,
@@ -1565,11 +1736,11 @@ export function Tasks() {
                       task={task}
                       section={sectionId}
                       onToggleCompletion={onToggleCompletion}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
                       onUpdateTask={onUpdateTask}
                       onOpenDatePicker={onOpenDatePicker}
                       onClick={onClick}
+                      onDelete={onDelete}
+                      onAskJarvi={onAskJarvi}
                       showInsertionLine={insertionIndicator?.sectionId === sectionId && insertionIndicator?.index === index}
                       isActive={selectedTaskId === task.id}
                       hideCategoryChip={hideCategoryChip}
@@ -1649,7 +1820,6 @@ export function Tasks() {
             initialAttachments={chatMode === 'general' ? chatInitialAttachments : undefined}
             seededMessages={chatMode === 'general' ? chatSeededMessages : undefined}
             onTaskCardClick={handleChatTaskCardClick}
-            onListCardClick={handleChatListCardClick}
             onCategoryCardClick={handleChatCategoryCardClick}
             onAttachToTask={handleChatAttachToTask}
             onAttachmentsSent={handleChatAttachmentsSent}
@@ -1674,6 +1844,7 @@ export function Tasks() {
       ) : selectedTask ? (
         <motion.div
           key="task-details-panel"
+          ref={rightDetailsPanelRef}
           style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}
           initial={{ opacity: 0, x: 60 }}
           animate={{ opacity: 1, x: 0 }}
@@ -1689,6 +1860,11 @@ export function Tasks() {
             onDelete={handleDeleteTask}
             onOpenChat={handleOpenChatFromTask}
             onExpand={handleExpandTaskDetails}
+            peekMode={taskPeekMode}
+            onPeekModeChange={handlePeekModeChange}
+            showNavigation={peekNavigation.available}
+            onPrevious={peekNavigation.previous}
+            onNext={peekNavigation.next}
           />
         </motion.div>
       ) : null}
@@ -1729,14 +1905,23 @@ export function Tasks() {
         {content}
       </motion.div>
 
-      <AnimatePresence initial={false} onExitComplete={() => setCenterPanelTask(null)}>
+      {/* `custom`: a card going back to the right panel fades (the panel takes
+          over); otherwise it slides out */}
+      <AnimatePresence
+        initial={false}
+        custom={isDetailsMorphing}
+        onExitComplete={() => setCenterPanelTask(null)}
+      >
         {showTaskInCenter && centerPanelTask && (
           <motion.div
             key="task-details-center"
+            ref={revealCenterCard}
             className={styles.centerPanelCard}
-            initial={{ x: 60 }}
+            custom={isDetailsMorphing}
+            variants={CENTER_CARD_VARIANTS}
+            initial={isDetailsMorphing ? false : { x: 60 }}
             animate={{ x: 0 }}
-            exit={{ x: 60 }}
+            exit="leaving"
             transition={panelTransition}
           >
             <TaskDetailsSidebar
@@ -1752,6 +1937,13 @@ export function Tasks() {
               // Hide back only for task-mode chat split; with general chat open,
               // keep a way to return to the list without closing the conversation.
               showCloseButton={!(isChatOpen && chatMode === 'task')}
+              // With a chat open the task sits in the center to share the screen:
+              // no default-open switch; the task-mode chat is bound to this task
+              peekMode={taskPeekMode}
+              onPeekModeChange={isChatOpen ? undefined : handlePeekModeChange}
+              showNavigation={peekNavigation.available && !(isChatOpen && chatMode === 'task')}
+              onPrevious={peekNavigation.previous}
+              onNext={peekNavigation.next}
             />
           </motion.div>
         )}
@@ -1761,6 +1953,10 @@ export function Tasks() {
 
   // Mobile: second BottomSheet for task-context chat, overlaid on top of task details.
   // Uses createPortal internally, so it can live here and be included in every return branch.
+  // Page-level, not in the sidebar slot: React events bubble out of the
+  // portal, and a swipe on a task would also drive the mobile drawer's swipe.
+  const overdueRecapDialog = <OverdueRecapScreen session={overdueRecap.session} onClose={overdueRecap.close} />;
+
   const mobileChatOverlay = (
     <BottomSheet
       isOpen={isMobileChatOverlayOpen}
@@ -1776,7 +1972,6 @@ export function Tasks() {
         onClose={handleCloseMobileChatOverlay}
         onTaskMutated={handleChatTaskMutated}
         onTaskCardClick={handleChatTaskCardClick}
-        onListCardClick={handleChatListCardClick}
         onCategoryCardClick={handleChatCategoryCardClick}
         onAttachToTask={handleChatAttachToTask}
         onAttachmentsSent={handleChatAttachmentsSent}
@@ -1790,11 +1985,12 @@ export function Tasks() {
         sidebar={sidebarNode}
         title={pageTitle}
         titleVariant="heading"
-        titleDescription={pageDescription}
         headerActions={headerActions}
+        pinnedAction={tasksViewSwitch}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1807,6 +2003,7 @@ export function Tasks() {
         {renderCenterPanelHost(<div className={styles.loading}>Carregando tarefas...</div>)}
       </MainLayout>
       {mobileChatOverlay}
+      {overdueRecapDialog}
     </>);
   }
 
@@ -1816,11 +2013,12 @@ export function Tasks() {
         sidebar={sidebarNode}
         title={pageTitle}
         titleVariant="heading"
-        titleDescription={pageDescription}
         headerActions={headerActions}
+        pinnedAction={tasksViewSwitch}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1833,21 +2031,23 @@ export function Tasks() {
         {renderCenterPanelHost(<div className={styles.error}>Erro: {error}</div>)}
       </MainLayout>
       {mobileChatOverlay}
+      {overdueRecapDialog}
     </>);
   }
 
   // "Esta semana" view: collapsible sections grouped by each day of the current week
-  if (selectedList === 'week' && !selectedCustomListId) {
+  if (selectedList === 'week') {
     return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
         titleVariant="heading"
-        titleDescription={pageDescription}
         headerActions={headerActions}
+        pinnedAction={tasksViewSwitch}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1880,11 +2080,11 @@ export function Tasks() {
                         task={task}
                         section="week"
                         onToggleCompletion={handleToggleCompletion}
-                        onEdit={handleEdit}
-                        onDelete={handleDeleteTask}
                         onUpdateTask={handleUpdateTask}
                         onOpenDatePicker={handleOpenDatePicker}
                         onClick={handleTaskClick}
+                        onDelete={handleDeleteTask}
+                        onAskJarvi={handleAskJarviAboutTask}
                         showInsertionLine={false}
                         isActive={selectedTask?.id === task.id}
                         hideCategoryChip={!!selectedTask}
@@ -1898,21 +2098,28 @@ export function Tasks() {
         )}
       </MainLayout>
       {mobileChatOverlay}
+      {overdueRecapDialog}
     </>);
   }
 
   // "Calendário" view: dated tasks across week/month, plus undated tasks in week view.
-  if (selectedList === 'later' && !selectedCustomListId) {
+  if (selectedList === 'later') {
     return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
         titleVariant="heading"
-        titleDescription={pageDescription}
         headerActions={headerActions}
+        pinnedAction={tasksViewSwitch && (
+          <div className={styles.pinnedActions}>
+            {calendarInboxButton}
+            {tasksViewSwitch}
+          </div>
+        )}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1930,7 +2137,6 @@ export function Tasks() {
               view={calendarView}
               anchorDate={calendarAnchorDate}
               selectedTaskId={selectedTask?.id}
-              onViewChange={setCalendarView}
             onAnchorDateChange={setCalendarAnchorDate}
             onTaskClick={handleTaskClick}
             onToggleCompletion={handleToggleCompletion}
@@ -1939,37 +2145,35 @@ export function Tasks() {
               await handleControlBarCreateTask({ title, description: '', dueDate });
             }}
             onDeleteTask={handleDeleteTask}
+            inboxOpen={isCalendarInboxOpen && !isMobile}
           />
           </div>,
           { fullHeight: true },
         )}
       </MainLayout>
       {mobileChatOverlay}
+      {overdueRecapDialog}
     </>);
   }
 
   // If a specific list or category is selected (not "all"), show simple list without Collapsible
-  if (selectedList !== 'all' || selectedCustomListId || selectedCategoryName) {
-    const simpleViewTasks = (selectedCustomListId || selectedCategoryName) ? visibleTasks : filteredTasks;
-    const simpleViewSection = selectedCustomListId ? 'custom-list' : selectedCategoryName ? 'category' : selectedList;
-
-    const incompleteSimpleViewTasks = (selectedCustomListId || selectedCategoryName)
-      ? simpleViewTasks.filter((task) => !task.completed)
-      : simpleViewTasks;
-    const completedSimpleViewTasks = (selectedCustomListId || selectedCategoryName)
-      ? simpleViewTasks.filter((task) => task.completed)
-      : [];
+  if (selectedList !== 'all' || selectedCategoryName) {
+    const simpleViewSection = selectedCategoryName ? 'category' : selectedList;
+    const incompleteSimpleViewTasks = selectedCategoryName
+      ? visibleTasks.filter((task) => !task.completed)
+      : filteredTasks;
 
     return (<>
       <MainLayout
         sidebar={sidebarNode}
         title={pageTitle}
         titleVariant="heading"
-        titleDescription={pageDescription}
         headerActions={headerActions}
+        pinnedAction={tasksViewSwitch}
         onCreateTask={handleControlBarCreateTask}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -1988,11 +2192,11 @@ export function Tasks() {
                   task={task}
                   section={simpleViewSection}
                   onToggleCompletion={handleToggleCompletion}
-                  onEdit={handleEdit}
-                  onDelete={handleDeleteTask}
                   onUpdateTask={handleUpdateTask}
                   onOpenDatePicker={handleOpenDatePicker}
                   onClick={handleTaskClick}
+                  onDelete={handleDeleteTask}
+                  onAskJarvi={handleAskJarviAboutTask}
                   showInsertionLine={false}
                   isActive={selectedTask?.id === task.id}
                   hideCategoryChip={!!selectedTask}
@@ -2010,37 +2214,10 @@ export function Tasks() {
               />
             )}
           </div>
-
-          {selectedCustomListId && completedSimpleViewTasks.length > 0 && (
-            <Collapsible
-              label="Tarefas concluídas"
-              defaultOpen={false}
-              isOpen={isCustomListCompletedOpen}
-              onOpenChange={setIsCustomListCompletedOpen}
-            >
-              <div className={styles.sectionContent}>
-                {completedSimpleViewTasks.map((task) => (
-                  <TaskItem
-                    key={task.id}
-                    task={task}
-                    section={simpleViewSection}
-                    onToggleCompletion={handleToggleCompletion}
-                    onEdit={handleEdit}
-                    onDelete={handleDeleteTask}
-                    onUpdateTask={handleUpdateTask}
-                    onOpenDatePicker={handleOpenDatePicker}
-                    onClick={handleTaskClick}
-                    showInsertionLine={false}
-                    isActive={selectedTask?.id === task.id}
-                    hideCategoryChip={!!selectedTask}
-                  />
-                ))}
-              </div>
-            </Collapsible>
-          )}
         </div>)}
       </MainLayout>
       {mobileChatOverlay}
+      {overdueRecapDialog}
     </>);
   }
 
@@ -2050,12 +2227,13 @@ export function Tasks() {
       sidebar={sidebarNode}
       title={pageTitle}
         titleVariant="heading"
-        titleDescription={pageDescription}
         headerActions={headerActions}
+        pinnedAction={tasksViewSwitch}
         onCreateTask={handleControlBarCreateTask}
         onOpenTaskDetails={handleTaskClick}
         rightSidebar={computedRightSidebar}
         rightSidebarAsSheet={hasRightPanelContent}
+        rightSidebarTransition={isDetailsMorphing ? 'morph' : 'slide'}
         onRightSidebarClose={handleRightPanelClose}
         onOpenChat={handleOpenChatGeneral}
         onSubmitPrompt={handleOpenChatGeneral}
@@ -2073,14 +2251,22 @@ export function Tasks() {
         onDragEnd={handleDragEnd}
       >
         <div className={styles.content}>
-          {visibleTasks.length === 0 && pendingTasks.length === 0 && !isPendingTasksLoading && (
+          {visibleTasks.length === 0 && hasFilters && (
+            <TaskEmptyState
+              className={styles.emptyStateFull}
+              title="Nenhuma tarefa encontrada"
+              description="Ajuste ou limpe os filtros para ver outras tarefas."
+            />
+          )}
+          {visibleTasks.length === 0 && !hasFilters && pendingTasks.length === 0 && !isPendingTasksLoading && (
             <TaskEmptyState
               className={styles.emptyStateFull}
               title="Nada por aqui ainda"
               description="Crie sua primeira tarefa para começar a organizar seu dia."
             />
           )}
-          {(isPendingTasksLoading || pendingTasksError || pendingTasks.length > 0) && (
+          {/* Integration suggestions aren't tasks: hidden while filtering */}
+          {!hasFilters && (isPendingTasksLoading || pendingTasksError || pendingTasks.length > 0) && (
             <Collapsible
               label={pendingTasks.length > 0 ? `Integrações (${pendingTasks.length})` : 'Integrações'}
               defaultOpen={true}
@@ -2129,11 +2315,11 @@ export function Tasks() {
             isOpen={openSections.vencidas}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, vencidas: isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
@@ -2141,7 +2327,8 @@ export function Tasks() {
           />
           )}
 
-          {/* Hoje — sempre visível */}
+          {/* Hoje — sempre visível (exceto vazia durante um filtro) */}
+          {(!hasFilters || categorizedTasks.hoje.length > 0) && (
           <DroppableSection
             title="Hoje"
             tasks={categorizedTasks.hoje}
@@ -2151,16 +2338,17 @@ export function Tasks() {
             isOpen={openSections.hoje}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, hoje: isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
+          )}
 
           {/* Amanhã — oculta quando vazia */}
           {categorizedTasks.amanha.length > 0 && (
@@ -2173,11 +2361,11 @@ export function Tasks() {
             isOpen={openSections.amanha}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, amanha: isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
@@ -2196,11 +2384,11 @@ export function Tasks() {
             isOpen={openSections['esta-semana']}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'esta-semana': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
@@ -2220,11 +2408,11 @@ export function Tasks() {
             isOpen={openSections['proxima-semana']}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'proxima-semana': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
@@ -2243,11 +2431,11 @@ export function Tasks() {
             isOpen={openSections['mais-tarde']}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'mais-tarde': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
@@ -2266,11 +2454,11 @@ export function Tasks() {
             isOpen={openSections['sem-data']}
             onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, 'sem-data': isOpen }))}
             onToggleCompletion={handleToggleCompletion}
-            onEdit={handleEdit}
-            onDelete={handleDeleteTask}
             onUpdateTask={handleUpdateTask}
             onOpenDatePicker={handleOpenDatePicker}
             onClick={handleTaskClick}
+            onDelete={handleDeleteTask}
+            onAskJarvi={handleAskJarviAboutTask}
             insertionIndicator={insertionIndicator}
             movingTask={movingTask}
             selectedTaskId={selectedTask?.id}
@@ -2289,11 +2477,11 @@ export function Tasks() {
               isOpen={openSections.completadas}
               onOpenChange={(isOpen) => setOpenSections(prev => ({ ...prev, completadas: isOpen }))}
               onToggleCompletion={handleToggleCompletion}
-              onEdit={handleEdit}
-              onDelete={handleDeleteTask}
               onUpdateTask={handleUpdateTask}
               onOpenDatePicker={handleOpenDatePicker}
               onClick={handleTaskClick}
+              onDelete={handleDeleteTask}
+              onAskJarvi={handleAskJarviAboutTask}
               insertionIndicator={insertionIndicator}
               movingTask={movingTask}
               selectedTaskId={selectedTask?.id}
@@ -2311,8 +2499,6 @@ export function Tasks() {
                 task={activeTask}
                 section={activeTask.due_date ? 'hoje' : 'sem-data'}
                 onToggleCompletion={handleToggleCompletion}
-                onEdit={handleEdit}
-                onDelete={handleDeleteTask}
                 onUpdateTask={handleUpdateTask}
                 onOpenDatePicker={handleOpenDatePicker}
                 showInsertionLine={false}
@@ -2323,6 +2509,7 @@ export function Tasks() {
       </DndContext>)}
     </MainLayout>
     {mobileChatOverlay}
+    {overdueRecapDialog}
   </>);
 }
 

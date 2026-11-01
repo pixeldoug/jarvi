@@ -94,6 +94,32 @@
   color: var(--component-list-item-content-disabled, var(--semantic-content-disabled));
 }
 
+/* Two-line row: label + description */
+.withDescription {
+  height: auto;
+  min-height: 48px;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.description {
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Counter badge */
 .counter {
   flex-shrink: 0;
@@ -140,11 +166,14 @@
   color: var(--component-list-item-counter-content-disabled, var(--component-list-item-content-disabled, var(--semantic-content-disabled)));
 }
 
+/* Trailing slot (e.g. a submenu caret) */
+.trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--semantic-content-secondary);
+}
 
-
-
-
-
-
-
-
+.active .trailing {
+  color: var(--component-list-item-content-active);
+}

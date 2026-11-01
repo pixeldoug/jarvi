@@ -8,19 +8,21 @@ import styles from './CalendarView.module.css';
 
 type CalendarViewMode = 'week' | 'month';
 
+
 export interface CalendarViewProps {
   tasks: Task[];
   undatedTasks: Task[];
   view: CalendarViewMode;
   anchorDate: string;
   selectedTaskId?: string | null;
-  onViewChange: (view: CalendarViewMode) => void;
   onAnchorDateChange: (date: string) => void;
   onTaskClick: (task: Task) => void;
   onToggleCompletion: (taskId: string) => void;
   onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onCreateTask?: (title: string, dueDate?: string) => Promise<void>;
   onDeleteTask?: (taskId: string) => void;
+  /** Month view: the Caixa de entrada panel beside the grid, to drag tasks onto a day */
+  inboxOpen?: boolean;
 }
 
 const PT_MONTH_NAMES = [
@@ -344,13 +346,13 @@ export function CalendarView({
   view,
   anchorDate,
   selectedTaskId,
-  onViewChange,
   onAnchorDateChange,
   onTaskClick,
   onToggleCompletion,
   onUpdateTask,
   onCreateTask,
   onDeleteTask,
+  inboxOpen = false,
 }: CalendarViewProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
@@ -454,8 +456,9 @@ export function CalendarView({
       priority: task.priority,
       category: task.category,
       completed: task.completed,
-      dueDate,
-      time: task.time,
+      // '' clears the date (undefined would keep it); no time without a date
+      dueDate: dueDate ?? '',
+      time: dueDate ? task.time : '',
     }, false);
   };
 
@@ -583,30 +586,6 @@ export function CalendarView({
           </div>
         </div>
 
-        <div className={styles.toolbarActions}>
-          <div className={styles.viewSwitch} aria-label="Alternar visualização">
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              className={styles.viewSwitchButton}
-              active={view === 'week'}
-              onClick={() => onViewChange('week')}
-            >
-              Semana
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="small"
-              className={styles.viewSwitchButton}
-              active={view === 'month'}
-              onClick={() => onViewChange('month')}
-            >
-              Mês
-            </Button>
-          </div>
-        </div>
       </div>
 
       {view === 'week' ? (
@@ -704,66 +683,121 @@ export function CalendarView({
           </div>
         </div>
       ) : (
-        <div
-          className={styles.monthSurface}
-          onScroll={() => { setOverflowPopoverKey(null); setPopoverAnchor(null); }}
-        >
-          <div className={styles.monthWeekdays}>
-            {PT_WEEKDAY_SHORT.map((weekday) => (
-              <span key={weekday}>{weekday}</span>
-            ))}
-          </div>
+        <div className={styles.monthLayout}>
+          <div
+            className={`${styles.monthSurface} ${inboxOpen ? styles.monthSurfaceWithInbox : ''}`}
+            onScroll={() => { setOverflowPopoverKey(null); setPopoverAnchor(null); }}
+          >
+            <div className={styles.monthWeekdays}>
+              {PT_WEEKDAY_SHORT.map((weekday) => (
+                <span key={weekday}>{weekday}</span>
+              ))}
+            </div>
 
-          <div className={styles.monthGrid}>
-            {monthDays.map((day) => {
-              const dateKey = toDateKey(day);
-              const dayTasks = tasksByDate.get(dateKey) ?? [];
-              const visibleTasks = dayTasks.slice(0, 3);
-              const hiddenCount = dayTasks.length - visibleTasks.length;
-              const isCurrentMonth = day.getMonth() === parsedAnchorDate.getMonth();
-              const isToday = isSameDay(day, today);
-              const cellSlotKey = `month-${dateKey}`;
-              const isCellHovered = hoveredSlotKey === cellSlotKey;
-              const isCellEditing = activeSlotKey === cellSlotKey;
+            <div className={styles.monthGrid}>
+              {monthDays.map((day) => {
+                const dateKey = toDateKey(day);
+                const dayTasks = tasksByDate.get(dateKey) ?? [];
+                const visibleTasks = dayTasks.slice(0, 3);
+                const hiddenCount = dayTasks.length - visibleTasks.length;
+                const isCurrentMonth = day.getMonth() === parsedAnchorDate.getMonth();
+                const isToday = isSameDay(day, today);
+                const cellSlotKey = `month-${dateKey}`;
+                const isCellHovered = hoveredSlotKey === cellSlotKey;
+                const isCellEditing = activeSlotKey === cellSlotKey;
 
-              return (
-                <div
-                  key={dateKey}
-                  className={[
-                    styles.monthCell,
-                    !isCurrentMonth && styles.monthCellMuted,
-                    isToday && styles.monthCellToday,
-                    dropTargetKey === `date-${dateKey}` && styles.dropTarget,
-                  ].filter(Boolean).join(' ')}
-                  onMouseEnter={() => setHoveredSlotKey(cellSlotKey)}
-                  onMouseLeave={() => setHoveredSlotKey(null)}
-                  onDragEnter={() => setDropTargetKey(`date-${dateKey}`)}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'move';
-                    setDropTargetKey(`date-${dateKey}`);
-                  }}
-                  onDragLeave={() => setDropTargetKey(null)}
-                  onDrop={(event) => void handleDropOnDate(event, dateKey)}
-                >
-                  <div className={styles.monthTasks}>
-                    {isCellEditing ? (
-                      <MonthCellCreate
-                        dateKey={dateKey}
-                        onCreateTask={onCreateTask}
-                        onDeactivate={() => setActiveSlotKey(null)}
-                      />
-                    ) : onCreateTask ? (
+                return (
+                  <div
+                    key={dateKey}
+                    className={[
+                      styles.monthCell,
+                      !isCurrentMonth && styles.monthCellMuted,
+                      isToday && styles.monthCellToday,
+                      dropTargetKey === `date-${dateKey}` && styles.dropTarget,
+                    ].filter(Boolean).join(' ')}
+                    onMouseEnter={() => setHoveredSlotKey(cellSlotKey)}
+                    onMouseLeave={() => setHoveredSlotKey(null)}
+                    onDragEnter={() => setDropTargetKey(`date-${dateKey}`)}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                      setDropTargetKey(`date-${dateKey}`);
+                    }}
+                    onDragLeave={() => setDropTargetKey(null)}
+                    onDrop={(event) => void handleDropOnDate(event, dateKey)}
+                  >
+                    <div className={styles.monthTasks}>
+                      {isCellEditing ? (
+                        <MonthCellCreate
+                          dateKey={dateKey}
+                          onCreateTask={onCreateTask}
+                          onDeactivate={() => setActiveSlotKey(null)}
+                        />
+                      ) : onCreateTask ? (
+                        <button
+                          type="button"
+                          className={`${styles.monthAddBtn} ${!isCellHovered ? styles.monthAddBtnIdle : ''}`}
+                          onClick={() => setActiveSlotKey(cellSlotKey)}
+                        >
+                          <Plus size={12} aria-hidden />
+                        </button>
+                      ) : null}
+
+                      {visibleTasks.map((task) => (
+                        <CalendarTaskPill
+                          key={task.id}
+                          task={task}
+                          selected={selectedTaskId === task.id}
+                          compact
+                          card
+                          isDragging={draggedTaskId === task.id}
+                          onTaskClick={onTaskClick}
+                          onToggleCompletion={onToggleCompletion}
+                          onDelete={onDeleteTask}
+                          onDragStart={(dragTask) => setDraggedTaskId(dragTask.id)}
+                          onDragEnd={handleDragEnd}
+                        />
+                      ))}
+                    </div>
+
+                    {hiddenCount > 0 && (
                       <button
                         type="button"
-                        className={`${styles.monthAddBtn} ${!isCellHovered ? styles.monthAddBtnIdle : ''}`}
-                        onClick={() => setActiveSlotKey(cellSlotKey)}
+                        className={`${styles.moreButton} ${overflowPopoverKey === dateKey ? styles.moreButtonActive : ''}`}
+                        onClick={(e) => handleOverflowClick(e, dateKey)}
                       >
-                        <Plus size={12} aria-hidden />
+                        +{hiddenCount} tarefas
                       </button>
-                    ) : null}
+                    )}
 
-                    {visibleTasks.map((task) => (
+                    <span className={styles.monthDayNumber}>{day.getDate()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {inboxOpen && (
+            <aside
+              className={`${styles.inboxPanel} ${dropTargetKey === 'undated' ? styles.dropTarget : ''}`}
+              aria-label="Caixa de entrada"
+              onDragEnter={() => setDropTargetKey('undated')}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                setDropTargetKey('undated');
+              }}
+              onDragLeave={() => setDropTargetKey(null)}
+              onDrop={(event) => void handleDropOnUndated(event)}
+            >
+              <div className={styles.inboxHeader}>
+                <span>Caixa de entrada</span>
+                <span className={styles.inboxCount}>{undatedTasks.length}</span>
+              </div>
+              <div className={styles.inboxList}>
+                {undatedTasks.length > 0 ? (
+                  <>
+                    <p className={styles.inboxHint}>Arraste uma tarefa para um dia do calendário.</p>
+                    {undatedTasks.map((task) => (
                       <CalendarTaskPill
                         key={task.id}
                         task={task}
@@ -778,23 +812,13 @@ export function CalendarView({
                         onDragEnd={handleDragEnd}
                       />
                     ))}
-                  </div>
-
-                  {hiddenCount > 0 && (
-                    <button
-                      type="button"
-                      className={`${styles.moreButton} ${overflowPopoverKey === dateKey ? styles.moreButtonActive : ''}`}
-                      onClick={(e) => handleOverflowClick(e, dateKey)}
-                    >
-                      +{hiddenCount} tarefas
-                    </button>
-                  )}
-
-                  <span className={styles.monthDayNumber}>{day.getDate()}</span>
-                </div>
-              );
-            })}
-          </div>
+                  </>
+                ) : (
+                  <p className={styles.inboxHint}>Nenhuma tarefa na caixa de entrada.</p>
+                )}
+              </div>
+            </aside>
+          )}
         </div>
       )}
 

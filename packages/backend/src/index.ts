@@ -8,6 +8,7 @@ import { createServer } from 'http';
 import { initializeDatabase } from './database';
 import taskRoutes from './routes/taskRoutes';
 import noteRoutes from './routes/noteRoutes';
+import chatRoutes from './routes/chatRoutes';
 import noteShareRoutes from './routes/noteShareRoutes';
 import authRoutes from './routes/authRoutes';
 import categoryRoutes from './routes/categoryRoutes';
@@ -168,57 +169,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-
-// Temporary endpoint to check notes table structure
-app.get('/debug/notes-table', async (req, res) => {
-  try {
-    const { getPool, isPostgreSQL } = await import('./database');
-    
-    if (isPostgreSQL()) {
-      const pool = getPool();
-      const client = await pool.connect();
-      
-      try {
-        // Check table structure
-        const structureResult = await client.query(`
-          SELECT column_name, data_type, is_nullable, column_default
-          FROM information_schema.columns 
-          WHERE table_name = 'notes' 
-          ORDER BY ordinal_position
-        `);
-        
-        // Check if table exists and has data
-        const countResult = await client.query('SELECT COUNT(*) as count FROM notes');
-        
-        res.json({
-          table_exists: true,
-          structure: structureResult.rows,
-          count: countResult.rows[0].count,
-          timestamp: new Date().toISOString()
-        });
-      } finally {
-        client.release();
-      }
-    } else {
-      res.json({
-        database: 'SQLite',
-        message: 'SQLite debugging not implemented',
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error: any) {
-    res.status(500).json({
-      error: 'Failed to check notes table',
-      message: error?.message || 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
 // API Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/notes', noteRoutes);
+app.use('/api/chats', chatRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/lists', listRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);

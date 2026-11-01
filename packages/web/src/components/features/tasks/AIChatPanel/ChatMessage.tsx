@@ -6,7 +6,6 @@ import { coalesceAssistantBodies } from '../../../../lib/chatAssistantText';
 import { capitalizeTaskTitle } from '../../../../lib/taskTitle';
 import { splitTaskRefs } from '../../../../lib/taskRefs';
 import { TaskCardMessage } from './TaskCardMessage';
-import { ListCardMessage } from './ListCardMessage';
 import { CategoryCardMessage } from './CategoryCardMessage';
 import { TaskMention } from './TaskMention';
 import { ThinkingBlock } from './ThinkingBlock';
@@ -286,7 +285,6 @@ interface ChatMessageProps {
    */
   taskArtifactOwner?: Map<string, string>;
   onTaskCardClick?: (taskId: string) => void;
-  onListCardClick?: (listId: string) => void;
   onCategoryCardClick?: (categoryName: string) => void;
   /**
    * Resume action of the journey nudge. Only the last assistant message gets
@@ -301,7 +299,6 @@ export function ChatMessage({
   thinkingStatus,
   taskArtifactOwner,
   onTaskCardClick,
-  onListCardClick,
   onCategoryCardClick,
   onJourneyResume,
 }: ChatMessageProps) {
@@ -326,10 +323,6 @@ export function ChatMessage({
   const inlineMentions = createdTaskMentions(taskToolCalls);
   const visibleTaskToolCalls = taskToolCalls.filter(
     (tc) => !INLINE_TASK_TOOLS.includes(tc.toolName),
-  );
-
-  const listToolCalls = (message.toolCalls || []).filter(
-    (tc) => tc.result?.success && tc.toolName === 'show_list',
   );
 
   const categoryToolCalls = (message.toolCalls || []).filter(
@@ -427,10 +420,6 @@ export function ChatMessage({
           toolCall={tc}
           onTaskClick={onTaskCardClick}
         />
-      ))}
-
-      {listToolCalls.map((tc, i) => (
-        <ListCardMessage key={`${message.id}-lc-${i}`} toolCall={tc} onListClick={onListCardClick} />
       ))}
 
       {categoryToolCalls.map((tc, i) => (

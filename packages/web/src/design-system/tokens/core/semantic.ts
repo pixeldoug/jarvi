@@ -63,7 +63,7 @@ export const semanticTokens = {
   "surface": {
     "primary": "#18191B",
     "secondary": "#2B2D31",
-    "tertiary": "#4B5058",
+    "tertiary": "#1F2023",
     "accent": "#4F26E4",
     "accent-subtle": "#160F2B"
   },
@@ -239,6 +239,9 @@ export const componentTokens = {
   "tooltip": {
     "bg": "#18191B",
     "content": "{Semantic.content.accent}"
+  },
+  "scrollbar": {
+    "thumb": "#F9F9FA"
   }
 },
   dark: {
@@ -388,6 +391,9 @@ export const componentTokens = {
   "tooltip": {
     "bg": "#F9F9FA",
     "content": "#18191B"
+  },
+  "scrollbar": {
+    "thumb": "#4B5058"
   }
 },
 } as const;

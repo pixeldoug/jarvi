@@ -61,35 +61,40 @@
 }
 
 /* ============================================================================
-   ADD BUTTON
-   Hidden by default; revealed when the header row is hovered.
+   ACTIONS + ADD BUTTON
+   The design system's ghost / small Button. Hidden until the header row is
+   hovered or focused (the actions also while `data-visible`). The 40px
+   buttons reach into the header's padding (-9px each side leaves the label's
+   22px) instead of making the row taller.
    ============================================================================ */
 
+.actions,
 .addButton {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background: var(--component-sidebar-group-header-button-bg-default);
-  border: none;
-  border-radius: 6px;
-  color: var(--semantic-content-secondary);
-  cursor: pointer;
   flex-shrink: 0;
-  transition: background-color 0.15s ease;
-
-  /* Hidden until the header is hovered */
+  margin-block: -9px;
   opacity: 0;
   pointer-events: none;
 }
 
-.header:hover .addButton {
-  opacity: 1;
-  pointer-events: auto;
-  background: var(--component-sidebar-group-header-button-bg-default);
+.actions {
+  gap: 2px;
 }
 
-.addButton:hover {
-  background: var(--component-sidebar-group-header-button-bg-hover) !important;
+.header:hover .actions,
+.header:focus-within .actions,
+.actions[data-visible],
+.header:hover .addButton,
+.header:focus-within .addButton {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Touch: no hover, keep the actions reachable */
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }

@@ -1,7 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
+import type { ChatStoredMessage } from '../lib/chatsApi';
 import { stripTaskRefs } from '../lib/taskRefs';
+import { chatsKeys } from './useChats';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
@@ -105,6 +108,7 @@ export interface ToolCallData {
 
 interface SSEEvent {
   type:
+    | 'conversation'
     | 'text'
     | 'reasoning'
     | 'status'
@@ -121,6 +125,9 @@ interface SSEEvent {
   toolArgs?: Record<string, unknown>;
   success?: boolean;
   data?: Record<string, unknown>;
+  /** `conversation` event: the recorded conversation this turn belongs to */
+  id?: string;
+  title?: string;
   /** `choices` event */
   question?: string;
   choices?: string[];
@@ -131,6 +138,13 @@ interface SSEEvent {
   text?: string;
   remaining?: number;
   resumeLabel?: string;
+}
+
+/** The recorded conversation a chat continues (Chats history). */
+export interface ChatConversationRef {
+  id: string;
+  /** '' until the conversation has a text message */
+  title: string;
 }
 
 let messageIdCounter = 0;
@@ -145,17 +159,227 @@ function finalizeReasoningSegment(message: ChatMessageData): ChatMessageData {
   };
 }
 
+/**
+ * Applies one stream event to the reply it belongs to. Used live and to
+ * rebuild a stored reply from its events (`restoreChatMessages`). `status`
+ * and `conversation` don't change the message.
+ */
+function applyChatStreamEvent(message: ChatMessageData, event: SSEEvent): ChatMessageData {
+  switch (event.type) {
+    case 'reasoning':
+      return { ...message, reasoning: (message.reasoning || '') + (event.content || '') };
+
+    case 'text':
+      return { ...message, content: message.content + (event.content || '') };
+
+    case 'separator':
+      // The agent is restarting this turn (guardrail retry). The retry
+      // supersedes the previous attempt — `runAgent` returns only the
+      // last text — so the partial answer already streamed must go.
+      return { ...finalizeReasoningSegment(message), content: '' };
+
+    case 'tool_call': {
+      const finalized = finalizeReasoningSegment(message);
+      return {
+        ...finalized,
+        toolCalls: [
+          ...(finalized.toolCalls || []),
+          {
+            toolName: event.toolName || '',
+            toolArgs: event.toolArgs || {},
+          },
+        ],
+      };
+    }
+
+    case 'choices':
+      // The backend decided the next question. It is the source of
+      // truth for the artifact — `done` keeps it (see below).
+      return {
+        ...message,
+        choicePromptTitle: event.question || undefined,
+        choicePrompts: Array.isArray(event.choices) ? event.choices : [],
+        choiceTaskId: event.taskId || undefined,
+        choiceTaskTitle: event.taskTitle || undefined,
+        choiceField: toChoiceField(event.field),
+      };
+
+    case 'journey_nudge':
+      return {
+        ...message,
+        journeyNudge: {
+          text: event.text || '',
+          remaining: typeof event.remaining === 'number' ? event.remaining : 0,
+          resumeLabel: event.resumeLabel || 'Continuar',
+        },
+      };
+
+    case 'tool_result': {
+      const calls = [...(message.toolCalls || [])];
+      let matchIdx = -1;
+      for (let i = calls.length - 1; i >= 0; i--) {
+        if (calls[i].toolName === event.toolName && !calls[i].result) {
+          matchIdx = i;
+          break;
+        }
+      }
+      if (matchIdx >= 0) {
+        calls[matchIdx] = {
+          ...calls[matchIdx],
+          result: {
+            success: event.success ?? false,
+            data: event.data,
+          },
+        };
+      }
+      const next: ChatMessageData = { ...message, toolCalls: calls };
+      // A model question only fills the artifact when the system has
+      // not asked one already this turn.
+      if (event.toolName === 'offer_choices' && event.success && !message.choicePrompts?.length) {
+        const artifact = resolveChatChoiceArtifact(next);
+        if (artifact.choices.length > 0) {
+          next.choicePromptTitle = artifact.question;
+          next.choicePrompts = artifact.choices;
+        }
+      }
+      return next;
+    }
+
+    case 'error': {
+      const errorText = event.message || 'Ocorreu um erro.';
+      if (!message.content) return { ...message, content: errorText };
+      return { ...message, content: message.content + `\n\n⚠️ ${errorText}` };
+    }
+
+    case 'done': {
+      const withReasoning = finalizeReasoningSegment(message);
+      const artifact = resolveChatChoiceArtifact(withReasoning);
+      if (artifact.choices.length === 0) return withReasoning;
+      return {
+        ...withReasoning,
+        choicePromptTitle: artifact.question,
+        choicePrompts: artifact.choices,
+      };
+    }
+
+    default:
+      return message;
+  }
+}
+
+const emptyReply = (id: string): ChatMessageData => ({
+  id,
+  role: 'assistant',
+  content: '',
+  contentAfter: '',
+  toolCalls: [],
+  reasoning: '',
+  reasoningSegments: [],
+});
+
+/** Attachment metadata without the preview data (for the API / history). */
+const withoutPreview = (attachments: ChatAttachmentMeta[]): ChatAttachmentMeta[] =>
+  attachments.map(({ name, mimeType }) => ({ name, mimeType }));
+
+/**
+ * A message the server never stored, as sent in `priorMessages`: what the
+ * user saw before the conversation was recorded (e.g. the onboarding follow-up).
+ */
+function toPriorSnapshot(message: ChatMessageData): Omit<ChatMessageData, 'id'> {
+  const { id: _id, reasoning: _reasoning, attachments, ...rest } = finalizeReasoningSegment(message);
+  return attachments ? { ...rest, attachments: withoutPreview(attachments) } : rest;
+}
+
+/** A snapshot stored with a message (untrusted shape): only the fields the chat renders. */
+function fromSnapshot(id: string, role: ChatMessageData['role'], raw: Record<string, unknown>): ChatMessageData {
+  const snapshot = raw as Partial<ChatMessageData>;
+  const isObject = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object';
+  const strings = (value: unknown): string[] | undefined =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined;
+  const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+  return {
+    id,
+    role,
+    content: text(snapshot.content) ?? '',
+    contentAfter: text(snapshot.contentAfter),
+    toolCalls: Array.isArray(snapshot.toolCalls)
+      ? snapshot.toolCalls.filter((call) => isObject(call) && typeof call.toolName === 'string')
+      : undefined,
+    reasoningSegments: strings(snapshot.reasoningSegments),
+    attachments: Array.isArray(snapshot.attachments)
+      ? withoutPreview(snapshot.attachments.filter(isObject))
+      : undefined,
+    choicePrompts: strings(snapshot.choicePrompts),
+    choicePromptTitle: text(snapshot.choicePromptTitle),
+    choiceTaskId: text(snapshot.choiceTaskId),
+    choiceTaskTitle: text(snapshot.choiceTaskTitle),
+    choiceField: snapshot.choiceField ? toChoiceField(snapshot.choiceField) : undefined,
+    journeyNudge:
+      isObject(snapshot.journeyNudge) && typeof snapshot.journeyNudge.text === 'string'
+        ? snapshot.journeyNudge
+        : undefined,
+  };
+}
+
+/** The messages of a stored conversation (`/api/chats/:id`), as the chat shows them. */
+export function restoreChatMessages(stored: ChatStoredMessage[]): ChatMessageData[] {
+  return stored.map((message): ChatMessageData => {
+    const snapshot = message.data?.message;
+    if (snapshot) return fromSnapshot(message.id, message.role, snapshot);
+    if (message.role === 'user') {
+      const attachments = message.data?.attachments;
+      return {
+        id: message.id,
+        role: 'user',
+        content: message.content,
+        ...(attachments?.length ? { attachments: withoutPreview(attachments) } : {}),
+      };
+    }
+    const events = message.data?.events;
+    if (!events) return { id: message.id, role: 'assistant', content: message.content };
+    // Replayed like the live stream, closed by the `done` the history leaves out.
+    const replayed = [...(events as SSEEvent[]), { type: 'done' } as SSEEvent].reduce(
+      applyChatStreamEvent,
+      emptyReply(message.id),
+    );
+    return finalizeReasoningSegment(replayed);
+  });
+}
+
+/**
+ * `note` runs the general agent with the note (notes, summary, transcript) as
+ * extra context; it requires `noteId`.
+ */
+export type ChatMode = 'task' | 'general' | 'note';
+
+export interface ChatStreamOptions {
+  /** The recorded conversation the seeded messages come from (Chats history) */
+  conversationId?: string;
+  /** The backend recorded this turn in a conversation (new or continued) */
+  onConversation?: (conversation: ChatConversationRef) => void;
+}
+
 export function useChatStream(
-  mode: 'task' | 'general',
+  mode: ChatMode,
   taskId?: string,
   seededMessages: ChatMessageData[] = [],
+  noteId?: string,
+  options: ChatStreamOptions = {},
 ) {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<ChatMessageData[]>(seededMessages);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
   const [thinkingStatus, setThinkingStatus] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // The recorded conversation the next turn continues (none: a new one).
+  const conversationIdRef = useRef<string | null>(options.conversationId ?? null);
+  // Its title as last sent by the backend (null: not seen yet this session).
+  const conversationTitleRef = useRef<string | null>(null);
+  const onConversationRef = useRef(options.onConversation);
+  onConversationRef.current = options.onConversation;
 
   const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
     const trimmed = text.trim();
@@ -197,19 +421,13 @@ export function useChatStream(
       };
     });
 
+    // Chats history: continue the recorded conversation, or start one with
+    // what the user already saw (e.g. the onboarding follow-up).
+    const conversationId = conversationIdRef.current;
+    const priorMessages = conversationId ? [] : messages.map(toPriorSnapshot);
+
     const assistantId = nextId();
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        contentAfter: '',
-        toolCalls: [],
-        reasoning: '',
-        reasoningSegments: [],
-      },
-    ]);
+    setMessages((prev) => [...prev, emptyReply(assistantId)]);
     setIsStreaming(true);
     setIsWaiting(true);
     setThinkingStatus('Preparando resposta…');
@@ -238,8 +456,11 @@ export function useChatStream(
           messages: historyForApi,
           mode,
           taskId,
+          ...(mode === 'note' ? { noteId } : {}),
           ...(pendingQuestion ? { pendingQuestion } : {}),
           ...(attachments.length > 0 ? { attachments } : {}),
+          ...(conversationId ? { conversationId } : {}),
+          ...(priorMessages.length > 0 ? { priorMessages } : {}),
         }),
         signal: controller.signal,
       });
@@ -273,6 +494,22 @@ export function useChatStream(
           }
 
           switch (event.type) {
+            case 'conversation':
+              if (event.id) {
+                const title = event.title || '';
+                // A new conversation, or its AI title: the history list changed.
+                const listChanged =
+                  event.id !== conversationIdRef.current ||
+                  (conversationTitleRef.current !== null && title !== conversationTitleRef.current);
+                conversationIdRef.current = event.id;
+                conversationTitleRef.current = title;
+                onConversationRef.current?.({ id: event.id, title });
+                if (listChanged) {
+                  void queryClient.invalidateQueries({ queryKey: chatsKeys.all, exact: true });
+                }
+              }
+              break;
+
             case 'status':
               if (event.message) {
                 setThinkingStatus(event.message);
@@ -280,123 +517,20 @@ export function useChatStream(
               break;
 
             case 'reasoning':
-              setIsWaiting(false);
-              updateAssistant((m) => ({
-                ...m,
-                reasoning: (m.reasoning || '') + (event.content || ''),
-              }));
-              break;
-
             case 'text':
+            case 'journey_nudge':
               setIsWaiting(false);
-              updateAssistant((m) => ({
-                ...m,
-                content: m.content + (event.content || ''),
-              }));
+              updateAssistant((m) => applyChatStreamEvent(m, event));
               break;
 
             case 'separator':
-              // The agent is restarting this turn (guardrail retry). The retry
-              // supersedes the previous attempt — `runAgent` returns only the
-              // last text — so the partial answer already streamed must go.
-              finalizeAssistantReasoning();
-              setIsWaiting(true);
-              updateAssistant((m) => ({ ...m, content: '' }));
-              break;
-
             case 'tool_call':
-              finalizeAssistantReasoning();
               setIsWaiting(true);
-              updateAssistant((m) => ({
-                ...m,
-                toolCalls: [
-                  ...(m.toolCalls || []),
-                  {
-                    toolName: event.toolName || '',
-                    toolArgs: event.toolArgs || {},
-                  },
-                ],
-              }));
+              updateAssistant((m) => applyChatStreamEvent(m, event));
               break;
 
-            case 'choices':
-              // The backend decided the next question. It is the source of
-              // truth for the artifact — `done` keeps it (see below).
-              updateAssistant((m) => ({
-                ...m,
-                choicePromptTitle: event.question || undefined,
-                choicePrompts: Array.isArray(event.choices) ? event.choices : [],
-                choiceTaskId: event.taskId || undefined,
-                choiceTaskTitle: event.taskTitle || undefined,
-                choiceField: toChoiceField(event.field),
-              }));
-              break;
-
-            case 'journey_nudge':
-              setIsWaiting(false);
-              updateAssistant((m) => ({
-                ...m,
-                journeyNudge: {
-                  text: event.text || '',
-                  remaining: typeof event.remaining === 'number' ? event.remaining : 0,
-                  resumeLabel: event.resumeLabel || 'Continuar',
-                },
-              }));
-              break;
-
-            case 'tool_result':
-              updateAssistant((m) => {
-                const calls = [...(m.toolCalls || [])];
-                let matchIdx = -1;
-                for (let i = calls.length - 1; i >= 0; i--) {
-                  if (calls[i].toolName === event.toolName && !calls[i].result) {
-                    matchIdx = i;
-                    break;
-                  }
-                }
-                if (matchIdx >= 0) {
-                  calls[matchIdx] = {
-                    ...calls[matchIdx],
-                    result: {
-                      success: event.success ?? false,
-                      data: event.data,
-                    },
-                  };
-                }
-                const next: ChatMessageData = { ...m, toolCalls: calls };
-                // A model question only fills the artifact when the system has
-                // not asked one already this turn.
-                if (event.toolName === 'offer_choices' && event.success && !m.choicePrompts?.length) {
-                  const artifact = resolveChatChoiceArtifact(next);
-                  if (artifact.choices.length > 0) {
-                    next.choicePromptTitle = artifact.question;
-                    next.choicePrompts = artifact.choices;
-                  }
-                }
-                return next;
-              });
-              break;
-
-            case 'error': {
-              const errorText = event.message || 'Ocorreu um erro.';
-              updateAssistant((m) => {
-                if (!m.content) return { ...m, content: errorText };
-                return { ...m, content: m.content + `\n\n⚠️ ${errorText}` };
-              });
-              break;
-            }
-
-            case 'done':
-              updateAssistant((m) => {
-                const withReasoning = finalizeReasoningSegment(m);
-                const artifact = resolveChatChoiceArtifact(withReasoning);
-                if (artifact.choices.length === 0) return withReasoning;
-                return {
-                  ...withReasoning,
-                  choicePromptTitle: artifact.question,
-                  choicePrompts: artifact.choices,
-                };
-              });
+            default:
+              updateAssistant((m) => applyChatStreamEvent(m, event));
               break;
           }
         }
@@ -417,11 +551,17 @@ export function useChatStream(
       setIsWaiting(false);
       setThinkingStatus(null);
       abortRef.current = null;
+      // The turn changed the history (the reply is stored before the stream ends).
+      if (conversationIdRef.current) {
+        void queryClient.invalidateQueries({ queryKey: chatsKeys.all });
+      }
     }
-  }, [token, messages, isStreaming, mode, taskId]);
+  }, [token, messages, isStreaming, mode, taskId, noteId, queryClient]);
 
   const reset = useCallback(() => {
     if (abortRef.current) abortRef.current.abort();
+    conversationIdRef.current = null;
+    conversationTitleRef.current = null;
     setMessages([]);
     setIsStreaming(false);
     setIsWaiting(false);

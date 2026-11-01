@@ -11,8 +11,8 @@
  * (`data-dialog-outside-click-ignore`). This picker nests several row
  * triggers plus two more `Dropdown`s (compact calendar / exact time fields),
  * and a hand-rolled outside-click handler would close the whole popover the
- * moment a nested option is clicked. `FilterPopover` already established
- * this same pattern for nesting `Select` inside a `Dropdown`.
+ * moment a nested option is clicked. `FilterMenu` nests its submenu
+ * `Dropdown` the same way.
  *
  * Layout follows the "Frequência" Dropdown design in Figma
  * (node 40001716:70617): a header, then fields grouped into cards, each

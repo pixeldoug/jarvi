@@ -1,5 +1,5 @@
 /**
- * FeedbackDialog — same layout as CreateListPopover for bug reports and ideas.
+ * FeedbackDialog — dialog for bug reports and ideas.
  */
 
 import { useEffect, useState } from 'react';
@@ -12,7 +12,7 @@ import {
   FEEDBACK_SURVEYS,
   type FeedbackKind,
 } from '../../../lib/posthogFeedback';
-import listStyles from '../tasks/CreateListPopover/CreateListPopover.module.css';
+import styles from './FeedbackDialog.module.css';
 
 export interface FeedbackDialogProps {
   kind: FeedbackKind | null;
@@ -67,19 +67,19 @@ export function FeedbackDialog({ kind, isOpen, onClose }: FeedbackDialogProps) {
       isOpen={isOpen}
       onClose={handleClose}
       width="lg"
-      className={listStyles.dialog}
-      contentClassName={listStyles.dialogContent}
+      className={styles.dialog}
+      contentClassName={styles.dialogContent}
       forceTheme="dark"
       showCloseButton
     >
-      <header className={listStyles.header}>
-        <h3 className={listStyles.title}>{config.title}</h3>
-        <p className={listStyles.subtitle}>{config.subtitle}</p>
+      <header className={styles.header}>
+        <h3 className={styles.title}>{config.title}</h3>
+        <p className={styles.subtitle}>{config.subtitle}</p>
       </header>
 
-      <form className={listStyles.form} onSubmit={handleSubmit}>
-        <div className={listStyles.formBody}>
-          <div className={listStyles.field}>
+      <form className={styles.form} onSubmit={handleSubmit}>
+        <div className={styles.formBody}>
+          <div className={styles.field}>
             <TextArea
               id={`feedback-${config.kind}-primary`}
               label={config.questions[0].label}
@@ -90,7 +90,7 @@ export function FeedbackDialog({ kind, isOpen, onClose }: FeedbackDialogProps) {
               required
             />
           </div>
-          <div className={listStyles.field}>
+          <div className={styles.field}>
             <TextArea
               id={`feedback-${config.kind}-secondary`}
               label={config.questions[1].label}
@@ -102,8 +102,8 @@ export function FeedbackDialog({ kind, isOpen, onClose }: FeedbackDialogProps) {
           </div>
         </div>
 
-        <div className={listStyles.footer}>
-          <div className={listStyles.footerActions}>
+        <div className={styles.footer}>
+          <div className={styles.footerActions}>
             <Button
               type="button"
               variant="ghost"

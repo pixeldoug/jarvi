@@ -21,6 +21,7 @@
   --color-gray-700: #757D88;
   --color-gray-800: #4B5058;
   --color-gray-900: #2B2D31;
+  --color-gray-925: #1F2023;
   --color-gray-950: #18191B;
   --color-brand-primary-50: #F3F1FC;
   --color-brand-primary-100: #EEE9FE;
@@ -193,11 +194,11 @@
   --typography-heading-sm-line-height: 24px;
   --typography-heading-sm-font-weight: 600;
   --typography-heading-sm-letter-spacing: -0.25px;
-  --typography-body-lg-font-size: 19px;
+  --typography-body-lg-font-size: 18px;
   --typography-body-lg-line-height: 27px;
-  --typography-body-lg-font-weight: 400;
+  --typography-body-lg-font-weight: 450;
   --typography-body-lg-letter-spacing: 0.25px;
-  --typography-body-md-font-size: 15px;
+  --typography-body-md-font-size: 14px;
   --typography-body-md-line-height: 21px;
   --typography-body-md-font-weight: 450;
   --typography-body-md-letter-spacing: 0.20000000298023224px;
@@ -228,13 +229,13 @@
   --radius-tooltip-radius: 12px;
 
   /* ===== Target Sizes (Mode) ===== */
-  --size-target-fine: 28px;
+  --size-target-fine: 24px;
   --size-target-tight: 36px;
   --size-target-compact: 40px;
   --size-target-standard: 48px;
 
   /* ===== Chip Sizes (Mode) ===== */
-  --size-chip-small-height: 28px;
+  --size-chip-small-height: 24px;
   --size-chip-medium-height: 36px;
 
   /* ===== Semantic Tokens (Light Mode) ===== */
@@ -373,6 +374,7 @@
   --component-sidebar-group-header-button-bg-hover: #EEEFF2;
   --component-tooltip-bg: #18191B;
   --component-tooltip-content: #F3F1FC;
+  --component-scrollbar-thumb: #F9F9FA;
 }
 
 /* ========================================
@@ -394,7 +396,7 @@
   --semantic-content-info: #8D6EF7;
   --semantic-surface-primary: #18191B;
   --semantic-surface-secondary: #2B2D31;
-  --semantic-surface-tertiary: #4B5058;
+  --semantic-surface-tertiary: #1F2023;
   --semantic-surface-accent: #4F26E4;
   --semantic-surface-accent-subtle: #160F2B;
   --semantic-border-primary: #2B2D31;
@@ -413,7 +415,7 @@
   --component-badge-bg-default: #2B2D31;
   --component-badge-bg-disabled: #18191B;
   --component-badge-content-disabled: rgba(255, 255, 255, 0.2);
-  --component-badge-bg-hover: #4B5058;
+  --component-badge-bg-hover: #1F2023;
   --component-badge-content-hover: #EEEFF2;
   --component-badge-content: #EEEFF2;
   --component-button-bg-disabled: rgba(255, 255, 255, 0.05);
@@ -514,9 +516,10 @@
   --component-sidebar-group-header-bg-default: rgba(255, 255, 255, 0);
   --component-sidebar-group-header-bg-hover: #2B2D31;
   --component-sidebar-group-header-button-bg-default: rgba(255, 255, 255, 0);
-  --component-sidebar-group-header-button-bg-hover: #4B5058;
+  --component-sidebar-group-header-button-bg-hover: #1F2023;
   --component-tooltip-bg: #F9F9FA;
   --component-tooltip-content: #18191B;
+  --component-scrollbar-thumb: #4B5058;
 }
 
 /* ========================================
@@ -546,11 +549,11 @@
     --typography-heading-sm-line-height: 24px;
     --typography-heading-sm-font-weight: 600;
     --typography-heading-sm-letter-spacing: -0.25px;
-    --typography-body-lg-font-size: 19px;
+    --typography-body-lg-font-size: 18px;
     --typography-body-lg-line-height: 27px;
-    --typography-body-lg-font-weight: 400;
+    --typography-body-lg-font-weight: 450;
     --typography-body-lg-letter-spacing: 0.25px;
-    --typography-body-md-font-size: 15px;
+    --typography-body-md-font-size: 14px;
     --typography-body-md-line-height: 21px;
     --typography-body-md-font-weight: 450;
     --typography-body-md-letter-spacing: 0.20000000298023224px;

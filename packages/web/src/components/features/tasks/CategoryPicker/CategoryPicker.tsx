@@ -14,7 +14,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Ghost, Plus, Hash } from '@phosphor-icons/react';
+import { Ghost, Plus, Hash, X } from '@phosphor-icons/react';
 import { Button } from '../../../ui/Button';
 import { ListItem } from '../../../ui/ListItem';
 import { type Category } from '../../../../contexts/CategoryContext';
@@ -35,6 +35,11 @@ export interface CategoryPickerProps {
   onSelectCategory?: (category: Category) => void;
   /** Callback when a new category is created */
   onCreateCategory?: (name: string) => void;
+  /**
+   * Adds "Remover categoria" while `selectedCategory` is set (for triggers
+   * that are not a Chip with its own clear button).
+   */
+  onClearCategory?: () => void;
   /** Anchor element reference for positioning */
   anchorRef?: React.RefObject<HTMLElement>;
   /** Additional CSS classes */
@@ -47,8 +52,10 @@ export function CategoryPicker({
   isOpen,
   onClose,
   categories = [],
+  selectedCategory,
   onSelectCategory,
   onCreateCategory,
+  onClearCategory,
   anchorRef,
   className = '',
 }: CategoryPickerProps) {
@@ -307,9 +314,23 @@ export function CategoryPicker({
                     key={category.id}
                     label={category.name}
                     icon={Hash}
+                    active={
+                      !!selectedCategory &&
+                      category.name.trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+                    }
                     onClick={() => handleCategoryClick(category)}
                   />
                 ))}
+                {onClearCategory && selectedCategory && (
+                  <ListItem
+                    label="Remover categoria"
+                    icon={X}
+                    onClick={() => {
+                      onClearCategory();
+                      onClose();
+                    }}
+                  />
+                )}
               </div>
             </div>
 

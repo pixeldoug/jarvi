@@ -22,6 +22,8 @@ export interface TaskCheckboxProps {
   className?: string;
   /** Size variant */
   size?: 'default' | 'medium' | 'large';
+  /** Shown but not toggleable */
+  disabled?: boolean;
 }
 
 export function TaskCheckbox({
@@ -30,6 +32,7 @@ export function TaskCheckbox({
   ariaLabel = 'Toggle task completion',
   className = '',
   size = 'default',
+  disabled = false,
 }: TaskCheckboxProps) {
   const checkboxClasses = [
     styles.checkbox,
@@ -42,14 +45,14 @@ export function TaskCheckbox({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onChange();
+    if (!disabled) onChange();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       e.stopPropagation();
-      onChange();
+      if (!disabled) onChange();
     }
   };
 
@@ -62,6 +65,7 @@ export function TaskCheckbox({
       aria-label={ariaLabel}
       aria-checked={checked ? 'true' : 'false'}
       role="checkbox"
+      disabled={disabled}
     >
       {checked && (
         <span className={styles.icon}>

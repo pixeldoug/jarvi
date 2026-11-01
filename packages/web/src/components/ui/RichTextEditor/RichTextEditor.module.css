@@ -229,11 +229,6 @@
   padding-bottom: var(--sizes-10);
 }
 
-.editorArea::-webkit-scrollbar { width: 4px; }
-.editorArea::-webkit-scrollbar-track { background: transparent; border-radius: var(--radius-round); }
-.editorArea::-webkit-scrollbar-thumb { background: var(--semantic-surface-tertiary); border-radius: var(--radius-round); }
-.editorArea::-webkit-scrollbar-thumb:hover { background: var(--semantic-content-secondary); }
-
 /* ProseMirror editor element */
 .editorArea :global(.ProseMirror) {
   outline: none;
@@ -715,6 +710,90 @@
 }
 
 /* ============================================================================
+   DOCUMENT VARIANT (variant="document") — full-page notes editor.
+   Grows with its content (the page scrolls, not the editor), no scrollbar
+   gutter, page-like typography. Selectors carry `.document` so they win over
+   the default rules above regardless of order.
+   ============================================================================ */
+
+.editorContainer.document {
+  flex: 0 0 auto;
+  min-height: auto;
+}
+
+.document .wrapper {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+.document .editorArea {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.document .editorArea :global(.ProseMirror) {
+  /* Tall click target: clicking below the text still places the caret */
+  min-height: 40vh;
+  padding-bottom: var(--sizes-6);
+  font-family: var(--font-font-family-font-ui);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--semantic-content-primary);
+}
+
+.document .editorArea :global(.ProseMirror p.is-editor-empty:first-child::before) {
+  color: var(--semantic-control-content-placeholder);
+  font-size: inherit;
+  line-height: inherit;
+  letter-spacing: normal;
+}
+
+.document .editorArea :global(.ProseMirror p) { margin: 4px 0; }
+
+.document .editorArea :global(.ProseMirror h1) {
+  margin: 28px 0 8px;
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+}
+
+.document .editorArea :global(.ProseMirror h2) {
+  margin: 24px 0 8px;
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+}
+
+.document .editorArea :global(.ProseMirror h3) {
+  margin: 20px 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.document .editorArea :global(.ProseMirror > :first-child) { margin-top: 0; }
+
+.document .editorArea :global(.ProseMirror li) { margin: 4px 0; }
+
+.document .editorArea :global(.ProseMirror ul[data-type="taskList"] > li) { margin: 4px 0; }
+
+/* Checkbox centered on the first 16px / 1.6 line */
+.document .editorArea :global(.ProseMirror ul[data-type="taskList"] > li > label) {
+  padding-top: 5px;
+}
+
+.document .editorArea :global(.ProseMirror ul[data-type="taskList"] > li > label > input[type="checkbox"]) {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================================================
    ATTACHMENT CARDS
    ============================================================================ */
 
@@ -751,7 +830,6 @@
   width: 100%;
   overflow-x: auto;
   padding-bottom: var(--sizes-1);
-  scrollbar-width: thin;
 }
 
 .triggerCaret {

@@ -1,0 +1,80 @@
+/**
+ * FilterMenu styles
+ */
+
+.divider {
+  margin: var(--sizes-2) 0;
+}
+
+/* Long facets (categories, notes) scroll inside the submenu */
+.options {
+  display: flex;
+  flex-direction: column;
+  max-height: 336px;
+  overflow-y: auto;
+}
+
+/* Same row as ConvertToTasksDialog: the whole row toggles the checkbox */
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+  height: var(--size-target-standard, 48px);
+  padding: 0 var(--sizes-3) 0 var(--sizes-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.option:hover {
+  background-color: var(--semantic-surface-secondary);
+}
+
+.optionIcon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--semantic-content-primary);
+}
+
+.optionIcon img {
+  width: 16px;
+  height: 16px;
+}
+
+.optionLabel {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.optionCount {
+  flex-shrink: 0;
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sizes-3);
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+}

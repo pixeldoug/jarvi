@@ -1,0 +1,72 @@
+/**
+ * Skeleton styles — tokens only. The shimmer is a lighter band of the same
+ * surface family crossing the bar; it stops for reduced motion.
+ */
+
+.skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--semantic-surface-secondary);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--semantic-surface-tertiary), transparent);
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
+.line {
+  height: var(--typography-body-md-font-size);
+  border-radius: var(--radius-round);
+}
+
+.block {
+  height: var(--sizes-10);
+  border-radius: var(--radius-sm);
+}
+
+/* Lines sized like the text they stand for: each takes the style's line
+   height, with a bar a bit thinner than its font size. */
+.text {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.textLine {
+  display: flex;
+  align-items: center;
+}
+
+.body .textLine {
+  height: var(--typography-body-md-line-height);
+}
+
+.body .skeleton {
+  height: calc(var(--typography-body-md-font-size) * 0.75);
+}
+
+.heading .textLine {
+  height: var(--typography-heading-sm-line-height);
+}
+
+.heading .skeleton {
+  height: calc(var(--typography-heading-sm-font-size) * 0.75);
+}
+
+@keyframes skeletonShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+    display: none;
+  }
+}

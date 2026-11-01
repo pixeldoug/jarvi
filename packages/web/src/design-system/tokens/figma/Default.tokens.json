@@ -221,6 +221,25 @@
           "com.figma.isOverride": true
         }
       },
+      "925": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.12156862745098039,
+            0.12549019607843137,
+            0.13725490196078433
+          ],
+          "alpha": 1,
+          "hex": "#1F2023"
+        },
+        "$description": "Dark-mode subtle surface (between 950 and 900). Added in code on 2026-10-21: create Colors/gray/925 in Figma and re-export.",
+        "$extensions": {
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ]
+        }
+      },
       "950": {
         "$type": "color",
         "$value": {

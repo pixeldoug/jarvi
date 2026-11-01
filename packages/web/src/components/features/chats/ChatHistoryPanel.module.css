@@ -1,0 +1,142 @@
+/**
+ * ChatHistoryPanel styles — the sidebar's "Chats" group, laid out like
+ * Categorias (Sidebar.module.css: groupSection / groupHeaderWrapper / navList)
+ */
+
+/* Last group of the sidebar body: clears the scrollbar at the bottom. Sits
+   8px under Categorias (the body's 24px group gap, minus 16px), the same gap
+   as between a group's header and its rows */
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-2);
+  width: 100%;
+  margin-top: calc(var(--sizes-2) - var(--sizes-6));
+  padding: 0 var(--sizes-2) var(--sizes-6);
+  flex-shrink: 0;
+}
+
+/* In place of the menu and Categorias: fills the body, its list scrolls */
+.groupExpanded {
+  flex: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  margin-top: 0;
+  padding-bottom: 0;
+}
+
+.headerWrapper {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* ── Conversations ───────────────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  padding: 0 var(--sizes-1);
+}
+
+/* The panel scrollbar needs a size that doesn't come from the content. Its
+   room is kept on both sides so it never moves the rows: -2px + 6px = .list's
+   4px inset */
+.listExpanded {
+  composes: scrollbar-panel from global;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  width: calc(100% + 4px);
+  margin-inline: -2px;
+  padding-inline: 0;
+  padding-bottom: var(--sizes-6);
+  --scrollbar-panel-padding-block: var(--sizes-6);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+}
+
+/* When it was last used + the "…" menu, over the row's right end */
+.rowMeta {
+  position: absolute;
+  top: 50%;
+  right: var(--sizes-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.lastUsed {
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  color: var(--semantic-content-secondary);
+  white-space: nowrap;
+}
+
+/* `aria-expanded`: keep it while the menu is open (the pointer is on the portal) */
+.row:hover .rowMeta,
+.row:focus-within .rowMeta,
+.row:has([aria-expanded='true']) .rowMeta {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* The title stops short of the meta while it shows */
+.row:hover .rowButton,
+.row:focus-within .rowButton,
+.row:has([aria-expanded='true']) .rowButton {
+  padding-right: 120px;
+}
+
+/* Touch: no hover, keep the menu reachable */
+@media (hover: none) {
+  .rowMeta {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .lastUsed {
+    display: none;
+  }
+
+  .rowButton {
+    padding-right: var(--sizes-12);
+  }
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+  padding: var(--sizes-3) var(--sizes-4);
+}
+
+.message {
+  margin: 0;
+  padding: var(--sizes-2) var(--sizes-4) var(--sizes-3);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+}

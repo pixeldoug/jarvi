@@ -7,9 +7,8 @@
  * right.
  *
  * The Dropdown component wraps children in a .content div with 8px padding.
- * We cancel it on .container and apply our own spacing (same pattern as
- * FilterPopover.module.css), then restore 4px top and 8px bottom breathing
- * room via padding.
+ * We cancel it on .container and apply our own spacing, then restore 4px
+ * top and 8px bottom breathing room via padding.
  */
 
 .container {
@@ -167,23 +166,6 @@
   overflow-y: auto;
 }
 
-.options::-webkit-scrollbar {
-  width: 6px;
-}
-
-.options::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.options::-webkit-scrollbar-thumb {
-  background: var(--semantic-content-tertiary);
-  border-radius: var(--sizes-2);
-}
-
-.options::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
 /* ============================================================================
    CUSTOM: "A cada [N] <unidade>"
    ============================================================================ */
@@ -221,21 +203,4 @@
   gap: var(--sizes-0-5);
   max-height: 200px;
   overflow-y: auto;
-}
-
-.timeOptions::-webkit-scrollbar {
-  width: 6px;
-}
-
-.timeOptions::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.timeOptions::-webkit-scrollbar-thumb {
-  background: var(--semantic-content-tertiary);
-  border-radius: var(--sizes-2);
-}
-
-.timeOptions::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
 }

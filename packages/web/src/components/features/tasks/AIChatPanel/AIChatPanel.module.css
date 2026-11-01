@@ -10,6 +10,60 @@
   overflow: hidden;
 }
 
+/* ---- Page variant (Chats page) ----
+   Fills the main card: no header, the messages and the input in one centered
+   column. On desktop the messages scroll by the card's edge, bleeding over
+   its side padding like the note page (compliance.md → Scrollbars). */
+
+.panelPage {
+  overflow: visible;
+}
+
+.panelPage .chatBody {
+  padding: 0;
+}
+
+.panelPage .emptyState,
+.panelPage .messageList,
+.panelPage .inputBar {
+  width: 100%;
+  max-width: 760px;
+  margin-inline: auto;
+}
+
+.panelPage .inputBar {
+  padding: var(--sizes-2) 0 var(--sizes-6);
+}
+
+@media (min-width: 769px) {
+  .panelPage .chatBody {
+    --chat-bleed-x: calc(var(--main-padding-x, 0px) - var(--sizes-2));
+    margin-inline: calc(var(--chat-bleed-x) * -1);
+    padding-inline: var(--chat-bleed-x);
+    /* Keeps the column centered under the scrollbar */
+    scrollbar-gutter: stable both-edges;
+  }
+}
+
+/* Mobile: the document scrolls (as on every page), so the input is pinned to
+   the bottom of the screen like the ControlBar, above the keyboard
+   (`--keyboard-offset`, kept by the ControlBar that MainLayout mounts hidden). */
+@media (max-width: 768px) {
+  .panelPage .chatBody {
+    padding-bottom: var(--sizes-24);
+  }
+
+  .panelPage .inputBar {
+    position: fixed;
+    left: var(--sizes-4);
+    right: var(--sizes-4);
+    bottom: calc(var(--sizes-4) + var(--keyboard-offset, 0px) + env(safe-area-inset-bottom, 0px));
+    z-index: 100;
+    width: auto;
+    padding: 0;
+  }
+}
+
 /* ---- Header ---- */
 
 .header {
@@ -44,6 +98,7 @@
 /* ---- Chat body ---- */
 
 .chatBody {
+  composes: scrollbar-panel from global;
   flex: 1;
   overflow-y: auto;
   padding: 0 var(--sizes-6) 0 var(--sizes-8);

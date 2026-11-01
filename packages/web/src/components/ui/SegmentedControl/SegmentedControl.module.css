@@ -1,0 +1,115 @@
+/**
+ * SegmentedControl styles
+ *
+ * Track 40px; segments 36px; the active pill 44px, so it overflows the track
+ * by 2px above and below (at either end it also covers the track's padding
+ * and border, up to its outer edge). The track's block margin reserves that
+ * overflow: the component's box is everything it paints, so callers space it
+ * like any other element and an `overflow: hidden` parent never clips it.
+ */
+
+.track {
+  display: inline-flex;
+  align-items: center; /* centers the taller active segment: it overflows evenly */
+  gap: 2px;
+  height: 40px;
+  padding: 0 2px;
+  border: 1px solid var(--semantic-border-primary);
+  border-radius: 18px;
+  background: transparent;
+  overflow: visible;
+  flex-shrink: 0;
+  margin-block: 2px;
+}
+
+/* One per segment: positions the pill behind its button */
+.slot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The active pill (shared layout element that slides between segments) */
+.pill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 44px;
+  margin-top: -22px;
+  background: var(--component-button-ghost-bg-active);
+  box-shadow:
+    0 1px 2px 0 var(--semantic-elevation-first-level),
+    0 2px 8px 0 var(--semantic-elevation-first-level);
+}
+
+/* At either end the pill also covers the track's edge (padding + border), so
+   the track reads as tucked behind it. Each slot sits in a Tooltip wrapper. */
+.track > :first-child .pill {
+  left: -3px;
+}
+
+.track > :last-child .pill {
+  right: -3px;
+}
+
+/* Element-qualified to win over Button's size classes */
+button.segment {
+  position: relative; /* above the pill */
+  height: 36px;
+  box-shadow: none;
+}
+
+/* The pill draws the active background. `.track` prefix: must beat Button's
+   `.variant-ghost.active:not(.disabled)` / `:hover` backgrounds and shadow. */
+.track button.segment[data-active='true'] {
+  height: 44px;
+  background: transparent;
+  /* Same as a Chip's label (Button ghost active would use a muted gray) */
+  color: var(--semantic-content-primary);
+}
+
+/* Hover only lifts the background; the icon / label keep their default color
+   (Button ghost would also switch to its hover content color) */
+.track button.segment[data-active='false']:hover:not(:disabled) {
+  color: var(--component-button-ghost-content-default);
+}
+
+/* ── display="labels": every segment labelled, same width active or not ── */
+
+.labels button.segment {
+  min-width: 70px;
+}
+
+/* ── display="compact": icon-only segments, the active one labelled ─────── */
+
+/* A bit wider than Button small's 40px */
+.compact button.segment[data-active='false'] {
+  width: 44px;
+}
+
+/* Roomier sides than Button small (8 / 12px) */
+.track.compact button.segment[data-active='true'] {
+  padding-left: var(--sizes-3);
+  padding-right: var(--sizes-4);
+}
+
+/* The label fades in as the pill arrives */
+.compact button.segment[data-active='true'] > span {
+  animation: labelIn 0.25s ease both;
+}
+
+@keyframes labelIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact button.segment[data-active='true'] > span {
+    animation: none;
+  }
+}

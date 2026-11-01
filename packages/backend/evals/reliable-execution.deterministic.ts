@@ -139,7 +139,6 @@ const WEB: ChannelProfile = {
   taskCreationTarget: 'tasks',
   toolsAvailable: [
     'create_task', 'update_task', 'complete_task', 'delete_task', 'search_tasks', 'update_memory',
-    'create_list', 'update_list', 'delete_list', 'show_list',
     'create_category', 'update_category', 'delete_category', 'show_category', 'scan_gmail',
     'search_web', 'offer_choices', 'update_notification_settings',
   ],

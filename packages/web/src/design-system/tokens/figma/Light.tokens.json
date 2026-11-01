@@ -3018,6 +3018,30 @@
           "com.figma.isOverride": true
         }
       }
+    },
+    "scrollbar": {
+      "thumb": {
+        "$type": "color",
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.9764705882352941,
+            0.9764705882352941,
+            0.9803921568627451
+          ],
+          "alpha": 1,
+          "hex": "#F9F9FA"
+        },
+        "$description": "Scrollbar thumb. Added in code on 2026-10-21 (was Semantic/surface/tertiary): create Components/scrollbar/thumb in Figma.",
+        "$extensions": {
+          "com.figma.scopes": [
+            "ALL_SCOPES"
+          ],
+          "com.figma.aliasData": {
+            "targetVariableName": "Colors/gray/20"
+          }
+        }
+      }
     }
   },
   "$extensions": {

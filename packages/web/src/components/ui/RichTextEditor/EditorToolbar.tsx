@@ -12,6 +12,7 @@ import {
   ListBullets,
   ListNumbers,
   Paperclip,
+  Sparkle,
   TextB,
   TextItalic,
   TextStrikethrough,
@@ -19,6 +20,11 @@ import {
 } from '@phosphor-icons/react';
 import { useState, useRef, useEffect, useCallback, useReducer, MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { Button } from '../Button';
+import { ListItem } from '../ListItem';
+import { toast } from '../Sonner';
+import type { TextRewriteAction } from '../../../lib/aiApi';
+import { AI_REWRITE_ACTIONS, aiRewriteUnavailableReason, runAiRewrite } from './aiRewrite';
 import styles from './RichTextEditor.module.css';
 
 interface EditorToolbarProps {
@@ -55,6 +61,11 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
   const linkInputRef = useRef<HTMLInputElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuDropdownRef = useRef<HTMLDivElement>(null);
+  const [showAiMenu, setShowAiMenu] = useState(false);
+  const [aiMenuPos, setAiMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const aiRef = useRef<HTMLDivElement>(null);
+  const aiMenuRef = useRef<HTMLDivElement>(null);
 
   // Re-render on every editor transaction (including selection-only changes) so
   // that isActive() and can() always reflect the current selection state.
@@ -108,6 +119,12 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
       ) {
         setShowMoreMenu(false);
       }
+      if (
+        aiRef.current && !aiRef.current.contains(target) &&
+        aiMenuRef.current && !aiMenuRef.current.contains(target)
+      ) {
+        setShowAiMenu(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -115,18 +132,19 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
 
   // Keyboard dismiss for toolbar popovers
   useEffect(() => {
-    if (!showHeadingMenu && !showLinkDialog && !showMoreMenu) return;
+    if (!showHeadingMenu && !showLinkDialog && !showMoreMenu && !showAiMenu) return;
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setShowHeadingMenu(false);
       closeLinkDialog();
       setShowMoreMenu(false);
+      setShowAiMenu(false);
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [showHeadingMenu, showLinkDialog, showMoreMenu, closeLinkDialog]);
+  }, [showHeadingMenu, showLinkDialog, showMoreMenu, showAiMenu, closeLinkDialog]);
 
   // Focus link input when dialog opens.
   useEffect(() => {
@@ -187,6 +205,29 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
     setLinkPopoverPos({ top: startCoords.bottom + 8, left });
 
     setShowLinkDialog(true);
+  }, [editor]);
+
+  const aiUnavailableReason = aiRewriteUnavailableReason(editor);
+
+  const applyAiRewrite = useCallback(async (action: TextRewriteAction) => {
+    setShowAiMenu(false);
+    setAiBusy(true);
+    const outcome = await runAiRewrite(editor, action);
+    setAiBusy(false);
+    if (!outcome.ok) {
+      toast.error(outcome.message);
+      return;
+    }
+    toast.success('Texto atualizado', {
+      hasButton: true,
+      duration: 6000,
+      action: {
+        label: 'Desfazer',
+        onClick: () => {
+          if (!editor.isDestroyed) editor.chain().focus().undo().run();
+        },
+      },
+    });
   }, [editor]);
 
   const executeAndCloseMoreMenu = useCallback((action: () => void) => {
@@ -266,6 +307,62 @@ export function EditorToolbar({ editor, onImageUpload, onFileUpload }: EditorToo
         </div>,
         document.body,
       )}
+
+      <div className={styles.floatingToolbarDivider} />
+
+      {/* AI actions on the selection (dark tokens, like the toolbar) */}
+      <div ref={aiRef} data-theme="dark">
+        <Button
+          variant="ghost"
+          size="small"
+          icon={Sparkle}
+          iconPosition="left"
+          active={showAiMenu}
+          disabled={!!aiUnavailableReason}
+          loading={aiBusy}
+          onClick={() => {
+            if (aiBusy || aiUnavailableReason) return;
+            const rect = aiRef.current?.getBoundingClientRect();
+            if (rect) setAiMenuPos({ top: rect.bottom + 4, left: rect.left });
+            setShowAiMenu(v => !v);
+            setShowHeadingMenu(false);
+            setShowMoreMenu(false);
+            closeLinkDialog();
+          }}
+          title={aiUnavailableReason ?? 'Melhorar com IA'}
+          aria-haspopup="menu"
+          aria-expanded={showAiMenu}
+          aria-busy={aiBusy || undefined}
+        >
+          {aiBusy ? 'Melhorando…' : 'Melhorar'}
+        </Button>
+      </div>
+
+      {showAiMenu && aiMenuPos && createPortal(
+        <div
+          className={styles.moreMenu}
+          ref={aiMenuRef}
+          style={{ top: aiMenuPos.top, left: aiMenuPos.left }}
+          role="menu"
+          aria-label="Melhorar com IA"
+          // Dark like the toolbar it opens from (semantic tokens resolve to dark)
+          data-theme="dark"
+          // Keep the editor focused (and its selection) while picking an action
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          {AI_REWRITE_ACTIONS.map(({ action, label }) => (
+            <ListItem
+              key={action}
+              label={label}
+              onClick={() => void applyAiRewrite(action)}
+              buttonProps={{ role: 'menuitem' }}
+            />
+          ))}
+        </div>,
+        document.body,
+      )}
+
+      <div className={styles.floatingToolbarDivider} />
 
       {/* Bold */}
       <button

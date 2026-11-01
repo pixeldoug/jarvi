@@ -680,8 +680,6 @@
   flex: 1 1 auto;
   padding: 0 var(--sizes-10);
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--semantic-border-primary) transparent;
 }
 
 .ideaRow {
@@ -743,18 +741,11 @@
   min-height: 0;
   overflow-y: auto;
   padding-right: 8px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--semantic-border-primary) transparent;
 }
 
 .optionsScrollAreaCompact {
   flex: 1 1 auto;
 }
-
-.optionsScrollArea::-webkit-scrollbar { width: 6px; }
-.optionsScrollArea::-webkit-scrollbar-track { background: transparent; border-radius: 9999px; }
-.optionsScrollArea::-webkit-scrollbar-thumb { background: var(--semantic-border-primary); border-radius: 9999px; }
-.optionsScrollArea::-webkit-scrollbar-thumb:hover { background: var(--semantic-content-tertiary); }
 
 .optionsScrollFade {
   position: absolute;

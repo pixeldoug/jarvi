@@ -55,7 +55,6 @@ export function fieldLabel(path: string): string {
 }
 
 const WRITE_TASK_TOOLS = new Set(['create_task', 'update_task', 'complete_task', 'delete_task']);
-const WRITE_LIST_TOOLS = new Set(['create_list', 'update_list', 'delete_list']);
 const WRITE_CATEGORY_TOOLS = new Set(['create_category', 'update_category', 'delete_category']);
 
 const WRITE_SETTINGS_TOOLS = new Set(['update_notification_settings']);
@@ -63,7 +62,6 @@ const WRITE_SETTINGS_TOOLS = new Set(['update_notification_settings']);
 export function isWriteTool(tool: string): boolean {
   return (
     WRITE_TASK_TOOLS.has(tool) ||
-    WRITE_LIST_TOOLS.has(tool) ||
     WRITE_CATEGORY_TOOLS.has(tool) ||
     WRITE_SETTINGS_TOOLS.has(tool) ||
     tool === 'update_memory'
@@ -280,9 +278,6 @@ function failureSentence(op: AgentOperation, surface: Surface): string {
     update_task: `atualizar ${quote(op.entity?.title, surface)}`,
     complete_task: `concluir ${quote(op.entity?.title, surface)}`,
     delete_task: `excluir ${quote(op.entity?.title, surface)}`,
-    create_list: 'criar a lista',
-    update_list: 'atualizar a lista',
-    delete_list: 'excluir a lista',
     create_category: 'criar a categoria',
     update_category: 'atualizar a categoria',
     delete_category: 'excluir a categoria',
@@ -299,7 +294,6 @@ function failureSentence(op: AgentOperation, surface: Surface): string {
       };
       return `Não encontrei a tarefa para ${action[op.tool] ?? 'alterar'}.`;
     }
-    if (op.tool.endsWith('_list')) return 'Não encontrei essa lista.';
     if (op.tool.endsWith('_category')) return 'Não encontrei essa categoria.';
     return 'Não encontrei esse item.';
   }
@@ -455,13 +449,7 @@ export function buildConfirmation(
     }
   }
 
-  // ── Lists & categories (web) ───────────────────────────────────────────
-  for (const op of ops.filter((o) => o.success && WRITE_LIST_TOOLS.has(o.tool))) {
-    const name = op.entity?.title ? `"${op.entity.title}"` : '';
-    if (op.tool === 'create_list') lines.push(`Lista ${name} criada.`.replace('  ', ' '));
-    else if (op.tool === 'update_list') lines.push(`Lista ${name} atualizada.`.replace('  ', ' '));
-    else lines.push('Lista excluída.');
-  }
+  // ── Categories (web) ───────────────────────────────────────────────────
   for (const op of ops.filter((o) => o.success && WRITE_CATEGORY_TOOLS.has(o.tool))) {
     const name = op.entity?.title ? `"${op.entity.title}"` : '';
     if (op.tool === 'create_category') lines.push(`Categoria ${name} criada.`.replace('  ', ' '));

@@ -134,6 +134,7 @@ export const toPublicUser = (user: {
   whatsapp_phone?: string | null;
   email_verified?: boolean | number | null;
   subscription_status?: string | null;
+  overdue_recap_enabled?: boolean | number | null;
 }) => {
   const authProvider =
     user.auth_provider === 'google' || user.auth_provider === 'whatsapp'
@@ -158,6 +159,9 @@ export const toPublicUser = (user: {
     whatsappPhone: parseDbBoolean(user.whatsapp_verified) ? whatsappPhone : undefined,
     emailVerified: Boolean(email) && parseDbBoolean(user.email_verified),
     subscription_status: user.subscription_status ?? undefined,
+    // Opt-in: NULL (no value yet) counts as off
+    overdueRecapEnabled:
+      user.overdue_recap_enabled == null ? false : parseDbBoolean(user.overdue_recap_enabled),
   };
 };
 
@@ -335,8 +339,8 @@ export const googleAuth = async (
           isNewUser = true;
           const userId = uuidv4();
           await client.query(
-            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at, overdue_recap_enabled)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, FALSE)`,
             [
               userId,
               email,
@@ -417,8 +421,8 @@ export const googleAuth = async (
         isNewUser = true;
         const userId = uuidv4();
         await db.run(
-          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (id, email, name, password, avatar, auth_provider, has_password, email_verified, subscription_status, trial_ends_at, meta_fbc, meta_fbp, created_at, updated_at, overdue_recap_enabled)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)`,
           [
             userId,
             email,
@@ -618,8 +622,8 @@ export const register = async (
 
         // Create new user with email_verified = false
         await client.query(
-          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at, overdue_recap_enabled)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, FALSE)`,
           [userId, normalizedEmail, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
         );
 
@@ -641,8 +645,8 @@ export const register = async (
 
       // Create new user with email_verified = false
       await db.run(
-        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, email, name, password, auth_provider, has_password, email_verified, email_verification_token, email_verification_expires, subscription_status, trial_ends_at, meta_fbc, meta_fbp, meta_event_id, created_at, updated_at, overdue_recap_enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE)`,
         [userId, normalizedEmail, name, hashedPassword, 'email', true, false, verificationToken, tokenExpires, 'trialing', trialEndsAt, metaFbc, metaFbp, metaEventId, now, now]
       );
 
@@ -841,7 +845,7 @@ export const getProfile = async (
         const result = await client.query(
           `SELECT id, email, name, preferred_name, avatar, auth_provider, has_password,
                   created_at, onboarding_completed_at, whatsapp_verified, whatsapp_phone,
-                  email_verified, subscription_status
+                  email_verified, subscription_status, overdue_recap_enabled
            FROM users WHERE id = $1`,
           [userId]
         );
@@ -855,7 +859,7 @@ export const getProfile = async (
       user = await db.get(
         `SELECT id, email, name, preferred_name, avatar, auth_provider, has_password,
                 created_at, onboarding_completed_at, whatsapp_verified, whatsapp_phone,
-                email_verified, subscription_status
+                email_verified, subscription_status, overdue_recap_enabled
          FROM users WHERE id = ?`,
         [userId]
       );

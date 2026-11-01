@@ -1,11 +1,9 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../../database';
-import { hasIO, getIO } from '../../utils/ioManager';
 import { capitalizeTaskTitle } from '../../utils/taskTitle';
 import { sanitizeTimeString } from '../../utils/taskTime';
 import { generateNextOccurrenceIfRecurring } from '../recurrenceService';
 import { cancelPendingRemindersForTask, rescheduleRemindersForTask } from '../reminderService';
-import { recordTaskCreated } from '../taskTelemetry';
+import { emitTaskEvent, insertTask } from '../taskInsert';
 import { prepareDescriptionForStorage } from '../agent/core/prepareDescriptionForStorage';
 import {
   getTaskById,
@@ -14,7 +12,6 @@ import {
   searchUserTasks,
 } from '../agent/core/tasks';
 import type { TaskRow } from '../agent/core/types';
-import { getAccount } from './store';
 
 const TIMEZONE = 'America/Sao_Paulo';
 
@@ -30,8 +27,7 @@ export interface TaskInput {
 }
 
 function notify(userId: string, event: 'task:created' | 'task:changed'): void {
-  if (!hasIO()) return;
-  getIO().to(`user:${userId}`).emit(event, { source: 'mcp' });
+  emitTaskEvent(userId, event, 'mcp');
 }
 
 function presentTask(task: TaskRow) {
@@ -128,36 +124,11 @@ export async function createTask(userId: string, input: TaskInput) {
   const time = input.time == null || input.time === '' ? null : sanitizeTimeString(input.time);
   const category = await resolveCategory(userId, input.category);
   const description = cleanDescription(input.description);
-  const taskId = uuidv4();
-  const now = new Date().toISOString();
-
-  if (isPostgreSQL()) {
-    await getPool().query(
-      `INSERT INTO tasks
-        (id, user_id, title, description, priority, category, due_date, time, source, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'mcp', $9, $10)`,
-      [taskId, userId, title, description, priority, category, dueDate, time, now, now],
-    );
-  } else {
-    await getDatabase().run(
-      `INSERT INTO tasks
-        (id, user_id, title, description, priority, category, due_date, time, source, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'mcp', ?, ?)`,
-      [taskId, userId, title, description, priority, category, dueDate, time, now, now],
-    );
-  }
-
-  const account = await getAccount(userId);
-  recordTaskCreated({
-    email: account?.email ?? '',
-    source: 'mcp',
-    taskId,
-    priority,
-    hasDueDate: Boolean(dueDate),
-    hasCategory: Boolean(category),
-    hasRecurrence: false,
-  });
-  notify(userId, 'task:created');
+  const taskId = await insertTask(
+    userId,
+    { title, description, priority, category, dueDate, time },
+    { source: 'mcp' },
+  );
   return readTask(userId, taskId);
 }
 

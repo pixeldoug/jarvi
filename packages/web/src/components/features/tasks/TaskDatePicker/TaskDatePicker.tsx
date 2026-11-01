@@ -8,7 +8,7 @@
 
 import { useRef, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Flag, SunHorizon, Couch, Prohibit, Clock, XCircle } from '@phosphor-icons/react';
+import { Flag, SunHorizon, Couch, Prohibit, Clock, XCircle, ClockCounterClockwise } from '@phosphor-icons/react';
 import { Calendar } from '../../../ui/Calendar';
 import { Button } from '../../../ui/Button';
 import { ListItem } from '../../../ui/ListItem';
@@ -34,9 +34,15 @@ export interface TaskDatePickerProps {
   className?: string;
   /** Layout variant: vertical (default) or horizontal (shortcuts left, calendar right) */
   layout?: 'vertical' | 'horizontal';
+  /**
+   * `task` (default): due-date shortcuts, "Sem Data" and the time picker.
+   * `day`: a required past-or-present day (e.g. a note's date) — Hoje / Ontem
+   * shortcuts, no "Sem Data", no time.
+   */
+  mode?: 'task' | 'day';
 }
 
-type ShortcutType = 'today' | 'tomorrow' | 'nextWeek' | 'noDate';
+type ShortcutType = 'today' | 'yesterday' | 'tomorrow' | 'nextWeek' | 'noDate';
 
 interface ShortcutItem {
   id: ShortcutType;
@@ -86,6 +92,21 @@ const SHORTCUTS: ShortcutItem[] = [
   },
 ];
 
+const DAY_SHORTCUTS: ShortcutItem[] = [
+  SHORTCUTS[0],
+  {
+    id: 'yesterday',
+    label: 'Ontem',
+    icon: ClockCounterClockwise,
+    getDate: () => {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    },
+  },
+];
+
 // Generate time slots for the time picker
 function generateTimeSlots(startHour: number = 6, endHour: number = 23, interval: number = 30): string[] {
   const slots: string[] = [];
@@ -109,7 +130,9 @@ export function TaskDatePicker({
   anchorRef,
   className = '',
   layout = 'vertical',
+  mode = 'task',
 }: TaskDatePickerProps) {
+  const isDayMode = mode === 'day';
   const popoverRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -228,6 +251,12 @@ export function TaskDatePicker({
     if (selected.getTime() === tomorrow.getTime()) {
       return `Amanhã${timeSuffix}`;
     }
+
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isDayMode && selected.getTime() === yesterday.getTime()) {
+      return 'Ontem';
+    }
     
     // Para outras datas, mostrar formato "25 Jul" ou "25 Jul 14:00"
     const day = selectedDate.getDate();
@@ -236,12 +265,12 @@ export function TaskDatePicker({
       .replace(/^./, str => str.toUpperCase());
     
     return `${day} ${month}${timeSuffix}`;
-  }, [selectedDate, selectedTime]);
+  }, [selectedDate, selectedTime, isDayMode]);
 
   // Check which shortcut is currently active
   const getActiveShortcut = (): ShortcutType | null => {
     // Se não há data selecionada, "Sem Data" está ativo
-    if (!selectedDate) return 'noDate';
+    if (!selectedDate) return isDayMode ? null : 'noDate';
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -250,6 +279,12 @@ export function TaskDatePicker({
     selected.setHours(0, 0, 0, 0);
     
     if (selected.getTime() === today.getTime()) return 'today';
+
+    if (isDayMode) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return selected.getTime() === yesterday.getTime() ? 'yesterday' : null;
+    }
     
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -354,7 +389,7 @@ export function TaskDatePicker({
 
   const shortcuts = (
     <div className={styles.shortcuts}>
-      {SHORTCUTS.map((shortcut) => {
+      {(isDayMode ? DAY_SHORTCUTS : SHORTCUTS).map((shortcut) => {
         const isActive = shortcut.id === activeShortcut;
         return (
           <ListItem
@@ -372,7 +407,7 @@ export function TaskDatePicker({
     </div>
   );
 
-  const footer = (
+  const footer = isDayMode ? null : (
     <div className={styles.footer}>
       <Button
         variant="secondary"
@@ -388,7 +423,7 @@ export function TaskDatePicker({
     </div>
   );
 
-  const timePicker = showTimePicker && (
+  const timePicker = !isDayMode && showTimePicker && (
     <div className={styles.timePickerDropdown}>
       <div className={styles.timePickerContent}>
         <div className={styles.timePickerHeader}>
@@ -456,7 +491,7 @@ export function TaskDatePicker({
               </div>
               <hr className={styles.divider} />
               {shortcuts}
-              <hr className={styles.divider} />
+              {footer && <hr className={styles.divider} />}
               {footer}
               {timePicker}
             </div>
@@ -488,7 +523,7 @@ export function TaskDatePicker({
             </div>
             <hr className={styles.divider} />
             {shortcuts}
-            <hr className={styles.divider} />
+            {footer && <hr className={styles.divider} />}
             {footer}
             {timePicker}
           </>
