@@ -37,6 +37,8 @@ export interface Task {
   recurrence_until?: string | null;
   /** Set on generated occurrences; points at the root task id of the series. Read-only. */
   recurrence_parent_id?: string | null;
+  /** Manual order inside its list group (drag and drop); null = by date */
+  sort_order?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +80,8 @@ export interface UpdateTaskData {
   recurrence_type?: RecurrenceType;
   recurrence_config?: string | null;
   recurrence_until?: string | null;
+  /** Places the task in its list group (drag and drop). A new date without it clears the order. */
+  sortOrder?: number | null;
 }
 
 export interface SubTask {
@@ -106,7 +110,12 @@ interface TaskContextType {
    * recurrence occurrences it created. Throws after reverting on failure.
    */
   setTasksCompleted: (taskIds: string[], completed: boolean) => Promise<Task[]>;
-  reorderTasks: (reorderedTasks: Task[]) => void;
+  /**
+   * Saves a list group's order after a drag and drop: each task takes its
+   * index in `taskIds`. Saves reach the server in call order, each one after
+   * `after` (another write of the same drop) settles.
+   */
+  setTasksOrder: (taskIds: string[], options?: { after?: Promise<unknown> }) => Promise<void>;
   subtasksByTaskId: Record<string, SubTask[]>;
   fetchSubTasks: (taskId: string) => Promise<void>;
   createSubTask: (taskId: string, title: string) => Promise<SubTask>;
@@ -131,6 +140,9 @@ export const useTasks = () => {
 interface TaskProviderProps {
   children: ReactNode;
 }
+
+/** Ids per PATCH /api/tasks/order (the route's limit) */
+const ORDER_CHUNK = 1000;
 
 const sortTasks = (tasks: Task[]): Task[] => {
   return [...tasks].sort((a, b) => {
@@ -306,13 +318,20 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     queryClient.setQueryData<Task[]>(['tasks'], (old) =>
       (old ?? []).map((task) => {
         if (task.id !== taskId) return task;
-        const { dueDate, ...rest } = taskData;
+        const { dueDate, sortOrder, ...rest } = taskData;
+        const nextDueDate = dueDate === '' || dueDate == null ? undefined : dueDate;
+        // Mirrors the server: a new date leaves the manual order behind
+        const dateChanged =
+          dueDate !== undefined && (nextDueDate ?? null) !== (task.due_date ?? null);
         return {
           ...task,
           ...rest,
-          ...(dueDate !== undefined
-            ? { due_date: dueDate === '' || dueDate == null ? undefined : dueDate }
-            : {}),
+          ...(dueDate !== undefined ? { due_date: nextDueDate } : {}),
+          ...(sortOrder !== undefined
+            ? { sort_order: sortOrder }
+            : dateChanged
+              ? { sort_order: null }
+              : {}),
         };
       }),
     );
@@ -542,9 +561,43 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   }, [token, queryClient]);
 
-  const reorderTasks = useCallback((reorderedTasks: Task[]) => {
-    queryClient.setQueryData<Task[]>(['tasks'], reorderedTasks);
-  }, [queryClient]);
+  // Order saves in drag order: two quick drags never land newest-first
+  const orderSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
+
+  const setTasksOrder = useCallback(async (
+    taskIds: string[],
+    options?: { after?: Promise<unknown> },
+  ) => {
+    if (!token || taskIds.length === 0) return;
+
+    const orderById = new Map(taskIds.map((id, index) => [id, index]));
+    queryClient.setQueryData<Task[]>(['tasks'], (old) =>
+      (old ?? []).map((task) =>
+        orderById.has(task.id) ? { ...task, sort_order: orderById.get(task.id) } : task,
+      ),
+    );
+
+    const save = orderSaveQueue.current
+      .catch(() => undefined)
+      .then(() => options?.after?.catch(() => undefined))
+      .then(async () => {
+        // The route takes up to ORDER_CHUNK ids at a time, placed from `offset`
+        for (let offset = 0; offset < taskIds.length; offset += ORDER_CHUNK) {
+          await apiClient.patch('/api/tasks/order', {
+            ids: taskIds.slice(offset, offset + ORDER_CHUNK),
+            offset,
+          });
+        }
+      });
+    orderSaveQueue.current = save;
+
+    try {
+      await save;
+    } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      throw err;
+    }
+  }, [token, queryClient]);
 
   // ── Sub-task functions ────────────────────────────────────────────────────
 
@@ -664,7 +717,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     undoDeleteTask,
     toggleTaskCompletion,
     setTasksCompleted,
-    reorderTasks,
+    setTasksOrder,
     subtasksByTaskId,
     fetchSubTasks,
     createSubTask,

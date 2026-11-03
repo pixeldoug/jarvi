@@ -92,7 +92,7 @@
   --scrollbar-panel-padding-block: 48px;
 }
 
-/* Month view: the grid and, when open, the Caixa de entrada panel */
+/* Month view: the grid and, when open, the Sem data panel */
 .monthLayout {
   display: flex;
   flex: 1;

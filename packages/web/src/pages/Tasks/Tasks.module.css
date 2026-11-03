@@ -54,7 +54,7 @@
   overflow: hidden;
 }
 
-/* Calendar's pinned action: the Caixa de entrada button + the view switch */
+/* Calendar's pinned action: the Sem data button + the view switch */
 .pinnedActions {
   display: flex;
   align-items: center;
@@ -202,9 +202,13 @@
   }
 }
 
-.sectionOver {
-  background: rgba(79, 38, 228, 0.05);
+/* A dragged task's row while it would land in another group */
+.draggedOutRow {
+  display: none;
 }
+
+/* `.sectionOver` (the group being dragged over) has no background: the slot
+   and the insertion line show the spot. An empty group still opens a drop zone. */
 
 .sectionEmpty {
   min-height: 0;

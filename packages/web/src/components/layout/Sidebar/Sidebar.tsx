@@ -4,7 +4,7 @@
  * Global application sidebar. Handles:
  *  - User profile header (avatar, name, plan label, settings/collapse toggle)
  *  - Optional Pro CTA for trialing / free users
- *  - Task navigation item (Tarefas); Vencidas / Caixa de entrada are filters on the page
+ *  - Task navigation item (Tarefas); Vencidas / Sem data are filters on the page
  *  - "Buscar" entry (also ⌘K / Ctrl+K anywhere) opening the CommandPalette
  *  - "Notas" and "Apps" entries (route to /notes and /apps; task items then navigate back to /tasks with router state)
  *  - "Chats" group below Categorias (ChatHistoryPanel): closed, the latest chats, or the whole

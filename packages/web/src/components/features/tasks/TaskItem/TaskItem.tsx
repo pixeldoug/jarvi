@@ -51,7 +51,8 @@ export interface TaskItemProps {
   onDelete?: (taskId: string) => void;
   /** "Perguntar pra Jarvi" in the right-click menu: opens the chat about the task */
   onAskJarvi?: (task: Task) => void;
-  showInsertionLine?: boolean;
+  /** Where a dragged task would land, drawn as a line on this row's edge */
+  insertionLine?: 'before' | 'after' | null;
   isActive?: boolean;
   hideCategoryChip?: boolean;
   showDayOfWeek?: boolean;
@@ -61,6 +62,10 @@ export interface TaskItemProps {
    * @default true
    */
   sortable?: boolean;
+  /** The copy under the pointer while the task is dragged (DragOverlay) */
+  isDragOverlay?: boolean;
+  /** The faint copy where a task dragged in from another group would land */
+  isDropPlaceholder?: boolean;
 }
 
 const TaskItemComponent: React.FC<TaskItemProps> = ({
@@ -72,11 +77,13 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   onClick,
   onDelete,
   onAskJarvi,
-  showInsertionLine = false,
+  insertionLine = null,
   isActive = false,
   hideCategoryChip = false,
   showDayOfWeek = false,
   sortable = true,
+  isDragOverlay = false,
+  isDropPlaceholder = false,
 }) => {
   const navigate = useNavigate();
   const [editingTitle, setEditingTitle] = useState(false);
@@ -99,22 +106,32 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
   } = useSortable({ 
-    id: task.id,
-    data: {
+    // A copy must not register as the dragged task: it would count as
+    // "dragging" and take over the task's measured node
+    id: isDragOverlay ? `drag-overlay:${task.id}` : isDropPlaceholder ? `drop-placeholder:${task.id}` : task.id,
+    // Copies carry no task: drop targeting only counts real rows
+    data: isDragOverlay || isDropPlaceholder ? {} : {
       task: task,
       section: section,
     },
-    disabled: !sortable,
+    disabled: !sortable || isDragOverlay || isDropPlaceholder,
+    // The row already slid to its new spot while dragging: don't replay the
+    // move once the list reorders
+    animateLayoutChanges: () => false,
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const isCopy = isDragOverlay || isDropPlaceholder;
+  const style = isCopy
+    ? undefined
+    : {
+        transform: CSS.Transform.toString(transform),
+        transition,
+      };
 
   // Inline editing handlers
   const handleTitleClick = () => {
@@ -280,18 +297,30 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
 
   return (
     <>
-      {showInsertionLine && <div className={styles.insertionLine} />}
-      
       <div
         ref={setNodeRef}
         style={style}
-        className={`${styles.taskItem} ${isDragging ? styles.dragging : ''} ${sortable ? '' : styles.fixedOrder}`}
+        className={`${styles.taskItem} ${isDragging || isDropPlaceholder ? styles.dragging : ''} ${sortable ? '' : styles.fixedOrder} ${isDragOverlay ? styles.dragOverlay : ''}`}
         onClick={handleTaskItemClick}
         onContextMenu={handleContextMenu}
+        // The whole row picks the task up (holding the mouse, see the Tasks
+        // page sensors); the keyboard only from the handle (activator node)
+        {...(sortable && !isCopy ? listeners : {})}
       >
+        {insertionLine && (
+          <div
+            className={`${styles.insertionLine} ${insertionLine === 'after' ? styles.insertionLineAfter : ''}`}
+          />
+        )}
+
         {/* Drag Handle */}
         {sortable && (
-          <div className={styles.dragHandle} {...attributes} {...listeners}>
+          <div
+            ref={isCopy ? undefined : setActivatorNodeRef}
+            className={styles.dragHandle}
+            data-drag-handle
+            {...(isCopy ? {} : attributes)}
+          >
             <DotsSixVertical className={styles.dragHandleIcon} weight="bold" />
           </div>
         )}
@@ -567,7 +596,9 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
   // but allow re-render if task actually changed or if editing-related props changed
   if (prevProps.task.id !== nextProps.task.id) return false;
   if (prevProps.isActive !== nextProps.isActive) return false;
-  if (prevProps.showInsertionLine !== nextProps.showInsertionLine) return false;
+  if (prevProps.insertionLine !== nextProps.insertionLine) return false;
+  if (prevProps.isDragOverlay !== nextProps.isDragOverlay) return false;
+  if (prevProps.isDropPlaceholder !== nextProps.isDropPlaceholder) return false;
   if (prevProps.section !== nextProps.section) return false;
   if (prevProps.hideCategoryChip !== nextProps.hideCategoryChip) return false;
   if (prevProps.showDayOfWeek !== nextProps.showDayOfWeek) return false;

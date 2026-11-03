@@ -395,7 +395,7 @@ function CommandPaletteBody({
         description: 'Todas as suas tarefas por data, em lista ou calendário.',
         search: {
           title: 'Tarefas',
-          keywords: 'minhas tarefas lista calendario agenda hoje vencidas caixa de entrada',
+          keywords: 'minhas tarefas lista calendario agenda hoje vencidas sem data',
         },
         run: () => onSelectList('all'),
       },
