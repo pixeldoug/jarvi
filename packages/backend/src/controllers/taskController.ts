@@ -36,6 +36,51 @@ const sanitizeRecurrenceUntil = (value: unknown): string | null => {
   return trimmed;
 };
 
+const sanitizeSortOrder = (value: unknown): number | null | undefined => {
+  if (value === null) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  return undefined;
+};
+
+// Both values come back from the same driver (Date in PostgreSQL, string in SQLite)
+const sameDueDate = (a: unknown, b: unknown): boolean => {
+  if (a == null || b == null) return a == null && b == null;
+  if (a === b) return true;
+  return new Date(a as string).getTime() === new Date(b as string).getTime();
+};
+
+// Sets the manual order (drag and drop) of the user's tasks
+const writeSortOrders = async (
+  userId: string,
+  entries: Array<{ id: string; sortOrder: number | null }>
+): Promise<void> => {
+  if (entries.length === 0) return;
+  if (isPostgreSQL()) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE tasks AS t
+         SET sort_order = v.sort_order
+         FROM unnest($1::text[], $2::double precision[]) AS v(id, sort_order)
+         WHERE t.id = v.id AND t.user_id = $3`,
+        [entries.map((e) => e.id), entries.map((e) => e.sortOrder), userId]
+      );
+    } finally {
+      client.release();
+    }
+  } else {
+    const db = getDatabase();
+    for (const entry of entries) {
+      await db.run('UPDATE tasks SET sort_order = ? WHERE id = ? AND user_id = ?', [
+        entry.sortOrder,
+        entry.id,
+        userId,
+      ]);
+    }
+  }
+};
+
 export const createTask = async (
   req: Request,
   res: Response
@@ -220,6 +265,7 @@ export const updateTask = async (
       recurrence_type,
       recurrence_config,
       recurrence_until,
+      sortOrder,
     } = req.body;
     const userId = req.user?.id;
 
@@ -398,6 +444,22 @@ export const updateTask = async (
 
       updatedTask = await db.get('SELECT * FROM tasks WHERE id = ?', [id]);
       console.log('Updated task result:', updatedTask);
+    }
+
+    // A task moved to another date leaves its manual order behind (it joins
+    // the new group by date) unless the caller places it (drag and drop)
+    if (updatedTask) {
+      const requestedSortOrder = sanitizeSortOrder(sortOrder);
+      const nextSortOrder =
+        requestedSortOrder !== undefined
+          ? requestedSortOrder
+          : sameDueDate(existingTask.due_date, updatedTask.due_date)
+            ? undefined
+            : null;
+      if (nextSortOrder !== undefined && nextSortOrder !== (updatedTask.sort_order ?? null)) {
+        await writeSortOrders(userId, [{ id, sortOrder: nextSortOrder }]);
+        updatedTask = { ...updatedTask, sort_order: nextSortOrder };
+      }
     }
 
     const scheduleChanged =
@@ -706,6 +768,51 @@ export const setTasksCompletion = async (
     res.json({ tasks, next_occurrences: nextOccurrences });
   } catch (error) {
     console.error('Error setting task completion:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const MAX_ORDER_IDS = 1000;
+
+/**
+ * PATCH /api/tasks/order
+ * Body: { ids: string[] }
+ *
+ * Saves the order of one list group after a drag and drop: each task gets its
+ * index in `ids` as its manual order. Tasks of other users are ignored.
+ */
+export const setTasksOrder = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { ids } = (req.body ?? {}) as { ids?: unknown };
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > MAX_ORDER_IDS ||
+      !ids.every((id) => typeof id === 'string' && id.trim() !== '') ||
+      new Set(ids).size !== ids.length
+    ) {
+      res.status(400).json({ error: `ids must list 1 to ${MAX_ORDER_IDS} distinct task ids` });
+      return;
+    }
+
+    await writeSortOrders(
+      userId,
+      (ids as string[]).map((id, index) => ({ id, sortOrder: index }))
+    );
+
+    res.status(204).end();
+  } catch (error) {
+    console.error('Error ordering tasks:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

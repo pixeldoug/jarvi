@@ -48,7 +48,7 @@ function todayKey(): string {
 function facetValues(task: Task, facet: TaskFilterFacet, today: string): string[] {
   switch (facet) {
     case 'status': {
-      // Matches the sidebar lists: Vencidas, Recorrentes and Caixa de entrada leave out completed tasks
+      // Matches the sidebar lists: Vencidas, Recorrentes and Sem data leave out completed tasks
       if (task.completed) return ['completed'];
       const values: TaskStatusFilter[] = [];
       if (!task.due_date) values.push('inbox');

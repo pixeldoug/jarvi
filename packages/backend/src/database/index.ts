@@ -1469,6 +1469,8 @@ const runMigrations = async (): Promise<void> => {
         // Tasks created from a note's next steps point back to it
         'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS source_note_id TEXT',
         'CREATE INDEX IF NOT EXISTS idx_tasks_source_note_id ON tasks (source_note_id) WHERE source_note_id IS NOT NULL',
+        // Manual order inside a list group (drag and drop); NULL = by date
+        'ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sort_order DOUBLE PRECISION',
       ];
       for (const migration of notesSummaryMigrations) {
         try {
@@ -2022,6 +2024,8 @@ const runMigrations = async (): Promise<void> => {
       // Tasks created from a note's next steps point back to it
       'ALTER TABLE tasks ADD COLUMN source_note_id TEXT',
       'CREATE INDEX IF NOT EXISTS idx_tasks_source_note_id ON tasks (source_note_id) WHERE source_note_id IS NOT NULL',
+      // Manual order inside a list group (drag and drop); NULL = by date
+      'ALTER TABLE tasks ADD COLUMN sort_order REAL',
     ];
     for (const migration of notesSummaryMigrations) {
       try {

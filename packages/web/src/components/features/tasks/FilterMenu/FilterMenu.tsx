@@ -74,7 +74,7 @@ const FACETS: Array<{ id: TaskFilterFacet; label: string }> = [
 const STATUS_OPTIONS: FilterOption[] = [
   { value: 'overdue', label: 'Vencidas', icon: <HourglassLow size={16} /> },
   { value: 'recurring', label: 'Recorrentes', icon: <Repeat size={16} /> },
-  { value: 'inbox', label: 'Caixa de entrada', icon: <Tray size={16} /> },
+  { value: 'inbox', label: 'Sem data', icon: <Tray size={16} /> },
   { value: 'completed', label: 'Concluídas', icon: <CheckCircle size={16} /> },
 ];
 

@@ -21,7 +21,7 @@ export interface CalendarViewProps {
   onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onCreateTask?: (title: string, dueDate?: string) => Promise<void>;
   onDeleteTask?: (taskId: string) => void;
-  /** Month view: the Caixa de entrada panel beside the grid, to drag tasks onto a day */
+  /** Month view: the Sem data panel beside the grid, to drag tasks onto a day */
   inboxOpen?: boolean;
 }
 
@@ -604,7 +604,7 @@ export function CalendarView({
             })()}
           </div>
 
-          {/* Section 2: Saturday | Sunday | Caixa de entrada ×2 */}
+          {/* Section 2: Saturday | Sunday | Sem data ×2 */}
           {(() => {
             const satTasks = tasksByDate.get(toDateKey(weekDays[5])) ?? [];
             const sunTasks = tasksByDate.get(toDateKey(weekDays[6])) ?? [];
@@ -670,7 +670,7 @@ export function CalendarView({
                 {renderWeekDayColumn(weekDays[6], PT_WEEKDAY_LONG[6], bottomSlots)}
                 <div className={styles.somedaySection}>
                   <div className={styles.weekDayHeader}>
-                    <span className={styles.weekDayNumber}>Caixa de entrada</span>
+                    <span className={styles.weekDayNumber}>Sem data</span>
                   </div>
                   <div className={styles.somedayInnerGrid}>
                     {renderSomedayCol(undatedCol0, 0)}
@@ -779,7 +779,7 @@ export function CalendarView({
           {inboxOpen && (
             <aside
               className={`${styles.inboxPanel} ${dropTargetKey === 'undated' ? styles.dropTarget : ''}`}
-              aria-label="Caixa de entrada"
+              aria-label="Sem data"
               onDragEnter={() => setDropTargetKey('undated')}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -790,7 +790,7 @@ export function CalendarView({
               onDrop={(event) => void handleDropOnUndated(event)}
             >
               <div className={styles.inboxHeader}>
-                <span>Caixa de entrada</span>
+                <span>Sem data</span>
                 <span className={styles.inboxCount}>{undatedTasks.length}</span>
               </div>
               <div className={styles.inboxList}>
@@ -814,7 +814,7 @@ export function CalendarView({
                     ))}
                   </>
                 ) : (
-                  <p className={styles.inboxHint}>Nenhuma tarefa na caixa de entrada.</p>
+                  <p className={styles.inboxHint}>Nenhuma tarefa sem data.</p>
                 )}
               </div>
             </aside>

@@ -41,23 +41,27 @@ import { TaskEmptyState } from '../../components/features/tasks/EmptyState';
 import { useMergedTaskCategories } from '../../hooks/useMergedTaskCategories';
 import { usePendingTasks } from '../../hooks/usePendingTasks';
 import { motion, AnimatePresence, animate } from 'motion/react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
-  closestCenter,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
+  Collision,
+  CollisionDetection,
   DragEndEvent,
+  DragMoveEvent,
   DragOverlay,
   DragStartEvent,
-  DragOverEvent,
+  MeasuringConfiguration,
+  PointerSensorOptions,
+  UniqueIdentifier,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-  arrayMove,
 } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
 import styles from './Tasks.module.css';
@@ -179,6 +183,144 @@ const PEEK_NAVIGATION_SECTIONS = [
   ['completadas', 'completadas'],
 ] as const;
 
+type GroupKey = (typeof PEEK_NAVIGATION_SECTIONS)[number][0];
+
+/** List group id (`sectionId`) → its key in `categorizedTasks` */
+const GROUP_KEY_BY_SECTION_ID: Record<string, GroupKey> = Object.fromEntries(
+  PEEK_NAVIGATION_SECTIONS.map(([key, sectionId]) => [sectionId, key]),
+);
+
+/** Manually ordered tasks first (drag and drop), then the rest in date order */
+function byManualOrder(tasks: Task[]): Task[] {
+  const order = (task: Task) => task.sort_order ?? Number.MAX_VALUE;
+  return [...tasks].sort((a, b) => order(a) - order(b));
+}
+
+/** "Hoje" keeps its completed tasks at the end */
+function completedLast(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => Number(a.completed) - Number(b.completed));
+}
+
+/** Where a dragged task lands: in `sectionId`, right before `beforeTaskId` (null = at the end) */
+type DropTarget = { sectionId: string; beforeTaskId: string | null };
+
+/** How far beside a group the pointer may go and still drop in it (the drag handles' gutter) */
+const DROP_GUTTER_PX = 48;
+
+/**
+ * The drop target follows the pointer, not the dragged card: the group under
+ * the pointer (or the nearest one above or below it), then a spot in its rows.
+ * Within its own group the task takes the place of the row the pointer enters
+ * (above it when moving up, below it when moving down); coming from another
+ * group, it goes before the first row whose middle is below the pointer.
+ *
+ * Within its group the row under the pointer is reported as `over`, so the
+ * sortable list moves the task there live (verticalListSortingStrategy places
+ * it exactly like this target). Rects are measured without the rows' own
+ * transforms, so they stay those of the list before the drag.
+ */
+const pointerDropCollision: CollisionDetection = ({
+  active,
+  collisionRect,
+  droppableContainers,
+  droppableRects,
+  pointerCoordinates,
+}) => {
+  const point = pointerCoordinates ?? {
+    x: collisionRect.left + collisionRect.width / 2,
+    y: collisionRect.top + collisionRect.height / 2,
+  };
+
+  let group: { id: UniqueIdentifier; distance: number } | null = null;
+  for (const container of droppableContainers) {
+    if (!container.data.current?.isGroup) continue;
+    const rect = droppableRects.get(container.id);
+    if (!rect || point.x < rect.left - DROP_GUTTER_PX || point.x > rect.right + DROP_GUTTER_PX) continue;
+    const distance = Math.max(rect.top - point.y, point.y - rect.bottom, 0);
+    if (!group || distance < group.distance) group = { id: container.id, distance };
+  }
+  if (!group) return [];
+
+  const rows = droppableContainers
+    .filter((container) => container.data.current?.task && container.data.current.section === group.id)
+    .flatMap((container) => {
+      const rect = droppableRects.get(container.id);
+      return rect ? [{ id: String(container.id), top: rect.top, bottom: rect.bottom }] : [];
+    })
+    .sort((a, b) => a.top - b.top);
+  const origin = rows.findIndex((row) => row.id === active.id);
+
+  let insertAt: number;
+  let overRowId: string | null = null;
+  if (origin === -1) {
+    insertAt = rows.findIndex((row) => (row.top + row.bottom) / 2 > point.y);
+    if (insertAt === -1) insertAt = rows.length;
+  } else {
+    // The row under the pointer, each row owning half of the gaps around it
+    let over = rows.length - 1;
+    for (let i = 0; i < rows.length - 1; i++) {
+      if (point.y < (rows[i].bottom + rows[i + 1].top) / 2) {
+        over = i;
+        break;
+      }
+    }
+    insertAt = over < origin ? over : over + 1;
+    overRowId = rows[over].id;
+  }
+  const before = rows.slice(insertAt).find((row) => row.id !== active.id);
+
+  return [{ id: overRowId ?? group.id, data: { sectionId: String(group.id), beforeTaskId: before?.id ?? null } }];
+};
+
+function readDropTarget(collisions: Collision[] | null): DropTarget | null {
+  const first = collisions?.[0];
+  if (!first?.data) return null;
+  return { sectionId: first.data.sectionId, beforeTaskId: first.data.beforeTaskId ?? null };
+}
+
+/** The group's task ids, in order, once `task` is dropped at `target` */
+function dropOrder(groupKey: GroupKey, groupTasks: Task[], task: Task, target: DropTarget): string[] {
+  const placed = groupTasks.filter((t) => t.id !== task.id);
+  const index = target.beforeTaskId ? placed.findIndex((t) => t.id === target.beforeTaskId) : -1;
+  placed.splice(index === -1 ? placed.length : index, 0, task);
+  return (groupKey === 'hoje' ? completedLast(placed) : placed).map((t) => t.id);
+}
+
+const isOnDragHandle = (target: EventTarget | null) =>
+  target instanceof Element && !!target.closest('[data-drag-handle]');
+
+/** Controls inside a row keep their own press (typing, ticking, picking) */
+const ROW_CONTROLS = 'input, textarea, button, select, [contenteditable="true"]';
+
+/**
+ * A press anywhere on a row can pick the task up: on its handle at once, with
+ * any pointer; elsewhere by holding the mouse button (a quick click still
+ * opens the task). Touch only drags from the handle: a press on the row
+ * scrolls the list.
+ */
+class TaskRowPointerSensor extends PointerSensor {
+  static activators = [{
+    eventName: 'onPointerDown' as const,
+    handler: (event: React.PointerEvent, options: PointerSensorOptions) => {
+      const { target, pointerType } = event.nativeEvent;
+      const onRow =
+        pointerType === 'mouse' && target instanceof Element && !target.closest(ROW_CONTROLS);
+      return (isOnDragHandle(target) || onRow) && PointerSensor.activators[0].handler(event, options);
+    },
+  }];
+}
+
+const TASK_ROW_POINTER_OPTIONS: PointerSensorOptions = {
+  activationConstraint: { delay: 200, tolerance: 5 },
+  bypassActivationConstraint: ({ event }) => isOnDragHandle(event.target),
+};
+
+/** Rows measured mid-animation (a drop just before, a refetch) are corrected while dragging */
+const DROP_MEASURING: MeasuringConfiguration = { droppable: { frequency: 100 } };
+
+/** Marks the copy of a task dragged in from another group among a group's rows */
+const DROP_PLACEHOLDER = Symbol('drop-placeholder');
+
 const ALL_SECTIONS_OPEN: Record<string, boolean> = {
   integracoes: true,
   vencidas: false,
@@ -260,7 +402,15 @@ export function Tasks() {
   const mainBodyRef = useRef<HTMLDivElement>(null);
 
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  const [insertionIndicator, setInsertionIndicator] = useState<{ sectionId: string; index: number } | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  /** Set for the render that commits a reorder: the rows are already in place */
+  const [isCommittingReorder, setIsCommittingReorder] = useState(false);
+  /**
+   * A reorder just dropped, shown in the same render as the drop: the tasks
+   * query only catches up a tick later, and the rows would flash back to
+   * their old spots in between
+   */
+  const [droppedGroupOrder, setDroppedGroupOrder] = useState<{ groupKey: GroupKey; ids: string[] } | null>(null);
   const [movingTask, setMovingTask] = useState<{ taskId: string; fromSection: string; toSection: string } | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedPendingTask, setSelectedPendingTask] = useState<PendingTask | null>(null);
@@ -311,7 +461,7 @@ export function Tasks() {
     updateTask,
     deleteTask,
     undoDeleteTask,
-    reorderTasks,
+    setTasksOrder,
   } = useTasks();
 
   const mergedTaskCategories = useMergedTaskCategories();
@@ -339,7 +489,7 @@ export function Tasks() {
 
   // DnD sensors
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(TaskRowPointerSensor, TASK_ROW_POINTER_OPTIONS),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -987,7 +1137,7 @@ export function Tasks() {
       week: 'Esta semana',
       // Calendar is a view of "Tarefas" (Lista / Calendário switch)
       later: 'Tarefas',
-      noDate: 'Caixa de entrada',
+      noDate: 'Sem data',
       overdue: 'Vencidas',
       recurring: 'Recorrentes',
       completed: 'Concluídas',
@@ -1078,9 +1228,9 @@ export function Tasks() {
       const label = `${abbrev}, ${day.getDate()}`;
       const isPast = dateStr < todayStr;
 
-      const dayTasks = filteredTasks.filter(
+      const dayTasks = byManualOrder(filteredTasks.filter(
         (t) => t.due_date && t.due_date.split('T')[0] === dateStr,
-      );
+      ));
 
       return { dateStr, label, isPast, tasks: dayTasks };
     });
@@ -1156,13 +1306,6 @@ export function Tasks() {
       }
     });
 
-    // Sort "hoje" section: incomplete tasks first, completed tasks at the end
-    categories.hoje.sort((a, b) => {
-      if (a.completed && !b.completed) return 1; // completed after incomplete
-      if (!a.completed && b.completed) return -1; // incomplete before completed
-      return 0; // maintain original order within each group
-    });
-
     // If a task is being moved, add it to the target section temporarily
     if (movingTask) {
       const movingTaskObj = visibleTasks.find(t => t.id === movingTask.taskId);
@@ -1187,8 +1330,28 @@ export function Tasks() {
       }
     }
 
+    // Each group in its manual order (drag and drop), the rest by date
+    for (const key of Object.keys(categories) as Array<keyof typeof categories>) {
+      categories[key] = byManualOrder(categories[key]);
+    }
+    // "Hoje": incomplete tasks first, completed tasks at the end
+    categories.hoje = completedLast(categories.hoje);
+
+    if (droppedGroupOrder) {
+      const rank = new Map(droppedGroupOrder.ids.map((id, index) => [id, index]));
+      const at = (task: Task) => rank.get(task.id) ?? Number.MAX_VALUE;
+      categories[droppedGroupOrder.groupKey] = [...categories[droppedGroupOrder.groupKey]].sort(
+        (a, b) => at(a) - at(b),
+      );
+    }
+
     return categories;
-  }, [visibleTasks, movingTask]);
+  }, [visibleTasks, movingTask, droppedGroupOrder]);
+
+  // The tasks now carry the dropped order themselves
+  useEffect(() => {
+    setDroppedGroupOrder(null);
+  }, [tasks]);
 
   // The peek toolbar's prev / next walk the tasks the current view shows, in
   // screen order, picked like the render below picks the view: the week's
@@ -1390,10 +1553,10 @@ export function Tasks() {
     />
   ) : null;
 
-  // Month view only (the week view already lists the Caixa de entrada): opens
+  // Month view only (the week view already lists the tasks with no date): opens
   // the panel beside the grid, to drag undated tasks onto a day
   const calendarInboxButton = selectedList === 'later' && calendarView === 'month' && !isMobile ? (
-    <Tooltip label="Caixa de entrada" position="bottom">
+    <Tooltip label="Sem data" position="bottom">
       <Button
         type="button"
         variant="secondary"
@@ -1402,7 +1565,7 @@ export function Tasks() {
         iconPosition="icon-only"
         active={isCalendarInboxOpen}
         aria-pressed={isCalendarInboxOpen}
-        aria-label="Caixa de entrada"
+        aria-label="Sem data"
         onClick={() => setIsCalendarInboxOpen((open) => !open)}
       />
     </Tooltip>
@@ -1477,77 +1640,73 @@ export function Tasks() {
     const { active } = event;
     const task = tasks.find(t => t.id === active.id);
     setActiveTask(task || null);
+    // Picked up: it lands where it is until the pointer moves (line shown at once)
+    const section = active.data.current?.section as string | undefined;
+    setDropTarget(section ? { sectionId: section, beforeTaskId: null } : null);
   }, [tasks]);
 
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over || !active.data.current?.task) {
-      setInsertionIndicator(null);
-      return;
-    }
+  const handleDragMove = useCallback((event: DragMoveEvent) => {
+    const next = readDropTarget(event.collisions);
+    setDropTarget(prev =>
+      prev?.sectionId === next?.sectionId && prev?.beforeTaskId === next?.beforeTaskId ? prev : next,
+    );
+  }, []);
 
-    const overTask = over.data.current?.task;
-    const overSection = over.data.current?.section;
-    
-    // If dragging over a task, show insertion indicator at that position
-    if (overTask && overSection) {
-      const sectionTasks = categorizedTasks[overSection as keyof typeof categorizedTasks] || [];
-      const overIndex = sectionTasks.findIndex(task => task.id === overTask.id) ?? -1;
-      
-      if (overIndex !== -1) {
-        setInsertionIndicator({ sectionId: overSection, index: overIndex });
-      }
-    } 
-    // If dragging over an empty section, clear insertion indicator
-    else if (over.id && typeof over.id === 'string' && over.id.startsWith('section-')) {
-      setInsertionIndicator(null);
-    } else {
-      setInsertionIndicator(null);
+  const handleDragCancel = useCallback(() => {
+    setActiveTask(null);
+    setDropTarget(null);
+  }, []);
+
+  /**
+   * Where the dragged task would land, shown as a faint copy topped by the
+   * line: its own row inside its group (the sortable list moves it), or a
+   * copy inserted in another group, whose rows make room for it while its own
+   * row leaves its group. An empty group lights up its empty state instead.
+   */
+  const dropSlot = useMemo(() => {
+    if (!activeTask || !dropTarget) return null;
+    const groupKey = GROUP_KEY_BY_SECTION_ID[dropTarget.sectionId];
+    if (!groupKey) return null;
+    const groupTasks = categorizedTasks[groupKey];
+    const slot = { sectionId: dropTarget.sectionId, task: activeTask };
+    if (groupTasks.some((task) => task.id === activeTask.id)) {
+      return { ...slot, inOwnGroup: true, placeholderIndex: null };
     }
-  }, [categorizedTasks]);
+    if (groupTasks.length === 0) return { ...slot, inOwnGroup: false, placeholderIndex: null };
+    const ids = dropOrder(groupKey, groupTasks, activeTask, dropTarget);
+    return { ...slot, inOwnGroup: false, placeholderIndex: ids.indexOf(activeTask.id) };
+  }, [activeTask, dropTarget, categorizedTasks]);
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) {
-      setActiveTask(null);
-      setInsertionIndicator(null);
-      return;
-    }
+    const { active } = event;
+    const target = readDropTarget(event.collisions);
+    const draggedTask = active.data.current?.task as Task | undefined;
+    const currentSection = active.data.current?.section as string | undefined;
 
-    const draggedTask = active.data.current?.task;
-    const overSection = over.data.current?.section;
-    const overTask = over.data.current?.task;
-    const currentSection = active.data.current?.section;
+    setActiveTask(null);
+    setDropTarget(null);
 
-    if (!draggedTask) {
-      setActiveTask(null);
-      setInsertionIndicator(null);
-      return;
-    }
+    const groupKey = target ? GROUP_KEY_BY_SECTION_ID[target.sectionId] : undefined;
+    if (!target || !groupKey || !draggedTask) return;
 
-    // Reordering within same section
-    if (overTask && draggedTask.id !== overTask.id) {
-      if (currentSection === overSection) {
-        const allTasks = [...tasks];
-        const activeTaskIndex = allTasks.findIndex(t => t.id === draggedTask.id);
-        const overTaskIndex = allTasks.findIndex(t => t.id === overTask.id);
-        
-        if (activeTaskIndex !== -1 && overTaskIndex !== -1) {
-          const reorderedTasks = arrayMove(allTasks, activeTaskIndex, overTaskIndex);
-          reorderTasks(reorderedTasks);
-        }
-        setActiveTask(null);
-        setInsertionIndicator(null);
-        return;
+    const groupTasks = categorizedTasks[groupKey];
+    const orderedIds = dropOrder(groupKey, groupTasks, draggedTask, target);
+
+    // Reordering within the same group
+    if (currentSection === target.sectionId) {
+      const unchanged = orderedIds.every((id, i) => id === groupTasks[i]?.id);
+      if (!unchanged) {
+        // The rows already slid there while dragging: no layout animation
+        // replaying the move from the old spots
+        setIsCommittingReorder(true);
+        requestAnimationFrame(() => requestAnimationFrame(() => setIsCommittingReorder(false)));
+        setDroppedGroupOrder({ groupKey, ids: orderedIds });
+        setTasksOrder(orderedIds).catch((error) => console.error('Erro ao reordenar tarefas:', error));
       }
-    }
-
-    // Moving to different section - show animation
-    if (!overSection || currentSection === overSection) {
-      setActiveTask(null);
-      setInsertionIndicator(null);
       return;
     }
+
+    const overSection = target.sectionId;
 
     // Set moving state to trigger animation
     setMovingTask({
@@ -1555,10 +1714,6 @@ export function Tasks() {
       fromSection: currentSection || '',
       toSection: overSection,
     });
-
-    // Clear drag states immediately
-    setActiveTask(null);
-    setInsertionIndicator(null);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1593,7 +1748,8 @@ export function Tasks() {
         newDueDate = currentWeekStartStr < currentWeekEndStr ? currentWeekStartStr : tomorrowStr;
         break;
       case 'sem-data':
-        newDueDate = undefined;
+        // '' clears the date (undefined would leave it unchanged)
+        newDueDate = '';
         break;
       case 'proxima-semana':
         newDueDate = nextWeekStartStr;
@@ -1602,10 +1758,13 @@ export function Tasks() {
         newDueDate = nextWeekEndStr;
         break;
       default:
+        setMovingTask(null);
         return;
     }
 
     try {
+      // The group's new order, then the task's new date at its place in it
+      setTasksOrder(orderedIds).catch((error) => console.error('Erro ao reordenar tarefas:', error));
       await updateTask(draggedTask.id, {
         title: draggedTask.title,
         description: draggedTask.description,
@@ -1613,6 +1772,7 @@ export function Tasks() {
         category: draggedTask.category,
         completed: draggedTask.completed,
         dueDate: newDueDate,
+        sortOrder: orderedIds.indexOf(draggedTask.id),
       }, false);
       
       // Clear moving state after animation completes (wait for both update and animation)
@@ -1624,7 +1784,7 @@ export function Tasks() {
       console.error('Erro ao atualizar tarefa:', error);
       setMovingTask(null);
     }
-  }, [tasks, updateTask, reorderTasks]);
+  }, [categorizedTasks, updateTask, setTasksOrder]);
 
   /** Disable Framer layout on list items while the right panel is open — otherwise
    *  items slide when the main column shrinks to make room for the sidebar. */
@@ -1648,8 +1808,10 @@ export function Tasks() {
     onClick?: (task: Task) => void;
     onDelete?: (taskId: string) => void;
     onAskJarvi?: (task: Task) => void;
-    insertionIndicator: { sectionId: string; index: number } | null;
+    dropSlot: { sectionId: string; task: Task; inOwnGroup: boolean; placeholderIndex: number | null } | null;
     movingTask: { taskId: string; fromSection: string; toSection: string } | null;
+    /** Rows don't animate their layout (a drag and drop reorder is landing) */
+    freezeRowLayout?: boolean;
     selectedTaskId?: string | null;
     hideCategoryChip?: boolean;
     showDayOfWeek?: boolean;
@@ -1668,32 +1830,76 @@ export function Tasks() {
     onClick,
     onDelete,
     onAskJarvi,
-    insertionIndicator,
+    dropSlot,
     movingTask,
+    freezeRowLayout = false,
     selectedTaskId,
     hideCategoryChip = false,
     showDayOfWeek = false,
     // onQuickCreate, // NOT USED IN MVP INITIAL
   }) => {
-    const { setNodeRef, isOver } = useDroppable({
+    // The whole group, header included, takes drops (see pointerDropCollision)
+    const { setNodeRef, over } = useDroppable({
       id: sectionId,
       data: {
         section: sectionId,
+        isGroup: true,
       },
     });
+
+    // `over` is this group, or one of its rows while reordering inside it
+    const isOver = over?.data.current?.section === sectionId;
+
+    // The dragged task's landing spot in this group (see dropSlot)
+    const slotHere = dropSlot?.sectionId === sectionId ? dropSlot : null;
+    const isOwnDropSlot = !!slotHere?.inOwnGroup;
+    // The dragged task's row while it would land in another group: hidden
+    // (still mounted, the drag needs its node)
+    const draggedOutId = dropSlot && !dropSlot.inOwnGroup ? dropSlot.task.id : null;
+    const rowsWithDropPlaceholder: Array<Task | typeof DROP_PLACEHOLDER> =
+      slotHere && slotHere.placeholderIndex !== null
+        ? [
+            ...sectionTasks.slice(0, slotHere.placeholderIndex),
+            DROP_PLACEHOLDER,
+            ...sectionTasks.slice(slotHere.placeholderIndex),
+          ]
+        : sectionTasks;
 
     const isTargetSection = movingTask?.toSection === sectionId;
     const isSourceSection = movingTask?.fromSection === sectionId;
 
     const content = (
       <div 
-        ref={setNodeRef}
         className={`${styles.sectionContent} ${isOver ? styles.sectionOver : ''} ${sectionTasks.length === 0 ? styles.sectionEmpty : ''}`}
       >
         {sectionTasks.length > 0 ? (
           <SortableContext items={sectionTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
             <AnimatePresence mode="popLayout">
-              {sectionTasks.map((task, index) => {
+              {rowsWithDropPlaceholder.map((task) => {
+                if (task === DROP_PLACEHOLDER) {
+                  return slotHere && (
+                    <motion.div
+                      key="drop-placeholder"
+                      layout={taskLayoutAnimationsEnabled}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0, transition: { duration: 0 } }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <TaskItem
+                        task={slotHere.task}
+                        section={sectionId}
+                        onToggleCompletion={onToggleCompletion}
+                        onUpdateTask={onUpdateTask}
+                        onOpenDatePicker={onOpenDatePicker}
+                        insertionLine="before"
+                        hideCategoryChip={hideCategoryChip}
+                        showDayOfWeek={showDayOfWeek}
+                        isDropPlaceholder
+                      />
+                    </motion.div>
+                  );
+                }
                 const isMoving = movingTask?.taskId === task.id;
                 const isNewlyMoved = isMoving && isTargetSection;
                 const isLeaving = isMoving && isSourceSection;
@@ -1728,7 +1934,8 @@ export function Tasks() {
                       duration: 0.25,
                       ease: [0.4, 0, 0.2, 1],
                     }}
-                    layout={taskLayoutAnimationsEnabled}
+                    layout={taskLayoutAnimationsEnabled && !freezeRowLayout}
+                    className={draggedOutId === task.id ? styles.draggedOutRow : undefined}
                   >
                     <TaskItem
                       task={task}
@@ -1739,7 +1946,7 @@ export function Tasks() {
                       onClick={onClick}
                       onDelete={onDelete}
                       onAskJarvi={onAskJarvi}
-                      showInsertionLine={insertionIndicator?.sectionId === sectionId && insertionIndicator?.index === index}
+                      insertionLine={isOwnDropSlot && dropSlot?.task.id === task.id ? 'before' : null}
                       isActive={selectedTaskId === task.id}
                       hideCategoryChip={hideCategoryChip}
                       showDayOfWeek={showDayOfWeek}
@@ -1766,16 +1973,18 @@ export function Tasks() {
     );
 
     return (
-      <Collapsible 
-        label={title} 
-        defaultOpen={defaultOpen}
-        isOpen={controlledIsOpen}
-        onOpenChange={onOpenChange}
-        disabled={sectionTasks.length === 0}
-        count={sectionTasks.length}
-      >
-        {content}
-      </Collapsible>
+      <div ref={setNodeRef}>
+        <Collapsible 
+          label={title} 
+          defaultOpen={defaultOpen}
+          isOpen={controlledIsOpen}
+          onOpenChange={onOpenChange}
+          disabled={sectionTasks.length === 0}
+          count={sectionTasks.length}
+        >
+          {content}
+        </Collapsible>
+      </div>
     );
   }), [taskLayoutAnimationsEnabled]);
 
@@ -2083,7 +2292,6 @@ export function Tasks() {
                         onClick={handleTaskClick}
                         onDelete={handleDeleteTask}
                         onAskJarvi={handleAskJarviAboutTask}
-                        showInsertionLine={false}
                         isActive={selectedTask?.id === task.id}
                         hideCategoryChip={!!selectedTask}
                       />
@@ -2195,7 +2403,6 @@ export function Tasks() {
                   onClick={handleTaskClick}
                   onDelete={handleDeleteTask}
                   onAskJarvi={handleAskJarviAboutTask}
-                  showInsertionLine={false}
                   isActive={selectedTask?.id === task.id}
                   hideCategoryChip={!!selectedTask}
                 />
@@ -2243,10 +2450,12 @@ export function Tasks() {
       >
       {renderCenterPanelHost(<DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={pointerDropCollision}
+        measuring={DROP_MEASURING}
         onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
+        onDragMove={handleDragMove}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div className={styles.content}>
           {visibleTasks.length === 0 && hasFilters && (
@@ -2318,8 +2527,9 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
@@ -2341,8 +2551,9 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
@@ -2364,8 +2575,9 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
@@ -2387,8 +2599,9 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
             showDayOfWeek={true}
@@ -2411,8 +2624,9 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
@@ -2434,19 +2648,20 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
           )}
 
-          {/* Caixa de entrada — oculta quando vazia */}
+          {/* Sem data — oculta quando vazia */}
           {categorizedTasks.semData.length > 0 && (
           <DroppableSection
-            title="Caixa de entrada"
+            title="Sem data"
             tasks={categorizedTasks.semData}
-            emptyMessage="Nenhuma tarefa na caixa de entrada"
+            emptyMessage="Nenhuma tarefa sem data"
             sectionId="sem-data"
             defaultOpen={true}
             isOpen={openSections['sem-data']}
@@ -2457,8 +2672,9 @@ export function Tasks() {
             onClick={handleTaskClick}
             onDelete={handleDeleteTask}
             onAskJarvi={handleAskJarviAboutTask}
-            insertionIndicator={insertionIndicator}
+            dropSlot={dropSlot}
             movingTask={movingTask}
+            freezeRowLayout={isCommittingReorder}
             selectedTaskId={selectedTask?.id}
             hideCategoryChip={!!selectedTask}
           />
@@ -2480,8 +2696,9 @@ export function Tasks() {
               onClick={handleTaskClick}
               onDelete={handleDeleteTask}
               onAskJarvi={handleAskJarviAboutTask}
-              insertionIndicator={insertionIndicator}
+              dropSlot={dropSlot}
               movingTask={movingTask}
+              freezeRowLayout={isCommittingReorder}
               selectedTaskId={selectedTask?.id}
               hideCategoryChip={!!selectedTask}
             />
@@ -2490,20 +2707,22 @@ export function Tasks() {
           </>}
         </div>
 
-        <DragOverlay>
+        {/* In <body>: the list's layer has `will-change: transform`, which would
+            offset the fixed overlay from the pointer. No drop animation: the
+            task is already in its new place when the copy goes. */}
+        {createPortal(<DragOverlay dropAnimation={null}>
           {activeTask ? (
-            <div style={{ opacity: 0.5 }}>
-              <TaskItem
-                task={activeTask}
-                section={activeTask.due_date ? 'hoje' : 'sem-data'}
-                onToggleCompletion={handleToggleCompletion}
-                onUpdateTask={handleUpdateTask}
-                onOpenDatePicker={handleOpenDatePicker}
-                showInsertionLine={false}
-              />
-            </div>
+            <TaskItem
+              task={activeTask}
+              section="drag-overlay"
+              onToggleCompletion={handleToggleCompletion}
+              onUpdateTask={handleUpdateTask}
+              onOpenDatePicker={handleOpenDatePicker}
+              hideCategoryChip={!!selectedTask}
+              isDragOverlay
+            />
           ) : null}
-        </DragOverlay>
+        </DragOverlay>, document.body)}
       </DndContext>)}
     </MainLayout>
     {mobileChatOverlay}

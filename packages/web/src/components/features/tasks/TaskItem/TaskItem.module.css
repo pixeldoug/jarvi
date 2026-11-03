@@ -28,9 +28,38 @@
   margin-left: 0;
 }
 
-/* Dragging state */
-.dragging {
-  opacity: 0;
+/* Dragging state: the row stays as a faint copy of the task that moves to
+   where it will land (the task itself is under the pointer). The insertion
+   line on it stays at full strength. */
+.dragging,
+.dragging:hover {
+  background-color: transparent;
+}
+
+.dragging > :not(.insertionLine) {
+  opacity: 0.25;
+}
+
+/* One handle: the one under the pointer */
+.dragging .dragHandle {
+  visibility: hidden;
+}
+
+/* The copy under the pointer while dragging. The DragOverlay box has the
+   row's size, so the row drops its handle margin to sit exactly over it.
+   A see-through background shows the slot and line it is over (also while
+   hovered: the pointer is always on it). */
+.dragOverlay,
+.dragOverlay:hover {
+  margin-left: 0;
+  background-color: color-mix(in srgb, var(--semantic-surface-primary) 90%, transparent);
+  box-shadow: 0 8px 24px var(--semantic-elevation-first-level);
+  cursor: grabbing;
+}
+
+.dragOverlay .dragHandle {
+  opacity: 1;
+  cursor: grabbing;
 }
 
 /* Left content: checkbox + date chip + title */
@@ -225,13 +254,26 @@
   color: var(--semantic-content-disabled);
 }
 
-/* Insertion line for drag and drop */
+/* Insertion line for drag and drop: drawn in the gap above (or below) the
+   row, out of the flow so the rows don't move while dragging */
 .insertionLine {
+  position: absolute;
+  /* From the left edge of the group: across the drag handles' gutter
+     (the row's margin + the group's padding) */
+  left: calc(var(--sizes-4) * -2);
+  right: var(--sizes-3);
+  top: calc(var(--sizes-1) / -2 - 1px);
+  z-index: 1;
   height: 2px;
-  margin: 0 var(--sizes-3);
   background: var(--semantic-content-info);
   border-radius: 9999px;
+  pointer-events: none;
   animation: pulse 1.25s infinite;
+}
+
+.insertionLineAfter {
+  top: auto;
+  bottom: calc(var(--sizes-1) / -2 - 1px);
 }
 
 @keyframes pulse {
@@ -280,6 +322,11 @@
   /* Drag handle isn't usable with touch and reserves horizontal space */
   .dragHandle {
     display: none;
+  }
+
+  /* No handle gutter here */
+  .insertionLine {
+    left: 0;
   }
 
   /* Reclaim the lateral space previously reserved for the drag handle */
