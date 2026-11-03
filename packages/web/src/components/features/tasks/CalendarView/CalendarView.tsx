@@ -305,6 +305,7 @@ function CalendarTaskPill({
         checked={task.completed}
         onChange={() => onToggleCompletion(task.id)}
         ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+        celebrate
         className={styles.calendarCheckbox}
       />
       <span className={styles.taskTitle}>{task.title}</span>

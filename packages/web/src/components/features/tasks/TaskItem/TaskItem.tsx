@@ -357,6 +357,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             checked={task.completed}
             onChange={() => onToggleCompletion(task.id)}
             ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+            celebrate
           />
 
           <div className={styles.taskTitle}>
