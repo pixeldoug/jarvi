@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearUrlSecret, readUrlSecret } from '../../lib/urlSecrets';
 import { Button, Logo } from '../../components/ui';
@@ -14,10 +14,17 @@ export const VerifyEmail: React.FC = () => {
   const [message, setMessage] = useState('');
   
   const navigate = useNavigate();
-  // main.tsx moved the token out of the URL before analytics loaded.
-  const token = readUrlSecret('token');
+  // main.tsx moved the token out of the URL before analytics loaded. Read it
+  // once for this visit: it's cleared after use, and re-reading it on the
+  // next render would turn the success screen into "token não encontrado".
+  const [token] = useState(() => readUrlSecret('token'));
+  // The token is single-use, so verify once (StrictMode runs effects twice).
+  const verifyStarted = useRef(false);
 
   useEffect(() => {
+    if (verifyStarted.current) return;
+    verifyStarted.current = true;
+
     const verifyEmail = async () => {
       if (!token) {
         setStatus('error');
