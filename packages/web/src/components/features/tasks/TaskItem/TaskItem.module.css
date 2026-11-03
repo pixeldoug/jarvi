@@ -148,7 +148,8 @@
 /* Past the cap, the chips that don't fit drop whole instead of being cut:
    they wrap to a second line that the one-line height hides. Laid out right
    to left, so the date (first by `order`) is the last to go: date, category,
-   recurrence, app. A chip alone on the line shrinks with an ellipsis (Chip). */
+   recurrence, app. A chip alone on the line shrinks with an ellipsis (Chip).
+   Dropped chips also leave the Tab order (useInertDroppedChips). */
 .chips {
   display: flex;
   flex-direction: row-reverse;
@@ -158,6 +159,7 @@
   min-width: 0;
   height: var(--size-chip-small-height, 28px);
   overflow: hidden;
+  position: relative; /* the chips' offsetParent (useInertDroppedChips) */
 }
 
 /* Action buttons group */

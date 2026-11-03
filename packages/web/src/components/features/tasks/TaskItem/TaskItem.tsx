@@ -8,7 +8,7 @@
  * Perguntar pra Jarvi — each only when its handler is passed).
  */
 
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useRef, useLayoutEffect, memo, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
@@ -34,6 +34,30 @@ import {
   Repeat,
 } from '@phosphor-icons/react';
 import styles from './TaskItem.module.css';
+
+/**
+ * The chips that `.chips` drops (wrapped to its hidden second line) go inert,
+ * so Tab and screen readers skip them like the eye does. Re-checked on every
+ * render (chips come and go) and whenever the row or a chip changes size.
+ */
+function useInertDroppedChips(chipsRef: RefObject<HTMLDivElement>) {
+  useLayoutEffect(() => {
+    const box = chipsRef.current;
+    if (!box) return;
+    // Layout offsets (`.chips` is their offsetParent), so a transform on the
+    // row (drag, animations) doesn't skew the check
+    const update = () => {
+      for (const chip of Array.from(box.children) as HTMLElement[]) {
+        chip.inert = chip.offsetTop >= box.clientHeight;
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(box);
+    for (const chip of Array.from(box.children)) observer.observe(chip);
+    return () => observer.disconnect();
+  });
+}
 
 export interface TaskItemProps {
   task: Task;
@@ -95,6 +119,8 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const frequencyChipRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+  useInertDroppedChips(chipsRef);
   // Right-click menu, anchored at the cursor
   const [contextMenuAt, setContextMenuAt] = useState<{ x: number; y: number } | null>(null);
   const contextMenuAnchorRef = useRef<HTMLSpanElement>(null);
@@ -432,7 +458,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             </div>
           )}
 
-          <div className={styles.chips}>
+          <div ref={chipsRef} className={styles.chips}>
             {/* App chip - shown when task originated from an external app */}
             {(() => {
               const appSource = getTaskAppSource(task);
