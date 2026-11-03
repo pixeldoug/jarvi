@@ -884,7 +884,7 @@ const markUserWhatsappVerified = async (userId: string, phone: string): Promise<
   if (isPostgreSQL()) {
     await getPool().query(
       `UPDATE users
-       SET whatsapp_phone = $1, whatsapp_verified = TRUE, whatsapp_link_code = NULL,
+       SET whatsapp_phone = $1, whatsapp_verified = TRUE, pending_whatsapp_phone = NULL, whatsapp_link_code = NULL,
            whatsapp_link_code_expires_at = NULL, updated_at = $2
        WHERE id = $3`,
       [phone, now, userId]
@@ -893,7 +893,7 @@ const markUserWhatsappVerified = async (userId: string, phone: string): Promise<
   }
   await getDatabase().run(
     `UPDATE users
-     SET whatsapp_phone = ?, whatsapp_verified = 1, whatsapp_link_code = NULL,
+     SET whatsapp_phone = ?, whatsapp_verified = 1, pending_whatsapp_phone = NULL, whatsapp_link_code = NULL,
          whatsapp_link_code_expires_at = NULL, updated_at = ?
      WHERE id = ?`,
     [phone, now, userId]

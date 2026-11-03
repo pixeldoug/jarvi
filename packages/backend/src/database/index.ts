@@ -843,6 +843,9 @@ const runMigrations = async (): Promise<void> => {
     'ALTER TABLE users ADD COLUMN whatsapp_link_code_expires_at TIMESTAMP',
     // Email a WhatsApp account asked to add, until its owner confirms the code.
     'ALTER TABLE users ADD COLUMN pending_email TEXT',
+    // Number a user asked to link, until its WhatsApp code is confirmed (not
+    // unique, so a pending request never blocks or clears anyone else's).
+    'ALTER TABLE users ADD COLUMN pending_whatsapp_phone TEXT',
   ];
 
   const whatsappTaskMigrations = [

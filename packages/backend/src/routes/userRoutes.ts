@@ -489,6 +489,7 @@ router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Respon
     let user:
       | {
           whatsapp_phone?: string | null;
+          pending_whatsapp_phone?: string | null;
           whatsapp_verified?: boolean | number | null;
           whatsapp_link_code?: string | null;
           whatsapp_link_code_expires_at?: string | null;
@@ -498,7 +499,8 @@ router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Respon
     if (isPostgreSQL()) {
       const pool = getPool();
       const result = await pool.query(
-        `SELECT whatsapp_phone, whatsapp_verified, whatsapp_link_code, whatsapp_link_code_expires_at
+        `SELECT whatsapp_phone, pending_whatsapp_phone, whatsapp_verified, whatsapp_link_code,
+                whatsapp_link_code_expires_at
          FROM users
          WHERE id = $1`,
         [userId]
@@ -507,7 +509,8 @@ router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Respon
     } else {
       const db = getDatabase();
       user = await db.get(
-        `SELECT whatsapp_phone, whatsapp_verified, whatsapp_link_code, whatsapp_link_code_expires_at
+        `SELECT whatsapp_phone, pending_whatsapp_phone, whatsapp_verified, whatsapp_link_code,
+                whatsapp_link_code_expires_at
          FROM users
          WHERE id = ?`,
         [userId]
@@ -519,12 +522,19 @@ router.get('/whatsapp-link', authenticateToken, async (req: Request, res: Respon
       return;
     }
 
-    const phone =
+    const linkedPhone =
       typeof user.whatsapp_phone === 'string' && user.whatsapp_phone.trim()
         ? user.whatsapp_phone.trim()
         : null;
-    const linked = Boolean(user.whatsapp_verified);
+    const pendingPhone =
+      typeof user.pending_whatsapp_phone === 'string' && user.pending_whatsapp_phone.trim()
+        ? user.pending_whatsapp_phone.trim()
+        : null;
     const hasPendingCode = Boolean(user.whatsapp_link_code);
+    // While a new number awaits its code, report it like before (not linked yet).
+    const showingPending = Boolean(pendingPhone && hasPendingCode);
+    const phone = showingPending ? pendingPhone : linkedPhone;
+    const linked = !showingPending && Boolean(user.whatsapp_verified);
     const expiresAtRaw = user.whatsapp_link_code_expires_at || null;
     const expiresAtDate = expiresAtRaw ? new Date(expiresAtRaw) : null;
     const hasValidExpiry =
@@ -708,59 +718,42 @@ router.post('/whatsapp-link/request', authenticateToken, async (req: Request, re
     const now = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    try {
-      // An unverified number on another account is only a pending claim; don't
-      // let it block (squat) the number's real owner. Verified links still win.
-      if (isPostgreSQL()) {
-        await getPool().query(
-          `UPDATE users
-           SET whatsapp_phone = NULL, whatsapp_link_code = NULL,
-               whatsapp_link_code_expires_at = NULL, updated_at = $1
-           WHERE whatsapp_phone = $2 AND id != $3
-             AND (whatsapp_verified IS NULL OR whatsapp_verified = FALSE)`,
-          [now, normalizedPhone, userId]
+    // The number waits in pending_whatsapp_phone (not unique) until the code is
+    // confirmed, so a request never touches another account's link or pending
+    // code. Only a number someone already verified is refused here.
+    const pg = isPostgreSQL();
+    const verifiedElsewhere = pg
+      ? (
+          await getPool().query(
+            'SELECT id FROM users WHERE whatsapp_phone = $1 AND whatsapp_verified = TRUE AND id != $2',
+            [normalizedPhone, userId]
+          )
+        ).rows[0]
+      : await getDatabase().get(
+          'SELECT id FROM users WHERE whatsapp_phone = ? AND whatsapp_verified = 1 AND id != ?',
+          [normalizedPhone, userId]
         );
-      } else {
-        await getDatabase().run(
-          `UPDATE users
-           SET whatsapp_phone = NULL, whatsapp_link_code = NULL,
-               whatsapp_link_code_expires_at = NULL, updated_at = ?
-           WHERE whatsapp_phone = ? AND id != ?
-             AND (whatsapp_verified IS NULL OR whatsapp_verified = 0)`,
-          [now, normalizedPhone, userId]
-        );
-      }
+    if (verifiedElsewhere) {
+      res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
+      return;
+    }
 
-      if (isPostgreSQL()) {
-        const pool = getPool();
-        await pool.query(
-          `UPDATE users
-           SET whatsapp_phone = $1, whatsapp_verified = $2, whatsapp_link_code = $3,
-               whatsapp_link_code_expires_at = $4, updated_at = $5
-           WHERE id = $6`,
-          [normalizedPhone, false, linkCode, expiresAt, now, userId]
-        );
-      } else {
-        const db = getDatabase();
-        await db.run(
-          `UPDATE users
-           SET whatsapp_phone = ?, whatsapp_verified = ?, whatsapp_link_code = ?,
-               whatsapp_link_code_expires_at = ?, updated_at = ?
-           WHERE id = ?`,
-          [normalizedPhone, 0, linkCode, expiresAt, now, userId]
-        );
-      }
-    } catch (error: any) {
-      const errorMessage = String(error?.message || '');
-      const isUniqueViolation =
-        error?.code === '23505' || errorMessage.includes('UNIQUE constraint failed');
-
-      if (isUniqueViolation) {
-        res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
-        return;
-      }
-
-      throw error;
+    if (pg) {
+      await getPool().query(
+        `UPDATE users
+         SET pending_whatsapp_phone = $1, whatsapp_link_code = $2,
+             whatsapp_link_code_expires_at = $3, updated_at = $4
+         WHERE id = $5`,
+        [normalizedPhone, linkCode, expiresAt, now, userId]
+      );
+    } else {
+      await getDatabase().run(
+        `UPDATE users
+         SET pending_whatsapp_phone = ?, whatsapp_link_code = ?,
+             whatsapp_link_code_expires_at = ?, updated_at = ?
+         WHERE id = ?`,
+        [normalizedPhone, linkCode, expiresAt, now, userId]
+      );
     }
 
     await sendVerificationCode(normalizedPhone, linkCode);
@@ -800,7 +793,8 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
     if (isPostgreSQL()) {
       const pool = getPool();
       const result = await pool.query(
-        `SELECT id, whatsapp_phone, whatsapp_link_code, whatsapp_link_code_expires_at
+        `SELECT id, whatsapp_phone, pending_whatsapp_phone, whatsapp_verified,
+                whatsapp_link_code, whatsapp_link_code_expires_at
          FROM users
          WHERE id = $1`,
         [userId]
@@ -809,7 +803,8 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
     } else {
       const db = getDatabase();
       user = await db.get(
-        `SELECT id, whatsapp_phone, whatsapp_link_code, whatsapp_link_code_expires_at
+        `SELECT id, whatsapp_phone, pending_whatsapp_phone, whatsapp_verified,
+                whatsapp_link_code, whatsapp_link_code_expires_at
          FROM users
          WHERE id = ?`,
         [userId]
@@ -821,7 +816,12 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
       return;
     }
 
-    if (!user.whatsapp_phone || !user.whatsapp_link_code || !user.whatsapp_link_code_expires_at) {
+    // Rows from before pending_whatsapp_phone kept the pending number in
+    // whatsapp_phone (unverified).
+    const pendingPhone: string | null =
+      user.pending_whatsapp_phone || (!user.whatsapp_verified ? user.whatsapp_phone : null) || null;
+
+    if (!pendingPhone || !user.whatsapp_link_code || !user.whatsapp_link_code_expires_at) {
       res.status(400).json({ error: 'Nenhuma solicitação de vinculação pendente' });
       return;
     }
@@ -837,28 +837,56 @@ router.post('/whatsapp-link/verify', authenticateToken, async (req: Request, res
       return;
     }
 
-    if (isPostgreSQL()) {
-      const pool = getPool();
-      await pool.query(
-        `UPDATE users
-         SET whatsapp_verified = $1, whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = $2
-         WHERE id = $3`,
-        [true, now, userId]
-      );
-    } else {
-      const db = getDatabase();
-      await db.run(
-        `UPDATE users
-         SET whatsapp_verified = ?, whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = ?
-         WHERE id = ?`,
-        [1, now, userId]
-      );
+    // Ownership is proven now: free the number from any account that only
+    // saved it unverified (legacy rows), then make it this account's link.
+    try {
+      if (isPostgreSQL()) {
+        const pool = getPool();
+        await pool.query(
+          `UPDATE users
+           SET whatsapp_phone = NULL, updated_at = $1
+           WHERE whatsapp_phone = $2 AND id != $3
+             AND (whatsapp_verified IS NULL OR whatsapp_verified = FALSE)`,
+          [now, pendingPhone, userId]
+        );
+        await pool.query(
+          `UPDATE users
+           SET whatsapp_phone = $1, whatsapp_verified = $2, pending_whatsapp_phone = NULL,
+               whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = $3
+           WHERE id = $4`,
+          [pendingPhone, true, now, userId]
+        );
+      } else {
+        const db = getDatabase();
+        await db.run(
+          `UPDATE users
+           SET whatsapp_phone = NULL, updated_at = ?
+           WHERE whatsapp_phone = ? AND id != ?
+             AND (whatsapp_verified IS NULL OR whatsapp_verified = 0)`,
+          [now, pendingPhone, userId]
+        );
+        await db.run(
+          `UPDATE users
+           SET whatsapp_phone = ?, whatsapp_verified = ?, pending_whatsapp_phone = NULL,
+               whatsapp_link_code = NULL, whatsapp_link_code_expires_at = NULL, updated_at = ?
+           WHERE id = ?`,
+          [pendingPhone, 1, now, userId]
+        );
+      }
+    } catch (error: any) {
+      const errorMessage = String(error?.message || '');
+      if (error?.code === '23505' || errorMessage.includes('UNIQUE constraint failed')) {
+        // Someone else verified this number in the meantime.
+        res.status(409).json({ error: 'Este número já está vinculado a outra conta.' });
+        return;
+      }
+      throw error;
     }
 
     res.json({
       success: true,
       message: 'WhatsApp vinculado com sucesso.',
-      phone: user.whatsapp_phone,
+      phone: pendingPhone,
     });
   } catch (error) {
     console.error('Error verifying WhatsApp link:', error);
@@ -930,7 +958,7 @@ router.delete('/whatsapp-link', authenticateToken, async (req: Request, res: Res
       const pool = getPool();
       await pool.query(
         `UPDATE users
-         SET whatsapp_phone = NULL, whatsapp_verified = FALSE, whatsapp_link_code = NULL,
+         SET whatsapp_phone = NULL, pending_whatsapp_phone = NULL, whatsapp_verified = FALSE, whatsapp_link_code = NULL,
              whatsapp_link_code_expires_at = NULL, auth_provider = $1, updated_at = $2
          WHERE id = $3`,
         [nextAuthProvider, now, userId]
@@ -941,7 +969,7 @@ router.delete('/whatsapp-link', authenticateToken, async (req: Request, res: Res
       const db = getDatabase();
       await db.run(
         `UPDATE users
-         SET whatsapp_phone = NULL, whatsapp_verified = 0, whatsapp_link_code = NULL,
+         SET whatsapp_phone = NULL, pending_whatsapp_phone = NULL, whatsapp_verified = 0, whatsapp_link_code = NULL,
              whatsapp_link_code_expires_at = NULL, auth_provider = ?, updated_at = ?
          WHERE id = ?`,
         [nextAuthProvider, now, userId]

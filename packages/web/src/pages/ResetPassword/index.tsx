@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { readUrlSecret } from '../../lib/urlSecrets';
+import { clearUrlSecret, readUrlSecret } from '../../lib/urlSecrets';
 import { Button, PasswordInput, Logo } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
 import styles from './ResetPassword.module.css';
@@ -62,6 +62,7 @@ export const ResetPassword: React.FC = () => {
         throw new Error(data.error || 'Erro ao redefinir senha');
       }
 
+      clearUrlSecret('token');
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao redefinir senha');

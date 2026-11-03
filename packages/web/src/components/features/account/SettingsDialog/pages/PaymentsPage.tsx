@@ -80,7 +80,11 @@ export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
   const { user } = useAuth();
   const { subscription, hasActiveSubscription } = useSubscription();
 
-  const checkoutReference = useCheckoutReference(Boolean(user?.id));
+  const {
+    reference: checkoutReference,
+    status: checkoutStatus,
+    retry: retryCheckoutReference,
+  } = useCheckoutReference(Boolean(user?.id));
 
   const buildPaymentUrl = (baseUrl: string) => {
     if (!baseUrl) return baseUrl;
@@ -199,9 +203,14 @@ export function PaymentsPage({ onClose: _onClose }: PaymentsPageProps) {
               icon={Lightning}
               iconPosition="left"
               fullWidth
-              onClick={() => window.open(buildPaymentUrl(PAYMENT_URLS[plan.id]), '_blank', 'noopener,noreferrer')}
+              disabled={checkoutStatus === 'loading'}
+              onClick={() =>
+                checkoutStatus === 'error'
+                  ? retryCheckoutReference()
+                  : window.open(buildPaymentUrl(PAYMENT_URLS[plan.id]), '_blank', 'noopener,noreferrer')
+              }
             >
-              Assinar
+              {checkoutStatus === 'error' ? 'Tentar de novo' : 'Assinar'}
             </Button>
           </div>
         ))}

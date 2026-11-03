@@ -73,7 +73,11 @@ export function TrialExpiredGate() {
   const [isExtending, setIsExtending] = useState(false);
 
   // Only fetched once the gate actually shows the payment links.
-  const checkoutReference = useCheckoutReference(Boolean(user?.id) && trialExpired && !import.meta.env.DEV);
+  const {
+    reference: checkoutReference,
+    status: checkoutStatus,
+    retry: retryCheckoutReference,
+  } = useCheckoutReference(Boolean(user?.id) && trialExpired && !import.meta.env.DEV);
 
   const buildPaymentUrl = (baseUrl: string) => {
     if (!baseUrl) return baseUrl;
@@ -144,11 +148,14 @@ export function TrialExpiredGate() {
                 icon={Lightning}
                 iconPosition="left"
                 fullWidth
+                disabled={checkoutStatus === 'loading'}
                 onClick={() =>
-                  window.open(buildPaymentUrl(PAYMENT_URLS[plan.id]), '_blank', 'noopener,noreferrer')
+                  checkoutStatus === 'error'
+                    ? retryCheckoutReference()
+                    : window.open(buildPaymentUrl(PAYMENT_URLS[plan.id]), '_blank', 'noopener,noreferrer')
                 }
               >
-                Assinar
+                {checkoutStatus === 'error' ? 'Tentar de novo' : 'Assinar'}
               </Button>
             </div>
           ))}

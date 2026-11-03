@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { readUrlSecret } from '../../lib/urlSecrets';
+import { clearUrlSecret, readUrlSecret } from '../../lib/urlSecrets';
 import { Button, Logo } from '../../components/ui';
 import { trackRegistrationCompleted } from '../../lib/openaiPixel';
 import styles from './VerifyEmail.module.css';
@@ -42,6 +42,7 @@ export const VerifyEmail: React.FC = () => {
 
         trackRegistrationCompleted();
 
+        clearUrlSecret('token');
         setStatus('success');
         setMessage(data.message || 'Email verificado com sucesso!');
       } catch (err) {
