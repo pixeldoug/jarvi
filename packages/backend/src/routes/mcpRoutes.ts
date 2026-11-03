@@ -85,15 +85,20 @@ router.get('/oauth/authorize', oauthLimiter, async (req, res) => {
   }
 });
 
-router.get('/oauth/client', oauthLimiter, async (req, res) => {
+const handleDescribeClient = async (req: Request, res: Response) => {
   const clientId = typeof req.query.client_id === 'string' ? req.query.client_id : '';
-  const client = await describeClient(clientId);
+  const redirectUri = typeof req.query.redirect_uri === 'string' ? req.query.redirect_uri : undefined;
+  const client = await describeClient(clientId, redirectUri);
   if (!client) {
     res.status(404).json({ error: 'invalid_client' });
     return;
   }
   res.json(client);
-});
+};
+
+router.get('/oauth/client', oauthLimiter, handleDescribeClient);
+// Same lookup under /api, which the web app's host proxies to the backend.
+router.get('/api/oauth/client', oauthLimiter, handleDescribeClient);
 
 router.post('/oauth/register', oauthLimiter, async (req, res) => {
   try {

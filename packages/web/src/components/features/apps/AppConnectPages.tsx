@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import { Button, ConnectionChip, Input } from '../../ui';
 import { useAuth } from '../../../contexts/AuthContext';
 import { formatWhatsAppPhone } from '../../../lib/whatsappPhone';
+import { consumeUrlSecret } from '../../../lib/urlSecrets';
 import styles from './AppConnectPages.module.css';
 
 // ============================================================================
@@ -17,6 +18,41 @@ import styles from './AppConnectPages.module.css';
 // ============================================================================
 
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+
+// Returning from Google, the callback hands back a sealed handoff (main.tsx
+// moved it out of the URL before analytics loaded). Redeem it with this user's
+// token; the backend rejects one issued to a different account. Shared
+// promise: StrictMode runs effects twice.
+let gmailConfirmation: Promise<void> | null = null;
+
+const completeGmailConnectFromUrl = (token: string): Promise<void> => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('gmail') !== 'confirm') return gmailConfirmation ?? Promise.resolve();
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete('gmail');
+  window.history.replaceState({}, '', url.toString());
+  const handoff = consumeUrlSecret('handoff');
+
+  gmailConfirmation = (async () => {
+    try {
+      if (!handoff) throw new Error('missing_handoff');
+      const res = await fetch(`${API_URL}/api/gmail/complete`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handoff }),
+      });
+      const data = await parseApiPayload(res);
+      url.searchParams.set('gmail', res.ok ? 'connected' : 'error');
+      if (!res.ok) url.searchParams.set('reason', String(data.error || 'unknown'));
+    } catch (err) {
+      url.searchParams.set('gmail', 'error');
+      url.searchParams.set('reason', err instanceof Error && err.message === 'missing_handoff' ? 'missing_handoff' : 'network');
+    }
+    window.history.replaceState({}, '', url.toString());
+  })();
+  return gmailConfirmation;
+};
 
 export type AppId =
   | 'whatsapp'
@@ -442,6 +478,8 @@ export function GmailConnectPage() {
     const checkStatus = async () => {
       setStatusLoading(true);
       try {
+        await completeGmailConnectFromUrl(token);
+
         const res = await fetch(`${API_URL}/api/gmail/status`, {
           headers: { Authorization: `Bearer ${token}` },
         });

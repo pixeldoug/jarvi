@@ -31,6 +31,37 @@ function parsePendingQuestion(value: unknown): AgentPendingQuestionRef | undefin
   return ref;
 }
 
+/**
+ * Client-sent history is untrusted and billed per token on every agent
+ * iteration, so bound it server-side: only user/assistant turns with text,
+ * the most recent ones, each and all together capped in length.
+ */
+const MAX_HISTORY_MESSAGES = 40;
+const MAX_MESSAGE_CHARS = 20_000;
+const MAX_HISTORY_CHARS = 60_000;
+
+function boundChatHistory(messages: unknown[]): ChatMessage[] {
+  const turns = messages
+    .filter(
+      (m): m is ChatMessage =>
+        !!m &&
+        typeof m === 'object' &&
+        ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
+        typeof (m as ChatMessage).content === 'string',
+    )
+    .slice(-MAX_HISTORY_MESSAGES)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_CHARS) }));
+
+  // Keep the newest turns that fit the total budget.
+  let total = 0;
+  let start = turns.length;
+  while (start > 0 && total + turns[start - 1].content.length <= MAX_HISTORY_CHARS) {
+    total += turns[start - 1].content.length;
+    start--;
+  }
+  return turns.slice(Math.min(start, turns.length - 1));
+}
+
 export const handleChat = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user?.id;
   const userName = req.user?.name || '';
@@ -95,12 +126,17 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
 
   // Turn any uploaded files into text and fold them into the latest user turn.
   // Done before SSE headers are flushed so failures surface as a JSON error.
-  let finalMessages: ChatMessage[] = messages;
+  const boundedMessages = boundChatHistory(messages);
+  if (boundedMessages.length === 0) {
+    res.status(400).json({ error: 'messages must include a user or assistant turn' });
+    return;
+  }
+  let finalMessages: ChatMessage[] = boundedMessages;
   if (Array.isArray(attachments) && attachments.length > 0) {
     try {
       const attachmentContext = await buildAttachmentContext(attachments);
       if (attachmentContext) {
-        finalMessages = [...messages];
+        finalMessages = [...boundedMessages];
         for (let i = finalMessages.length - 1; i >= 0; i--) {
           if (finalMessages[i].role === 'user') {
             finalMessages[i] = {

@@ -32,6 +32,7 @@ Backend requires a `.env` at `packages/backend/.env` with at minimum:
 - `JWT_SECRET` – any 64+ hex chars
 - `RESEND_API_KEY` – even a dummy value like `re_dev_placeholder` is required or the backend crashes at startup (the Resend SDK throws if the key is missing)
 - `GOOGLE_CLIENT_ID` – placeholder is fine for API-only testing; real OAuth requires valid credentials
+- `JARVI_LOCAL_OTP_BYPASS=true` – returns WhatsApp/email login codes in the API response (`devCode`) so local sign-in works without Twilio. Ignored when `NODE_ENV=production`. Never set it on a hosted environment: anyone could then log in as any WhatsApp user.
 
 Web requires a `.env` at `packages/web/.env` with:
 - `VITE_API_URL=http://localhost:3001/api`

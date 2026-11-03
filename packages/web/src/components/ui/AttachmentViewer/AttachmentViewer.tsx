@@ -13,6 +13,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import styles from './AttachmentViewer.module.css';
+import { isSafeAttachmentUrl } from '../../../utils/attachmentUrl';
 
 /** Minimal shape a viewer needs to render any attachment full-screen. */
 export interface ViewerAttachment {
@@ -59,6 +60,15 @@ export function AttachmentFileIcon({ mimeType }: { mimeType: string }) {
 }
 
 function AttachmentViewerPreview({ attachment }: { attachment: ViewerAttachment }) {
+  if (!isSafeAttachmentUrl(attachment.previewUrl)) {
+    return (
+      <div className={styles.viewerGenericPreview}>
+        <AttachmentFileIcon mimeType={attachment.mimeType} />
+        <span className={styles.viewerGenericLabel}>{fullName(attachment)}</span>
+        <p className={styles.viewerGenericHint}>Prévia não disponível para este tipo de arquivo</p>
+      </div>
+    );
+  }
   if (attachment.mimeType.startsWith('image/')) {
     return (
       <img
@@ -113,6 +123,7 @@ export function AttachmentViewer({ attachment, onClose, onRemove }: AttachmentVi
   }, [onClose]);
 
   const handleDownload = () => {
+    if (!isSafeAttachmentUrl(attachment.previewUrl)) return;
     const a = document.createElement('a');
     a.href = attachment.previewUrl;
     a.download = fullName(attachment);

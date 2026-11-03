@@ -445,6 +445,8 @@ interface UserBasicInfo {
   id: string;
   email: string;
   subscription_status: string;
+  stripe_customer_id?: string | null;
+  email_verified?: boolean | number | null;
 }
 
 /**
@@ -484,7 +486,7 @@ export async function getUserByEmail(email: string): Promise<UserBasicInfo | nul
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'SELECT id, email, subscription_status FROM users WHERE LOWER(email) = $1',
+        'SELECT id, email, subscription_status, stripe_customer_id, email_verified FROM users WHERE LOWER(email) = $1',
         [normalized]
       );
       return result.rows[0] || null;
@@ -494,7 +496,7 @@ export async function getUserByEmail(email: string): Promise<UserBasicInfo | nul
   } else {
     const db = getDatabase();
     const result = await db.get<UserBasicInfo>(
-      'SELECT id, email, subscription_status FROM users WHERE LOWER(email) = ?',
+      'SELECT id, email, subscription_status, stripe_customer_id, email_verified FROM users WHERE LOWER(email) = ?',
       [normalized]
     );
     return result ?? null;

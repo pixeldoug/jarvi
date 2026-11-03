@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { authenticateToken } from './middleware/auth';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { createServer } from 'http';
 import { initializeDatabase } from './database';
@@ -64,16 +65,15 @@ const aiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Auth rate limiting (disabled in development, restrictive in production)
-const authLimiter = process.env.NODE_ENV === 'production' 
-  ? rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 20, // limit each IP to 20 auth requests per windowMs
-      message: { error: 'Too many authentication attempts, please try again later.' },
-      standardHeaders: true,
-      legacyHeaders: false,
-    })
-  : (req: any, res: any, next: any) => next(); // No rate limiting in development
+// Auth rate limiting – always on (OTP and password endpoints are brute-force
+// targets on staging too); looser outside production for local testing.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 20 : 200,
+  message: { error: 'Too many authentication attempts, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Middleware
 app.use(helmet({
@@ -181,10 +181,13 @@ app.use('/api/users', userRoutes);
 app.use('/api/early-access', earlyAccessRoutes);
 app.use('/api/onboarding', authLimiter, onboardingRoutes);
 app.use('/api/pending-tasks', pendingTaskRoutes);
-app.use('/api/ai', aiLimiter, aiRoutes);
+// Authenticate first so aiLimiter can key on the user instead of the IP.
+app.use('/api/ai', authenticateToken, aiLimiter, aiRoutes);
 app.use('/api/gmail', gmailRoutes);
-app.use('/api', noteShareRoutes);
+// Before noteShareRoutes: its router.use(authenticateToken) would otherwise
+// catch MCP's public /api/oauth/* paths (client lookup, deny).
 app.use(mcpRoutes);
+app.use('/api', noteShareRoutes);
 
 // Catch-all for unknown routes & central error handler
 app.use(notFoundHandler);

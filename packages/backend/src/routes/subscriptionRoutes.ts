@@ -7,8 +7,22 @@ import {
   extendTrial,
   createPortalSession,
 } from '../services/stripeService';
+import { createCheckoutReference } from '../services/checkoutReference';
 
 const router = Router();
+
+/**
+ * GET /api/subscriptions/checkout-reference
+ * Signed `client_reference_id` the web app appends to the Stripe Payment Link,
+ * so the checkout webhook can trust which user it belongs to.
+ */
+router.get('/checkout-reference', authenticateToken, (req: Request, res: Response) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+  res.json({ reference: createCheckoutReference(req.user.id) });
+});
 
 /**
  * POST /api/subscriptions/create
