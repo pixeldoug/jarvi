@@ -30,6 +30,7 @@ import {
   markOnboardingJourneyComplete,
   onboardingClosingText,
 } from '../services/agent/core/onboardingJourney';
+import { allowLocalOtpBypass } from '../config/environment';
 
 const parseDbBoolean = (value: unknown): boolean =>
   value === true || value === 1 || value === '1';
@@ -664,7 +665,8 @@ export const completeOnboarding = async (req: Request, res: Response): Promise<v
     }
 
     try {
-      await syncOnboardingLeadWithUser(user.email, userId);
+      // The signed-in user just wrote this lead, so it may replace their memory.
+      await syncOnboardingLeadWithUser(user.email, userId, { replaceMemory: true });
     } catch (syncError) {
       console.error('Failed to sync onboarding memory:', syncError);
     }
@@ -838,10 +840,43 @@ const getUserById = async (userId: string) => {
 
 const getUserByPhone = async (phone: string) => {
   if (isPostgreSQL()) {
-    const result = await getPool().query('SELECT * FROM users WHERE whatsapp_phone = $1', [phone]);
+    const result = await getPool().query(
+      'SELECT * FROM users WHERE whatsapp_phone = $1 AND whatsapp_verified = TRUE',
+      [phone]
+    );
     return result.rows[0];
   }
-  return getDatabase().get('SELECT * FROM users WHERE whatsapp_phone = ?', [phone]);
+  return getDatabase().get(
+    'SELECT * FROM users WHERE whatsapp_phone = ? AND whatsapp_verified = 1',
+    [phone]
+  );
+};
+
+/**
+ * The caller has just proven they own `phone` via OTP. Any account that saved
+ * this number without verifying it (settings stores it before the link code is
+ * confirmed) was squatting on it, and logging the owner into that account
+ * would hand their data to the squatter. Detach the number from it instead.
+ */
+const releaseUnverifiedPhoneClaim = async (phone: string): Promise<void> => {
+  const now = new Date().toISOString();
+  if (isPostgreSQL()) {
+    await getPool().query(
+      `UPDATE users
+       SET whatsapp_phone = NULL, whatsapp_link_code = NULL,
+           whatsapp_link_code_expires_at = NULL, updated_at = $1
+       WHERE whatsapp_phone = $2 AND (whatsapp_verified IS NULL OR whatsapp_verified = FALSE)`,
+      [now, phone]
+    );
+    return;
+  }
+  await getDatabase().run(
+    `UPDATE users
+     SET whatsapp_phone = NULL, whatsapp_link_code = NULL,
+         whatsapp_link_code_expires_at = NULL, updated_at = ?
+     WHERE whatsapp_phone = ? AND (whatsapp_verified IS NULL OR whatsapp_verified = 0)`,
+    [now, phone]
+  );
 };
 
 const markUserWhatsappVerified = async (userId: string, phone: string): Promise<void> => {
@@ -932,10 +967,10 @@ export const requestOnboardingWhatsapp = async (req: Request, res: Response): Pr
     const expiresAt = new Date(Date.now() + OTP_TTL_MS).toISOString();
     await upsertOnboardingOtp(phone, code, expiresAt);
 
-    const allowLocalOtpBypass = process.env.NODE_ENV !== 'production';
+    const localOtpBypass = allowLocalOtpBypass();
     let deliveredViaWhatsapp = false;
 
-    if (allowLocalOtpBypass) {
+    if (localOtpBypass) {
       console.warn(`[onboarding] Local OTP for ${phone}: ${code}`);
     } else {
       await sendVerificationCode(phone, code);
@@ -999,6 +1034,7 @@ export const verifyOnboardingWhatsapp = async (req: Request, res: Response): Pro
     await deleteOnboardingOtp(phone);
 
     const optionalUserId = readOptionalUserId(req);
+    await releaseUnverifiedPhoneClaim(phone);
     const existingByPhone = await getUserByPhone(phone);
     let user = existingByPhone;
     let isNewUser = false;

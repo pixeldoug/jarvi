@@ -25,3 +25,16 @@ export const shouldEmitExternalIntegrations = (): boolean => {
   if (override === 'false' || override === '0') return false;
   return isProduction();
 };
+
+/**
+ * Returns login OTPs in the API response (and skips WhatsApp delivery) so local
+ * sign-in works without Twilio. Anyone who can call the API can then log in as
+ * any user, so it needs an explicit opt-in on top of a non-production NODE_ENV —
+ * a hosted environment that merely forgets NODE_ENV stays closed.
+ * Set JARVI_LOCAL_OTP_BYPASS=true in packages/backend/.env to enable locally.
+ */
+export const allowLocalOtpBypass = (): boolean => {
+  if (isProduction()) return false;
+  const flag = process.env.JARVI_LOCAL_OTP_BYPASS?.trim().toLowerCase();
+  return flag === 'true' || flag === '1';
+};

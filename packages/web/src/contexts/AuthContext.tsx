@@ -436,14 +436,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const verifyAddedEmail = async (email: string, code: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/verify-email-otp`, {
+    if (!token) {
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
+    // The email stays pending on the server until this account confirms it.
+    const response = await fetch(`${API_BASE_URL}/api/auth/whatsapp/add-email/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code }),
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code }),
     });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || 'Não foi possível confirmar o email.');
+    }
+    if (typeof data.token === 'string') {
+      setToken(data.token);
+      localStorage.setItem('jarvi_token', data.token);
     }
     if (data.user) {
       setUser({ ...(data.user as User), emailVerified: true });

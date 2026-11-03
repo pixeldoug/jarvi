@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { readUrlSecret } from '../../lib/urlSecrets';
 import { Button, PasswordInput, Logo } from '../../components/ui';
 import { useForceTheme } from '../../hooks/useForceTheme';
 import styles from './ResetPassword.module.css';
@@ -17,8 +18,8 @@ export const ResetPassword: React.FC = () => {
   const [success, setSuccess] = useState(false);
   
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  // main.tsx moved the token out of the URL before analytics loaded.
+  const token = readUrlSecret('token');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

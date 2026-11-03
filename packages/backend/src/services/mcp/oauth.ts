@@ -130,9 +130,17 @@ export async function beginAuthorization(
   }
 }
 
-export async function describeClient(clientId: string): Promise<{ name: string } | null> {
+export async function describeClient(
+  clientId: string,
+  redirectUri?: string,
+): Promise<{ name: string; redirect_host?: string } | null> {
   const client = await resolveOAuthClient(clientId);
   if (!client) return null;
+  // Only a registered redirect gets a host: the consent screen shows where the
+  // approval code will be sent, and refuses an unregistered one.
+  if (redirectUri && client.redirectUris.includes(redirectUri)) {
+    return { name: client.name, redirect_host: new URL(redirectUri).host };
+  }
   return { name: client.name };
 }
 

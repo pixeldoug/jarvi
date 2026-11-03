@@ -18,6 +18,7 @@ import { SlashCommandExtension } from './SlashCommandMenu';
 import { AttachmentRefNode } from './AttachmentRefNode';
 import { AttachmentViewer } from '../AttachmentViewer';
 import { AttachmentSection, formatAttachmentDate } from './AttachmentSection';
+import { isSafeAttachmentUrl } from '../../../utils/attachmentUrl';
 import {
   dataUrlInfo,
   imageFileToDataUrl,
@@ -93,8 +94,9 @@ function parseContentAndAttachments(raw: string): {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && parsed.type === 'doc') {
-      const serialized: SerializedAttachment[] = parsed._attachments ?? [];
-      const attachments: AttachmentFile[] = serialized.map(a => ({
+      const serialized: SerializedAttachment[] = Array.isArray(parsed._attachments) ? parsed._attachments : [];
+      // Shared notes carry other users' JSON: drop previews that aren't plain data/blob URLs.
+      const attachments: AttachmentFile[] = serialized.filter(a => isSafeAttachmentUrl(a?.previewData)).map(a => ({
         id: a.id,
         name: a.name,
         ext: a.ext,

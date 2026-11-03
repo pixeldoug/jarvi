@@ -24,6 +24,7 @@ import { useSubscription } from '../../../../contexts/SubscriptionContext';
 import { apiClient } from '../../../../lib/apiClient';
 import { Button, Chip } from '../../../ui';
 import styles from './TrialExpiredGate.module.css';
+import { useCheckoutReference } from '../../../../hooks/useCheckoutReference';
 
 // ============================================================================
 // PLAN DATA
@@ -71,10 +72,13 @@ export function TrialExpiredGate() {
   const { trialExpired, trialExtended, refreshSubscription } = useSubscription();
   const [isExtending, setIsExtending] = useState(false);
 
+  // Only fetched once the gate actually shows the payment links.
+  const checkoutReference = useCheckoutReference(Boolean(user?.id) && trialExpired && !import.meta.env.DEV);
+
   const buildPaymentUrl = (baseUrl: string) => {
     if (!baseUrl) return baseUrl;
     const url = new URL(baseUrl);
-    if (user?.id) url.searchParams.set('client_reference_id', user.id);
+    if (checkoutReference) url.searchParams.set('client_reference_id', checkoutReference);
     if (user?.email) url.searchParams.set('prefilled_email', user.email);
     return url.toString();
   };

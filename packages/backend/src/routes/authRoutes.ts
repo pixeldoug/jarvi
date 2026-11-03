@@ -13,6 +13,7 @@ import {
   addPasswordToGoogleAccount,
   linkGoogleAccount,
   addEmailToWhatsappAccount,
+  verifyAddedEmail,
   disconnectEmailLogin,
 } from '../controllers/authController';
 import { authenticateToken } from '../middleware/auth';
@@ -39,6 +40,7 @@ router.post('/google/add-password', authenticateToken, addPasswordToGoogleAccoun
 router.post('/google/link', authenticateToken, linkGoogleAccount);
 router.delete('/google/disconnect', authenticateToken, disconnectGoogle);
 router.post('/whatsapp/add-email', authenticateToken, addEmailToWhatsappAccount);
+router.post('/whatsapp/add-email/verify', authenticateToken, verifyAddedEmail);
 router.delete('/email', authenticateToken, disconnectEmailLogin);
 
 export default router;

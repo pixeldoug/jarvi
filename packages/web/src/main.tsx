@@ -8,7 +8,11 @@ import { restoreAttributionToUrl } from './lib/attribution';
 import { initMetaPixel } from './lib/metaPixel';
 import { initOpenAiPixel } from './lib/openaiPixel';
 import { dropInAppBrowserExceptions } from './lib/dropInAppBrowserExceptions';
+import { takeUrlSecrets } from './lib/urlSecrets';
 
+// Before any analytics init: reset/verification tokens and the Gmail OAuth
+// handoff must not be captured with the page URL.
+takeUrlSecrets();
 restoreAttributionToUrl();
 
 const posthogKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;

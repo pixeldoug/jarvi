@@ -5,6 +5,8 @@
 
 import zxcvbn from 'zxcvbn';
 
+export const MAX_PASSWORD_LENGTH = 128;
+
 export interface PasswordValidationResult {
   isValid: boolean;
   score: number;
@@ -28,11 +30,21 @@ export const validatePasswordStrength = (
   minScore: number = 2
 ): PasswordValidationResult => {
   // Basic validation
-  if (!password || password.length < 8) {
+  if (typeof password !== 'string' || password.length < 8) {
     return {
       isValid: false,
       score: 0,
       message: 'A senha deve ter pelo menos 8 caracteres',
+    };
+  }
+
+  // zxcvbn is super-linear in input length (2,000 chars blocks the event loop
+  // for ~45s), so reject long inputs before scoring them.
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return {
+      isValid: false,
+      score: 0,
+      message: `A senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres`,
     };
   }
 

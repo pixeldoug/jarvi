@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { readUrlSecret } from '../../lib/urlSecrets';
 import { Button, Logo } from '../../components/ui';
 import { trackRegistrationCompleted } from '../../lib/openaiPixel';
 import styles from './VerifyEmail.module.css';
@@ -13,8 +14,8 @@ export const VerifyEmail: React.FC = () => {
   const [message, setMessage] = useState('');
   
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  // main.tsx moved the token out of the URL before analytics loaded.
+  const token = readUrlSecret('token');
 
   useEffect(() => {
     const verifyEmail = async () => {

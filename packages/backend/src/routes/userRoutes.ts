@@ -709,6 +709,28 @@ router.post('/whatsapp-link/request', authenticateToken, async (req: Request, re
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     try {
+      // An unverified number on another account is only a pending claim; don't
+      // let it block (squat) the number's real owner. Verified links still win.
+      if (isPostgreSQL()) {
+        await getPool().query(
+          `UPDATE users
+           SET whatsapp_phone = NULL, whatsapp_link_code = NULL,
+               whatsapp_link_code_expires_at = NULL, updated_at = $1
+           WHERE whatsapp_phone = $2 AND id != $3
+             AND (whatsapp_verified IS NULL OR whatsapp_verified = FALSE)`,
+          [now, normalizedPhone, userId]
+        );
+      } else {
+        await getDatabase().run(
+          `UPDATE users
+           SET whatsapp_phone = NULL, whatsapp_link_code = NULL,
+               whatsapp_link_code_expires_at = NULL, updated_at = ?
+           WHERE whatsapp_phone = ? AND id != ?
+             AND (whatsapp_verified IS NULL OR whatsapp_verified = 0)`,
+          [now, normalizedPhone, userId]
+        );
+      }
+
       if (isPostgreSQL()) {
         const pool = getPool();
         await pool.query(

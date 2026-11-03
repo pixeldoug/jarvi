@@ -841,6 +841,8 @@ const runMigrations = async (): Promise<void> => {
     'ALTER TABLE users ADD COLUMN whatsapp_verified BOOLEAN DEFAULT FALSE',
     'ALTER TABLE users ADD COLUMN whatsapp_link_code TEXT',
     'ALTER TABLE users ADD COLUMN whatsapp_link_code_expires_at TIMESTAMP',
+    // Email a WhatsApp account asked to add, until its owner confirms the code.
+    'ALTER TABLE users ADD COLUMN pending_email TEXT',
   ];
 
   const whatsappTaskMigrations = [

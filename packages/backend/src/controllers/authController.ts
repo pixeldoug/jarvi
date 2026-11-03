@@ -18,6 +18,7 @@ import { identifyServer, captureServer } from '../services/posthogService';
 import { clientPlatformProperties } from '../utils/clientPlatform';
 import { notifyNewAccountCreated, persistOnboardingLead } from './earlyAccessController';
 import { triggerMemoryReconciliation } from '../services/agent/core/memory';
+import { allowLocalOtpBypass } from '../config/environment';
 
 const firstNameOf = (fullName?: string | null): string | undefined =>
   (fullName || '').trim().split(/\s+/)[0] || undefined;
@@ -121,6 +122,59 @@ const WHATSAPP_AUTH_PASSWORD = 'whatsapp-auth';
 const placeholderEmailForPhone = (phone: string): string =>
   `wa.${phone.replace(/\D/g, '')}${WHATSAPP_PLACEHOLDER_EMAIL_SUFFIX}`;
 
+/**
+ * Google has just proven ownership of `email`. A row holding that email
+ * unverified was claimed by someone who never proved it (anyone can register,
+ * or add an email to a WhatsApp account, without verifying). Merging the
+ * Google sign-in into it as-is would leave the claimant's password or WhatsApp
+ * login working on the real owner's account, so first:
+ * - WhatsApp account with a pending email: give the email up (back to its
+ *   placeholder), so Google gets a separate account.
+ * - Unverified email signup: keep the row but drop the claimant's password
+ *   and any unverified WhatsApp number, so only Google can sign in to it.
+ */
+const releaseUnverifiedEmailClaim = async (email: string): Promise<void> => {
+  const now = new Date().toISOString();
+  const findSql = 'SELECT * FROM users WHERE LOWER(email) = LOWER(?)';
+  const pg = isPostgreSQL();
+  const pool = pg ? getPool() : null;
+  const db = pg ? null : getDatabase();
+  const run = async (sql: string, params: unknown[]): Promise<void> => {
+    if (pool) {
+      let i = 0;
+      await pool.query(sql.replace(/\?/g, () => `$${++i}`), params);
+    } else {
+      await db!.run(sql, params);
+    }
+  };
+
+  const claimed = pool
+    ? (await pool.query(findSql.replace('?', '$1'), [email])).rows[0]
+    : await db!.get(findSql, [email]);
+  if (!claimed || parseDbBoolean(claimed.email_verified)) return;
+
+  if (claimed.whatsapp_phone && parseDbBoolean(claimed.whatsapp_verified)) {
+    await run(
+      `UPDATE users
+       SET email = ?, password = ?, has_password = ?, auth_provider = ?, email_verified = ?,
+           email_verification_token = NULL, email_verification_expires = NULL, updated_at = ?
+       WHERE id = ?`,
+      [placeholderEmailForPhone(claimed.whatsapp_phone), WHATSAPP_AUTH_PASSWORD, false, 'whatsapp', true, now, claimed.id]
+    );
+    return;
+  }
+
+  await run(
+    `UPDATE users
+     SET password = ?, has_password = ?, auth_provider = ?,
+         email_verification_token = NULL, email_verification_expires = NULL,
+         password_reset_token = NULL, password_reset_expires = NULL,
+         whatsapp_phone = NULL, updated_at = ?
+     WHERE id = ?`,
+    ['google-auth', false, 'google', now, claimed.id]
+  );
+};
+
 export const toPublicUser = (user: {
   id: string;
   email: string;
@@ -165,7 +219,18 @@ export const toPublicUser = (user: {
   };
 };
 
-export const syncOnboardingLeadWithUser = async (email: string, userId: string): Promise<void> => {
+/**
+ * Links the onboarding lead for `email` to the user and seeds their AI memory
+ * from it. Leads can be written by the public early-access endpoint for any
+ * email, with no proof of ownership, so by default a lead only seeds a user
+ * who has no memory yet; it never replaces an existing profile. Pass
+ * `replaceMemory` only when the signed-in user just wrote this lead themselves.
+ */
+export const syncOnboardingLeadWithUser = async (
+  email: string,
+  userId: string,
+  options: { replaceMemory?: boolean } = {}
+): Promise<void> => {
   const normalizedEmail = normalizeEmail(email);
   const now = new Date().toISOString();
 
@@ -188,16 +253,18 @@ export const syncOnboardingLeadWithUser = async (email: string, userId: string):
         );
 
         if (existingMemoryResult.rows.length > 0) {
-          await client.query(
-            `UPDATE user_memory_profiles
-             SET memory_text = $1,
-                 source = $2,
-                 source_ref = $3,
-                 consent_ai_memory = $4,
-                 updated_at = $5
-             WHERE user_id = $6`,
-            [memoryText, 'marketing-onboarding', lead.id, true, now, userId]
-          );
+          if (options.replaceMemory) {
+            await client.query(
+              `UPDATE user_memory_profiles
+               SET memory_text = $1,
+                   source = $2,
+                   source_ref = $3,
+                   consent_ai_memory = $4,
+                   updated_at = $5
+               WHERE user_id = $6`,
+              [memoryText, 'marketing-onboarding', lead.id, true, now, userId]
+            );
+          }
         } else {
           await client.query(
             `INSERT INTO user_memory_profiles (
@@ -232,12 +299,14 @@ export const syncOnboardingLeadWithUser = async (email: string, userId: string):
   if (memoryText) {
     const existingMemory = await db.get('SELECT id FROM user_memory_profiles WHERE user_id = ?', [userId]);
     if (existingMemory) {
-      await db.run(
-        `UPDATE user_memory_profiles
-         SET memory_text = ?, source = ?, source_ref = ?, consent_ai_memory = ?, updated_at = ?
-         WHERE user_id = ?`,
-        [memoryText, 'marketing-onboarding', lead.id, true, now, userId]
-      );
+      if (options.replaceMemory) {
+        await db.run(
+          `UPDATE user_memory_profiles
+           SET memory_text = ?, source = ?, source_ref = ?, consent_ai_memory = ?, updated_at = ?
+           WHERE user_id = ?`,
+          [memoryText, 'marketing-onboarding', lead.id, true, now, userId]
+        );
+      }
     } else {
       await db.run(
         `INSERT INTO user_memory_profiles (
@@ -320,6 +389,13 @@ export const googleAuth = async (
       res.status(400).json({ error: 'Email is required' });
       return;
     }
+
+    if (payload.email_verified !== true) {
+      res.status(400).json({ error: 'Google account email is not verified' });
+      return;
+    }
+
+    await releaseUnverifiedEmailClaim(email);
 
     const now = new Date().toISOString();
     const trialEndsAt = getInternalTrialEndsAtIso();
@@ -1693,6 +1769,14 @@ export const linkGoogleAccount = async (
       return;
     }
 
+    // Linking marks the email verified on this account, so Google must have
+    // verified it; otherwise a WhatsApp account could adopt someone else's
+    // email and later receive that person's Google sign-in.
+    if (payload.email_verified !== true) {
+      res.status(400).json({ error: 'Google account email is not verified' });
+      return;
+    }
+
     const now = new Date().toISOString();
     let user;
 
@@ -1888,10 +1972,10 @@ export const addEmailToWhatsappAccount = async (
         }
         await client.query(
           `UPDATE users
-           SET email = $1, password = $2, has_password = $3, email_verified = $4,
+           SET pending_email = $1, password = $2, has_password = $3, email_verified = $4,
                email_verification_token = $5, email_verification_expires = $6, updated_at = $7
            WHERE id = $8`,
-          [email, hashedPassword, true, false, verificationToken, tokenExpires, now, userId]
+          [email, hashedPassword, false, false, verificationToken, tokenExpires, now, userId]
         );
         const updated = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
         user = updated.rows[0];
@@ -1923,10 +2007,10 @@ export const addEmailToWhatsappAccount = async (
       }
       await db.run(
         `UPDATE users
-         SET email = ?, password = ?, has_password = ?, email_verified = ?,
+         SET pending_email = ?, password = ?, has_password = ?, email_verified = ?,
              email_verification_token = ?, email_verification_expires = ?, updated_at = ?
          WHERE id = ?`,
-        [email, hashedPassword, 1, 0, verificationToken, tokenExpires, now, userId]
+        [email, hashedPassword, 0, 0, verificationToken, tokenExpires, now, userId]
       );
       user = await db.get('SELECT * FROM users WHERE id = ?', [userId]);
     }
@@ -1937,8 +2021,8 @@ export const addEmailToWhatsappAccount = async (
       console.error('Failed to send add-email verification:', emailError);
     }
 
-    const allowLocalOtpBypass = process.env.NODE_ENV !== 'production';
-    if (allowLocalOtpBypass) {
+    const localOtpBypass = allowLocalOtpBypass();
+    if (localOtpBypass) {
       console.warn(`[auth] Local email OTP for ${email}: ${devCode}`);
     }
 
@@ -1947,7 +2031,7 @@ export const addEmailToWhatsappAccount = async (
       pendingVerification: true,
       message: 'Enviamos um código para este email. Confirme para ativá-lo.',
       user: toPublicUser(user),
-      ...(allowLocalOtpBypass ? { delivery: 'local', devCode } : {}),
+      ...(localOtpBypass ? { delivery: 'local', devCode } : {}),
     });
   } catch (error) {
     console.error('Add email to WhatsApp account error:', {
@@ -1955,6 +2039,91 @@ export const addEmailToWhatsappAccount = async (
       timestamp: new Date().toISOString(),
     });
     res.status(500).json({ error: 'Não foi possível adicionar o email' });
+  }
+};
+
+/**
+ * Confirms the email a WhatsApp account asked to add. The address waits in
+ * `pending_email` until now, and only the account that asked can confirm it:
+ * otherwise someone could add a victim's email to their own account and have
+ * the victim's "confirm your email" code (entered on the public verify page)
+ * attach that email, and the victim, to the attacker's account.
+ * Corpo: { code }
+ */
+export const verifyAddedEmail = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const normalizedCode = String(req.body?.code ?? '').replace(/\D/g, '').slice(0, 6);
+    const invalid = () => res.status(400).json({ error: 'Código inválido ou expirado' });
+    if (normalizedCode.length !== 6) {
+      invalid();
+      return;
+    }
+
+    const pg = isPostgreSQL();
+    const get = async (sql: string, params: unknown[]): Promise<any> => {
+      if (!pg) return getDatabase().get(sql, params);
+      let i = 0;
+      return (await getPool().query(sql.replace(/\?/g, () => `$${++i}`), params)).rows[0];
+    };
+    const run = async (sql: string, params: unknown[]): Promise<void> => {
+      if (!pg) {
+        await getDatabase().run(sql, params);
+        return;
+      }
+      let i = 0;
+      await getPool().query(sql.replace(/\?/g, () => `$${++i}`), params);
+    };
+
+    const user = await get('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!user?.pending_email || !user.email_verification_token) {
+      invalid();
+      return;
+    }
+    if (user.email_verification_expires && new Date(user.email_verification_expires) < new Date()) {
+      invalid();
+      return;
+    }
+    if (generateOtpFromToken(user.email_verification_token) !== normalizedCode) {
+      invalid();
+      return;
+    }
+
+    const taken = await get('SELECT id FROM users WHERE LOWER(email) = LOWER(?) AND id != ?', [
+      user.pending_email,
+      userId,
+    ]);
+    if (taken) {
+      res.status(409).json({ error: 'Este email já está em uso' });
+      return;
+    }
+
+    await run(
+      `UPDATE users
+       SET email = ?, pending_email = NULL, has_password = ?, email_verified = ?,
+           email_verification_token = NULL, email_verification_expires = NULL, updated_at = ?
+       WHERE id = ?`,
+      [user.pending_email, true, true, new Date().toISOString(), userId]
+    );
+    const updated = await get('SELECT * FROM users WHERE id = ?', [userId]);
+
+    // The session's token carries the email, so hand back a fresh one.
+    const token = generateToken({ id: updated.id, email: updated.email, name: updated.name });
+    res.json({ success: true, token, user: toPublicUser(updated) });
+  } catch (error) {
+    console.error('Verify added email error:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    });
+    res.status(500).json({ error: 'Não foi possível confirmar o email' });
   }
 };
 
