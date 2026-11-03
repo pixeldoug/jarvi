@@ -388,18 +388,16 @@ export function Tasks() {
             label: 'Desfazer',
             onClick: async () => {
               try {
-                const success = await undoDeleteTask(taskToRestore.id);
-                if (success) {
+                // The restored task is a new one, with its own id
+                const restoredTask = await undoDeleteTask(taskToRestore.id);
+                if (restoredTask) {
                   // Show toast with view button
-                  // The task will be restored in the tasks list by undoDeleteTask
                   toast.success('Tarefa restaurada', {
                     hasButton: true,
                     action: {
                       label: 'Visualizar',
                       onClick: () => {
-                        // Use the task data we stored - it should match the restored task
-                        // The task is now in the tasks list, but we can use the original data
-                        setSelectedTask(taskToRestore);
+                        setSelectedTask(restoredTask);
                       },
                     },
                   });

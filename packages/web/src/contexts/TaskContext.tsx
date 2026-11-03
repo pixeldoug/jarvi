@@ -98,7 +98,8 @@ interface TaskContextType {
   createTask: (taskData: CreateTaskData, showLoading?: boolean) => Promise<Task>;
   updateTask: (taskId: string, taskData: UpdateTaskData, showLoading?: boolean) => Promise<void>;
   deleteTask: (taskId: string, showLoading?: boolean) => Promise<Task | null>;
-  undoDeleteTask: (taskId: string) => Promise<boolean>;
+  /** Recreates a deleted task (with a new id) and returns it, or null */
+  undoDeleteTask: (taskId: string) => Promise<Task | null>;
   toggleTaskCompletion: (taskId: string) => Promise<Task | null>;
   /**
    * Sets (never flips) completion on several tasks in one request. Returns the
@@ -358,8 +359,8 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     return taskToDelete;
   }, [token, queryClient]);
 
-  const undoDeleteTask = useCallback(async (taskId: string): Promise<boolean> => {
-    if (!token) return false;
+  const undoDeleteTask = useCallback(async (taskId: string): Promise<Task | null> => {
+    if (!token) return null;
 
     let taskData: { task: Task; originalIndex: number } | null = null;
 
@@ -379,7 +380,7 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       } catch { /* ignore */ }
     }
 
-    if (!taskData) return false;
+    if (!taskData) return null;
 
     try {
       const restorePayload = {
@@ -408,9 +409,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
         } catch { /* ignore */ }
         return filtered;
       });
-      return true;
+      return restoredTask;
     } catch {
-      return false;
+      return null;
     }
   }, [token, deletedTasks, queryClient]);
 

@@ -131,10 +131,12 @@ export function Chats() {
           label: 'Desfazer',
           onClick: async () => {
             try {
-              if (await undoDeleteTask(deletedTask.id)) {
+              // The restored task is a new one, with its own id
+              const restoredTask = await undoDeleteTask(deletedTask.id);
+              if (restoredTask) {
                 toast.success('Tarefa restaurada', {
                   hasButton: true,
-                  action: { label: 'Visualizar', onClick: () => setOpenTaskId(deletedTask.id) },
+                  action: { label: 'Visualizar', onClick: () => setOpenTaskId(restoredTask.id) },
                 });
               }
             } catch (error) {
