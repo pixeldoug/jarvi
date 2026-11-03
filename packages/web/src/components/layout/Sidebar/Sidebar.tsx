@@ -7,9 +7,9 @@
  *  - Task navigation item (Tarefas); Vencidas / Sem data are filters on the page
  *  - "Buscar" entry (also ⌘K / Ctrl+K anywhere) opening the CommandPalette
  *  - "Notas" and "Apps" entries (route to /notes and /apps; task items then navigate back to /tasks with router state)
- *  - "Chats" group below Categorias (ChatHistoryPanel): closed, the latest chats, or the whole
+ *  - "Chats" group above Categorias (ChatHistoryPanel): closed, the latest chats, or the whole
  *    history in place of the menu and Categorias; the rail's Chats icon routes to /chats
- *  - Collapsible "Categorias" group with hover add-button
+ *  - Collapsible "Categorias" group with hover add-button (closed by default)
  *  - Expanded (320 px) / Collapsed (56 px) states, switched only by the toggle (no hover expand)
  *
  * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001333-125371
@@ -170,6 +170,8 @@ export interface TasksNavigationState {
 // Desktop collapsed/locked preference. Module-level so it survives the Sidebar
 // remount when switching pages (Tasks ↔ Notes); resets on reload as before.
 let desktopCollapsedPreference = false;
+// Categorias starts closed; opened, it stays open across pages the same way
+let categoriesExpandedPreference = false;
 
 type WhatsAppPromoPlacement = 'hidden' | 'modal' | 'floating';
 
@@ -261,14 +263,10 @@ export function Sidebar({
 
   const [isCollapsed, setIsCollapsed] = useState(() => desktopCollapsedPreference);
   const prevCollapsedRef = useRef<boolean>(desktopCollapsedPreference);
-  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categories.length > 0);
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(() => categoriesExpandedPreference);
   const [whatsAppPromoPlacement, setWhatsAppPromoPlacement] =
     useState<WhatsAppPromoPlacement>('hidden');
 
-
-  useEffect(() => {
-    if (categories.length > 0) setIsCategoriesExpanded(true);
-  }, [categories.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialPage, setSettingsInitialPage] = useState<SettingsPage>('profile');
@@ -775,13 +773,24 @@ export function Sidebar({
             </div>
           </div>
 
-          {/* Categorias group */}
-          <div className={`${styles.groupSection} ${chatsMode === 'expanded' ? styles.groupHidden : ''}`}>
+          {/* Chats group */}
+          <ChatHistoryPanel
+            mode={chatsMode}
+            onModeChange={setChatsMode}
+            onSearch={handleSearchClick}
+            onNavigate={closeMobileSidebar}
+          />
+
+          {/* Categorias group: last, under Chats */}
+          <div className={`${styles.groupSection} ${styles.groupSectionLast} ${chatsMode === 'expanded' ? styles.groupHidden : ''}`}>
             <div className={styles.groupHeaderWrapper}>
               <SidebarGroupHeader
                 label="Categorias"
                 isExpanded={isCategoriesExpanded}
-                onToggle={() => setIsCategoriesExpanded((v) => !v)}
+                onToggle={() => {
+                  categoriesExpandedPreference = !isCategoriesExpanded;
+                  setIsCategoriesExpanded(categoriesExpandedPreference);
+                }}
                 showAddButton
                 onAdd={handleAddCategory}
                 addButtonRef={addButtonRef}
@@ -810,13 +819,6 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Chats group */}
-          <ChatHistoryPanel
-            mode={chatsMode}
-            onModeChange={setChatsMode}
-            onSearch={handleSearchClick}
-            onNavigate={closeMobileSidebar}
-          />
         </div>
 
         {/* Expanded footer: ThemeToggle + label + action buttons */}

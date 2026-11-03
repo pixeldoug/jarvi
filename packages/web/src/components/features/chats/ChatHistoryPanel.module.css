@@ -3,17 +3,14 @@
  * Categorias (Sidebar.module.css: groupSection / groupHeaderWrapper / navList)
  */
 
-/* Last group of the sidebar body: clears the scrollbar at the bottom. Sits
-   8px under Categorias (the body's 24px group gap, minus 16px), the same gap
-   as between a group's header and its rows */
+/* Right under the menu, above Categorias (Sidebar.module.css: groupSectionLast) */
 .group {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--sizes-2);
   width: 100%;
-  margin-top: calc(var(--sizes-2) - var(--sizes-6));
-  padding: 0 var(--sizes-2) var(--sizes-6);
+  padding: 0 var(--sizes-2);
   flex-shrink: 0;
 }
 
@@ -22,8 +19,6 @@
   flex: 1;
   flex-shrink: 1;
   min-height: 0;
-  margin-top: 0;
-  padding-bottom: 0;
 }
 
 .headerWrapper {

@@ -8,7 +8,7 @@
  * Perguntar pra Jarvi — each only when its handler is passed).
  */
 
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useRef, useLayoutEffect, memo, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
@@ -34,6 +34,30 @@ import {
   Repeat,
 } from '@phosphor-icons/react';
 import styles from './TaskItem.module.css';
+
+/**
+ * The chips that `.chips` drops (wrapped to its hidden second line) go inert,
+ * so Tab and screen readers skip them like the eye does. Re-checked on every
+ * render (chips come and go) and whenever the row or a chip changes size.
+ */
+function useInertDroppedChips(chipsRef: RefObject<HTMLDivElement>) {
+  useLayoutEffect(() => {
+    const box = chipsRef.current;
+    if (!box) return;
+    // Layout offsets (`.chips` is their offsetParent), so a transform on the
+    // row (drag, animations) doesn't skew the check
+    const update = () => {
+      for (const chip of Array.from(box.children) as HTMLElement[]) {
+        chip.inert = chip.offsetTop >= box.clientHeight;
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(box);
+    for (const chip of Array.from(box.children)) observer.observe(chip);
+    return () => observer.disconnect();
+  });
+}
 
 export interface TaskItemProps {
   task: Task;
@@ -95,6 +119,8 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const frequencyChipRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+  useInertDroppedChips(chipsRef);
   // Right-click menu, anchored at the cursor
   const [contextMenuAt, setContextMenuAt] = useState<{ x: number; y: number } | null>(null);
   const contextMenuAnchorRef = useRef<HTMLSpanElement>(null);
@@ -281,7 +307,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   const dateChip = dateLabel !== null && (
     <div
       ref={dateChipRef}
-      className={`${styles.chipWrapper} ${!task.due_date ? styles.chipWrapperPlaceholder : ''}`}
+      className={`${styles.chipWrapper} ${styles.dateChipWrapper} ${!task.due_date ? styles.chipWrapperPlaceholder : ''}`}
       data-date-chip="true"
     >
       <Chip
@@ -432,84 +458,86 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             </div>
           )}
 
-          {/* App chip - shown when task originated from an external app */}
-          {(() => {
-            const appSource = getTaskAppSource(task);
-            if (!appSource) return null;
-            const { Icon, noteId } = appSource;
-            const icon = Icon
-              ? <Icon size={16} weight="regular" />
-              : <img src={appSource.icon} alt={appSource.name} />;
-            if (!noteId) {
-              return <Chip label={appSource.name} icon={icon} chipStyle="filled" size="small" />;
-            }
-            // Created from a note: the chip opens it (not the task details).
-            return (
+          <div ref={chipsRef} className={styles.chips}>
+            {/* App chip - shown when task originated from an external app */}
+            {(() => {
+              const appSource = getTaskAppSource(task);
+              if (!appSource) return null;
+              const { Icon, noteId } = appSource;
+              const icon = Icon
+                ? <Icon size={16} weight="regular" />
+                : <img src={appSource.icon} alt={appSource.name} />;
+              if (!noteId) {
+                return <Chip label={appSource.name} icon={icon} chipStyle="filled" size="small" />;
+              }
+              // Created from a note: the chip opens it (not the task details).
+              return (
+                <div
+                  className={styles.chipWrapper}
+                  data-source-chip="true"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Chip
+                    label={appSource.name}
+                    icon={icon}
+                    chipStyle="filled"
+                    size="small"
+                    interactive
+                    onClick={() => navigate(`/notes/${encodeURIComponent(noteId)}?tab=resumo`)}
+                  />
+                </div>
+              );
+            })()}
+
+            {/* Recurrence chip — only shown when task has recurrence */}
+            {!hideCategoryChip && hasRecurrence && (
               <div
-                className={styles.chipWrapper}
-                data-source-chip="true"
-                onClick={(e) => e.stopPropagation()}
+                ref={frequencyChipRef}
+                className={`${styles.chipWrapper} ${styles.frequencyChipWrapper}`}
+                data-frequency-chip="true"
               >
                 <Chip
-                  label={appSource.name}
-                  icon={icon}
-                  chipStyle="filled"
+                  label={frequencyLabel ?? 'Recorrência'}
+                  icon={<Repeat size={16} weight="regular" />}
                   size="small"
                   interactive
-                  onClick={() => navigate(`/notes/${encodeURIComponent(noteId)}?tab=resumo`)}
+                  active={showFrequencyPicker}
+                  onClick={() => setShowFrequencyPicker(prev => !prev)}
+                  onClear={handleFrequencyClear}
                 />
               </div>
-            );
-          })()}
+            )}
 
-          {/* Recurrence chip — only shown when task has recurrence */}
-          {!hideCategoryChip && hasRecurrence && (
-            <div
-              ref={frequencyChipRef}
-              className={styles.chipWrapper}
-              data-frequency-chip="true"
-            >
-              <Chip
-                label={frequencyLabel ?? 'Recorrência'}
-                icon={<Repeat size={16} weight="regular" />}
-                size="small"
-                interactive
-                active={showFrequencyPicker}
-                onClick={() => setShowFrequencyPicker(prev => !prev)}
-                onClear={handleFrequencyClear}
+            {hasRecurrence && (
+              <FrequencyPicker
+                isOpen={showFrequencyPicker}
+                onClose={() => setShowFrequencyPicker(false)}
+                anchorRef={frequencyChipRef}
+                value={currentFrequency}
+                onChange={handleFrequencyChange}
+                baseDate={parseDateString(task.due_date) ?? undefined}
               />
-            </div>
-          )}
+            )}
 
-          {hasRecurrence && (
-            <FrequencyPicker
-              isOpen={showFrequencyPicker}
-              onClose={() => setShowFrequencyPicker(false)}
-              anchorRef={frequencyChipRef}
-              value={currentFrequency}
-              onChange={handleFrequencyChange}
-              baseDate={parseDateString(task.due_date) ?? undefined}
-            />
-          )}
+            {/* Category chip — only once set; hidden when details sidebar is open */}
+            {!hideCategoryChip && task.category && (
+              <div
+                ref={categoryChipRef}
+                className={`${styles.chipWrapper} ${styles.categoryChipWrapper}`}
+                data-category-chip="true"
+              >
+                <Chip 
+                  label={task.category}
+                  size="small"
+                  interactive
+                  active={showCategoryPicker}
+                  onClick={() => setShowCategoryPicker(prev => !prev)}
+                />
+              </div>
+            )}
 
-          {/* Category chip — only once set; hidden when details sidebar is open */}
-          {!hideCategoryChip && task.category && (
-            <div
-              ref={categoryChipRef}
-              className={styles.chipWrapper}
-              data-category-chip="true"
-            >
-              <Chip 
-                label={task.category}
-                size="small"
-                interactive
-                active={showCategoryPicker}
-                onClick={() => setShowCategoryPicker(prev => !prev)}
-              />
-            </div>
-          )}
-
-          {dateChip}
+            {dateChip}
+          </div>
 
           <CategoryPicker
             isOpen={showCategoryPicker}

@@ -1,7 +1,7 @@
 /**
- * ChatHistoryPanel — the sidebar's "Chats" group, below Categorias and built
+ * ChatHistoryPanel — the sidebar's "Chats" group, above Categorias and built
  * the same way (SidebarGroupHeader + rows):
- *  - closed: the header only
+ *  - closed: the header only (the default)
  *  - open: the latest conversations under it
  *  - expanded: the whole history in place of the menu and Categorias
  * The header's actions (Novo chat, Buscar, expand / shrink) show on hover,
@@ -51,7 +51,7 @@ function readMode(): ChatsSectionMode {
   } catch {
     // Storage blocked (private window): the default
   }
-  return cachedMode ?? 'open';
+  return cachedMode ?? 'closed';
 }
 
 /** The section's mode, for the Sidebar (expanded hides its menu) */

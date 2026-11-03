@@ -204,6 +204,14 @@
   flex-shrink: 0;
 }
 
+/* Categorias, the body's last group: 8px under Chats (the body's 24px group
+   gap, minus 16px), the same gap as between a group's header and its rows;
+   clears the scrollbar at the bottom */
+.groupSectionLast {
+  margin-top: calc(var(--sizes-2) - var(--sizes-6));
+  padding-bottom: var(--sizes-6);
+}
+
 .groupHeaderWrapper {
   height: 38px;
   display: flex;
