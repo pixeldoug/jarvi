@@ -104,11 +104,12 @@
   color: currentColor;
 }
 
-/* Label */
+/* Label: cut by an ellipsis when the chip is given less than its width */
 .label {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-align: center;
 }
 

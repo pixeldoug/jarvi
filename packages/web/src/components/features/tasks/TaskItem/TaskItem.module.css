@@ -134,14 +134,30 @@
   outline: none;
 }
 
-/* Right side: category chip + action buttons */
+/* Right side: action buttons + chips. Takes the chips' width and the title
+   gives way (ellipsis), up to the cap */
 .taskMeta {
   display: flex;
   align-items: center;
   gap: var(--sizes-2);
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 0;
-  max-width: 46%;
+  max-width: 60%;
+}
+
+/* Past the cap, the chips that don't fit drop whole instead of being cut:
+   they wrap to a second line that the one-line height hides. Laid out right
+   to left, so the date (first by `order`) is the last to go: date, category,
+   recurrence, app. A chip alone on the line shrinks with an ellipsis (Chip). */
+.chips {
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--sizes-2);
+  min-width: 0;
+  height: var(--size-chip-small-height, 28px);
+  overflow: hidden;
 }
 
 /* Action buttons group */
@@ -289,8 +305,23 @@
 .chipWrapper {
   display: inline-flex;
   min-width: 0;
-  flex-shrink: 0;
-  overflow: hidden;
+}
+
+.chipWrapper > * {
+  min-width: 0;
+}
+
+/* Which chips stay when they don't all fit (see .chips) */
+.dateChipWrapper {
+  order: -3;
+}
+
+.categoryChipWrapper {
+  order: -2;
+}
+
+.frequencyChipWrapper {
+  order: -1;
 }
 
 @container main-panel (max-width: 600px) {
