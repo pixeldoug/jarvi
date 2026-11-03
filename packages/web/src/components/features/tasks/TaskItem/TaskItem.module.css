@@ -23,6 +23,11 @@
   background-color: var(--semantic-surface-secondary);
 }
 
+/* Not sortable (`sortable={false}`): no drag handle, so no space kept for it */
+.fixedOrder {
+  margin-left: 0;
+}
+
 /* Dragging state */
 .dragging {
   opacity: 0;
@@ -66,10 +71,6 @@
   transition: color 0.15s ease;
 }
 
-.title:hover {
-  color: var(--semantic-content-info);
-}
-
 /* 
  * TODO: Criar variável apropriada para estado ativo do título de task
  * Usando list-item/content-active provisoriamente
@@ -78,18 +79,10 @@
   color: var(--component-list-item-content-active);
 }
 
-.titleActive:hover {
-  color: var(--component-list-item-content-active);
-}
-
 /* Completed state */
 .titleCompleted {
   color: var(--semantic-content-disabled);
   text-decoration: line-through;
-}
-
-.titleCompleted:hover {
-  color: var(--semantic-content-disabled);
 }
 
 /* Title inline edit */

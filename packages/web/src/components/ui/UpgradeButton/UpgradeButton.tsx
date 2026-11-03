@@ -9,7 +9,7 @@
  */
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Sparkle } from '@phosphor-icons/react';
+import { Lightning } from '@phosphor-icons/react';
 import styles from './UpgradeButton.module.css';
 
 export interface UpgradeButtonProps {
@@ -19,6 +19,8 @@ export interface UpgradeButtonProps {
   showBadge?: boolean;
   /** Size variant */
   size?: 'small' | 'medium' | 'large';
+  /** Square, sparkle only (the collapsed sidebar); the label stays in aria-label */
+  iconOnly?: boolean;
   /** Full width button */
   fullWidth?: boolean;
   /** Disabled state */
@@ -37,6 +39,7 @@ export function UpgradeButton({
   label = 'Upgrade',
   showBadge = false,
   size = 'medium',
+  iconOnly = false,
   fullWidth = false,
   disabled = false,
   loading = false,
@@ -68,6 +71,7 @@ export function UpgradeButton({
     size === 'medium' && styles.sizeMedium,
     size === 'large' && styles.sizeLarge,
     fullWidth && styles.fullWidth,
+    iconOnly && styles.iconOnly,
     (disabled || loading) && styles.disabled,
     loading && styles.loading,
     className,
@@ -114,14 +118,14 @@ export function UpgradeButton({
         renderSpinner()
       ) : (
         <>
-          <Sparkle 
-            size={iconSize} 
+          <Lightning
+            size={iconSize}
             weight="fill" 
             className={styles.icon}
             aria-hidden="true"
           />
-          <span className={styles.label}>{label}</span>
-          {showBadge && <span className={styles.badge}>PRO</span>}
+          {!iconOnly && <span className={styles.label}>{label}</span>}
+          {showBadge && !iconOnly && <span className={styles.badge}>PRO</span>}
         </>
       )}
     </button>

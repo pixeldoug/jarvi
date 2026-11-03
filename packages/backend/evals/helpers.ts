@@ -283,7 +283,6 @@ export function buildContext(opts: ContextOptions = {}): AgentContext {
     memory: opts.memory ?? 'Doug é fundador da Jarvi, mora em São Paulo.',
     activeTasks: opts.activeTasks ?? [],
     completedTaskCount: 2,
-    lists: [],
     categories: opts.categories ?? [],
     mode: opts.mode ?? (opts.focusedTask ? 'task' : 'general'),
     focusedTask: opts.focusedTask,

@@ -1324,6 +1324,54 @@ router.put('/weekly-planning', authenticateToken, async (req: Request, res: Resp
 });
 
 /**
+ * PUT /api/users/overdue-recap
+ * Body: { enabled: boolean }
+ * Recap de tarefas vencidas: the web opens it once a day on the Tasks page.
+ * The current value is on the profile (`overdueRecapEnabled`).
+ */
+router.put('/overdue-recap', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Usuário não autenticado' });
+      return;
+    }
+
+    const { enabled } = (req.body ?? {}) as { enabled?: unknown };
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled deve ser true ou false' });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    let updated = 0;
+    if (isPostgreSQL()) {
+      const result = await getPool().query(
+        'UPDATE users SET overdue_recap_enabled = $1, updated_at = $2 WHERE id = $3',
+        [enabled, now, userId]
+      );
+      updated = result.rowCount ?? 0;
+    } else {
+      const result = await getDatabase().run(
+        'UPDATE users SET overdue_recap_enabled = ?, updated_at = ? WHERE id = ?',
+        [enabled ? 1 : 0, now, userId]
+      );
+      updated = result.changes ?? 0;
+    }
+
+    if (updated === 0) {
+      res.status(404).json({ error: 'Usuário não encontrado' });
+      return;
+    }
+
+    res.json({ success: true, enabled });
+  } catch (error) {
+    console.error('Error updating overdue recap setting:', error);
+    res.status(500).json({ error: 'Erro ao salvar o Recap de tarefas vencidas' });
+  }
+});
+
+/**
  * DELETE /api/users/me
  * Hard-delete the authenticated user account.
  *
@@ -1363,6 +1411,26 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
         // Delete tasks
         await client.query('DELETE FROM tasks WHERE user_id = $1', [userId]);
 
+        // Delete transcript segments of the user's notes (and any they wrote on shared notes)
+        await client.query(
+          'DELETE FROM note_transcript_segments WHERE note_id IN (SELECT id FROM notes WHERE user_id = $1) OR user_id = $1',
+          [userId]
+        );
+
+        // Delete next step → task links of the user's notes (and any they made on shared notes)
+        await client.query(
+          'DELETE FROM note_step_tasks WHERE note_id IN (SELECT id FROM notes WHERE user_id = $1) OR user_id = $1',
+          [userId]
+        );
+        await client.query(
+          'DELETE FROM note_step_wordings WHERE note_id IN (SELECT id FROM notes WHERE user_id = $1) OR user_id = $1',
+          [userId]
+        );
+        await client.query(
+          'DELETE FROM note_pins WHERE note_id IN (SELECT id FROM notes WHERE user_id = $1) OR user_id = $1',
+          [userId]
+        );
+
         // Delete note_shares where user is owner or shared target
         await client.query(
           'DELETE FROM note_shares WHERE note_id IN (SELECT id FROM notes WHERE user_id = $1) OR shared_with_user_id = $1',
@@ -1371,6 +1439,10 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
 
         // Delete notes owned by user
         await client.query('DELETE FROM notes WHERE user_id = $1', [userId]);
+
+        // Delete chat history (messages first: FK child of conversations)
+        await client.query('DELETE FROM chat_messages WHERE user_id = $1', [userId]);
+        await client.query('DELETE FROM chat_conversations WHERE user_id = $1', [userId]);
 
         // Delete categories
         await client.query('DELETE FROM categories WHERE user_id = $1', [userId]);
@@ -1406,10 +1478,28 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
       await db.run('DELETE FROM pending_tasks WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM tasks WHERE user_id = ?', [userId]);
       await db.run(
+        'DELETE FROM note_transcript_segments WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?) OR user_id = ?',
+        [userId, userId]
+      );
+      await db.run(
+        'DELETE FROM note_step_tasks WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?) OR user_id = ?',
+        [userId, userId]
+      );
+      await db.run(
+        'DELETE FROM note_step_wordings WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?) OR user_id = ?',
+        [userId, userId]
+      );
+      await db.run(
+        'DELETE FROM note_pins WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?) OR user_id = ?',
+        [userId, userId]
+      );
+      await db.run(
         'DELETE FROM note_shares WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?) OR shared_with_user_id = ?',
         [userId, userId]
       );
       await db.run('DELETE FROM notes WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM chat_messages WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM chat_conversations WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM categories WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM lists WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM user_memory_profiles WHERE user_id = ?', [userId]);

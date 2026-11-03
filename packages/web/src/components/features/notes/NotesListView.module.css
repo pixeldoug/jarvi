@@ -1,0 +1,123 @@
+/**
+ * NotesListView styles
+ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-8);
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 0 var(--sizes-10);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+/* ListCardGroup / ListCard overrides (element-qualified to win over the primitive) */
+ul.cards {
+  gap: var(--sizes-2);
+}
+
+li.row {
+  padding: var(--sizes-4) var(--sizes-6) var(--sizes-4) var(--sizes-4);
+}
+
+/* Trailing slot: the time, swapped for the row actions on hover / focus */
+.trailing {
+  display: flex;
+  align-items: center;
+}
+
+.time {
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+  white-space: nowrap;
+}
+
+/* Collapsed but still focusable, so Tab reaches the actions and reveals them */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-4);
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+/* `aria-expanded`: keep the actions while their picker is open (the pointer
+   is over the portal, not the row) */
+li.row:hover .time,
+li.row:focus-within .time,
+li.row:has([aria-expanded='true']) .time {
+  display: none;
+}
+
+li.row:hover .actions,
+li.row:focus-within .actions,
+li.row:has([aria-expanded='true']) .actions {
+  width: auto;
+  overflow: visible;
+  opacity: 1;
+}
+
+/* Touch: no hover, keep the actions reachable next to the time */
+@media (hover: none) {
+  .trailing {
+    gap: var(--sizes-2);
+  }
+
+  .actions,
+  li.row:focus-within .actions {
+    width: auto;
+    overflow: visible;
+    opacity: 1;
+  }
+
+  li.row:focus-within .time {
+    display: inline;
+  }
+}
+
+@media (max-width: 768px) {
+  .list {
+    padding: 0;
+  }
+}
+
+.groupLabel {
+  margin: 0;
+  font-family: var(--typography-label-md-font-family);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-4);
+  min-height: 320px;
+  text-align: center;
+}
+
+.errorText {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+}

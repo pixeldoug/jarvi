@@ -159,6 +159,15 @@ export function Tooltip({
     if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
   }, []);
 
+  // Disabling forgets the hover / focus it was showing for, so it doesn't come
+  // back on its own when re-enabled (e.g. a sidebar panel shown again)
+  useEffect(() => {
+    if (!disabled) return;
+    if (showTimeoutRef.current) { clearTimeout(showTimeoutRef.current); showTimeoutRef.current = null; }
+    setIsVisible(false);
+    setCoords(null);
+  }, [disabled]);
+
   const tooltipClasses = [styles.tooltip, styles[position], className].filter(Boolean).join(' ');
 
   return (
@@ -170,11 +179,15 @@ export function Tooltip({
         onMouseLeave={handleHide}
         onFocus={handleShow}
         onBlur={handleHide}
+        // A click acts on the trigger: the hint is done (its layout may change
+        // under a pointer that doesn't move, and no mouseleave would come)
+        onClick={handleHide}
       >
         {children}
       </span>
 
-      {isVisible &&
+      {/* `disabled` also hides one already showing (e.g. its menu just opened) */}
+      {isVisible && !disabled &&
         createPortal(
           <div
             ref={tooltipRef}

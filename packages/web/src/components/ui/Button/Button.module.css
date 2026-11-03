@@ -154,9 +154,11 @@
   box-shadow: none;
 }
 
+/* Hover fills the button: background and border take the same hover color
+   (one solid shape); the label / icon keep their default color */
 .variant-secondary:hover:not(.disabled) {
   background-color: var(--component-button-secondary-bg-hover);
-  color: var(--component-button-secondary-content-hover);
+  border-color: var(--component-button-secondary-bg-hover);
 }
 
 .variant-secondary:focus-visible:not(.disabled) {
@@ -233,30 +235,35 @@
 
 /* ============================================================================
    DISABLED STATE
+   Flat (no elevation, so it never reads as pressable) with muted but legible
+   content (`content-tertiary`), the same in every variant.
    ============================================================================ */
 
 .button.disabled,
 .button:disabled {
   background-color: var(--component-button-bg-disabled);
-  color: var(--component-button-content-disabled);
+  color: var(--semantic-content-tertiary);
   cursor: not-allowed;
   opacity: 1;
-  box-shadow: 0px 0px 2px rgba(9, 9, 11, 0.3);
+  box-shadow: none;
 }
 
-/* Secondary disabled overrides generic disabled colors + removes shadow */
+/* Primary keeps its 2px bottom edge for height, but not the raised look */
+.variant-primary.disabled,
+.variant-primary:disabled {
+  border-bottom-color: transparent;
+}
+
+/* Secondary keeps its outline on its default (transparent) fill */
 .variant-secondary.disabled,
 .variant-secondary:disabled {
-  background-color: var(--component-button-secondary-bg-hover);
-  color: var(--component-button-secondary-content-hover);
+  background-color: var(--component-button-secondary-bg-default);
   border-color: var(--semantic-border-primary);
-  box-shadow: none;
 }
 
-/* Ghost disabled doesn't have shadow */
+/* Ghost has no fill */
 .variant-ghost.disabled,
 .variant-ghost:disabled {
-  box-shadow: none;
   background-color: transparent;
 }
 

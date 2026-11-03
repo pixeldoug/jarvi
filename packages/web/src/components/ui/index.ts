@@ -162,6 +162,13 @@ export {
 } from './Divider';
 
 export {
+  Skeleton,
+  SkeletonText,
+  type SkeletonProps,
+  type SkeletonTextProps,
+} from './Skeleton';
+
+export {
   Logo,
   type LogoProps,
 } from './Logo';
@@ -171,6 +178,13 @@ export {
   type TooltipProps,
   type TooltipPosition,
 } from './Tooltip';
+
+export {
+  SegmentedControl,
+  SEGMENTED_CONTROL_TRANSITION,
+  type SegmentedControlProps,
+  type SegmentedControlItem,
+} from './SegmentedControl';
 
 export {
   Switch,
@@ -188,7 +202,9 @@ export {
 
 export {
   ControlBar,
+  ControlBarToggleButton,
   type ControlBarProps,
+  type ControlBarToggleButtonProps,
   type TaskCreationData,
 } from './ControlBar';
 
@@ -230,3 +246,9 @@ export {
   toast,
   setGlobalToast,
 } from './Sonner';
+
+// ============================================================================
+// CUSTOM ICONS (Phosphor-compatible)
+// ============================================================================
+
+export { NewNoteIcon, NoteIcon } from './icons';

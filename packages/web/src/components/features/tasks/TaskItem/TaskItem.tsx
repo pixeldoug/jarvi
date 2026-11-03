@@ -2,16 +2,19 @@
  * TaskItem Component - Jarvi Web
  * 
  * Clean implementation based on Figma design
- * Layout: [checkbox] [date chip] [title] ... [app] [recurrence] [category] [actions on hover]
+ * Layout: [checkbox] [date chip] [title] ... [app] [recurrence] [category]
+ * Editing and deleting live in the task details panel (no row buttons), and
+ * in the row's right-click menu (Editar título, Ver detalhes, Excluir tarefa,
+ * Perguntar pra Jarvi — each only when its handler is passed).
  */
 
 import React, { useState, useRef, memo } from 'react';
-import { useMediaQuery } from '../../../../hooks/useMediaQuery';
-import { MOBILE_BREAKPOINT } from '../../../layout/MainLayout/MainLayout';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task } from '../../../../contexts/TaskContext';
-import { Chip } from '../../../ui';
+import { Chip, Dropdown, ListItem } from '../../../ui';
 import { TaskCheckbox } from '../TaskCheckbox';
 import { CategoryPicker } from '../CategoryPicker/CategoryPicker';
 import { TaskDatePicker } from '../TaskDatePicker/TaskDatePicker';
@@ -24,10 +27,8 @@ import { formatTaskDate, formatTaskDateWeekday, isToday, parseDateString } from 
 import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recurrence';
 import type { RecurrenceType } from '@jarvi/shared';
 import { 
-  PencilSimple, 
   Trash, 
   DotsSixVertical, 
-  Hash,
   Calendar,
   FireSimple,
   Repeat,
@@ -38,31 +39,46 @@ export interface TaskItemProps {
   task: Task;
   section: string;
   onToggleCompletion: (taskId: string) => void;
-  onEdit: (task: Task) => void;
-  onDelete: (taskId: string) => void;
+  /**
+   * Trash on hover, only for rows with no details panel to delete from (a
+   * note's draft next step). Real tasks are deleted from their details.
+   */
+  onRemove?: (taskId: string) => void;
   onUpdateTask: (taskId: string, taskData: any, showLoading?: boolean) => Promise<void>;
   onOpenDatePicker?: (task: Task, triggerElement?: HTMLElement) => void;
   onClick?: (task: Task) => void;
+  /** "Excluir tarefa" in the right-click menu */
+  onDelete?: (taskId: string) => void;
+  /** "Perguntar pra Jarvi" in the right-click menu: opens the chat about the task */
+  onAskJarvi?: (task: Task) => void;
   showInsertionLine?: boolean;
   isActive?: boolean;
   hideCategoryChip?: boolean;
   showDayOfWeek?: boolean;
+  /**
+   * `false` where the list has a fixed order (e.g. a note's next steps): no
+   * drag handle, and the row does not reserve its space on the left.
+   * @default true
+   */
+  sortable?: boolean;
 }
 
 const TaskItemComponent: React.FC<TaskItemProps> = ({
   task,
   section,
   onToggleCompletion,
-  onEdit,
-  onDelete,
+  onRemove,
   onUpdateTask,
   onClick,
+  onDelete,
+  onAskJarvi,
   showInsertionLine = false,
   isActive = false,
   hideCategoryChip = false,
   showDayOfWeek = false,
+  sortable = true,
 }) => {
-  const isMobile = useMediaQuery(MOBILE_BREAKPOINT);
+  const navigate = useNavigate();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
@@ -72,6 +88,9 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const dateChipRef = useRef<HTMLDivElement>(null);
   const frequencyChipRef = useRef<HTMLDivElement>(null);
+  // Right-click menu, anchored at the cursor
+  const [contextMenuAt, setContextMenuAt] = useState<{ x: number; y: number } | null>(null);
+  const contextMenuAnchorRef = useRef<HTMLSpanElement>(null);
 
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -89,6 +108,7 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
       task: task,
       section: section,
     },
+    disabled: !sortable,
   });
 
   const style = {
@@ -218,12 +238,45 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
       target.closest(`.${styles.titleInput}`) ||
       target.closest('[data-category-chip]') ||
       target.closest('[data-date-chip]') ||
-      target.closest('[data-frequency-chip]');
+      target.closest('[data-frequency-chip]') ||
+      target.closest('[data-source-chip]');
     
     if (!isInteractiveElement && onClick) {
       onClick(task);
     }
   };
+
+  const contextMenuItems = [
+    ...(editingTitle ? [] : [{ label: 'Editar título', onSelect: handleTitleClick }]),
+    ...(onClick ? [{ label: 'Ver detalhes', onSelect: () => onClick(task) }] : []),
+    ...(onDelete ? [{ label: 'Excluir tarefa', onSelect: () => onDelete(task.id) }] : []),
+    ...(onAskJarvi ? [{ label: 'Perguntar pra Jarvi', onSelect: () => onAskJarvi(task) }] : []),
+  ];
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Keep the browser menu inside the inline title input
+    if ((e.target as HTMLElement).closest(`.${styles.titleInput}`)) return;
+    e.preventDefault();
+    setContextMenuAt({ x: e.clientX, y: e.clientY });
+  };
+
+  // Date chip — hidden when task is today and has no time set
+  const dateChip = dateLabel !== null && (
+    <div
+      ref={dateChipRef}
+      className={`${styles.chipWrapper} ${!task.due_date ? styles.chipWrapperPlaceholder : ''}`}
+      data-date-chip="true"
+    >
+      <Chip
+        label={dateLabel}
+        icon={!task.due_date ? <Calendar size={16} weight="regular" /> : undefined}
+        interactive
+        active={showDatePicker}
+        onClick={() => setShowDatePicker(prev => !prev)}
+        size="small"
+      />
+    </div>
+  );
 
   return (
     <>
@@ -232,15 +285,18 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
       <div
         ref={setNodeRef}
         style={style}
-        className={`${styles.taskItem} ${isDragging ? styles.dragging : ''}`}
+        className={`${styles.taskItem} ${isDragging ? styles.dragging : ''} ${sortable ? '' : styles.fixedOrder}`}
         onClick={handleTaskItemClick}
+        onContextMenu={handleContextMenu}
       >
         {/* Drag Handle */}
-        <div className={styles.dragHandle} {...attributes} {...listeners}>
-          <DotsSixVertical className={styles.dragHandleIcon} weight="bold" />
-        </div>
+        {sortable && (
+          <div className={styles.dragHandle} {...attributes} {...listeners}>
+            <DotsSixVertical className={styles.dragHandleIcon} weight="bold" />
+          </div>
+        )}
 
-        {/* Left: Checkbox + Date + Title */}
+        {/* Left: Checkbox + Title */}
         <div className={styles.taskContent}>
           <TaskCheckbox
             checked={task.completed}
@@ -249,23 +305,6 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           />
 
           <div className={styles.taskTitle}>
-            {/* Date chip — hidden when task is today and has no time set */}
-            {dateLabel !== null && (
-              <div
-                ref={dateChipRef}
-                className={`${styles.chipWrapper} ${!task.due_date ? styles.chipWrapperPlaceholder : ''}`}
-                data-date-chip="true"
-              >
-                <Chip
-                  label={dateLabel}
-                  icon={!task.due_date ? <Calendar size={16} weight="regular" /> : undefined}
-                  interactive
-                  active={showDatePicker}
-                  onClick={() => setShowDatePicker(prev => !prev)}
-                  size="small"
-                />
-              </div>
-            )}
 
             <TaskDatePicker
               isOpen={showDatePicker}
@@ -338,12 +377,6 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             ) : (
               <p
                 className={`${styles.title} ${task.completed ? styles.titleCompleted : ''} ${isActive ? styles.titleActive : ''}`}
-                onClick={isMobile ? undefined : (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleTitleClick();
-                }}
-                title={isMobile ? undefined : 'Clique para editar o título'}
               >
                 {capitalizeTaskTitle(task.title)}
               </p>
@@ -351,45 +384,53 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           </div>
         </div>
 
-        {/* Right: Actions + App chip + Category */}
+        {/* Right: Actions + App chip + Category + Date */}
         <div className={styles.taskMeta}>
-          {/* Action buttons - appear on hover */}
-          <div className={styles.actions}>
-            <button
-              className={styles.actionButton}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onEdit(task);
-              }}
-              title="Editar tarefa"
-            >
-              <PencilSimple className={styles.actionButtonIcon} />
-            </button>
-            <button
-              className={styles.actionButton}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete(task.id);
-              }}
-              title="Deletar tarefa"
-            >
-              <Trash className={styles.actionButtonIcon} />
-            </button>
-          </div>
+          {/* Remove (draft note steps only) - appears on hover */}
+          {onRemove && (
+            <div className={styles.actions}>
+              <button
+                className={styles.actionButton}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemove(task.id);
+                }}
+                title="Remover"
+              >
+                <Trash className={styles.actionButtonIcon} />
+              </button>
+            </div>
+          )}
 
           {/* App chip - shown when task originated from an external app */}
           {(() => {
             const appSource = getTaskAppSource(task);
-            return appSource ? (
-              <Chip
-                label={appSource.name}
-                icon={<img src={appSource.icon} alt={appSource.name} />}
-                chipStyle="filled"
-                size="small"
-              />
-            ) : null;
+            if (!appSource) return null;
+            const { Icon, noteId } = appSource;
+            const icon = Icon
+              ? <Icon size={16} weight="regular" />
+              : <img src={appSource.icon} alt={appSource.name} />;
+            if (!noteId) {
+              return <Chip label={appSource.name} icon={icon} chipStyle="filled" size="small" />;
+            }
+            // Created from a note: the chip opens it (not the task details).
+            return (
+              <div
+                className={styles.chipWrapper}
+                data-source-chip="true"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Chip
+                  label={appSource.name}
+                  icon={icon}
+                  chipStyle="filled"
+                  size="small"
+                  interactive
+                  onClick={() => navigate(`/notes/${encodeURIComponent(noteId)}?tab=resumo`)}
+                />
+              </div>
+            );
           })()}
 
           {/* Recurrence chip — only shown when task has recurrence */}
@@ -422,16 +463,15 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
             />
           )}
 
-          {/* Category chip - hidden when details sidebar is open */}
-          {!hideCategoryChip && (
+          {/* Category chip — only once set; hidden when details sidebar is open */}
+          {!hideCategoryChip && task.category && (
             <div
               ref={categoryChipRef}
-              className={`${styles.chipWrapper} ${!task.category ? styles.chipWrapperPlaceholder : ''}`}
+              className={styles.chipWrapper}
               data-category-chip="true"
             >
               <Chip 
-                label={task.category || 'Categoria'}
-                icon={task.category ? undefined : <Hash size={16} weight="regular" />}
+                label={task.category}
                 size="small"
                 interactive
                 active={showCategoryPicker}
@@ -439,6 +479,8 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
               />
             </div>
           )}
+
+          {dateChip}
 
           <CategoryPicker
             isOpen={showCategoryPicker}
@@ -480,6 +522,40 @@ const TaskItemComponent: React.FC<TaskItemProps> = ({
           />
         </div>
       </div>
+
+      {/* Outside the row, so menu clicks don't reach its onClick. The anchor is
+          portaled: a fixed element inside the (transformed) list would be
+          positioned against the list, not the viewport. */}
+      {contextMenuAt && contextMenuItems.length > 0 && (
+        <>
+          {createPortal(
+            <span
+              ref={contextMenuAnchorRef}
+              style={{ position: 'fixed', left: contextMenuAt.x, top: contextMenuAt.y, width: 0, height: 0 }}
+            />,
+            document.body,
+          )}
+          <Dropdown
+            isOpen
+            onClose={() => setContextMenuAt(null)}
+            anchorRef={contextMenuAnchorRef}
+            gap={4}
+            width={200}
+          >
+            {contextMenuItems.map((item) => (
+              <ListItem
+                key={item.label}
+                label={item.label}
+                onClick={() => {
+                  setContextMenuAt(null);
+                  item.onSelect();
+                }}
+                buttonProps={{ role: 'menuitem' }}
+              />
+            ))}
+          </Dropdown>
+        </>
+      )}
     </>
   );
 };
@@ -507,6 +583,8 @@ export const TaskItem = memo(TaskItemComponent, (prevProps, nextProps) => {
     prevProps.task.category !== nextProps.task.category ||
     prevProps.task.priority !== nextProps.task.priority ||
     prevProps.task.original_whatsapp_content !== nextProps.task.original_whatsapp_content ||
+    prevProps.task.source !== nextProps.task.source ||
+    prevProps.task.source_note_id !== nextProps.task.source_note_id ||
     prevProps.task.recurrence_type !== nextProps.task.recurrence_type ||
     prevProps.task.recurrence_config !== nextProps.task.recurrence_config ||
     prevProps.task.updated_at !== nextProps.task.updated_at;

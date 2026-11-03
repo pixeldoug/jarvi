@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ClipboardEvent, DragEvent } from 'react';
+import type { ClipboardEvent, CSSProperties, DragEvent, ReactNode } from 'react';
 import { CalendarDots, Hash, Fire, Sparkle, PencilSimple, PaperPlaneTilt, CaretDown, Paperclip, FileText, X, UploadSimple, Bell, Repeat } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
@@ -28,6 +28,7 @@ import { formatFrequencyChip } from '../../../lib/recurrence';
 import { formatRemindersChipLabel } from '../../../lib/reminders';
 import { toast } from '../Sonner';
 import { AttachmentViewer } from '../AttachmentViewer';
+import { ControlBarToggleButton } from './ControlBarToggleButton';
 import styles from './ControlBar.module.css';
 
 export interface TaskCreationData {
@@ -58,7 +59,27 @@ export interface ControlBarProps {
   defaultCategory?: string;
   /** Called on mobile after an action completes (prompt submit or task creation) so the FAB can re-appear */
   onMobileClose?: () => void;
+  /** Prompt textarea placeholder */
+  placeholder?: string;
+  /**
+   * Replaces the AI / task toggle inside the dark segmented group: the bar
+   * stays in prompt mode and the group holds only this (e.g. the Notes record
+   * control). Build it from `ControlBarToggleButton` so it matches the group.
+   */
+  leading?: ReactNode;
+  /**
+   * Called with the current mode (and on mount). `leading` only renders in
+   * prompt mode, so a page can show its own fallback while in task mode.
+   */
+  onModeChange?: (mode: 'prompt' | 'task') => void;
+  /**
+   * Centered just above the bar, in prompt mode (e.g. the Notes "Gerar
+   * resumo" action). Rendered outside the bar so it keeps the page theme.
+   */
+  above?: ReactNode;
 }
+
+const DEFAULT_PROMPT_PLACEHOLDER = 'O que você tem em mente?';
 
 export function ControlBar({
   onCreateTask,
@@ -68,6 +89,10 @@ export function ControlBar({
   hidden = false,
   defaultCategory,
   onMobileClose,
+  placeholder = DEFAULT_PROMPT_PLACEHOLDER,
+  leading,
+  onModeChange,
+  above,
 }: ControlBarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -78,6 +103,22 @@ export function ControlBar({
 
   // 'prompt' = AI mode (default) | 'task' = manual task creation
   const [mode, setMode] = useState<'prompt' | 'task'>('prompt');
+  const onModeChangeRef = useRef(onModeChange);
+  onModeChangeRef.current = onModeChange;
+  useEffect(() => {
+    onModeChangeRef.current?.(mode);
+  }, [mode]);
+
+  // The `above` slot sits on top of the bar, whatever its current height.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [barHeight, setBarHeight] = useState(0);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const observer = new ResizeObserver(() => setBarHeight(bar.offsetHeight));
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
 
   // Prompt bar state
   const [promptText, setPromptText] = useState('');
@@ -169,9 +210,11 @@ export function ControlBar({
     }
   }, [defaultCategory]);
 
-  // Global Cmd+/ shortcut → switch to task mode
+  // Global Cmd+/ shortcut → switch to task mode (not when `leading` replaces
+  // the toggle: there would be no way back to prompt mode)
+  const hasLeading = !!leading;
   useEffect(() => {
-    if (!onCreateTask) return;
+    if (!onCreateTask || hasLeading) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const isModifier = e.metaKey || e.ctrlKey;
@@ -194,7 +237,7 @@ export function ControlBar({
 
     document.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [onCreateTask, mode, handleSwitchToTask]);
+  }, [onCreateTask, hasLeading, mode, handleSwitchToTask]);
 
   // Auto-resize description textarea
   useEffect(() => {
@@ -414,39 +457,60 @@ export function ControlBar({
 
   const toggleGroup = (
     <div className={styles.toggleGroup}>
-      {/* Sparkle = AI / prompt mode */}
-      <button
-        type="button"
-        className={`${styles.toggleButton} ${mode === 'prompt' ? styles.toggleButtonActive : ''}`}
-        onClick={mode === 'task' ? handleSwitchToPrompt : undefined}
-        aria-label="Modo AI"
-        aria-pressed={mode === 'prompt'}
-      >
-        <Sparkle weight={mode === 'prompt' ? 'fill' : 'regular'} size={18} />
-      </button>
-      {/* Pencil = task creation mode */}
-      <button
-        type="button"
-        className={`${styles.toggleButton} ${mode === 'task' ? styles.toggleButtonActive : ''}`}
-        onClick={mode === 'prompt' ? handleSwitchToTask : undefined}
-        aria-label="Criar tarefa"
-        aria-pressed={mode === 'task'}
-        disabled={!onCreateTask || trialExpired}
-      >
-        <PencilSimple weight={mode === 'task' ? 'fill' : 'regular'} size={18} />
-      </button>
+      {leading ? (
+        // Page control in place of the mode toggle, e.g. Notes recording
+        leading
+      ) : (
+        <>
+          {/* Sparkle = AI / prompt mode */}
+          <ControlBarToggleButton
+            active={mode === 'prompt'}
+            onClick={mode === 'task' ? handleSwitchToPrompt : undefined}
+            aria-label="Modo AI"
+            aria-pressed={mode === 'prompt'}
+            icon={<Sparkle weight={mode === 'prompt' ? 'fill' : 'regular'} size={18} />}
+          />
+          {/* Pencil = task creation mode */}
+          <ControlBarToggleButton
+            active={mode === 'task'}
+            onClick={mode === 'prompt' ? handleSwitchToTask : undefined}
+            aria-label="Criar tarefa"
+            aria-pressed={mode === 'task'}
+            disabled={!onCreateTask || trialExpired}
+            icon={<PencilSimple weight={mode === 'task' ? 'fill' : 'regular'} size={18} />}
+          />
+        </>
+      )}
     </div>
   );
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
+    <>
+    <AnimatePresence>
+      {above && mode === 'prompt' && !hidden && (
+        <motion.div
+          className={styles.above}
+          style={{ x: '-50%', '--control-bar-height': `${barHeight}px` } as CSSProperties}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 8 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+        >
+          {above}
+        </motion.div>
+      )}
+    </AnimatePresence>
     <motion.div
+      ref={barRef}
       className={mode === 'task' ? styles.controlBarTask : styles.controlBar}
       onKeyDown={mode === 'task' ? handleTaskKeyDown : undefined}
       data-theme="dark"
       data-control-bar
       style={{ x: "-50%" }}
+      // A page that mounts with the bar hidden (Apps, Chats) must not flash it
+      initial={false}
       animate={hidden ? { opacity: 0, y: 20, pointerEvents: 'none' } : { opacity: 1, y: 0, pointerEvents: 'auto' }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
     >
@@ -649,7 +713,7 @@ export function ControlBar({
                 onChange={(e) => setPromptText(e.target.value)}
                 onKeyDown={handlePromptKeyDown}
                 onPaste={handlePromptPaste}
-                placeholder="O que você tem em mente?"
+                placeholder={placeholder}
                 className={styles.promptInput}
                 disabled={trialExpired}
               />
@@ -743,5 +807,6 @@ export function ControlBar({
         />
       )}
     </motion.div>
+    </>
   );
 }

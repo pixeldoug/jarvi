@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/requireSubscription';
-import { handleChat } from '../controllers/aiController';
+import { handleChat, handleRewrite } from '../controllers/aiController';
 
 // Bypass subscription check in development (same pattern as authLimiter in index.ts)
 const subscriptionGuard = process.env.NODE_ENV === 'production'
@@ -11,5 +11,6 @@ const subscriptionGuard = process.env.NODE_ENV === 'production'
 const router = Router();
 
 router.post('/chat', authenticateToken, subscriptionGuard, handleChat);
+router.post('/rewrite', authenticateToken, subscriptionGuard, handleRewrite);
 
 export default router;

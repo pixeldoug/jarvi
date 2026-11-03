@@ -1,7 +1,7 @@
 /**
  * SidebarEmptyState Component
  *
- * Empty state displayed inside a Sidebar group (Categorias / Filtros) when
+ * Empty state displayed inside a Sidebar group (Categorias) when
  * there are no items yet.
  *
  * Figma: https://www.figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App?node-id=40001337-180505

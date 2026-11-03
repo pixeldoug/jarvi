@@ -64,6 +64,15 @@ export interface RichTextEditorProps {
   placeholder?: string;
   readOnly?: boolean;
   metaEnd?: ReactNode;
+  /**
+   * `document`: page-like typography, no internal scroll (grows with content,
+   * the page scrolls) and a tall click-to-type area. Default: compact field.
+   */
+  variant?: 'default' | 'document';
+  /** Accessible name of the editable area (fixed at mount, like `placeholder`) */
+  ariaLabel?: string;
+  /** Focus the editor (caret at the end) once after mount */
+  autoFocus?: boolean;
 }
 
 interface SerializedAttachment {
@@ -129,7 +138,10 @@ function readFileAsBase64(file: File): Promise<string> {
 // Override TaskItem to use inline styles so the flex row layout can never be
 // broken by external CSS or CSS Module scoping issues.
 // Also adds a `subtaskId` attribute so the parent can track which editor task
-// item corresponds to which persisted sub-task.
+// item corresponds to which persisted sub-task, and, for a note summary's next
+// steps, its stable `stepId` (`data-step-id`), the `taskId` of the task created
+// from it (`data-task-id`) and `reviewOf`, the linked step a regeneration could
+// not tell it apart from (`data-review-of`). The server owns all three.
 const InlineTaskItem = TaskItem.extend({
   addAttributes() {
     return {
@@ -142,6 +154,69 @@ const InlineTaskItem = TaskItem.extend({
           return { 'data-subtask-id': attributes.subtaskId };
         },
       },
+      taskId: {
+        default: null,
+        // Enter on a linked item starts a new, unlinked one (at the item's
+        // start, see the Enter shortcut below).
+        keepOnSplit: false,
+        parseHTML: element => element.getAttribute('data-task-id') || null,
+        renderHTML: attributes => {
+          if (!attributes.taskId) return {};
+          return { 'data-task-id': attributes.taskId };
+        },
+      },
+      stepId: {
+        default: null,
+        // A split starts a new step (the Enter shortcut keeps the id on the text).
+        keepOnSplit: false,
+        parseHTML: element => element.getAttribute('data-step-id') || null,
+        renderHTML: attributes => {
+          if (!attributes.stepId) return {};
+          return { 'data-step-id': attributes.stepId };
+        },
+      },
+      reviewOf: {
+        default: null,
+        keepOnSplit: false,
+        parseHTML: element => element.getAttribute('data-review-of') || null,
+        renderHTML: attributes => {
+          if (!attributes.reviewOf) return {};
+          return { 'data-review-of': attributes.reviewOf };
+        },
+      },
+    };
+  },
+
+  addKeyboardShortcuts() {
+    const shortcuts = this.parent?.() ?? {};
+    return {
+      ...shortcuts,
+      // Enter at the very start of a linked item (`taskId`) or a summary step
+      // (`stepId`) adds an empty item above it instead of splitting: a split
+      // keeps the attrs on the empty half, so the link, the step's identity and
+      // its checked state would leave the text.
+      Enter: (props) => {
+        const { $from, empty } = this.editor.state.selection;
+        const item = $from.depth >= 2 ? $from.node(-1) : null;
+        if (
+          empty &&
+          item?.type.name === this.name &&
+          (item.attrs.taskId || item.attrs.stepId) &&
+          $from.parentOffset === 0 &&
+          $from.parent.content.size > 0 &&
+          $from.index(-1) === 0
+        ) {
+          const blank = item.type.createAndFill();
+          if (blank) {
+            const at = $from.before(-1);
+            return this.editor.commands.command(({ tr }) => {
+              tr.insert(at, blank).scrollIntoView();
+              return true;
+            });
+          }
+        }
+        return shortcuts.Enter ? shortcuts.Enter(props) : false;
+      },
     };
   },
 
@@ -152,6 +227,9 @@ const InlineTaskItem = TaskItem.extend({
         'data-type': 'taskItem',
         'data-checked': node.attrs.checked,
         ...(node.attrs.subtaskId ? { 'data-subtask-id': node.attrs.subtaskId } : {}),
+        ...(node.attrs.taskId ? { 'data-task-id': node.attrs.taskId } : {}),
+        ...(node.attrs.stepId ? { 'data-step-id': node.attrs.stepId } : {}),
+        ...(node.attrs.reviewOf ? { 'data-review-of': node.attrs.reviewOf } : {}),
         style: [
           'display:flex',
           'flex-direction:row',
@@ -191,6 +269,9 @@ export function RichTextEditor({
   placeholder = 'Adicionar descrição...',
   readOnly = false,
   metaEnd,
+  variant = 'default',
+  ariaLabel,
+  autoFocus = false,
 }: RichTextEditorProps) {
   const onChangeRef = useRef(onChange);
   const onBlurRef = useRef(onBlur);
@@ -270,7 +351,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class: 'prosemirror-editor',
-        'aria-label': 'Descrição da tarefa',
+        'aria-label': ariaLabel ?? 'Descrição da tarefa',
         'aria-multiline': 'true',
         'aria-readonly': readOnly ? 'true' : 'false',
         spellcheck: 'true',
@@ -293,6 +374,15 @@ export function RichTextEditor({
     }
     setAttachments(parsedAttachments);
   }, [content, editor]);
+
+  // Focus once after mount (caret at the end). Selection-only transaction, so
+  // it does not emit onUpdate / onChange.
+  const hasAutoFocusedRef = useRef(false);
+  useEffect(() => {
+    if (!autoFocus || !editor || hasAutoFocusedRef.current) return;
+    hasAutoFocusedRef.current = true;
+    editor.commands.focus('end');
+  }, [autoFocus, editor]);
 
   // Update editable state — pass false so setEditable does not emit onUpdate,
   // which would call onChange with the current (possibly empty) doc and
@@ -485,8 +575,13 @@ export function RichTextEditor({
     readOnly ? styles.readOnly : '',
   ].filter(Boolean).join(' ');
 
+  const containerClassName = [
+    styles.editorContainer,
+    variant === 'document' ? styles.document : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={styles.editorContainer}>
+    <div className={containerClassName}>
       {!readOnly && (
         <BubbleMenu
           editor={editor}
@@ -503,7 +598,7 @@ export function RichTextEditor({
         ref={wrapperRef}
         className={wrapperClassName}
         role="group"
-        aria-label="Editor de descricao"
+        aria-label={ariaLabel ?? 'Editor de descricao'}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}

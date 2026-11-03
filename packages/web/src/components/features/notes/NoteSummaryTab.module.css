@@ -1,0 +1,122 @@
+/**
+ * NoteSummaryTab styles
+ */
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-4);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  flex-wrap: wrap;
+}
+
+.metaActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-wrap: wrap;
+}
+
+.meta {
+  margin: 0;
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.staleHint {
+  margin: 0;
+  padding: var(--sizes-3) var(--sizes-4);
+  border-radius: var(--radius-sm);
+  background: var(--semantic-surface-secondary);
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+/* "Tarefa" marker after a converted item left in the editor's text; clicking
+   it opens the task (see SummaryEditor). The item row is a flex row, so the
+   marker sits at its end, on the first line. */
+.editor :global(.ProseMirror ul[data-type="taskList"] > li[data-task-id])::after {
+  content: 'Tarefa';
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: var(--sizes-05);
+  margin-left: var(--sizes-2);
+  padding: var(--sizes-05) var(--sizes-2);
+  border-radius: var(--radius-chip-radius);
+  background: var(--semantic-surface-secondary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  letter-spacing: var(--typography-label-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* A message and its action above the summary (staleHint box): news not in
+   the summary yet ("Atualizar resumo"), steps that may repeat a task ("Revisar") */
+.actionHint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  padding: var(--sizes-2) var(--sizes-2) var(--sizes-2) var(--sizes-4);
+  border-radius: var(--radius-sm);
+  background: var(--semantic-surface-secondary);
+}
+
+.actionHintText {
+  margin: 0;
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+/* While the summary is written or rewritten: skeleton sections in place of its text */
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  padding-top: var(--sizes-2);
+}
+
+.skeletonSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+/* The next steps list follows the editor: no tall click area, and no
+   trailing margin, in between (the list keeps the editor's section rhythm). */
+.editor :global(.ProseMirror) {
+  min-height: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.editor :global(.ProseMirror > :last-child) {
+  margin-bottom: 0 !important;
+}
+
+/* Section titles breathe a bit more over their content than in a free note */
+.editor :global(.ProseMirror h2) {
+  margin-bottom: var(--sizes-5) !important;
+}

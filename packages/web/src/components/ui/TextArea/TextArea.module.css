@@ -129,33 +129,6 @@
 }
 
 /* ============================================================================
-   CUSTOM SCROLLBAR
-   ============================================================================ */
-
-.textarea::-webkit-scrollbar {
-  width: 4px;
-}
-
-.textarea::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.textarea::-webkit-scrollbar-thumb {
-  background-color: var(--semantic-surface-tertiary);
-  border-radius: var(--radius-round);
-}
-
-.textarea::-webkit-scrollbar-thumb:hover {
-  background-color: var(--semantic-content-secondary);
-}
-
-/* Firefox scrollbar */
-.textarea {
-  scrollbar-width: thin;
-  scrollbar-color: var(--semantic-surface-tertiary) transparent;
-}
-
-/* ============================================================================
    HELPER TEXT
    ============================================================================ */
 

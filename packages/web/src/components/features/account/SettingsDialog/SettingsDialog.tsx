@@ -2,10 +2,12 @@
  * SettingsDialog Component - Jarvi Web
  *
  * Two-column settings modal: sidebar navigation + scrollable canvas.
- * Pages: Meu perfil / Pagamentos / Apps / Notificações / Memória / Categorias / Filtros / Aparência
+ * Pages: Meu perfil / Pagamentos / Notificações / Memória / Categorias / Tarefas / Aparência
  *
  * Figma: https://figma.com/design/TM2wS5y3DkyW9bvfP7xzHK/JarviDS-App
  * Node: 40001321-32878
+ *
+ * Apps is its own page (`/apps`); links here hand off to it via `onGoToApps`.
  */
 
 import { useState, useEffect } from 'react';
@@ -14,22 +16,20 @@ import {
   X,
   User,
   CreditCard,
-  CirclesFour,
   Brain,
   Bell,
   Palette,
   Hash,
-  FunnelSimple,
+  Checks,
 } from '@phosphor-icons/react';
 import { Dialog, ListItem } from '../../../ui';
 import { ProfilePage } from './pages/ProfilePage';
 import { PaymentsPage } from './pages/PaymentsPage';
-import { AppsPage } from './pages/AppsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { AppearancePage } from './pages/AppearancePage';
 import { CategoriesPage } from './pages/CategoriesPage';
-import { FiltersPage } from './pages/FiltersPage';
+import { TasksPage } from './pages/TasksPage';
 import styles from './SettingsDialog.module.css';
 import type { SettingsProfileOverlay } from './settingsOverlays';
 
@@ -42,11 +42,10 @@ export type { SettingsProfileOverlay } from './settingsOverlays';
 export type SettingsPage =
   | 'profile'
   | 'payments'
-  | 'apps'
   | 'notifications'
   | 'memory'
   | 'categories'
-  | 'filters'
+  | 'tasks'
   | 'appearance';
 
 export interface SettingsSidebarItem {
@@ -63,16 +62,15 @@ export interface SettingsSidebarItem {
 export const SIDEBAR_ITEMS: SettingsSidebarItem[] = [
   { id: 'profile',    label: 'Meu perfil', icon: User },
   { id: 'payments',   label: 'Pagamentos', icon: CreditCard },
-  { id: 'apps',       label: 'Apps',       icon: CirclesFour },
   { id: 'notifications', label: 'Notificações', icon: Bell },
   { id: 'memory',     label: 'Memória',    icon: Brain },
   { id: 'categories', label: 'Categorias', icon: Hash },
-  { id: 'filters',    label: 'Filtros',    icon: FunnelSimple },
+  { id: 'tasks',      label: 'Tarefas',    icon: Checks },
   { id: 'appearance', label: 'Aparência',  icon: Palette },
 ];
 
 // Pages that render their own full header (title + extras)
-export const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['apps', 'categories', 'filters']);
+export const PAGES_WITH_CUSTOM_HEADER = new Set<SettingsPage>(['categories']);
 
 // ============================================================================
 // PAGE CONTENT (shared between desktop dialog and mobile bottom sheet)
@@ -88,9 +86,9 @@ export function SettingsPageContent({
   page: SettingsPage;
   onClose: () => void;
   /**
-   * When true, pages that render their own title/header (apps, categories,
-   * filters) omit it — used by the mobile bottom sheet, which shows the title
-   * in its own sticky header instead.
+   * When true, pages that render their own title/header (categories) omit
+   * it — used by the mobile bottom sheet, which shows the title in its own
+   * sticky header instead.
    */
   hideHeader?: boolean;
   onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
@@ -99,11 +97,10 @@ export function SettingsPageContent({
   switch (page) {
     case 'profile':    return <ProfilePage onOpenProfileOverlay={onOpenProfileOverlay} onGoToApps={onGoToApps} />;
     case 'payments':   return <PaymentsPage onClose={onClose} />;
-    case 'apps':       return <AppsPage hideHeader={hideHeader} />;
     case 'notifications': return <NotificationsPage onGoToApps={onGoToApps} />;
     case 'memory':     return <MemoryPage />;
     case 'categories': return <CategoriesPage hideHeader={hideHeader} />;
-    case 'filters':    return <FiltersPage hideHeader={hideHeader} />;
+    case 'tasks':      return <TasksPage />;
     case 'appearance': return <AppearancePage />;
     default:           return null;
   }
@@ -121,6 +118,8 @@ export interface SettingsDialogProps {
   /** Page to show when the dialog opens (defaults to 'profile') */
   initialPage?: SettingsPage;
   onOpenProfileOverlay?: (overlay: SettingsProfileOverlay) => void;
+  /** Closes this dialog and opens an app on the Apps page */
+  onGoToApps?: (appId: 'whatsapp') => void;
 }
 
 export function SettingsDialog({
@@ -128,6 +127,7 @@ export function SettingsDialog({
   onClose,
   initialPage = 'profile',
   onOpenProfileOverlay,
+  onGoToApps,
 }: SettingsDialogProps) {
   const [activePage, setActivePage] = useState<SettingsPage>(initialPage);
 
@@ -184,7 +184,7 @@ export function SettingsDialog({
             page={activePage}
             onClose={onClose}
             onOpenProfileOverlay={onOpenProfileOverlay}
-            onGoToApps={() => setActivePage('apps')}
+            onGoToApps={onGoToApps ? () => onGoToApps('whatsapp') : undefined}
           />
         </main>
       </div>

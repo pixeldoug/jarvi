@@ -1,0 +1,353 @@
+/**
+ * OverdueRecapScreen styles — a full-screen takeover: header (brand,
+ * progress, close), the task big in the middle, and the accent
+ * "Tudo revisado!" screen.
+ */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  outline: none;
+  background: var(--semantic-surface-tertiary);
+  color: var(--semantic-content-primary);
+  animation: screenIn 0.25s ease-out;
+}
+
+@keyframes screenIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    animation: none;
+  }
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.header {
+  flex-shrink: 0;
+  padding: var(--sizes-6) var(--sizes-8);
+}
+
+.headerInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sizes-6);
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  min-width: 0;
+}
+
+.brandName {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-sm-font-size);
+  font-weight: var(--typography-heading-sm-font-weight);
+  line-height: var(--typography-heading-sm-line-height);
+  letter-spacing: var(--typography-heading-sm-letter-spacing);
+}
+
+/* Always the last column, with or without the progress between */
+.headerEnd {
+  grid-column: -2 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);
+  min-width: 0;
+}
+
+.progressLabel {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* One segment per task (one bar when there are many) */
+.segments {
+  flex: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--sizes-1);
+  min-width: 0;
+}
+
+.segment {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-round);
+  background: var(--semantic-surface-secondary);
+  transition: background-color 0.25s ease;
+}
+
+.segmentFilled {
+  background: var(--semantic-control-border-active);
+}
+
+.segmentFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--semantic-control-border-active);
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Task ─────────────────────────────────────────────────────────────────── */
+
+/* The swiped task leaves through the side edges; tall content scrolls. */
+.main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  padding: var(--sizes-8) var(--sizes-4) var(--sizes-14);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* The leaving and the arriving task share one cell */
+.stage {
+  display: grid;
+  width: 100%;
+  max-width: 680px;
+  margin: auto;
+}
+
+.stage > * {
+  grid-area: 1 / 1;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-5);
+  min-width: 0;
+  text-align: center;
+}
+
+.cardDraggable {
+  cursor: grab;
+  user-select: none;
+  /* Horizontal drags move the task; vertical ones still scroll */
+  touch-action: pan-y;
+}
+
+.cardDraggable:active {
+  cursor: grabbing;
+}
+
+.overdueDot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-round);
+  background: var(--semantic-content-warning);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-heading-2xl-font-size);
+  font-weight: var(--typography-heading-2xl-font-weight);
+  line-height: var(--typography-heading-2xl-line-height);
+  letter-spacing: var(--typography-heading-2xl-letter-spacing);
+  color: var(--semantic-content-primary);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sizes-2);
+}
+
+.chips:empty {
+  display: none;
+}
+
+/* 48px from the text above, like the design (20px card gap + 28px) */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sizes-3);
+  margin-top: var(--sizes-7);
+}
+
+.menuAnchor {
+  display: inline-flex;
+}
+
+.note {
+  max-width: 420px;
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.datePanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-2);
+  margin-top: var(--sizes-2);
+}
+
+/* The Calendar's grid is 7 × 36px: keep its month nav over the grid */
+.calendar {
+  width: 252px;
+  max-width: 100%;
+  padding: 0;
+}
+
+.swipeHint {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sizes-1);
+  padding: var(--sizes-1) var(--sizes-3);
+  border: 1.5px solid currentColor;
+  border-radius: var(--radius-round);
+  background: var(--semantic-surface-primary);
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  pointer-events: none;
+}
+
+.swipeHintComplete {
+  left: 0;
+  color: var(--semantic-content-positive);
+  transform: rotate(-6deg);
+}
+
+.swipeHintSkip {
+  right: 0;
+  color: var(--semantic-content-secondary);
+  transform: rotate(6deg);
+}
+
+/* ── Tudo revisado ────────────────────────────────────────────────────────── */
+
+.doneScreen {
+  background: var(--semantic-surface-accent);
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sizes-4);
+  width: 100%;
+  max-width: 560px;
+  margin: auto;
+  text-align: center;
+}
+
+.celebration {
+  display: block;
+  width: 200px;
+  max-width: 50vw;
+  height: auto;
+  margin-bottom: var(--sizes-6);
+  pointer-events: none;
+  user-select: none;
+}
+
+.doneTitle {
+  margin: 0;
+  font-family: var(--font-font-family-font-display);
+  font-size: var(--typography-display-lg-font-size);
+  font-weight: 800;
+  line-height: var(--typography-display-lg-line-height);
+  letter-spacing: var(--typography-display-lg-letter-spacing);
+  text-transform: uppercase;
+  color: var(--color-bw-white);
+}
+
+.doneText {
+  max-width: 420px;
+  margin: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-lg-font-size);
+  font-weight: var(--typography-body-lg-font-weight);
+  line-height: var(--typography-body-lg-line-height);
+  color: var(--color-bw-white-transparent-80);
+}
+
+.doneAction {
+  width: 100%;
+  max-width: 436px;
+  margin-top: var(--sizes-10);
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .header {
+    padding: var(--sizes-4);
+  }
+
+  /* Brand and close on the first row, progress below */
+  .headerInner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: var(--sizes-4);
+  }
+
+  .progress {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .main {
+    padding: var(--sizes-6) var(--sizes-4) var(--sizes-10);
+  }
+
+  .title {
+    font-size: var(--typography-heading-lg-font-size);
+    line-height: var(--typography-heading-lg-line-height);
+    letter-spacing: var(--typography-heading-lg-letter-spacing);
+  }
+
+  .doneTitle {
+    font-size: var(--typography-heading-2xl-font-size);
+    line-height: var(--typography-heading-2xl-line-height);
+  }
+}

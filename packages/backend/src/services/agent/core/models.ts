@@ -10,6 +10,9 @@
  *   AGENT_MODEL                  default gpt-6-sol
  *   AGENT_FALLBACK_MODEL         default gpt-5.4-mini (after the monthly cap)
  *   MEMORY_MODEL                 default gpt-6-luna
+ *   NOTE_SUMMARY_MODEL           default = DEFAULT_AGENT_MODEL (Notas summary)
+ *   TEXT_REWRITE_MODEL           default = DEFAULT_AGENT_MODEL (editor AI actions)
+ *   CHAT_TITLE_MODEL             default = DEFAULT_MEMORY_MODEL (Chats: a new conversation's title)
  *   AGENT_PREMIUM_TURNS_PER_MONTH  default 30; 0 disables the cap
  */
 
@@ -51,6 +54,21 @@ export function getAgentFallbackModel(): string {
 
 export function getMemoryModel(): string {
   return envOr('MEMORY_MODEL', DEFAULT_MEMORY_MODEL);
+}
+
+/** Notas: the on-demand summary (one JSON completion, no tools). */
+export function getNoteSummaryModel(): string {
+  return envOr('NOTE_SUMMARY_MODEL', DEFAULT_AGENT_MODEL);
+}
+
+/** Editor AI actions (fix grammar / improve / shorten / expand a selection). */
+export function getTextRewriteModel(): string {
+  return envOr('TEXT_REWRITE_MODEL', DEFAULT_AGENT_MODEL);
+}
+
+/** Chats: a new conversation's short title (a small background call, like memory). */
+export function getChatTitleModel(): string {
+  return envOr('CHAT_TITLE_MODEL', DEFAULT_MEMORY_MODEL);
 }
 
 /**

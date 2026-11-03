@@ -1,0 +1,129 @@
+/**
+ * NoteDetailView styles — full-width top bar over a centered document column.
+ *
+ * The whole view (top bar, title, tabs and tab body) is one scroll area inside
+ * the card: MainLayout's body is told not to scroll (`scrollableBody={false}`)
+ * and `.page` scrolls instead. Edges that hide content fade out through a mask
+ * instead of cutting text dry; `useScrollFade` sets `data-fade-top` /
+ * `data-fade-bottom` only while there is something to scroll to on that side.
+ * On mobile the view grows with its content and the document scrolls, as on
+ * every other page, so no edge fades there.
+ */
+
+.page {
+  composes: scrollbar-panel from global;
+  --fade-top: 0px;
+  --fade-bottom: 0px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-8);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  /* Gutter on both sides keeps the column centered under the scrollbar */
+  scrollbar-gutter: stable both-edges;
+  /* Room for the floating ControlBar under the last line */
+  padding-bottom: var(--sizes-24);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--fade-top),
+    black calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--fade-top),
+    black calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+}
+
+/*
+ * Desktop: bleed over the card's padding so the scroll area spans the whole
+ * card — the scrollbar sits by the card's right edge and the top fade starts
+ * at the card's top — while the same paddings, moved inside, keep the content
+ * where it was. The small inset keeps the scrollbar clear of the corner radius.
+ * (Mobile scrolls the document, and the top would overlap the mobile top bar.)
+ */
+@media (min-width: 769px) {
+  .page {
+    --page-bleed-x: calc(var(--main-padding-x, 0px) - var(--sizes-2));
+    margin: calc(var(--main-padding-top, 0px) * -1) calc(var(--page-bleed-x) * -1) 0;
+    padding-top: var(--main-padding-top, 0px);
+    padding-inline: var(--page-bleed-x);
+    /* auto (not 100%) so both negative margins widen the box */
+    width: auto;
+    height: calc(100% + var(--main-padding-top, 0px));
+    --scrollbar-panel-padding-block: calc(var(--main-padding-top, 0px) + var(--sizes-24));
+  }
+}
+
+/*
+ * Overscroll room: the end of the note can be scrolled up to the middle of
+ * the card instead of stopping just above the ControlBar. With the gap and the
+ * bottom padding it adds up to half the scroll area. On mobile the height is
+ * not definite, so the spacer collapses and only the padding remains.
+ */
+.page::after {
+  content: '';
+  flex-shrink: 0;
+  height: calc(50% - var(--sizes-24) - var(--sizes-8));
+}
+
+.page[data-fade-top] {
+  --fade-top: var(--sizes-12);
+}
+
+/* Taller at the bottom: the text dissolves behind the floating ControlBar */
+.page[data-fade-bottom] {
+  --fade-bottom: var(--sizes-24);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  /* Title → tabs → content */
+  gap: var(--sizes-8);
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-3);
+  flex-wrap: wrap;
+}
+
+/* Same spacing as the task form's chips */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-wrap: wrap;
+}
+
+.panel {
+  min-width: 0;
+  /* The sliding content must not make the page scroll sideways */
+  overflow-x: clip;
+  /* Anchors the outgoing tab, which `popLayout` takes out of the flow */
+  position: relative;
+}
+
+.panel:focus-visible {
+  outline: none;
+}
+
+/* The sliding wrapper keeps the panel's column layout */
+.panelContent {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}

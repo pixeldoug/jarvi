@@ -341,22 +341,8 @@ export async function addTriadSkip(taskId: string, userId: string, field: string
 }
 
 // ---------------------------------------------------------------------------
-// Lists & categories (web-only contexts)
+// Categories (web-only contexts)
 // ---------------------------------------------------------------------------
-
-export async function getUserLists(userId: string): Promise<ListRow[]> {
-  if (isPostgreSQL()) {
-    const result = await getPool().query(
-      'SELECT * FROM lists WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId],
-    );
-    return result.rows as ListRow[];
-  }
-  return (await getDatabase().all<ListRow[]>(
-    'SELECT * FROM lists WHERE user_id = ? ORDER BY created_at DESC',
-    [userId],
-  )) as ListRow[];
-}
 
 export async function getUserCategories(userId: string): Promise<CategoryRow[]> {
   if (isPostgreSQL()) {
@@ -506,17 +492,6 @@ export function formatTaskIndexLine(t: TaskRow, options: TaskLineOptions = {}): 
   const recurrence = formatRecurrenceSummary(t);
   if (recurrence) parts.push(recurrence);
   parts.push(`id: ${t.id}`);
-  return `  - ${parts.join(' | ')}`;
-}
-
-export function formatListLine(l: ListRow): string {
-  const catNames = safeParseCategoryNames(l.category_names);
-  const parts: string[] = [`"${l.name}" (id: ${l.id})`];
-  if (catNames.length > 0) parts.push(`cats: ${catNames.join(', ')}`);
-  if (l.priority) parts.push(`prioridade: ${l.priority}`);
-  if (l.connected_app) parts.push(`app: ${l.connected_app}`);
-  if (l.filter_no_category) parts.push('sem categoria');
-  if (l.show_completed === 0) parts.push('oculta concluídas');
   return `  - ${parts.join(' | ')}`;
 }
 

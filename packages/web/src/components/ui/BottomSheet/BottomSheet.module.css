@@ -129,19 +129,6 @@
   overflow: hidden;
 }
 
-.content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.content::-webkit-scrollbar-thumb {
-  background: var(--semantic-content-tertiary);
-  border-radius: var(--radius-round);
-}
-
 @supports (corner-shape: squircle) {
   .sheet {
     border-top-left-radius: 36px;

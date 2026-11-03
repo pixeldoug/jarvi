@@ -137,6 +137,12 @@
   padding: 0 var(--sizes-6);
 }
 
+/* Square: as wide as it is tall (after the sizes, so it wins) */
+.iconOnly {
+  aspect-ratio: 1;
+  padding: 0;
+}
+
 /* ============================================================================
    FULL WIDTH
    ============================================================================ */

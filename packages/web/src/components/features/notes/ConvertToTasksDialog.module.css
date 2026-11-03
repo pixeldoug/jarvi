@@ -1,0 +1,133 @@
+/**
+ * ConvertToTasksDialog styles (DeleteNoteDialog layout + a scrolling list)
+ */
+
+/* Wider than the lg preset (704px): rows keep their title and chips on one line */
+@media (min-width: 769px) {
+  .dialog {
+    max-width: 800px !important;
+  }
+}
+
+.dialogContent {
+  gap: 0 !important;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.textBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.description {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+/* Long lists scroll; the title and the actions stay in view. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* The list scrolls, not the dialog content: on desktop it takes the content's
+   bleed so its scrollbar sits 8px off the dialog's edge (see Dialog) */
+@media (min-width: 769px) {
+  .list {
+    margin-right: calc(var(--dialog-content-bleed, 0px) * -1);
+    padding-right: var(--dialog-content-bleed, 0px);
+  }
+}
+
+/* Same row as TaskItem: 48px target, one-line title, chips on the right */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  height: var(--size-target-standard, 48px);
+  padding: 0 var(--sizes-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.row:hover {
+  background-color: var(--semantic-surface-secondary);
+}
+
+.rowLinked {
+  cursor: default;
+}
+
+.rowLinked:hover {
+  background-color: transparent;
+}
+
+.itemText {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-label-md-font-size);
+  font-weight: var(--typography-label-md-font-weight);
+  line-height: var(--typography-label-md-line-height);
+  letter-spacing: var(--typography-label-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowLinked .itemText {
+  color: var(--semantic-content-secondary);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  flex-shrink: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  margin-top: var(--sizes-2);
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

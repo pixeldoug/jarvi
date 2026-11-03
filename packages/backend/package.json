@@ -16,7 +16,11 @@
     "eval:daily-summary": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/daily-summary.deterministic.ts",
     "eval:weekly-planning": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/weekly-planning.deterministic.ts",
     "weekly-planning:run-once": "npx ts-node --require dotenv/config -P tsconfig.eval.json scripts/run-weekly-planning-once.ts",
-    "eval:onboarding-rescue": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/onboarding-rescue.deterministic.ts"
+    "eval:onboarding-rescue": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/onboarding-rescue.deterministic.ts",
+    "eval:notes-next-steps": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/notes-next-steps.deterministic.ts",
+    "eval:notes-next-steps:live": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/notes-next-steps.live.ts",
+    "eval:chat-history": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/chat-history.deterministic.ts",
+    "eval:chat-titles:live": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/chat-titles.live.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

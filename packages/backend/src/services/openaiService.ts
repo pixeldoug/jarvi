@@ -5,6 +5,12 @@ import { toFile } from 'openai/uploads';
 import { getPostHogClient, isEvalAnalyticsDistinctId } from './posthogService';
 import { capitalizeTaskTitle } from '../utils/taskTitle';
 import { decideNextQuestion, type TriadPolicy } from './agent/core/nextQuestion';
+import {
+  chatCompletionsSamplingParams,
+  getChatTitleModel,
+  getNoteSummaryModel,
+  getTextRewriteModel,
+} from './agent/core/models';
 import type { AgentTriadField } from './agent/core/types';
 
 export interface ExtractedTask {
@@ -88,7 +94,11 @@ type OpenAiSpan =
   | 'image_description'
   | 'memory_whatsapp'
   | 'onboarding_task_extraction'
-  | 'onboarding_follow_up_order';
+  | 'onboarding_follow_up_order'
+  | 'note_summary'
+  | 'note_transcription'
+  | 'text_rewrite'
+  | 'chat_title';
 
 interface PosthogCallParams {
   posthogDistinctId?: string;
@@ -321,18 +331,180 @@ const normalizeExtractedTask = (input: Record<string, unknown>): ExtractedTask =
   };
 };
 
-export const transcribeAudio = async (audioBuffer: Buffer, mimeType: string): Promise<string> => {
+/**
+ * Whisper picks the decoder from the file name, so the extension must match
+ * the container. Browsers' MediaRecorder sends `audio/webm;codecs=opus`
+ * (Chrome/Firefox) or `audio/mp4` (Safari); WhatsApp sends OGG. Anything
+ * unknown keeps the historical `ogg` fallback.
+ */
+const audioFileExtension = (mimeType: string): string => {
+  const mime = mimeType.toLowerCase();
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('m4a')) return 'm4a';
+  if (mime.includes('mp4')) return 'mp4';
+  if (mime.includes('mpeg') || mime.includes('mp3')) return 'mp3';
+  if (mime.includes('wav')) return 'wav';
+  return 'ogg';
+};
+
+export interface TranscribeAudioOptions {
+  /** Text the audio continues from (e.g. the previous segment's tail). */
+  prompt?: string;
+  /** Defaults to whisper-1. */
+  model?: string;
+  /** PostHog attribution; only the Notas flow passes it. */
+  telemetry?: AiTelemetryOptions;
+  /**
+   * Drop the parts Whisper itself flags as non-speech. On silence whisper-1
+   * invents YouTube outros ("Inscreva-se no canal…") with no_speech_prob ≈ 0.9,
+   * while real speech scores ≈ 0.02. Only applies to whisper-1, the one model
+   * that returns per-segment probabilities (verbose_json).
+   */
+  dropNoSpeech?: boolean;
+}
+
+/** Whisper segments at or above this no_speech_prob are treated as silence. */
+const NO_SPEECH_THRESHOLD = 0.8;
+
+export const transcribeAudio = async (
+  audioBuffer: Buffer,
+  mimeType: string,
+  options: TranscribeAudioOptions = {},
+): Promise<string> => {
   const openai = getOpenAIClient();
-  const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('mpeg') ? 'mp3' : 'ogg';
+  const ext = audioFileExtension(mimeType);
   const file = await toFile(audioBuffer, `audio.${ext}`, { type: mimeType });
-
-  const transcription = await openai.audio.transcriptions.create({
+  const prompt = options.prompt?.trim();
+  const model = options.model || 'whisper-1';
+  const params = {
     file,
-    model: 'whisper-1',
+    model,
     language: 'pt',
-  });
+    ...(prompt ? { prompt } : {}),
+    ...(options.telemetry ? buildPosthogParams('note_transcription', options.telemetry) : {}),
+  };
 
+  if (options.dropNoSpeech && model === 'whisper-1') {
+    const verbose = await openai.audio.transcriptions.create({
+      ...params,
+      response_format: 'verbose_json',
+    });
+    if (!verbose.segments) return verbose.text;
+    return verbose.segments
+      .filter((segment) => segment.no_speech_prob < NO_SPEECH_THRESHOLD)
+      .map((segment) => segment.text.trim())
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  const transcription = await openai.audio.transcriptions.create(params);
   return transcription.text;
+};
+
+const NOTE_SUMMARY_MAX_COMPLETION_TOKENS = 8000;
+const NOTE_SUMMARY_CONCISE_RETRY =
+  '\n\nSua resposta anterior passou do limite de tamanho. Seja mais conciso: no máximo 8 itens por seção.';
+
+/**
+ * Notas: one JSON-mode completion for the note summary. The prompt and the
+ * parsing live in `noteService`; this only owns the client and telemetry.
+ * A reply cut off by the token cap is invalid JSON, so it is retried once
+ * with a "be concise" instruction. Throws when the call fails or returns no
+ * JSON object.
+ */
+export const createNoteSummaryCompletion = async (
+  messages: { system: string; user: string },
+  telemetry?: AiTelemetryOptions,
+): Promise<Record<string, unknown>> => {
+  const openai = getOpenAIClient();
+  const model = getNoteSummaryModel();
+
+  let finishReason: string | undefined;
+  for (const concise of [false, true]) {
+    const response = await openai.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: concise ? `${messages.system}${NOTE_SUMMARY_CONCISE_RETRY}` : messages.system,
+        },
+        { role: 'user', content: messages.user },
+      ],
+      max_completion_tokens: NOTE_SUMMARY_MAX_COMPLETION_TOKENS,
+      ...chatCompletionsSamplingParams(model),
+      ...buildPosthogParams('note_summary', telemetry),
+    });
+
+    finishReason = response.choices[0]?.finish_reason;
+    const parsed = safeJsonParse(response.choices[0]?.message?.content);
+    if (Object.keys(parsed).length > 0) return parsed;
+    if (finishReason !== 'length') break;
+  }
+  throw new Error(`Note summary returned no JSON (finish_reason=${finishReason ?? 'unknown'})`);
+};
+
+const TEXT_REWRITE_MAX_COMPLETION_TOKENS = 4000;
+
+/**
+ * Editor AI actions: one JSON-mode completion that returns `{ "text": ... }`.
+ * The prompts live in `textRewriteService`; this only owns the client and
+ * telemetry. Throws when the call fails or returns no text.
+ */
+export const createTextRewriteCompletion = async (
+  messages: { system: string; user: string },
+  telemetry?: AiTelemetryOptions,
+  extraProperties?: Record<string, unknown>,
+): Promise<string> => {
+  const openai = getOpenAIClient();
+  const model = getTextRewriteModel();
+  const response = await openai.chat.completions.create({
+    model,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: messages.system },
+      { role: 'user', content: messages.user },
+    ],
+    max_completion_tokens: TEXT_REWRITE_MAX_COMPLETION_TOKENS,
+    ...chatCompletionsSamplingParams(model),
+    ...buildPosthogParams('text_rewrite', telemetry, extraProperties),
+  });
+  const parsed = safeJsonParse(response.choices[0]?.message?.content);
+  const text = typeof parsed.text === 'string' ? parsed.text.trim() : '';
+  if (!text) {
+    throw new Error(
+      `Text rewrite returned no text (finish_reason=${response.choices[0]?.finish_reason ?? 'unknown'})`,
+    );
+  }
+  return text;
+};
+
+const CHAT_TITLE_MAX_COMPLETION_TOKENS = 200;
+
+/**
+ * Chats: one JSON-mode completion for a new conversation's title
+ * (`{ "title": ... }`). The prompt and the parsing live in
+ * `chatHistoryService`; this only owns the client and telemetry. Throws when
+ * the call fails.
+ */
+export const createChatTitleCompletion = async (
+  messages: { system: string; user: string },
+  telemetry?: AiTelemetryOptions,
+): Promise<Record<string, unknown>> => {
+  const openai = getOpenAIClient();
+  const model = getChatTitleModel();
+  const response = await openai.chat.completions.create({
+    model,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: messages.system },
+      { role: 'user', content: messages.user },
+    ],
+    max_completion_tokens: CHAT_TITLE_MAX_COMPLETION_TOKENS,
+    ...chatCompletionsSamplingParams(model),
+    ...buildPosthogParams('chat_title', telemetry),
+  });
+  return safeJsonParse(response.choices[0]?.message?.content);
 };
 
 export interface ExtractionOptions {

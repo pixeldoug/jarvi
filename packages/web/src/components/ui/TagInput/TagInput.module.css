@@ -168,22 +168,3 @@
   max-height: 264px;
   overflow-y: auto;
 }
-
-.options::-webkit-scrollbar {
-  width: 6px;
-}
-
-.options::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.options::-webkit-scrollbar-thumb {
-  background: var(--semantic-content-tertiary);
-  border-radius: var(--radius-round);
-}
-
-.options::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
-

@@ -5,6 +5,7 @@ import {
   updateTask,
   deleteTask,
   toggleTaskCompletion,
+  setTasksCompletion,
 } from '../controllers/taskController';
 import { authenticateToken } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/requireSubscription';
@@ -16,6 +17,7 @@ const router = Router();
 // Task routes (all require authentication + active subscription)
 router.post('/', authenticateToken, requireActiveSubscription, createTask);
 router.get('/', authenticateToken, requireActiveSubscription, getTasks);
+router.patch('/completion', authenticateToken, requireActiveSubscription, setTasksCompletion);
 router.put('/:id', authenticateToken, requireActiveSubscription, updateTask);
 router.delete('/:id', authenticateToken, requireActiveSubscription, deleteTask);
 router.patch('/:id/toggle', authenticateToken, requireActiveSubscription, toggleTaskCompletion);

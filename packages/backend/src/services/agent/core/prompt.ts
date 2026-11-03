@@ -24,7 +24,6 @@ import {
   addDaysToIsoDate,
   bucketTasksByDate,
   formatCategoryLine,
-  formatListLine,
   formatTaskIndexLine,
   formatTaskLine,
   normalizeTaskDueDate,
@@ -148,27 +147,16 @@ function buildTaskListSection(ctx: AgentContext, profile: ChannelProfile): strin
   ]);
 }
 
-function buildListsAndCategoriesSection(ctx: AgentContext): string | null {
-  if (ctx.lists.length === 0 && ctx.categories.length === 0) return null;
+function buildCategoriesSection(ctx: AgentContext): string | null {
+  if (ctx.categories.length === 0) return null;
 
-  const categorySummary =
-    ctx.categories.length > 0
-      ? ctx.categories.map(formatCategoryLine).join('\n')
-      : '  (nenhuma categoria)';
-
-  const listSummary =
-    ctx.lists.length > 0
-      ? ctx.lists.map(formatListLine).join('\n')
-      : '  (nenhuma lista)';
+  const categorySummary = ctx.categories.map(formatCategoryLine).join('\n');
 
   return joinNonEmpty([
     'Categorias existentes:',
     categorySummary,
     '- REGRA DE CATEGORIA (OBRIGATÓRIO): Ao definir a categoria em create_task/update_task, use SEMPRE o nome EXATO de uma das categorias existentes acima. NUNCA invente categoria nova nem use variações/sinônimos. Se nenhuma categoria existente se encaixar, deixe a tarefa SEM categoria — não tente forçar. Só crie uma categoria nova com create_category quando o usuário pedir isso explicitamente.',
     '- REUTILIZE CATEGORIA ÓBVIA: Se o assunto da tarefa combina claramente com uma das categorias existentes acima (ex: "pagar fatura do cartão" → categoria "Finanças", "consulta com dentista" → categoria "Saúde"), atribua essa categoria automaticamente — não deixe a tarefa sem categoria só porque o usuário não mencionou a categoria explicitamente. Só deixe sem categoria quando NENHUMA categoria existente combinar com o assunto da tarefa.',
-    '',
-    'Filtros/listas salvos:',
-    listSummary,
   ]);
 }
 
@@ -489,7 +477,6 @@ export function buildWebExtras(ctx: AgentContext, profile?: ChannelProfile): str
           '- Só avance para detalhe prático (convênio, clínica, valor, search_web) DEPOIS de prazo e lembrete combinados, ou se a pessoa pedir isso agora. Se a pergunta tiver 2 a 5 respostas curtas, chame offer_choices — NUNCA escreva as opções como bullets no chat.',
           'Depois de ATUALIZAR/CONCLUIR/EXCLUIR: confirmação curta (ex: "Pronto, atualizei a tarefa.") + no máximo UMA pergunta se for útil. PROIBIDO listas "Resumo" / "Atualização salva".',
         ]),
-    '- FILTROS/LISTAS (OBRIGATÓRIO): Sempre que criar, atualizar ou mencionar um filtro/lista, chame show_list com o ID correspondente. Isso é o que exibe o artefato clicável no chat — sem show_list, nenhum artefato aparece. NUNCA descreva o filtro só em texto.',
     '- CATEGORIAS (show_category): Chame show_category SOMENTE quando a categoria estiver diretamente ligada a uma ação concreta nesta conversa — ou seja, quando você acabou de criar/atualizar uma tarefa com aquela categoria, criou/editou a própria categoria, ou o usuário pediu explicitamente para ver/abrir uma categoria. NUNCA chame show_category só porque o assunto da conversa ou de um anexo "parece" se encaixar em alguma categoria existente (ex: analisar um documento financeiro NÃO deve exibir a categoria "Financeiro"). Quando chamar, use o ID correspondente. Sem show_category nenhum artefato aparece, e NUNCA mencione cor, ícone ou detalhes técnicos no texto da resposta.',
     '- TÍTULO DA TAREFA: Use títulos concisos mas descritivos — devem ter contexto suficiente para que o usuário identifique a tarefa sem precisar abri-la. Inclua o elemento diferenciador (local, pessoa, motivo) quando relevante. Máximo de ~60 caracteres. Sempre comece com letra maiúscula (ex: "Levar gato para check-up", nunca "levar gato...").',
     '- TÍTULO A PARTIR DO ANEXO (OBRIGATÓRIO): Quando o usuário enviar um anexo/imagem com conteúdo identificável (nome de música, título de documento, nome de produto, pessoa, evento, data), EXTRAIA esses identificadores concretos e construa o título com eles. NUNCA gere títulos genéricos baseados só na ação do usuário ou que se refiram ao anexo de forma vaga ("editar vídeo da música enviada", "revisar documento anexado", "ver imagem enviada"). Ex.: imagem de capa com "Relaxing Jazz Music Instrumental" + "preciso editar o vídeo dessa música" → título "Editar vídeo da música Relaxing Jazz Music Instrumental" (e não "Editar vídeo da música enviada"). Só caia para um título genérico se o anexo realmente não tiver nenhum identificador legível.',
@@ -573,8 +560,8 @@ export function buildReliableExecutionRules(profile: ChannelProfile): string | n
   return joinNonEmpty([
     '⚙️ CONFIRMAÇÕES SÃO DO SISTEMA (OBRIGATÓRIO — sobrepõe qualquer formato de confirmação acima):',
     profile.outputFormat === 'markdown'
-      ? '- Depois de create_task / update_task / complete_task / delete_task (e de listas/categorias), o SISTEMA escreve a confirmação no chat — na criação, com a menção clicável da tarefa ("Pronto, Doug! Criei <tarefa>."). Você nunca confirma: nada de "Feito!", "Pronto!", "Salvo!", "criei", "já deixei a tarefa pronta", "atualizei", "prazo definido", "concluída", e não repita título, data, horário, prioridade ou categoria. Frases assim são removidas antes de chegar ao usuário.'
-      : '- Depois de create_task / update_task / complete_task / delete_task (e de listas/categorias), o SISTEMA já envia ao usuário a confirmação do que foi feito, com título e prazo exatamente como ficaram salvos. NÃO escreva confirmação nenhuma: nada de "Feito!", "Pronto!", "Salvo!", "tarefa criada", "atualizei", "prazo definido", "concluída", e não repita título, data, horário, prioridade ou categoria. Frases assim são removidas antes de chegar ao usuário.',
+      ? '- Depois de create_task / update_task / complete_task / delete_task (e de categorias), o SISTEMA escreve a confirmação no chat — na criação, com a menção clicável da tarefa ("Pronto, Doug! Criei <tarefa>."). Você nunca confirma: nada de "Feito!", "Pronto!", "Salvo!", "criei", "já deixei a tarefa pronta", "atualizei", "prazo definido", "concluída", e não repita título, data, horário, prioridade ou categoria. Frases assim são removidas antes de chegar ao usuário.'
+      : '- Depois de create_task / update_task / complete_task / delete_task (e de categorias), o SISTEMA já envia ao usuário a confirmação do que foi feito, com título e prazo exatamente como ficaram salvos. NÃO escreva confirmação nenhuma: nada de "Feito!", "Pronto!", "Salvo!", "tarefa criada", "atualizei", "prazo definido", "concluída", e não repita título, data, horário, prioridade ou categoria. Frases assim são removidas antes de chegar ao usuário.',
     profile.outputFormat === 'markdown'
       ? '- O que sobra para você depois de uma ação é a parte humana: reconhecer o contexto da pessoa quando houver (1-2 frases) e, SÓ se o sistema não perguntou nada (veja as `notes`), no máximo UMA pergunta curta e útil de contexto — via offer_choices quando houver 2 a 5 opções. Prazo, horário e lembrete são sempre perguntas do sistema. Ou simplesmente nada.'
       : '- O que sobra para você depois de uma ação é só o que o sistema NÃO faz: no máximo UMA pergunta curta e útil (prazo, lembrete, contexto), um conselho breve quando fizer sentido, ou simplesmente nada.',
@@ -632,7 +619,7 @@ export function buildSystemPrompt(
     '',
     buildTaskListSection(ctx, profile),
     '',
-    buildListsAndCategoriesSection(ctx),
+    buildCategoriesSection(ctx),
     ctx.memory ? '' : null,
     ctx.memory ? `Memória do usuário:\n${ctx.memory}` : null,
   ];

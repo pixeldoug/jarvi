@@ -1,0 +1,111 @@
+/**
+ * NoteTranscriptTab styles
+ */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sizes-3);
+  flex-wrap: wrap;
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+}
+
+/* Opened by the upload buttons */
+.fileInput {
+  display: none;
+}
+
+.consent {
+  flex: 1 1 240px;
+  margin: 0;
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.segments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.segment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+}
+
+.time {
+  font-family: var(--typography-label-sm-font-family);
+  font-size: var(--typography-label-sm-font-size);
+  font-weight: var(--typography-label-sm-font-weight);
+  line-height: var(--typography-label-sm-line-height);
+  letter-spacing: var(--typography-label-sm-letter-spacing);
+  color: var(--semantic-content-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.text {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--sizes-2);
+  font-family: var(--typography-body-sm-font-family);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  color: var(--semantic-content-secondary);
+}
+
+.statusDot {
+  width: var(--sizes-15);
+  height: var(--sizes-15);
+  border-radius: var(--radius-round);
+  background: var(--semantic-content-secondary);
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .statusDot {
+    animation: none;
+  }
+}

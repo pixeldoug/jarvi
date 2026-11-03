@@ -25,6 +25,32 @@ Do not invent a second portal or nested `createPortal` to stack on purpose.
 
 UI primitives live in `src/components/ui/` (see `src/components/ui/index.ts`). Import those. Do not fork Button, Dialog, TextInput, `ListCard`, or other primitives in feature folders.
 
+## Segmented controls
+
+To switch between a few views or sections (Semana / Mês, a note's Notas / Resumo / Transcrição), use **`SegmentedControl`** from `src/components/ui`. Do not build a bordered row of `Button`s with `active`, a custom tab bar, or a second pill style.
+
+- `display="labels"` (default): every segment shows its label (+ optional icon).
+- `display="compact"`: only the active segment shows its label; the others are icon-only with a tooltip. Every item needs an `icon`.
+- `semantics="radio"` (default) for a view switch; `semantics="tabs"` when segments control tab panels (pass `id` + `panelId` per item and label the panel with the active `id`).
+
+The active pill is taller than the track and slides between segments. The component reserves that overflow in its own box, so space it like any other element. Content that should move with the selection can reuse `SEGMENTED_CONTROL_TRANSITION`.
+
+```tsx
+/* ❌ BAD — hand-rolled switch */
+<div className={styles.viewSwitch}>
+  <Button variant="ghost" active={view === 'week'} onClick={() => setView('week')}>Semana</Button>
+  <Button variant="ghost" active={view === 'month'} onClick={() => setView('month')}>Mês</Button>
+</div>
+
+/* ✅ GOOD */
+<SegmentedControl
+  items={[{ value: 'week', label: 'Semana' }, { value: 'month', label: 'Mês' }]}
+  value={view}
+  onChange={setView}
+  aria-label="Alternar visualização"
+/>
+```
+
 ## Banned: red hover on row delete icons
 
 A trash / remove control on a list or composer **row** is a quiet affordance, not a destructive CTA. Do not turn it red (or pink) on hover, and do not pair it with a red or tinted circular hit area.
@@ -106,7 +132,39 @@ Never give a text field, textarea, search box, composer, OTP cell, or their visu
 
 Default field radius is `var(--radius-sm)` (12px), as on `TextInput` / `PasswordInput` / `TextArea` / `OtpInput`. `--radius-md` or `--radius-lg` is fine when matching a nearby surface. `--radius-round` stays valid for chips, switches, avatars, and scrollbar thumbs — not for typing fields.
 
+## Scrollbars
+
+The app has **one** scrollbar, and the note page is the reference. It lives in `src/styles/globals.css` and reaches every scroll container on its own: 6px wide, transparent track, `--semantic-border-primary` pill thumb, `--semantic-content-secondary` on hover. To change the look, change `globals.css`, never one component.
+
+- **Default:** give the container `overflow: auto` and nothing else. Do not write `::-webkit-scrollbar*` rules, `scrollbar-width: thin`, or `scrollbar-color` in a component. In Chromium those two properties replace the shared bar with the native one.
+- **Panel body:** a scroll area that is a whole card's or panel's body (the main card's body, the note page, the sidebar, the calendar surfaces, the chat, the Settings canvas) composes the half-height variant. On desktop its track is inset by a quarter at each end, so the bar is half as tall and centered, as on the note page:
+
+  ```css
+  .body {
+    composes: scrollbar-panel from global;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  ```
+
+  The variant makes the area a size container (`container-type: size`), so its width and height must come from the layout (`flex: 1`, a fixed height, a stretched column), never from its content, or it collapses. If the area has vertical padding, set `--scrollbar-panel-padding-block` to its top + bottom padding, or the bar comes out taller than half. Lists inside menus, popovers, pickers, and inputs keep the default full-length bar.
+- **By the card edge:** `MainLayout`'s scrolling body already bleeds over the card's right padding so its bar sits by the card's edge. A page that scrolls itself inside the card bleeds the same way (the note page's `.page`, the calendar's host in `Tasks.module.css`), using `--main-padding-x` / `--main-padding-top` and moving the same space back inside as padding, instead of leaving the bar inside the card's padding. The bar never touches an edge: a scroll area that reaches a card's or dialog's edge (the Settings canvas) stops 8px (`--sizes-2`) short of it. `Dialog` does this for its content on its own, reading `--dialog-padding-x`: a dialog that changes its side padding sets that variable too (`0px` when it has none) and insets its own scroller, and a scroller nested in the content bleeds with `--dialog-content-bleed`.
+- **Hidden:** a horizontal strip that scrolls by swipe (chips, tabs, week nav) may hide its bar with `scrollbar-width: none;` plus `.strip::-webkit-scrollbar { display: none; }`. This is the only scrollbar rule allowed in a component.
+
+```css
+/* ❌ BAD — a second scrollbar */
+.list { overflow-y: auto; scrollbar-width: thin; }
+.list::-webkit-scrollbar { width: 4px; }
+.list::-webkit-scrollbar-thumb { background: var(--semantic-surface-tertiary); }
+
+/* ✅ GOOD — the shared one */
+.list { overflow-y: auto; }
+```
+
 ## Self-check
+
+Scrollbars: `grep -rnE "webkit-scrollbar|scrollbar-(width|color)" packages/web/src --include='*.css'` should only list `globals.css` and hidden strips (`display: none` / `scrollbar-width: none`).
 
 Nested dialogs are **runtime** state. Grep is a hint, not proof:
 

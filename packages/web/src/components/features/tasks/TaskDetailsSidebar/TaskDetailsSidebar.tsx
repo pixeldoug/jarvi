@@ -5,8 +5,8 @@
  * Following JarviDS design system from Figma
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Calendar, Hash, Fire, Sparkle, Bell, Repeat, ArrowsOutSimple, ArrowsInSimple } from '@phosphor-icons/react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { Calendar, Hash, Fire, Sparkle, Bell, Repeat, Trash } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -17,13 +17,16 @@ import { PriorityPicker, type Priority } from '../PriorityPicker';
 import { CategoryPicker } from '../CategoryPicker';
 import { FrequencyPicker, type FrequencyValue } from '../FrequencyPicker';
 import { ReminderPicker } from '../ReminderPicker';
-import { Button, Chip } from '../../../ui';
+import { Button, Chip, Tooltip } from '../../../ui';
+import { NoteActionsMenu } from '../../notes/NoteActionsMenu';
+import { useScrollFade } from '../../notes/useScrollFade';
 import { parseDateString } from '../../../../lib/utils';
 import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recurrence';
 import { formatRemindersChipLabel } from '../../../../lib/reminders';
 import { toast } from '../../../ui/Sonner';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
 import { TaskDetailsFooter } from './TaskDetailsFooter';
+import { TaskPeekToolbar, type TaskPeekMode } from './TaskPeekToolbar';
 import styles from './TaskDetailsSidebar.module.css';
 
 export interface TaskDetailsSidebarProps {
@@ -40,8 +43,15 @@ export interface TaskDetailsSidebarProps {
   onCollapse?: () => void;
   /** Layout variant: sidebar (right panel) or expanded (center column) */
   variant?: 'sidebar' | 'expanded';
-  /** Show close (X) in expanded mode — e.g. after the user closes task-mode chat */
+  /** Show the back button in expanded mode — e.g. after the user closes task-mode chat */
   showCloseButton?: boolean;
+  /** The peek toolbar's default-open switch (Painel lateral / Página inteira) */
+  peekMode?: TaskPeekMode;
+  onPeekModeChange?: (mode: TaskPeekMode) => void;
+  /** The peek toolbar's arrows: undefined when there's no task before / after */
+  onPrevious?: () => void;
+  onNext?: () => void;
+  showNavigation?: boolean;
 }
 
 export function TaskDetailsSidebar({
@@ -56,6 +66,11 @@ export function TaskDetailsSidebar({
   onCollapse,
   variant = 'sidebar',
   showCloseButton = false,
+  peekMode,
+  onPeekModeChange,
+  onPrevious,
+  onNext,
+  showNavigation,
 }: TaskDetailsSidebarProps) {
   const { createCategory } = useCategories();
   const mergedTaskCategories = useMergedTaskCategories();
@@ -82,6 +97,8 @@ export function TaskDetailsSidebar({
   const [showFrequencyPicker, setShowFrequencyPicker] = useState(false);
   const [showReminderPicker, setShowReminderPicker] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleAreaRef = useRef<HTMLTextAreaElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [isTitleMultiLine, setIsTitleMultiLine] = useState(false);
   const skipTitleBlurSaveRef = useRef(false);
@@ -90,6 +107,29 @@ export function TaskDetailsSidebar({
   const categoryChipRef = useRef<HTMLDivElement>(null);
   const frequencyChipRef = useRef<HTMLDivElement>(null);
   const reminderChipRef = useRef<HTMLDivElement>(null);
+
+  useScrollFade(pageRef);
+
+  // Expanded title: a textarea (as on the note page) so long titles wrap; it
+  // grows with its content and never holds a line break. Re-fits whenever its
+  // width changes (window resize, the card sliding in or opening mid-layout).
+  useLayoutEffect(() => {
+    const el = titleAreaRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    let lastWidth = el.offsetWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.offsetWidth === lastWidth) return;
+      lastWidth = el.offsetWidth;
+      fit();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [titleDraft, variant]);
 
   // Update local state when task changes
   useEffect(() => {
@@ -644,22 +684,259 @@ export function TaskDetailsSidebar({
     high: 'Urgente',
   };
 
-  const sidebarClasses = [
-    styles.sidebar,
-    variant === 'expanded' && styles.expanded,
-  ].filter(Boolean).join(' ');
-
   const headerClasses = [
     styles.header,
     isTitleMultiLine && styles.headerMultiLine,
   ].filter(Boolean).join(' ');
 
+  // Chips: Date, Category, Priority, Recurrence, Reminders
+  const chips = (
+    <div className={styles.chipsContainer}>
+      <div ref={dateChipRef} style={{ display: 'inline-flex' }}>
+        <Chip
+          label={formatDateChip()}
+          icon={<Calendar size={16} weight="regular" />}
+          size="medium"
+          interactive
+          active={showDatePicker || !!selectedDate || !!selectedTime}
+          onClick={handleDateChipClick}
+          onClear={selectedDate ? handleDateClear : undefined}
+        />
+      </div>
+
+      {/* Date Picker Popover */}
+      <TaskDatePicker
+        isOpen={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        selectedDate={selectedDate || undefined}
+        onDateSelect={handleDateSelect}
+        onTimeSelect={handleTimeSelect}
+        selectedTime={selectedTime || undefined}
+        anchorRef={dateChipRef}
+      />
+      <div ref={categoryChipRef} style={{ display: 'inline-flex' }}>
+        <Chip
+          label={task.category || 'Categoria'}
+          icon={<Hash size={16} weight="regular" />}
+          size="medium"
+          interactive
+          active={showCategoryPicker || !!task.category}
+          onClick={() => setShowCategoryPicker(prev => !prev)}
+          onClear={task.category ? handleCategoryClear : undefined}
+        />
+      </div>
+      
+      {/* Category Picker */}
+      <CategoryPicker
+        isOpen={showCategoryPicker}
+        onClose={() => setShowCategoryPicker(false)}
+        categories={mergedTaskCategories}
+        selectedCategory={task.category || undefined}
+        onSelectCategory={handleCategorySelect}
+        onCreateCategory={handleCreateCategory}
+        anchorRef={categoryChipRef}
+      />
+      
+      <div ref={priorityChipRef} style={{ display: 'inline-flex' }}>
+        <Chip
+          label={task.priority ? (priorityLabels[task.priority] || task.priority) : 'Prioridade'}
+          icon={<Fire size={16} weight="regular" />}
+          size="medium"
+          interactive
+          active={showPriorityPicker || !!task.priority}
+          onClick={() => setShowPriorityPicker(prev => !prev)}
+          onClear={task.priority ? handlePriorityClear : undefined}
+        />
+      </div>
+      
+      {/* Priority Picker */}
+      <PriorityPicker
+        isOpen={showPriorityPicker}
+        onClose={() => setShowPriorityPicker(false)}
+        selectedPriority={task.priority as Priority | undefined}
+        onPrioritySelect={handlePrioritySelect}
+        anchorRef={priorityChipRef}
+      />
+
+      <div ref={frequencyChipRef} style={{ display: 'inline-flex' }}>
+        <Chip
+          label={formatFrequencyChip(currentFrequency.recurrenceType, currentFrequency.recurrenceConfig) || 'Recorrência'}
+          icon={<Repeat size={16} weight="regular" />}
+          size="medium"
+          interactive
+          active={showFrequencyPicker || currentFrequency.recurrenceType !== 'none'}
+          onClick={() => setShowFrequencyPicker((prev) => !prev)}
+          onClear={currentFrequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
+        />
+      </div>
+
+      {/* Frequency Picker */}
+      <FrequencyPicker
+        isOpen={showFrequencyPicker}
+        onClose={() => setShowFrequencyPicker(false)}
+        anchorRef={frequencyChipRef}
+        value={currentFrequency}
+        onChange={handleFrequencyChange}
+        baseDate={selectedDate || undefined}
+      />
+
+      <div ref={reminderChipRef} style={{ display: 'inline-flex' }}>
+        <Chip
+          label={formatRemindersChipLabel(reminders)}
+          icon={<Bell size={16} weight="regular" />}
+          size="medium"
+          interactive
+          active={reminders.length > 0 || showReminderPicker}
+          onClick={() => setShowReminderPicker((prev) => !prev)}
+          onClear={reminders.length > 0 ? handleRemindersClear : undefined}
+        />
+      </div>
+
+      <ReminderPicker
+        isOpen={showReminderPicker}
+        onClose={() => setShowReminderPicker(false)}
+        anchorRef={reminderChipRef}
+        reminders={reminders}
+        onChange={handleRemindersChange}
+        taskDueDate={selectedDate}
+        taskDueTime={selectedTime}
+      />
+    </div>
+  );
+
+  if (variant === 'expanded') {
+    const menuItems = [
+      ...(onOpenChat && showCloseButton ? [{ label: 'Abrir assistente AI', onSelect: onOpenChat }] : []),
+    ];
+
+    // Same layout as the note page (NoteDetailView): full-width top bar over a
+    // centered document column, all in one scroll area with faded edges.
+    return (
+      <div
+        ref={pageRef}
+        className={styles.page}
+        role="complementary"
+        aria-label="Detalhes da tarefa"
+        data-peek-root
+      >
+        <div className={styles.topBar}>
+          <TaskPeekToolbar
+            variant="full"
+            onClose={showCloseButton ? onClose : undefined}
+            onToggleSize={onCollapse}
+            peekMode={peekMode}
+            onPeekModeChange={onPeekModeChange}
+            onPrevious={onPrevious}
+            onNext={onNext}
+            showNavigation={showNavigation}
+          />
+          <div className={styles.topBarActions}>
+            <TaskDetailsFooter task={task} />
+            {onDelete && (
+              <Tooltip label="Excluir" position="bottom">
+                <Button
+                  variant="secondary"
+                  size="medium"
+                  icon={Trash}
+                  iconPosition="icon-only"
+                  aria-label="Excluir tarefa"
+                  onClick={handleDeleteClick}
+                />
+              </Tooltip>
+            )}
+            {menuItems.length > 0 && (
+              <NoteActionsMenu triggerVariant="secondary" triggerSize="medium" items={menuItems} />
+            )}
+          </div>
+        </div>
+
+        <div className={styles.column}>
+          <div className={styles.pageHeader}>
+            <TaskCheckbox
+              checked={task.completed}
+              onChange={handleToggleCompletionClick}
+              ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+              size="large"
+            />
+            <textarea
+              ref={titleAreaRef}
+              className={styles.pageTitleInput}
+              rows={1}
+              value={titleDraft}
+              aria-label="Título da tarefa"
+              onFocus={() => setIsEditingTitle(true)}
+              onChange={(e) => setTitleDraft(e.target.value.replace(/[\r\n]+/g, ' '))}
+              onBlur={() => {
+                if (skipTitleBlurSaveRef.current) {
+                  skipTitleBlurSaveRef.current = false;
+                  return;
+                }
+                void handleTitleSave();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  skipTitleBlurSaveRef.current = true;
+                  handleTitleCancel();
+                  e.currentTarget.blur();
+                }
+              }}
+            />
+          </div>
+
+          {chips}
+
+          <RichTextEditor
+            content={description}
+            onChange={handleDescriptionChange}
+            onBlur={handleDescriptionSave}
+            placeholder="Adicione uma descrição. Digite / para comandos rápidos."
+            variant="document"
+            ariaLabel="Descrição da tarefa"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
-      className={sidebarClasses}
+      className={styles.sidebar}
       role="complementary"
       aria-label="Detalhes da tarefa"
+      data-peek-root
     >
+      {/* Peek toolbar (close, page size, default open, prev / next) + the assistant */}
+      <div className={styles.peekBar}>
+        <TaskPeekToolbar
+          variant="side"
+          onClose={onClose}
+          onToggleSize={onExpand}
+          peekMode={peekMode}
+          onPeekModeChange={onPeekModeChange}
+          onPrevious={onPrevious}
+          onNext={onNext}
+          showNavigation={showNavigation}
+        />
+        {onOpenChat && (
+          <Tooltip label="Abrir assistente AI" position="bottom" showDelay={300}>
+            <Button
+              variant="ghost"
+              size="small"
+              icon={Sparkle}
+              iconPosition="icon-only"
+              onClick={onOpenChat}
+              aria-label="Abrir assistente AI"
+            />
+          </Tooltip>
+        )}
+      </div>
+
       {/* Header + chips grouped as in Figma task details */}
       <div className={styles.topSection}>
       {/* Header: Checkbox + Title + Action Buttons (same flex row) */}
@@ -716,159 +993,9 @@ export function TaskDetailsSidebar({
             </div>
           )}
         </div>
-
-        {(variant !== 'expanded' || showCloseButton) && (
-          <div className={styles.headerActions}>
-            {variant === 'sidebar' && onExpand && (
-              <Button
-                variant="ghost"
-                icon={ArrowsOutSimple}
-                iconPosition="icon-only"
-                onClick={onExpand}
-                aria-label="Expandir para tela cheia"
-              />
-            )}
-            {variant === 'expanded' && onCollapse && (
-              <Button
-                variant="ghost"
-                icon={ArrowsInSimple}
-                iconPosition="icon-only"
-                onClick={onCollapse}
-                aria-label="Recolher para a sidebar"
-              />
-            )}
-            {onOpenChat && (variant !== 'expanded' || showCloseButton) && (
-              <Button
-                variant="secondary"
-                icon={Sparkle}
-                iconPosition="icon-only"
-                onClick={onOpenChat}
-                aria-label="Abrir assistente AI"
-              />
-            )}
-            <Button
-              variant="secondary"
-              icon={X}
-              iconPosition="icon-only"
-              onClick={onClose}
-              aria-label={variant === 'expanded' ? 'Voltar para lista de tarefas' : 'Fechar sidebar'}
-            />
-          </div>
-        )}
       </div>
 
-      {/* Chips: Date, Category, Priority */}
-      <div className={styles.chipsContainer}>
-        <div ref={dateChipRef} style={{ display: 'inline-flex' }}>
-          <Chip
-            label={formatDateChip()}
-            icon={<Calendar size={16} weight="regular" />}
-            size="medium"
-            interactive
-            active={showDatePicker || !!selectedDate || !!selectedTime}
-            onClick={handleDateChipClick}
-            onClear={selectedDate ? handleDateClear : undefined}
-          />
-        </div>
-
-        {/* Date Picker Popover */}
-        <TaskDatePicker
-          isOpen={showDatePicker}
-          onClose={() => setShowDatePicker(false)}
-          selectedDate={selectedDate || undefined}
-          onDateSelect={handleDateSelect}
-          onTimeSelect={handleTimeSelect}
-          selectedTime={selectedTime || undefined}
-          anchorRef={dateChipRef}
-        />
-        <div ref={categoryChipRef} style={{ display: 'inline-flex' }}>
-          <Chip
-            label={task.category || 'Categoria'}
-            icon={<Hash size={16} weight="regular" />}
-            size="medium"
-            interactive
-            active={showCategoryPicker || !!task.category}
-            onClick={() => setShowCategoryPicker(prev => !prev)}
-            onClear={task.category ? handleCategoryClear : undefined}
-          />
-        </div>
-        
-        {/* Category Picker */}
-        <CategoryPicker
-          isOpen={showCategoryPicker}
-          onClose={() => setShowCategoryPicker(false)}
-          categories={mergedTaskCategories}
-          selectedCategory={task.category || undefined}
-          onSelectCategory={handleCategorySelect}
-          onCreateCategory={handleCreateCategory}
-          anchorRef={categoryChipRef}
-        />
-        
-        <div ref={priorityChipRef} style={{ display: 'inline-flex' }}>
-          <Chip
-            label={task.priority ? (priorityLabels[task.priority] || task.priority) : 'Prioridade'}
-            icon={<Fire size={16} weight="regular" />}
-            size="medium"
-            interactive
-            active={showPriorityPicker || !!task.priority}
-            onClick={() => setShowPriorityPicker(prev => !prev)}
-            onClear={task.priority ? handlePriorityClear : undefined}
-          />
-        </div>
-        
-        {/* Priority Picker */}
-        <PriorityPicker
-          isOpen={showPriorityPicker}
-          onClose={() => setShowPriorityPicker(false)}
-          selectedPriority={task.priority as Priority | undefined}
-          onPrioritySelect={handlePrioritySelect}
-          anchorRef={priorityChipRef}
-        />
-
-        <div ref={frequencyChipRef} style={{ display: 'inline-flex' }}>
-          <Chip
-            label={formatFrequencyChip(currentFrequency.recurrenceType, currentFrequency.recurrenceConfig) || 'Recorrência'}
-            icon={<Repeat size={16} weight="regular" />}
-            size="medium"
-            interactive
-            active={showFrequencyPicker || currentFrequency.recurrenceType !== 'none'}
-            onClick={() => setShowFrequencyPicker((prev) => !prev)}
-            onClear={currentFrequency.recurrenceType !== 'none' ? handleFrequencyClear : undefined}
-          />
-        </div>
-
-        {/* Frequency Picker */}
-        <FrequencyPicker
-          isOpen={showFrequencyPicker}
-          onClose={() => setShowFrequencyPicker(false)}
-          anchorRef={frequencyChipRef}
-          value={currentFrequency}
-          onChange={handleFrequencyChange}
-          baseDate={selectedDate || undefined}
-        />
-
-        <div ref={reminderChipRef} style={{ display: 'inline-flex' }}>
-          <Chip
-            label={formatRemindersChipLabel(reminders)}
-            icon={<Bell size={16} weight="regular" />}
-            size="medium"
-            interactive
-            active={reminders.length > 0 || showReminderPicker}
-            onClick={() => setShowReminderPicker((prev) => !prev)}
-            onClear={reminders.length > 0 ? handleRemindersClear : undefined}
-          />
-        </div>
-
-        <ReminderPicker
-          isOpen={showReminderPicker}
-          onClose={() => setShowReminderPicker(false)}
-          anchorRef={reminderChipRef}
-          reminders={reminders}
-          onChange={handleRemindersChange}
-          taskDueDate={selectedDate}
-          taskDueTime={selectedTime}
-        />
-      </div>
+      {chips}
       </div>
 
       {/* Description - Rich Text Editor */}

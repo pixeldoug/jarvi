@@ -1,0 +1,31 @@
+/**
+ * Notes page styles
+ */
+
+/* AIChatPanel host inside MainLayout's right sidebar / mobile sheet */
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sizes-4);
+  min-height: 320px;
+  text-align: center;
+}
+
+.errorText {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  color: var(--semantic-content-secondary);
+}

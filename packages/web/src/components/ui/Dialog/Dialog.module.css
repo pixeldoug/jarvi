@@ -56,7 +56,10 @@
   flex-direction: column;
   gap: var(--sizes-10);
   
-  padding: var(--sizes-10) var(--sizes-10) var(--sizes-14);
+  /* Side padding, also read by .content to reach the edge: a dialog that
+     changes its side padding sets this too (0px when it has none) */
+  --dialog-padding-x: var(--sizes-10);
+  padding: var(--sizes-10) var(--dialog-padding-x) var(--sizes-14);
   border-radius: 18px;
   
   /* Gradient background */
@@ -69,30 +72,6 @@
   
   /* Max height without overflow - content will scroll */
   max-height: calc(100vh - 80px);
-}
-
-/* Custom Scrollbar */
-.content::-webkit-scrollbar {
-  width: 12px;
-}
-
-.content::-webkit-scrollbar-track {
-  background: var(--semantic-surface-secondary);
-}
-
-.content::-webkit-scrollbar-thumb {
-  background: var(--semantic-content-tertiary);
-  border-radius: var(--sizes-2);
-}
-
-.content::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
-/* Firefox scrollbar */
-.content {
-  scrollbar-width: thin;
-  scrollbar-color: var(--semantic-content-tertiary) var(--semantic-surface-secondary);
 }
 
 @keyframes dialogSlideIn {
@@ -193,6 +172,20 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+/*
+ * Desktop: the content bleeds over the dialog's right padding so its scrollbar
+ * sits 8px off the dialog's edge, as on the cards, while the same space moved
+ * inside keeps the content where it was. A scroll area nested in the content
+ * bleeds the same way with `--dialog-content-bleed`.
+ */
+@media (min-width: 769px) {
+  .content {
+    --dialog-content-bleed: max(var(--dialog-padding-x) - var(--sizes-2), 0px);
+    margin-right: calc(var(--dialog-content-bleed) * -1);
+    padding-right: var(--dialog-content-bleed);
+  }
 }
 
 /* ============================================================================

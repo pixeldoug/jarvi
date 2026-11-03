@@ -1,0 +1,54 @@
+/**
+ * DeleteNoteDialog styles
+ */
+
+.dialogContent {
+  gap: 0 !important;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+}
+
+.textBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.description {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sizes-2);
+  margin-top: var(--sizes-2);
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

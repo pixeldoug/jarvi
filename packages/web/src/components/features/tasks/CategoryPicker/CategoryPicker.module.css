@@ -125,23 +125,6 @@
   overflow-y: auto;
 }
 
-.categoryList::-webkit-scrollbar {
-  width: 6px;
-}
-
-.categoryList::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.categoryList::-webkit-scrollbar-thumb {
-  background: var(--semantic-content-tertiary);
-  border-radius: var(--radius-round);
-}
-
-.categoryList::-webkit-scrollbar-thumb:hover {
-  background: var(--semantic-content-secondary);
-}
-
 /* ============================================================================
    INPUT (Create State)
    ============================================================================ */
