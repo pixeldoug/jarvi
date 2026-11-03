@@ -776,10 +776,12 @@ const MAX_ORDER_IDS = 1000;
 
 /**
  * PATCH /api/tasks/order
- * Body: { ids: string[] }
+ * Body: { ids: string[]; offset?: number }
  *
- * Saves the order of one list group after a drag and drop: each task gets its
- * index in `ids` as its manual order. Tasks of other users are ignored.
+ * Saves the order of one list group after a drag and drop: each task gets
+ * `offset` + its index in `ids` as its manual order. A larger group is sent in
+ * chunks, each with the offset where it starts. Tasks of other users are
+ * ignored.
  */
 export const setTasksOrder = async (
   req: Request,
@@ -793,7 +795,7 @@ export const setTasksOrder = async (
       return;
     }
 
-    const { ids } = (req.body ?? {}) as { ids?: unknown };
+    const { ids, offset = 0 } = (req.body ?? {}) as { ids?: unknown; offset?: unknown };
     if (
       !Array.isArray(ids) ||
       ids.length === 0 ||
@@ -804,10 +806,14 @@ export const setTasksOrder = async (
       res.status(400).json({ error: `ids must list 1 to ${MAX_ORDER_IDS} distinct task ids` });
       return;
     }
+    if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0) {
+      res.status(400).json({ error: 'offset must be a non-negative integer' });
+      return;
+    }
 
     await writeSortOrders(
       userId,
-      (ids as string[]).map((id, index) => ({ id, sortOrder: index }))
+      (ids as string[]).map((id, index) => ({ id, sortOrder: offset + index }))
     );
 
     res.status(204).end();

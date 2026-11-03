@@ -204,7 +204,11 @@ function completedLast(tasks: Task[]): Task[] {
 /** Where a dragged task lands: in `sectionId`, right before `beforeTaskId` (null = at the end) */
 type DropTarget = { sectionId: string; beforeTaskId: string | null };
 
-/** How far beside a group the pointer may go and still drop in it (the drag handles' gutter) */
+/**
+ * How far from a group the pointer may go and still drop in it: beside it,
+ * the drag handles' gutter; above or below, the gap between groups. Farther
+ * away, releasing cancels the drag.
+ */
 const DROP_GUTTER_PX = 48;
 
 /**
@@ -237,6 +241,7 @@ const pointerDropCollision: CollisionDetection = ({
     const rect = droppableRects.get(container.id);
     if (!rect || point.x < rect.left - DROP_GUTTER_PX || point.x > rect.right + DROP_GUTTER_PX) continue;
     const distance = Math.max(rect.top - point.y, point.y - rect.bottom, 0);
+    if (distance > DROP_GUTTER_PX) continue;
     if (!group || distance < group.distance) group = { id: container.id, distance };
   }
   if (!group) return [];
@@ -289,8 +294,10 @@ function dropOrder(groupKey: GroupKey, groupTasks: Task[], task: Task, target: D
 const isOnDragHandle = (target: EventTarget | null) =>
   target instanceof Element && !!target.closest('[data-drag-handle]');
 
-/** Controls inside a row keep their own press (typing, ticking, picking) */
-const ROW_CONTROLS = 'input, textarea, button, select, [contenteditable="true"]';
+/** Controls inside a row keep their own press (typing, ticking, picking a date or category) */
+const ROW_CONTROLS =
+  'input, textarea, button, select, a[href], [role="button"], [contenteditable="true"], ' +
+  '[data-date-chip], [data-category-chip], [data-frequency-chip]';
 
 /**
  * A press anywhere on a row can pick the task up: on its handle at once, with
@@ -1763,9 +1770,9 @@ export function Tasks() {
     }
 
     try {
-      // The group's new order, then the task's new date at its place in it
-      setTasksOrder(orderedIds).catch((error) => console.error('Erro ao reordenar tarefas:', error));
-      await updateTask(draggedTask.id, {
+      // The task's new date at its place in the group, then the group's new
+      // order, saved once that update is in (an earlier write can't land last)
+      const dateSaved = updateTask(draggedTask.id, {
         title: draggedTask.title,
         description: draggedTask.description,
         priority: draggedTask.priority,
@@ -1774,6 +1781,10 @@ export function Tasks() {
         dueDate: newDueDate,
         sortOrder: orderedIds.indexOf(draggedTask.id),
       }, false);
+      setTasksOrder(orderedIds, { after: dateSaved }).catch((error) =>
+        console.error('Erro ao reordenar tarefas:', error),
+      );
+      await dateSaved;
       
       // Clear moving state after animation completes (wait for both update and animation)
       // The task will now appear in the correct section naturally after the update

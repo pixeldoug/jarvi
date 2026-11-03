@@ -110,8 +110,12 @@ interface TaskContextType {
    * recurrence occurrences it created. Throws after reverting on failure.
    */
   setTasksCompleted: (taskIds: string[], completed: boolean) => Promise<Task[]>;
-  /** Saves a list group's order after a drag and drop: each task takes its index in `taskIds` */
-  setTasksOrder: (taskIds: string[]) => Promise<void>;
+  /**
+   * Saves a list group's order after a drag and drop: each task takes its
+   * index in `taskIds`. Saves reach the server in call order, each one after
+   * `after` (another write of the same drop) settles.
+   */
+  setTasksOrder: (taskIds: string[], options?: { after?: Promise<unknown> }) => Promise<void>;
   subtasksByTaskId: Record<string, SubTask[]>;
   fetchSubTasks: (taskId: string) => Promise<void>;
   createSubTask: (taskId: string, title: string) => Promise<SubTask>;
@@ -136,6 +140,9 @@ export const useTasks = () => {
 interface TaskProviderProps {
   children: ReactNode;
 }
+
+/** Ids per PATCH /api/tasks/order (the route's limit) */
+const ORDER_CHUNK = 1000;
 
 const sortTasks = (tasks: Task[]): Task[] => {
   return [...tasks].sort((a, b) => {
@@ -554,7 +561,13 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     }
   }, [token, queryClient]);
 
-  const setTasksOrder = useCallback(async (taskIds: string[]) => {
+  // Order saves in drag order: two quick drags never land newest-first
+  const orderSaveQueue = useRef<Promise<unknown>>(Promise.resolve());
+
+  const setTasksOrder = useCallback(async (
+    taskIds: string[],
+    options?: { after?: Promise<unknown> },
+  ) => {
     if (!token || taskIds.length === 0) return;
 
     const orderById = new Map(taskIds.map((id, index) => [id, index]));
@@ -564,8 +577,22 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
       ),
     );
 
+    const save = orderSaveQueue.current
+      .catch(() => undefined)
+      .then(() => options?.after?.catch(() => undefined))
+      .then(async () => {
+        // The route takes up to ORDER_CHUNK ids at a time, placed from `offset`
+        for (let offset = 0; offset < taskIds.length; offset += ORDER_CHUNK) {
+          await apiClient.patch('/api/tasks/order', {
+            ids: taskIds.slice(offset, offset + ORDER_CHUNK),
+            offset,
+          });
+        }
+      });
+    orderSaveQueue.current = save;
+
     try {
-      await apiClient.patch('/api/tasks/order', { ids: taskIds });
+      await save;
     } catch (err) {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       throw err;
