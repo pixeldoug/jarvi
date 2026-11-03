@@ -856,6 +856,7 @@ export function TaskDetailsSidebar({
               checked={task.completed}
               onChange={handleToggleCompletionClick}
               ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+              celebrate
               size="large"
             />
             <textarea
@@ -946,6 +947,7 @@ export function TaskDetailsSidebar({
             checked={task.completed}
             onChange={handleToggleCompletionClick}
             ariaLabel={task.completed ? 'Marcar como não concluída' : 'Marcar como concluída'}
+            celebrate
             size="large"
           />
           {isEditingTitle ? (
