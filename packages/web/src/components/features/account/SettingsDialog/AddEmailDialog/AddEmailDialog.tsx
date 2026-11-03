@@ -87,16 +87,10 @@ export function AddEmailDialog({ isOpen, onClose }: AddEmailDialogProps) {
     setError('');
     try {
       setIsResending(true);
-      const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
-      const response = await fetch(`${apiUrl}/api/auth/resend-verification`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Não foi possível reenviar o código.');
-      }
+      // The email is still pending on this account, so re-requesting it issues
+      // a fresh code (the public resend only knows confirmed addresses).
+      const result = await addEmailToWhatsappAccount(trimmedEmail, password);
+      setLocalCode(result.devCode || null);
       toast.success('Enviamos um novo código para este email.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível reenviar o código.');

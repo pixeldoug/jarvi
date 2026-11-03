@@ -11,9 +11,15 @@ export interface ResolvedClient {
 const metadataCache = new Map<string, { at: number; client: ResolvedClient }>();
 const CACHE_MS = 10 * 60 * 1000;
 
+// Anyone can register a client, and its name is shown on our consent screen,
+// so a name that reads as "Jarvi" (any case, spacing or 1/l/! for the i) would
+// pass a phishing client off as us.
+const IMPERSONATES_JARVI = /j[\W_]*a[\W_]*r[\W_]*v[\W_]*[i1l!|]/i;
+
 function clientName(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback;
   const cleaned = value.replace(/[\u0000-\u001f]/g, '').trim().slice(0, 80);
+  if (IMPERSONATES_JARVI.test(cleaned.normalize('NFKC'))) return fallback;
   return cleaned || fallback;
 }
 

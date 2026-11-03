@@ -10,6 +10,7 @@ import {
   type NoteAccessLevel,
   type NotePatch,
 } from '../services/noteService';
+import { isSafeAttachmentUrl } from '../utils/attachmentUrl';
 
 // ---------------------------------------------------------------------------
 // Notas — JSON contract in services/noteService.ts (mirrored by the web's
@@ -56,9 +57,29 @@ function validateNoteDate(value: unknown): FieldError | null {
   return null;
 }
 
+/**
+ * Shared notes render `_attachments[].previewData` for every member (iframe
+ * src, download link), so refuse anything but the editor's own data/blob URLs.
+ */
+function hasUnsafeAttachment(value: string): boolean {
+  // Always parse: a raw-text pre-check would miss JSON escapes (`\u005fattachments`).
+  try {
+    const parsed = JSON.parse(value) as { _attachments?: unknown };
+    const attachments = parsed && typeof parsed === 'object' ? parsed._attachments : undefined;
+    if (attachments === undefined) return false;
+    if (!Array.isArray(attachments)) return true;
+    return attachments.some(
+      (a) => !a || typeof a !== 'object' || !isSafeAttachmentUrl((a as { previewData?: unknown }).previewData),
+    );
+  } catch {
+    return false; // not a TipTap doc (legacy plain text): nothing is rendered as a URL
+  }
+}
+
 function validateContent(value: unknown): FieldError | null {
   if (typeof value !== 'string') return { status: 400, error: 'invalid_content' };
   if (isTooLarge(value)) return { status: 413, error: 'content_too_large' };
+  if (hasUnsafeAttachment(value)) return { status: 400, error: 'invalid_attachment' };
   return null;
 }
 
@@ -66,6 +87,7 @@ function validateSummary(value: unknown): FieldError | null {
   if (value === null) return null;
   if (typeof value !== 'string') return { status: 400, error: 'invalid_summary' };
   if (isTooLarge(value)) return { status: 413, error: 'summary_too_large' };
+  if (hasUnsafeAttachment(value)) return { status: 400, error: 'invalid_attachment' };
   return null;
 }
 

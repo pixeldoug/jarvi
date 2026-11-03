@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
@@ -98,6 +99,110 @@ export const gmailResetProcessed = async (req: Request, res: Response): Promise<
 };
 
 // ---------------------------------------------------------------------------
+// OAuth state — HMAC-signed so the callback can't be pointed at another user
+// ---------------------------------------------------------------------------
+
+const GMAIL_STATE_TTL_MS = 10 * 60 * 1000;
+
+const gmailStateSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET environment variable is required');
+  return secret;
+};
+
+const signGmailStatePayload = (payload: string): string =>
+  crypto.createHmac('sha256', gmailStateSecret()).update(`gmail-oauth:${payload}`).digest('base64url');
+
+export const createGmailState = (userId: string): string => {
+  const payload = Buffer.from(
+    JSON.stringify({
+      uid: userId,
+      n: crypto.randomBytes(16).toString('base64url'),
+      exp: Date.now() + GMAIL_STATE_TTL_MS,
+    }),
+  ).toString('base64url');
+  return `${payload}.${signGmailStatePayload(payload)}`;
+};
+
+/** Returns the user id the state was issued to, or null if forged/expired. */
+export const verifyGmailState = (state: unknown): string | null => {
+  if (typeof state !== 'string') return null;
+  const [payload, signature, extra] = state.split('.');
+  if (!payload || !signature || extra !== undefined) return null;
+
+  const expected = Buffer.from(signGmailStatePayload(payload));
+  const actual = Buffer.from(signature);
+  if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) return null;
+
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf-8')) as {
+      uid?: unknown;
+      exp?: unknown;
+    };
+    if (typeof decoded.uid !== 'string' || typeof decoded.exp !== 'number') return null;
+    if (decoded.exp < Date.now()) return null;
+    return decoded.uid;
+  } catch {
+    return null;
+  }
+};
+
+const frontendGmailAppUrl = (params: Record<string, string>): string => {
+  const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+  return `${redirectBase}/apps?${new URLSearchParams({ app: 'gmail', ...params }).toString()}`;
+};
+
+// ---------------------------------------------------------------------------
+// Handoff — the tokens from the callback, AES-256-GCM encrypted, so the web
+// app can finish the link with the user's JWT. Only the user the state was
+// issued to can redeem it, and nothing in the browser URL is reusable on its
+// own (the OAuth code is already spent by then).
+// ---------------------------------------------------------------------------
+
+const GMAIL_HANDOFF_TTL_MS = 5 * 60 * 1000;
+
+interface GmailHandoff {
+  uid: string;
+  at: string;
+  rt: string;
+  exp: number;
+}
+
+const gmailHandoffKey = (): Buffer =>
+  crypto.createHash('sha256').update(`gmail-handoff:${gmailStateSecret()}`).digest();
+
+export const sealGmailHandoff = (handoff: GmailHandoff): string => {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', gmailHandoffKey(), iv);
+  const body = Buffer.concat([cipher.update(JSON.stringify(handoff), 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url');
+};
+
+export const openGmailHandoff = (sealed: unknown): GmailHandoff | null => {
+  if (typeof sealed !== 'string' || sealed.length > 8192) return null;
+  try {
+    const raw = Buffer.from(sealed, 'base64url');
+    if (raw.length < 29) return null;
+    const decipher = crypto.createDecipheriv('aes-256-gcm', gmailHandoffKey(), raw.subarray(0, 12));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    const json = Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8');
+    const handoff = JSON.parse(json) as Partial<GmailHandoff>;
+    if (
+      typeof handoff.uid !== 'string' ||
+      typeof handoff.at !== 'string' ||
+      typeof handoff.rt !== 'string' ||
+      typeof handoff.exp !== 'number' ||
+      handoff.exp < Date.now()
+    ) {
+      return null;
+    }
+    return handoff as GmailHandoff;
+  } catch {
+    return null;
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Gmail OAuth connect — redirects user to Google consent screen
 // ---------------------------------------------------------------------------
 
@@ -108,8 +213,7 @@ export const gmailConnect = (req: Request, res: Response): void => {
       return;
     }
 
-    // Encode userId in state so we can recover it on callback
-    const state = Buffer.from(JSON.stringify({ userId: req.user.id })).toString('base64url');
+    const state = createGmailState(req.user.id);
     const oauth2Client = createOAuth2Client();
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -129,53 +233,82 @@ export const gmailConnect = (req: Request, res: Response): void => {
 };
 
 // ---------------------------------------------------------------------------
-// Gmail OAuth callback — exchanges code for tokens and stores them
+// Gmail OAuth callback — Google redirects here without our bearer token, so
+// we can't tell which Jarvi user is in this browser. Spend the code right
+// away and hand the web app a sealed handoff; POST /complete then saves it
+// only for the user who started the flow (not, e.g., the victim of a connect
+// link an attacker sent them).
 // ---------------------------------------------------------------------------
 
 export const gmailCallback = async (req: Request, res: Response): Promise<void> => {
+  const { code, state, error: oauthError } = req.query as Record<string, string | undefined>;
+
+  if (oauthError) {
+    res.redirect(frontendGmailAppUrl({ gmail: 'error', reason: String(oauthError) }));
+    return;
+  }
+
+  const stateUserId = code && state ? verifyGmailState(state) : null;
+  if (!code || !stateUserId) {
+    res.redirect(frontendGmailAppUrl({ gmail: 'error', reason: 'invalid_state' }));
+    return;
+  }
+
   try {
-    const { code, state, error: oauthError } = req.query as Record<string, string>;
-
-    if (oauthError) {
-      const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-      res.redirect(`${redirectBase}/apps?app=gmail&gmail=error&reason=${oauthError}`);
-      return;
-    }
-
-    if (!code || !state) {
-      res.status(400).json({ error: 'Missing code or state' });
-      return;
-    }
-
-    let userId: string;
-    try {
-      const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8')) as {
-        userId: string;
-      };
-      userId = decoded.userId;
-    } catch {
-      res.status(400).json({ error: 'Invalid state parameter' });
-      return;
-    }
-
-    const oauth2Client = createOAuth2Client();
-    const { tokens } = await oauth2Client.getToken(code);
-
+    const { tokens } = await createOAuth2Client().getToken(code);
     if (!tokens.access_token || !tokens.refresh_token) {
-      const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-      res.redirect(`${redirectBase}/apps?app=gmail&gmail=error&reason=no_refresh_token`);
+      res.redirect(frontendGmailAppUrl({ gmail: 'error', reason: 'no_refresh_token' }));
       return;
     }
 
-    await saveGmailTokens(userId, {
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+    const handoff = sealGmailHandoff({
+      uid: stateUserId,
+      at: tokens.access_token,
+      rt: tokens.refresh_token,
+      exp: Date.now() + GMAIL_HANDOFF_TTL_MS,
     });
-
-    const redirectBase = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${redirectBase}/apps?app=gmail&gmail=connected`);
+    res.redirect(frontendGmailAppUrl({ gmail: 'confirm', handoff }));
   } catch (error) {
     console.error('[gmailController] callback error:', error);
+    res.redirect(frontendGmailAppUrl({ gmail: 'error', reason: 'token_exchange_failed' }));
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Gmail OAuth complete — saves the handoff's tokens for the signed-in user
+// ---------------------------------------------------------------------------
+
+export const gmailComplete = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const handoff = openGmailHandoff((req.body ?? {}).handoff);
+    if (!handoff) {
+      res.status(400).json({ error: 'invalid_handoff' });
+      return;
+    }
+
+    if (handoff.uid !== req.user.id) {
+      // Someone else's connect link: this user granted Gmail access to an
+      // account that isn't theirs. Kill the grant rather than leave it usable.
+      createOAuth2Client()
+        .revokeToken(handoff.rt)
+        .catch((error) => console.error('[gmailController] revoke after mismatch failed:', error));
+      res.status(403).json({ error: 'account_mismatch' });
+      return;
+    }
+
+    await saveGmailTokens(req.user.id, {
+      access_token: handoff.at,
+      refresh_token: handoff.rt,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[gmailController] complete error:', error);
     res.status(500).json({ error: 'Failed to complete Gmail OAuth' });
   }
 };

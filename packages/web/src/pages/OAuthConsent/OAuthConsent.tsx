@@ -15,7 +15,10 @@ export function OAuthConsentPage() {
 
   const clientId = params.get('client_id') || '';
   const redirectUri = params.get('redirect_uri') || '';
-  const clientName = params.get('client_name') || 'Um aplicativo';
+  // Name and destination come from the client's registration, never from this
+  // URL, which anyone can craft (e.g. client_name=Jarvi with their own redirect).
+  const [client, setClient] = useState<{ name: string; redirectHost: string } | null>(null);
+  const [clientError, setClientError] = useState(false);
   const payload = {
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -27,14 +30,36 @@ export function OAuthConsentPage() {
   };
 
   useEffect(() => {
+    if (!clientId || !redirectUri) return;
+    let cancelled = false;
+    const query = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri });
+    fetch(`${API_URL}/api/oauth/client?${query.toString()}`)
+      .then(async (response) => {
+        const data = (await response.json()) as { name?: string; redirect_host?: string };
+        if (cancelled) return;
+        if (!response.ok || !data.name || !data.redirect_host) {
+          setClientError(true);
+          return;
+        }
+        setClient({ name: data.name, redirectHost: data.redirect_host });
+      })
+      .catch(() => {
+        if (!cancelled) setClientError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, redirectUri]);
+
+  useEffect(() => {
     if (isLoading || token) return;
     const next = `/oauth/consent?${params.toString()}`;
     navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true });
   }, [isLoading, token, navigate, params]);
 
-  if (isLoading || !token || !user) return <Loading centered size="lg" />;
-
-  const missing = !clientId || !redirectUri || !payload.code_challenge;
+  const missing = !clientId || !redirectUri || !payload.code_challenge || clientError;
+  if (isLoading || !token || !user || (!missing && !client)) return <Loading centered size="lg" />;
+  const clientName = client?.name ?? 'Um aplicativo';
 
   const finish = async (decision: 'allow' | 'deny') => {
     setError('');
@@ -71,6 +96,10 @@ export function OAuthConsentPage() {
           <>
             <p className={styles.body}>
               {clientName} quer ler e alterar as tarefas de {user.name || user.email}. A conversa continua no aplicativo deles.
+            </p>
+            <p className={styles.body}>
+              Ao permitir, o acesso será enviado para <strong>{client?.redirectHost}</strong>. Só continue se
+              você reconhece esse endereço.
             </p>
             <p className={styles.body}>
               A conexão não envia WhatsApp, não faz ligação e não usa o modelo da Jarvi.

@@ -9,6 +9,7 @@ import {
   syncSubscriptionFromStripe,
 } from '../services/stripeService';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
+import { verifyCheckoutReference } from '../services/checkoutReference';
 
 /**
  * Record a Stripe webhook `event.id` so we don't double-apply side-effects when
@@ -213,10 +214,14 @@ router.post('/stripe', async (req: Request, res: Response) => {
  * back to our user record.
  *
  * Lookup order:
- *  1. session.client_reference_id  — set by frontend via ?client_reference_id=<userId>
- *     This is the most reliable method since it uses the Jarvi user ID directly.
- *  2. session.customer_details.email / session.customer_email — fallback for sessions
- *     where the frontend did not pass client_reference_id (e.g. direct link visits).
+ *  1. session.client_reference_id — a reference the backend signed for the
+ *     signed-in user (GET /api/subscriptions/checkout-reference). Payment Links
+ *     are public, so a bare or forged id is ignored: it would let anyone bind
+ *     their checkout (and its later cancellation) to another user.
+ *  2. session.customer_details.email / session.customer_email — fallback for
+ *     direct link visits. Stripe doesn't verify that email, so it only links a
+ *     verified Jarvi account that has no Stripe customer yet; it never replaces
+ *     an existing one.
  */
 async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session
@@ -244,9 +249,18 @@ async function handleCheckoutSessionCompleted(
     return;
   }
 
-  // 1. Try client_reference_id (most reliable — Jarvi user ID passed via payment link URL)
-  let user: { id: string; email: string } | null = session.client_reference_id
-    ? await getUserById(session.client_reference_id)
+  // 1. Signed client_reference_id (issued to the user who opened the link)
+  const referencedUserId = verifyCheckoutReference(
+    session.client_reference_id,
+    session.created * 1000
+  );
+  if (session.client_reference_id && !referencedUserId) {
+    console.warn('checkout.session.completed: ignoring unsigned or expired client_reference_id', {
+      sessionId: session.id,
+    });
+  }
+  let user: { id: string; email: string } | null = referencedUserId
+    ? await getUserById(referencedUserId)
     : null;
 
   if (user) {
@@ -261,14 +275,25 @@ async function handleCheckoutSessionCompleted(
       });
       return;
     }
-    user = await getUserByEmail(email);
-    if (!user) {
+    const byEmail = await getUserByEmail(email);
+    if (!byEmail) {
       console.error('checkout.session.completed: user not found by email', {
         email,
         sessionId: session.id,
       });
       return;
     }
+    const emailVerified = byEmail.email_verified === true || byEmail.email_verified === 1;
+    if (!emailVerified || (byEmail.stripe_customer_id && byEmail.stripe_customer_id !== customerId)) {
+      console.error('checkout.session.completed: email match not safe to link', {
+        sessionId: session.id,
+        userId: byEmail.id,
+        emailVerified,
+        hasOtherCustomer: Boolean(byEmail.stripe_customer_id),
+      });
+      return;
+    }
+    user = byEmail;
     console.log(`🔗 [email fallback] Linking Stripe subscription for ${user.email}`);
   }
 
