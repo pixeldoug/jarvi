@@ -9,6 +9,7 @@ import {
   chatCompletionsSamplingParams,
   getChatTitleModel,
   getNoteSummaryModel,
+  getNoteTaskMatchModel,
   getTextRewriteModel,
 } from './agent/core/models';
 import type { AgentTriadField } from './agent/core/types';
@@ -96,6 +97,7 @@ type OpenAiSpan =
   | 'onboarding_task_extraction'
   | 'onboarding_follow_up_order'
   | 'note_summary'
+  | 'note_task_matches'
   | 'note_transcription'
   | 'text_rewrite'
   | 'chat_title';
@@ -442,6 +444,39 @@ export const createNoteSummaryCompletion = async (
     if (finishReason !== 'length') break;
   }
   throw new Error(`Note summary returned no JSON (finish_reason=${finishReason ?? 'unknown'})`);
+};
+
+const NOTE_TASK_MATCH_MAX_COMPLETION_TOKENS = 1500;
+/** The dialog waits for this call: past it, the texts' own matches are used. */
+const NOTE_TASK_MATCH_TIMEOUT_MS = 15_000;
+
+/**
+ * Notas: one JSON-mode completion that says which next steps the user already
+ * has as open tasks. The prompt and the parsing live in `noteService`; this
+ * only owns the client and telemetry. No retry: the caller falls back to the
+ * texts' own matches. Throws when the call fails.
+ */
+export const createNoteTaskMatchCompletion = async (
+  messages: { system: string; user: string },
+  telemetry?: AiTelemetryOptions,
+): Promise<Record<string, unknown>> => {
+  const openai = getOpenAIClient();
+  const model = getNoteTaskMatchModel();
+  const response = await openai.chat.completions.create(
+    {
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: messages.system },
+        { role: 'user', content: messages.user },
+      ],
+      max_completion_tokens: NOTE_TASK_MATCH_MAX_COMPLETION_TOKENS,
+      ...chatCompletionsSamplingParams(model),
+      ...buildPosthogParams('note_task_matches', telemetry),
+    },
+    { timeout: NOTE_TASK_MATCH_TIMEOUT_MS, maxRetries: 0 },
+  );
+  return safeJsonParse(response.choices[0]?.message?.content);
 };
 
 const TEXT_REWRITE_MAX_COMPLETION_TOKENS = 4000;

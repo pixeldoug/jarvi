@@ -93,9 +93,22 @@
   background-color: transparent;
 }
 
-.itemText {
+.rowMatched {
+  height: auto;
+  min-height: var(--size-target-standard, 48px);
+  padding-block: var(--sizes-2);
+}
+
+/* The title, and under it what happens to a step the user already has */
+.itemMain {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-05);
+}
+
+.itemText {
   font-family: var(--font-font-family-font-ui);
   font-size: var(--typography-label-md-font-size);
   font-weight: var(--typography-label-md-font-weight);
@@ -109,6 +122,18 @@
 
 .rowLinked .itemText {
   color: var(--semantic-content-secondary);
+}
+
+.itemNote {
+  font-family: var(--font-font-family-font-ui);
+  font-size: var(--typography-body-sm-font-size);
+  font-weight: var(--typography-body-sm-font-weight);
+  line-height: var(--typography-body-sm-line-height);
+  letter-spacing: var(--typography-body-sm-letter-spacing);
+  color: var(--semantic-content-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chips {
@@ -126,6 +151,13 @@
 }
 
 @media (max-width: 480px) {
+  /* "Criar nova" leaves little room on a phone: the step and its note wrap */
+  .rowMatched .itemText,
+  .itemNote {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .actions {
     flex-direction: column-reverse;
     align-items: stretch;

@@ -105,16 +105,16 @@ export interface NoteSummaryResponse {
   preview: string;
 }
 
-/** A task created from one of the summary's next steps. */
 /**
- * One requested next step, in request order: `created` now, `existing` (the
- * step already had a task), `needs_review` (may repeat a step with a task;
- * the user has not answered) or `stale` (not in the saved summary anymore).
- * No task for the last two (`id` null).
+ * One requested next step, in request order: `created` now, `linked` (tied to
+ * the task the user already had, as they chose), `existing` (the step already
+ * had a task), `needs_review` (may repeat a step with a task; the user has not
+ * answered) or `stale` (not in the saved summary anymore, or the chosen task
+ * is gone). No task for the last two (`id` null).
  */
 export interface NoteCreatedTask {
   step_id: string;
-  status: 'created' | 'existing' | 'needs_review' | 'stale';
+  status: 'created' | 'linked' | 'existing' | 'needs_review' | 'stale';
   id: string | null;
   title: string;
   /** `YYYY-MM-DD` when the text named a concrete day */
@@ -122,6 +122,21 @@ export interface NoteCreatedTask {
   /** `HH:MM` */
   time: string | null;
   category: string | null;
+}
+
+/** An open task the user already has that may be one of the next steps sent. */
+export interface NoteTaskMatch {
+  /** Position of the step's text in the request */
+  index: number;
+  task: {
+    id: string;
+    title: string;
+    /** `YYYY-MM-DD` */
+    due_date: string | null;
+    /** `HH:MM` */
+    time: string | null;
+    category: string | null;
+  };
 }
 
 /** The user's answer to "is this next step the one that already has a task?" */
@@ -173,12 +188,24 @@ export const notesApi = {
   },
 
   /**
-   * Creates one task per item (1..NOTE_TASKS_MAX_ITEMS) for the current user.
+   * Open tasks the user already has that may be these next steps
+   * (1..NOTE_TASKS_MAX_ITEMS texts), at most one per step.
+   */
+  findTaskMatches(id: string, texts: string[]): Promise<{ matches: NoteTaskMatch[] }> {
+    return apiClient.post<{ matches: NoteTaskMatch[] }>(
+      `/api/notes/${encodeURIComponent(id)}/task-matches`,
+      { texts },
+    );
+  },
+
+  /**
+   * Creates one task per item (1..NOTE_TASKS_MAX_ITEMS) for the current user;
+   * an item with `link_task_id` is tied to that task of theirs instead.
    * `tasks` come back in the order of `items`.
    */
   createTasksFromNote(
     id: string,
-    items: Array<{ text: string; step_id: string }>,
+    items: Array<{ text: string; step_id: string; link_task_id?: string }>,
   ): Promise<{ tasks: NoteCreatedTask[] }> {
     return apiClient.post<{ tasks: NoteCreatedTask[] }>(
       `/api/notes/${encodeURIComponent(id)}/tasks`,

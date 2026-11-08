@@ -21,6 +21,8 @@
  *   was; a new item that may be the same as a step with a task is flagged
  *   (`attrs.reviewOf`) instead of being linked or offered, until the user
  *   answers (`applyStepDecision`).
+ * - `compareStepWithTask`: whether a next step may be a task the user already
+ *   has ("Sincronizar com tarefas" offers that task instead of a second one).
  */
 
 import type { PMDoc, PMNode } from '../utils/markdownToTiptapDoc';
@@ -367,12 +369,16 @@ export function normalizeSummarySteps(
   return changed;
 }
 
-/** Unchecks the items of these steps (their tasks were just created, open). */
-export function uncheckSteps(doc: PMDoc, stepIds: ReadonlySet<string>): boolean {
+/**
+ * Gives the items of these steps their new task's completion: a task just
+ * created is open, a task the user already had keeps its own.
+ */
+export function setStepsChecked(doc: PMDoc, checkedByStep: ReadonlyMap<string, boolean>): boolean {
   let changed = false;
   for (const item of collectTaskItems(doc as PMNode, [])) {
     const stepId = readStepId(item);
-    if (stepId && stepIds.has(stepId)) changed = setAttrs(item, { checked: false }) || changed;
+    const checked = stepId ? checkedByStep.get(stepId) : undefined;
+    if (checked !== undefined) changed = setAttrs(item, { checked }) || changed;
   }
   return changed;
 }
@@ -552,6 +558,8 @@ interface StepSignals {
    */
   stems: Set<string>;
   owner: string | null;
+  /** The first word after the owner, folded ("revisar") */
+  lead: string;
   action: string | null;
   /** Capitalized words after the first one: people, products ("Google", "API") */
   names: Set<string>;
@@ -572,6 +580,7 @@ function stepSignals(text: string): StepSignals {
     norm: normalizeTaskItemText(clean),
     stems: new Set(),
     owner: ownerMatch ? normalizeTaskItemText(ownerMatch[1]) : null,
+    lead: '',
     action: null,
     names: new Set(),
     marks: new Set(),
@@ -596,6 +605,7 @@ function stepSignals(text: string): StepSignals {
     if (folded.length >= 3 && !STEP_STOPWORDS.has(folded)) signals.stems.add(folded.slice(0, 5));
   });
   const first = words.length > 0 ? normalizeTaskItemText(words[0]) : '';
+  signals.lead = first;
   signals.action = ACTION_ROOTS.find(([root]) => first.startsWith(root))?.[1] ?? null;
   // "enviar" / "mandar" are one action: the verb is not a content word.
   if (signals.action) signals.stems.delete(first.slice(0, 5));
@@ -653,6 +663,47 @@ function agreement(a: StepSignals, b: StepSignals): number {
   const dice = (2 * shared) / total;
   const needed = Math.max(1, Math.min(2, a.stems.size, b.stems.size));
   return shared >= needed && dice >= SAME_STEP_MIN_AGREEMENT ? dice : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Next step ↔ a task the user already has
+//
+// "Sincronizar com tarefas" offers an open task of the user instead of a
+// second one with the same intent. The texts alone say so only when they say
+// the same thing: equal, or the same-step test above with the same verb (a
+// task list is not one note: "Assinar o contrato" and "Revisar o contrato"
+// share most words). A reworded match ("Dar baixa na LLC" / "Encerrar a
+// LLC") comes from the model and is kept only when nothing in the texts rules
+// it out. The user confirms every match in the dialog; nothing is linked on
+// its own.
+// ---------------------------------------------------------------------------
+
+/** How a next step compares with one of the user's tasks. */
+export type StepTaskComparison =
+  /** The texts say it is that task: 2 when equal, else how much they agree */
+  | { kind: 'same'; score: number }
+  /** Only a closer reading (the model) can tell */
+  | { kind: 'maybe' }
+  /** Cannot be the same commitment: another owner, other people or products, numbers or codes, dates */
+  | { kind: 'conflict' };
+
+export function compareStepWithTask(stepText: string, taskTitle: string): StepTaskComparison {
+  const step = stepSignals(stepText);
+  const task = stepSignals(taskTitle);
+  if (!step.norm || !task.norm) return { kind: 'conflict' };
+  if (step.norm === task.norm) return { kind: 'same', score: 2 };
+  // A step's owner ("Ana: …") against a task without one is no conflict.
+  if (
+    differs(step.owner, task.owner) ||
+    disjoint(step.names, task.names) ||
+    disjoint(step.marks, task.marks) ||
+    disjoint(step.when, task.when)
+  ) {
+    return { kind: 'conflict' };
+  }
+  const sameVerb = (!!step.action && step.action === task.action) || (!!step.lead && step.lead === task.lead);
+  const score = sameVerb ? agreement(step, task) : 0;
+  return score > 0 ? { kind: 'same', score } : { kind: 'maybe' };
 }
 
 // ---------------------------------------------------------------------------

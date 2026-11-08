@@ -8,6 +8,7 @@ import {
   createNoteTasks,
   createNoteTranscription,
   deleteNote,
+  findNoteTaskMatches,
   getNote,
   getNotes,
   patchNote,
@@ -45,6 +46,16 @@ const summaryLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// One OpenAI call each time "Sincronizar com tarefas" opens.
+const taskMatchesLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: userKey,
+  message: { error: 'rate_limited' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // No OpenAI call, but each request writes up to 30 tasks.
 const tasksLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -72,7 +83,8 @@ router.put('/:id/pin', pinNote);
 // Notas: live transcript segments and the AI summary
 router.post('/:id/transcriptions', transcriptionLimiter, createNoteTranscription);
 router.post('/:id/summary', summaryLimiter, createNoteSummary);
-// Notas: the summary's next steps → tasks
+// Notas: the summary's next steps → tasks (first, the tasks the user already has)
+router.post('/:id/task-matches', taskMatchesLimiter, findNoteTaskMatches);
 router.post('/:id/tasks', tasksLimiter, createNoteTasks);
 // …and the user's answer when a regenerated step may repeat one with a task
 router.post('/:id/steps/:stepId/review', tasksLimiter, reviewNoteStep);
