@@ -501,9 +501,10 @@ export function NoteDetailView({
       <ConvertToTasksDialog
         isOpen={summaryTasks.dialogItems !== null}
         items={summaryTasks.dialogItems ?? []}
+        matches={summaryTasks.dialogMatches}
         isCreating={summaryTasks.isCreating}
         onClose={summaryTasks.closeDialog}
-        onConfirm={(items) => void summaryTasks.createTasks(items)}
+        onConfirm={(items, useExisting) => void summaryTasks.createTasks(items, useExisting)}
       />
 
       <StepReviewDialog

@@ -11,6 +11,7 @@
  *   AGENT_FALLBACK_MODEL         default gpt-5.4-mini (after the monthly cap)
  *   MEMORY_MODEL                 default gpt-6-luna
  *   NOTE_SUMMARY_MODEL           default = DEFAULT_AGENT_MODEL (Notas summary)
+ *   NOTE_TASK_MATCH_MODEL        default = DEFAULT_AGENT_MODEL (Notas: next steps the user already has as tasks)
  *   TEXT_REWRITE_MODEL           default = DEFAULT_AGENT_MODEL (editor AI actions)
  *   CHAT_TITLE_MODEL             default = DEFAULT_MEMORY_MODEL (Chats: a new conversation's title)
  *   AGENT_PREMIUM_TURNS_PER_MONTH  default 30; 0 disables the cap
@@ -59,6 +60,11 @@ export function getMemoryModel(): string {
 /** Notas: the on-demand summary (one JSON completion, no tools). */
 export function getNoteSummaryModel(): string {
   return envOr('NOTE_SUMMARY_MODEL', DEFAULT_AGENT_MODEL);
+}
+
+/** Notas: which next steps the user already has as open tasks (one JSON completion). */
+export function getNoteTaskMatchModel(): string {
+  return envOr('NOTE_TASK_MATCH_MODEL', DEFAULT_AGENT_MODEL);
 }
 
 /** Editor AI actions (fix grammar / improve / shorten / expand a selection). */

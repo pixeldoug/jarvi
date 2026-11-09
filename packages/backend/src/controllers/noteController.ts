@@ -91,22 +91,47 @@ function validateSummary(value: unknown): FieldError | null {
   return null;
 }
 
-/** `[{ text }]` → the trimmed texts; `null` unless 1..30 items of 1..500 chars. */
-/** `[{ step_id, text }]`: every next step names its stable id (`attrs.stepId`). */
-function readTaskItems(value: unknown): Array<{ stepId: string; text: string }> | null {
+/** The trimmed text; `null` unless 1..500 chars. */
+function readStepText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed && trimmed.length <= NOTE_TASK_TEXT_MAX_CHARS ? trimmed : null;
+}
+
+const TASK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * `[{ step_id, text, link_task_id? }]` (1..30): every next step names its
+ * stable id (`attrs.stepId`); `link_task_id` is a task the user already has,
+ * chosen instead of a new one.
+ */
+function readTaskItems(value: unknown): Array<{ stepId: string; text: string; linkTaskId: string | null }> | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > NOTE_TASKS_MAX_ITEMS) return null;
-  const steps: Array<{ stepId: string; text: string }> = [];
+  const steps: Array<{ stepId: string; text: string; linkTaskId: string | null }> = [];
   for (const item of value) {
-    const { text, step_id: stepId } = (item && typeof item === 'object' ? item : {}) as {
+    const { text, step_id: stepId, link_task_id: linkTaskId } = (item && typeof item === 'object' ? item : {}) as {
       text?: unknown;
       step_id?: unknown;
+      link_task_id?: unknown;
     };
-    if (typeof text !== 'string' || !isValidStepId(stepId)) return null;
-    const trimmed = text.trim();
-    if (!trimmed || trimmed.length > NOTE_TASK_TEXT_MAX_CHARS) return null;
-    steps.push({ stepId, text: trimmed });
+    const trimmed = readStepText(text);
+    if (!trimmed || !isValidStepId(stepId)) return null;
+    if (linkTaskId != null && (typeof linkTaskId !== 'string' || !TASK_ID_RE.test(linkTaskId))) return null;
+    steps.push({ stepId, text: trimmed, linkTaskId: linkTaskId ?? null });
   }
   return steps;
+}
+
+/** `[text]` (1..30), the next steps to compare with the user's tasks. */
+function readStepTexts(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > NOTE_TASKS_MAX_ITEMS) return null;
+  const texts: string[] = [];
+  for (const item of value) {
+    const text = readStepText(item);
+    if (!text) return null;
+    texts.push(text);
+  }
+  return texts;
 }
 
 const readNoteId = (req: Request): string | null => {
@@ -399,6 +424,29 @@ export const createNoteTasks = async (req: Request, res: Response): Promise<void
     res.status(201).json({ tasks });
   } catch (error) {
     console.error('Error creating tasks from note:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Open tasks of the caller that may already be these next steps, so
+ * "Sincronizar com tarefas" does not repeat them: `{ texts }` → `200 { matches }`.
+ */
+export const findNoteTaskMatches = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const texts = readStepTexts((req.body ?? {}).texts);
+    if (!texts) {
+      res.status(400).json({ error: 'invalid_texts' });
+      return;
+    }
+
+    const ctx = await requireNoteAccess(req, res, 'write');
+    if (!ctx) return;
+
+    const matches = await noteService.findStepTaskMatches(ctx.noteId, ctx.userId, texts, telemetryFor(req));
+    res.json({ matches });
+  } catch (error) {
+    console.error('Error matching note steps with tasks:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

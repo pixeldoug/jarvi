@@ -904,6 +904,262 @@ async function main(): Promise<void> {
     check(after?.n === 0, 'excluir a nota remove os pins');
   });
 
+  // ── Next steps ↔ tasks the user already has ───────────────────────────────
+
+  const taskFields = { description: null, priority: null, category: null, dueDate: null, time: null };
+  let matchUsers = 0;
+
+  /** A user of their own: the earlier cases left open tasks in USER's list. */
+  async function freshUser(): Promise<string> {
+    matchUsers += 1;
+    const id = `eval-match-user-${matchUsers}`;
+    const now = new Date().toISOString();
+    await db.run(
+      `INSERT OR IGNORE INTO users (id, email, name, password, auth_provider, has_password, email_verified, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, `${id}@jarvi.test`, 'Pessoa', 'x', 'eval', 0, 0, now, now],
+    );
+    return id;
+  }
+
+  /** A note of `userId` whose summary lists these next steps (none a task yet). */
+  async function noteOf(userId: string, lines: string[]): Promise<{ noteId: string; items: Step[] }> {
+    const note = await noteService.createNote(userId, {
+      content: JSON.stringify(markdownToTiptapDoc('Reunião.')),
+    });
+    await regenerate(note.id, ['## Próximos passos', ...lines.map((line) => `- [ ] ${line}`)].join('\n'));
+    return { noteId: note.id, items: await steps(note.id) };
+  }
+
+  /** A task of the user's own list (not from a note). */
+  async function listTask(userId: string, title: string): Promise<string> {
+    return insertTask(userId, { title, ...taskFields }, { source: 'mcp', email: EMAIL, notify: false });
+  }
+
+  const noMatches = async () => ({ matches: [] });
+
+  /** The alias the matcher gave a step or task in its prompt ("s2", "t5"). */
+  function aliasIn(prompt: string, prefix: 's' | 't', text: string): string | null {
+    for (const line of prompt.split('\n')) {
+      const match = new RegExp(`^(${prefix}\\d+): (.*)$`).exec(line);
+      if (match && match[2] === text) return match[1];
+    }
+    return null;
+  }
+
+  await testCase('passo igual a uma tarefa aberta é oferecido sem o modelo; feitas e da própria nota, não', async () => {
+    const user = await freshUser();
+    const { noteId, items } = await noteOf(user, [
+      'Resolver os cartões no Railway',
+      'Dar baixa na LLC',
+      'Fazer follow-up com Cláudio do Gulf Variante',
+      'Atualizar o roadmap',
+    ]);
+    const fromNote = await noteService.createTasksFromNote(
+      noteId,
+      user,
+      [{ stepId: items[3].stepId!, text: items[3].text }],
+      EMAIL,
+    );
+    const llc = await listTask(user, 'Dar baixa na LLC');
+    const done = await listTask(user, 'Resolver os cartões no Railway');
+    await db.run('UPDATE tasks SET completed = 1 WHERE id = ?', [done]);
+
+    const prompts: string[] = [];
+    const complete = async (messages: { system: string; user: string }) => {
+      prompts.push(messages.user);
+      return { matches: [] };
+    };
+    const texts = items.map((item) => item.text);
+    const matches = await noteService.findStepTaskMatches(noteId, user, texts, undefined, complete);
+    check(
+      matches.length === 1 && matches[0].index === 1 && matches[0].task.id === llc,
+      'só "Dar baixa na LLC" acha a tarefa igual',
+      matches,
+    );
+    check(!matches.some((match) => match.task.id === done), 'tarefa já feita não é oferecida');
+    check(!matches.some((match) => match.task.id === fromNote![0].id), 'tarefa criada por esta nota não é oferecida');
+    const others = await noteService.findStepTaskMatches(noteId, await freshUser(), texts, undefined, noMatches);
+    check(others.length === 0, 'tarefas de outra pessoa não são oferecidas', others);
+    check(prompts.length === 0, 'sem outra tarefa aberta para comparar, o modelo nem é chamado', prompts);
+
+    await listTask(user, 'Comprar pão');
+    const again = await noteService.findStepTaskMatches(noteId, user, texts, undefined, complete);
+    check(again.length === 1 && again[0].task.id === llc, 'a tarefa igual continua achada', again);
+    check(
+      prompts.length === 1 && prompts[0].includes('Comprar pão') && !prompts[0].includes('Dar baixa na LLC'),
+      'o modelo só vê os passos e as tarefas que sobraram',
+      prompts,
+    );
+  });
+
+  await testCase('o modelo liga um passo reescrito, nunca contra o texto', async () => {
+    const user = await freshUser();
+    const { noteId } = await noteOf(user, ['Dar baixa na LLC']);
+    const encerrar = await listTask(user, 'Encerrar a LLC');
+    await listTask(user, 'Pagar o aluguel de outubro');
+    await listTask(user, 'Ligar pro contador');
+    const texts = ['Dar baixa na LLC', 'Pagar o aluguel de novembro', 'Comprar pão'];
+    let prompt = '';
+    const complete = async (messages: { system: string; user: string }) => {
+      prompt = messages.user;
+      const s = (text: string) => aliasIn(prompt, 's', text);
+      const t = (title: string) => aliasIn(prompt, 't', title);
+      const same = { mesma_acao: true, mesma_coisa: true };
+      return {
+        matches: [
+          { step: s('Dar baixa na LLC'), task: t('Encerrar a LLC'), ...same },
+          // Other month: the texts rule it out
+          { step: s('Pagar o aluguel de novembro'), task: t('Pagar o aluguel de outubro'), ...same },
+          // Nonsense the model may send
+          { step: s('Comprar pão'), task: 't9999', ...same },
+          { step: 's77', task: t('Ligar pro contador'), ...same },
+          { step: s('Comprar pão'), task: t('Encerrar a LLC'), ...same },
+          { step: s('Comprar pão'), task: t('Ligar pro contador') },
+          'lixo',
+        ],
+      };
+    };
+    const matches = await noteService.findStepTaskMatches(noteId, user, texts, undefined, complete);
+    check(
+      matches.length === 1 && matches[0].index === 0 && matches[0].task.id === encerrar,
+      '"Dar baixa na LLC" fica com "Encerrar a LLC"; o resto é recusado',
+      { matches, prompt },
+    );
+    check(prompt.includes('<passos>') && prompt.includes('<tarefas>'), 'passos e tarefas vão marcados como dados');
+  });
+
+  await testCase('pelo texto só liga com o mesmo verbo; ação diferente sobre a mesma coisa vai para o modelo', async () => {
+    const user = await freshUser();
+    const { noteId } = await noteOf(user, ['Revisar login com Google']);
+    const login = await listTask(user, 'Revisar o login do Google');
+    await listTask(user, 'Revisar o contrato do apartamento');
+    await listTask(user, 'Ligar pra escola da Chloe');
+    await listTask(user, 'Academia');
+    const texts = [
+      'Assinar o contrato do apartamento',
+      'Levar Chloe à escola amanhã',
+      'Definir o dia de começar a academia',
+      'Revisar login com Google',
+    ];
+    let prompt = '';
+    const matches = await noteService.findStepTaskMatches(noteId, user, texts, undefined, async (messages) => {
+      prompt = messages.user;
+      return { matches: [] };
+    });
+    check(
+      matches.length === 1 && matches[0].index === 3 && matches[0].task.id === login,
+      'só "Revisar login com Google" liga pelo texto',
+      matches,
+    );
+    check(
+      ['Assinar o contrato', 'Levar Chloe', 'Definir o dia'].every((text) => prompt.includes(text)),
+      'os outros três ficam para o modelo decidir',
+      prompt,
+    );
+    const unsure = await noteService.findStepTaskMatches(noteId, user, texts.slice(0, 1), undefined, async (messages) => ({
+      matches: [
+        {
+          step: aliasIn(messages.user, 's', texts[0]),
+          task: aliasIn(messages.user, 't', 'Revisar o contrato do apartamento'),
+          mesma_acao: false,
+          mesma_coisa: true,
+        },
+      ],
+    }));
+    check(unsure.length === 0, 'par que o próprio modelo diz ter outra ação é recusado', unsure);
+  });
+
+  await testCase('modelo fora do ar: ficam os passos de texto igual', async () => {
+    const user = await freshUser();
+    const { noteId } = await noteOf(user, ['Dar baixa na LLC']);
+    const llc = await listTask(user, 'dar baixa na LLC.');
+    const complete = async () => {
+      throw new Error('openai down (esperado neste teste)');
+    };
+    const matches = await noteService.findStepTaskMatches(
+      noteId,
+      user,
+      ['Revisar o contrato', 'Dar baixa na LLC'],
+      undefined,
+      complete,
+    );
+    check(matches.length === 1 && matches[0].index === 1 && matches[0].task.id === llc, 'achou pelo texto', matches);
+  });
+
+  await testCase('usar a tarefa que já existe liga o passo e não cria nem muda tarefa', async () => {
+    const user = await freshUser();
+    const { noteId, items } = await noteOf(user, ['Dar baixa na LLC', 'Revisar o contrato']);
+    const llc = await listTask(user, 'Encerrar a LLC');
+    const before = await tasksSnapshot();
+
+    const result = await noteService.createTasksFromNote(
+      noteId,
+      user,
+      [{ stepId: items[0].stepId!, text: items[0].text, linkTaskId: llc }],
+      EMAIL,
+    );
+    check(result?.[0].status === 'linked' && result[0].id === llc, 'responde linked com a tarefa escolhida', result);
+    check(result?.[0].title === 'Encerrar a LLC', 'devolve o título da tarefa existente', result);
+    check((await tasksSnapshot()) === before, 'nenhuma tarefa criada nem alterada');
+    const after = await steps(noteId);
+    check(after[0].taskId === llc && !after[0].checked, 'o passo mostra a tarefa que já existia', after);
+    check(!after[1].taskId, 'o outro passo continua sem tarefa', after);
+
+    const again = (await noteService.createTasksFromNote(
+      noteId,
+      user,
+      [{ stepId: after[0].stepId!, text: after[0].text }],
+      EMAIL,
+    ))![0];
+    check(again.status === 'existing' && again.id === llc, 'pedir de novo devolve o mesmo vínculo', again);
+    const offered = await noteService.findStepTaskMatches(noteId, user, ['Encerrar a LLC'], undefined, noMatches);
+    check(offered.length === 0, 'tarefa já ligada a esta nota não é oferecida de novo', offered);
+
+    await noteService.deleteNote(noteId);
+    const kept = await db.get<{ title: string; source_note_id: string | null }>(
+      'SELECT title, source_note_id FROM tasks WHERE id = ?',
+      [llc],
+    );
+    check(kept?.title === 'Encerrar a LLC' && kept.source_note_id === null, 'excluir a nota não mexe na tarefa', kept);
+  });
+
+  await testCase('tarefa escolhida que sumiu, é de outra pessoa ou já é de outro passo: nada é ligado', async () => {
+    const user = await freshUser();
+    const other = await freshUser();
+    const { noteId, items } = await noteOf(user, ['Dar baixa na LLC', 'Encerrar a LLC', 'Pagar o contador', 'Ligar pro banco']);
+    const llc = await listTask(user, 'Dar baixa na LLC');
+    const foreign = await listTask(other, 'Pagar o contador');
+    const done = await listTask(user, 'Ligar pro banco');
+    await db.run('UPDATE tasks SET completed = 1 WHERE id = ?', [done]);
+    const before = await tasksSnapshot();
+
+    const result = (await noteService.createTasksFromNote(
+      noteId,
+      user,
+      [
+        { stepId: items[0].stepId!, text: items[0].text, linkTaskId: llc },
+        { stepId: items[1].stepId!, text: items[1].text, linkTaskId: llc },
+        { stepId: items[2].stepId!, text: items[2].text, linkTaskId: foreign },
+        { stepId: items[3].stepId!, text: items[3].text, linkTaskId: done },
+      ],
+      EMAIL,
+    ))!;
+    check(result.map((r) => r.status).join() === 'linked,stale,stale,linked', 'um vínculo por tarefa, só tarefas suas', result);
+    check((await tasksSnapshot()) === before, 'nenhuma tarefa criada nem alterada');
+    const after = await steps(noteId);
+    check(!after[1].taskId && !after[2].taskId, 'os recusados continuam passos soltos', after);
+    check(after[3].taskId === done && after[3].checked, 'ligado a uma tarefa feita, o passo aparece feito', after);
+
+    const missing = await noteService.createTasksFromNote(
+      noteId,
+      user,
+      [{ stepId: after[1].stepId!, text: after[1].text, linkTaskId: 'no-such-task' }],
+      EMAIL,
+    );
+    check(missing?.[0].status === 'stale', 'tarefa que não existe: stale', missing);
+  });
+
   console.log(`\n${passed} assertions passed, ${failures} failed`);
   process.exit(failures > 0 ? 1 : 0);
 }

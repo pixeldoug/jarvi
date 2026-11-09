@@ -18,6 +18,10 @@
  * request links the item to the task it already has. Items a regeneration
  * flagged (`reviewOf`) are not offered: the user answers "é o mesmo passo?"
  * first (`openReview` → `resolveReview`), which the server remembers.
+ *
+ * Opening the dialog asks the server which steps the user already has as open
+ * tasks (`matches`): those are tied to that task instead of repeating it,
+ * unless the user asks for a new one in the dialog.
  */
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
@@ -29,6 +33,7 @@ import {
   NOTE_TASK_TEXT_MAX_LENGTH,
   NOTE_TASKS_MAX_ITEMS,
   type NoteStepDecision,
+  type NoteTaskMatch,
 } from '../../../lib/notesApi';
 import { captureProductEvent } from '../../../lib/productAnalytics';
 import type { TasksNavigationState } from '../../layout/Sidebar';
@@ -49,6 +54,21 @@ import {
 
 /** TaskContext's query key */
 const TASKS_KEY = ['tasks'];
+
+/** A task the user already has, offered for a step in the dialog. */
+export type ExistingTask = NoteTaskMatch['task'];
+
+/** "3 tarefas sincronizadas", saying when some were already in the list. */
+function syncedMessage(created: number, linked: number): string {
+  if (created === 0) {
+    return linked === 1
+      ? 'Passo ligado à tarefa que você já tinha'
+      : `${linked} passos ligados às tarefas que você já tinha`;
+  }
+  const total = created + linked;
+  const synced = total === 1 ? '1 tarefa sincronizada' : `${total} tarefas sincronizadas`;
+  return linked === 0 ? synced : `${synced} (${linked} já ${linked === 1 ? 'existia' : 'existiam'})`;
+}
 
 function nextStepsState(items: SummaryTaskItem[]): SummaryNextStepsState {
   const withText = items.filter((item) => item.text !== '');
@@ -81,10 +101,13 @@ export interface SummaryTasks {
   openTask: (taskId: string) => void;
   /** Items listed in the dialog; null while it is closed */
   dialogItems: SummaryTaskItem[] | null;
+  /** Tasks the user already has, by dialog item `index`; null while they are being looked for */
+  dialogMatches: ReadonlyMap<number, ExistingTask> | null;
   isCreating: boolean;
   openDialog: () => void;
   closeDialog: () => void;
-  createTasks: (items: SummaryTaskItem[]) => Promise<void>;
+  /** `useExisting`: item `index` → the task of the user it is tied to instead of a new one */
+  createTasks: (items: SummaryTaskItem[], useExisting: ReadonlyMap<number, string>) => Promise<void>;
   /** Next steps that may repeat one with a task, waiting for the user's answer */
   reviews: SummaryStepReview[];
   /** The step being answered; null while the review dialog is closed */
@@ -113,7 +136,10 @@ export function useSummaryTasks({
 
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [dialogItems, setDialogItems] = useState<SummaryTaskItem[] | null>(null);
+  const [dialogMatches, setDialogMatches] = useState<ReadonlyMap<number, ExistingTask> | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  // Answers for a dialog that was closed (or reopened) meanwhile are dropped.
+  const matchRequestRef = useRef(0);
 
   // Items of the last summary seen (rendered or reported by the editor): the
   // baseline the next change is diffed against. Parsed once per value.
@@ -187,29 +213,49 @@ export function useSummaryTasks({
   }, [navigate]);
 
   const openDialog = useCallback(() => {
-    setDialogItems(parseSummaryTasks(readSummary()).filter((item) => item.text !== '' && !item.reviewOf));
-  }, [readSummary]);
+    const items = parseSummaryTasks(readSummary()).filter((item) => item.text !== '' && !item.reviewOf);
+    setDialogItems(items);
+    setDialogMatches(null);
+    const request = ++matchRequestRef.current;
+    const pending = items.filter((item) => !item.taskId).slice(0, NOTE_TASKS_MAX_ITEMS);
+    if (pending.length === 0) {
+      setDialogMatches(new Map());
+      return;
+    }
+    notesApi
+      .findTaskMatches(noteId, pending.map((item) => item.text.slice(0, NOTE_TASK_TEXT_MAX_LENGTH)))
+      .then(({ matches }) => new Map(matches.flatMap(({ index, task }) => (pending[index] ? [[pending[index].index, task]] : []))))
+      .catch((error) => {
+        // Nothing found is no reason to block: the dialog works as before.
+        console.error('Failed to look for tasks the user already has:', error);
+        return new Map<number, ExistingTask>();
+      })
+      .then((found) => {
+        if (request === matchRequestRef.current) setDialogMatches(found);
+      });
+  }, [noteId, readSummary]);
 
-  const closeDialog = useCallback(() => setDialogItems(null), []);
+  const closeDialog = useCallback(() => {
+    matchRequestRef.current += 1;
+    setDialogItems(null);
+  }, []);
 
   /** Links the tasks to their steps, saves now and remounts the editor. */
-  const linkSteps = useCallback((links: SummaryTaskLink[], createdTaskIds: string[]) => {
+  const linkSteps = useCallback((links: SummaryTaskLink[], checkedByTask: ReadonlyMap<string, boolean>) => {
     const current = readSummary();
     if (!current) return;
-    // The new tasks are open: a linked item mirrors its task, so an item that
-    // was checked comes back unchecked. A step that already had a task keeps
-    // its state (reconciled with the task on the next mount).
-    const linked = setSummaryTaskChecked(
-      linkSummaryTasks(current, links),
-      new Map(createdTaskIds.map((taskId) => [taskId, false])),
-    );
+    // A linked item mirrors its task: a new task is open, so an item that was
+    // checked comes back unchecked; a task the user already had keeps its
+    // state. A step that already had a task keeps its state (reconciled with
+    // the task on the next mount).
+    const linked = setSummaryTaskChecked(linkSummaryTasks(current, links), checkedByTask);
     if (linked === current) return;
     setSummary(linked);
     void flush();
     setEditorEpoch((epoch) => epoch + 1);
   }, [readSummary, setSummary, flush]);
 
-  const createTasks = useCallback(async (picked: SummaryTaskItem[]) => {
+  const createTasks = useCallback(async (picked: SummaryTaskItem[], useExisting: ReadonlyMap<number, string>) => {
     if (picked.length === 0) return;
     setIsCreating(true);
 
@@ -232,24 +278,37 @@ export function useSummaryTasks({
       ? []
       : picked.flatMap((item) => {
           const stepId = items[item.index]?.text === item.text ? items[item.index].stepId : null;
-          return stepId ? [{ stepId, text: item.text }] : [];
+          return stepId ? [{ stepId, text: item.text, linkTaskId: useExisting.get(item.index) }] : [];
         });
 
     const links: SummaryTaskLink[] = [];
-    const createdTaskIds: string[] = [];
+    const checkedByTask = new Map<string, boolean>();
+    let createdCount = 0;
+    let linkedCount = 0;
     let skipped = 0;
     try {
       for (let start = 0; start < steps.length; start += NOTE_TASKS_MAX_ITEMS) {
         const chunk = steps.slice(start, start + NOTE_TASKS_MAX_ITEMS);
         const { tasks } = await notesApi.createTasksFromNote(
           noteId,
-          chunk.map((step) => ({ text: step.text.slice(0, NOTE_TASK_TEXT_MAX_LENGTH), step_id: step.stepId })),
+          chunk.map((step) => ({
+            text: step.text.slice(0, NOTE_TASK_TEXT_MAX_LENGTH),
+            step_id: step.stepId,
+            ...(step.linkTaskId ? { link_task_id: step.linkTaskId } : {}),
+          })),
         );
+        const cached = queryClient.getQueryData<Task[]>(TASKS_KEY) ?? [];
         tasks.forEach((task) => {
           if (task.status === 'stale' || task.status === 'needs_review') skipped += 1;
           if (!task.id || task.status === 'stale' || task.status === 'needs_review') return;
           links.push({ stepId: task.step_id, taskId: task.id });
-          if (task.status === 'created') createdTaskIds.push(task.id);
+          if (task.status === 'created') {
+            createdCount += 1;
+            checkedByTask.set(task.id, false);
+          } else if (task.status === 'linked') {
+            linkedCount += 1;
+            checkedByTask.set(task.id, !!cached.find((item) => item.id === task.id)?.completed);
+          }
         });
       }
     } catch (error) {
@@ -260,11 +319,12 @@ export function useSummaryTasks({
 
     if (links.length > 0) {
       void queryClient.invalidateQueries({ queryKey: TASKS_KEY });
-      linkSteps(links, createdTaskIds);
+      linkSteps(links, checkedByTask);
     }
-    if (createdTaskIds.length > 0) {
-      captureProductEvent('note_tasks_created', { count: createdTaskIds.length });
-      toast.success(createdTaskIds.length === 1 ? '1 tarefa sincronizada' : `${createdTaskIds.length} tarefas sincronizadas`, {
+    if (createdCount > 0) captureProductEvent('note_tasks_created', { count: createdCount });
+    if (linkedCount > 0) captureProductEvent('note_tasks_linked', { count: linkedCount });
+    if (createdCount + linkedCount > 0) {
+      toast.success(syncedMessage(createdCount, linkedCount), {
         hasButton: true,
         duration: 6000,
         action: { label: 'Ver', onClick: () => navigate('/tasks') },
@@ -323,6 +383,7 @@ export function useSummaryTasks({
     trackSummaryChange,
     openTask,
     dialogItems,
+    dialogMatches,
     isCreating,
     openDialog,
     closeDialog,
