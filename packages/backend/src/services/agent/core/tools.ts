@@ -31,6 +31,7 @@ import {
   resolveExistingCategoryName,
   safeParseCategoryNames,
   searchUserTasks,
+  TASK_LINE_DESCRIPTION_MAX_CHARS,
 } from './tasks';
 import { formatDueDateLabel } from './time';
 import {
@@ -52,6 +53,11 @@ import { reconcileDueDate } from './dateExpressions';
 import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './onboardingJourney';
 import { parseDailySummaryTime, updateDailySummarySettings } from '../../dailySummaryService';
 import { updateWeeklyPlanningSettings } from '../../weeklyPlanningService';
+import { NOTE_CHAT_WRITE_MAX_CHARS, writeNoteFromChat } from '../../noteService';
+import { applyDocEditsToRaw, parseDocEdits, type DocEdit } from '../../../utils/docEdits';
+import { tiptapDocToMarkdown } from '../../../utils/tiptapDoc';
+import { anchorNotFoundMessage, docEditsToolProperty, unseenTextMessage } from './contextualEdits';
+import { parseTaskDescription, summarizeTaskDescription } from './taskDescription';
 import {
   decideNextQuestion,
   dueDateQuestion,
@@ -124,8 +130,9 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           description: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
             description:
-              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Segunda pessoa ("você"), nunca "o usuário". Reescreva o documento inteiro de forma coerente: preserve fatos em Contexto/Atualizações, mas reavalie Próximos passos para refletir só ações ainda pendentes. Anexos da tarefa são preservados automaticamente pelo sistema. Use datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Use null para limpar apenas quando não houver anexos.',
+              'Descrição COMPLETA em Markdown estruturado (## títulos, - listas, - [ ] checklists): substitui o texto inteiro. Use SÓ quando a tarefa ainda não tem descrição ou quando o usuário pedir para reescrever/reorganizar tudo. Para acrescentar, corrigir ou tirar uma parte de uma descrição que já existe, use description_edits (nunca os dois juntos). Segunda pessoa ("você"), nunca "o usuário". Datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Anexos da tarefa são preservados automaticamente pelo sistema. Use null para limpar apenas quando não houver anexos.',
           },
+          description_edits: docEditsToolProperty('descrição'),
           priority: {
             anyOf: [
               { type: 'string', enum: ['low', 'medium', 'high'] },
@@ -390,6 +397,28 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
       },
     },
   },
+  // Web, note mode only: the adapter exposes it when the chat was opened beside
+  // a note the user can edit. There is no note id — it writes to `ctx.openNote`.
+  update_note: {
+    type: 'function',
+    function: {
+      name: 'update_note',
+      description:
+        'Edita a nota que o usuário está com aberta ao lado do chat (aba Notas). Use sempre que ele pedir para escrever, colocar, adicionar, anotar, montar, organizar, corrigir, tirar ou reescrever algo "na nota" / "nas notas" / "aqui": um plano, uma lista, uma pendência, um texto. A mudança aparece na nota na hora, no lugar que você indicar. NÃO crie uma tarefa no lugar disso. O sistema confirma sozinho; não repita o conteúdo no chat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          edits: docEditsToolProperty('nota'),
+          title: {
+            type: 'string',
+            description:
+              'Título da nota. Envie só quando a nota está sem título (um curto, até ~60 caracteres) ou quando o usuário pedir para mudar o título.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
   // Legacy path only (reliable execution off): the web adapter does not expose
   // this tool when the backend runs the onboarding journey itself.
   complete_onboarding_journey: {
@@ -475,6 +504,7 @@ export const UPDATE_TOOL_NAMES = new Set<ToolName>([
   'update_task',
   'complete_task',
   'update_notification_settings',
+  'update_note',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -482,6 +512,8 @@ export const UPDATE_TOOL_NAMES = new Set<ToolName>([
 // ---------------------------------------------------------------------------
 
 const PENDING_TASK_TTL_DAYS = 7;
+/** The description shown back to the model when an edit names a line that is not there. */
+const DESCRIPTION_RETRY_MAX_CHARS = 6_000;
 
 /** "9:30" / "13:30:00" → "09:30". Leaves anything unparseable untouched. */
 function normalizeClockTime(value: string | null): string | null {
@@ -883,6 +915,18 @@ async function executeCreateTaskAsPending(
   return { success: true, data: { id: pendingId, title, pending: true } };
 }
 
+/**
+ * Did the model read this task's whole description? It is in its prompt for
+ * the focused task, fits a task line when short, or came back in a tool result
+ * earlier this turn. Otherwise it only saw the first characters, and a rewrite
+ * would drop what it never read.
+ */
+function hasSeenDescription(ctx: AgentContext, task: { id: string; description?: string | null }): boolean {
+  if (ctx.focusedTask?.id === task.id || ctx.descriptionsSeen?.has(task.id)) return true;
+  const text = (summarizeTaskDescription(task.description) ?? '').replace(/\s+/g, ' ').trim();
+  return text.length <= TASK_LINE_DESCRIPTION_MAX_CHARS;
+}
+
 async function executeUpdateTask(
   args: Record<string, unknown>,
   ctx: AgentContext,
@@ -966,6 +1010,51 @@ async function executeUpdateTask(
     changes[key] = value;
   };
 
+  // Edits to part of the description: only the nodes they touch change (the
+  // rest, files included, stays as stored). A full `description` wins.
+  let descriptionEditMiss: { code: string; message: string } | null = null;
+  const currentMarkdown = (): string =>
+    tiptapDocToMarkdown(task.description).slice(0, DESCRIPTION_RETRY_MAX_CHARS);
+  const edits = parseDocEdits(args.description_edits).map((edit) =>
+    edit.content ? { ...edit, content: prepareDescriptionForStorage(edit.content, ctx.timezone) } : edit,
+  );
+  // A whole new text, or a whole section: only over a description the model read.
+  const overwrites =
+    typeof args.description === 'string' ||
+    edits.some((edit) => edit.action === 'replace_section' || edit.action === 'replace_all');
+  const seen = hasSeenDescription(ctx, task);
+  // From here on the model has the description: in the retry message below,
+  // or in this call's result.
+  if (args.description !== undefined || args.description_edits !== undefined) {
+    (ctx.descriptionsSeen ??= new Set()).add(taskId);
+  }
+
+  if (overwrites && !seen) {
+    descriptionEditMiss = { code: 'description_unseen', message: unseenTextMessage(currentMarkdown()) };
+    notes.push(`description NÃO alterada. ${descriptionEditMiss.message}`);
+    delete args.description;
+  } else if (args.description_edits !== undefined && args.description !== undefined) {
+    notes.push('description_edits ignorado: description (texto completo) veio na mesma chamada.');
+  } else if (args.description_edits !== undefined) {
+    const edited = applyDocEditsToRaw(task.description, edits);
+    if (edited.failures.length > 0) {
+      // All or nothing, so the model can try again with a line that exists.
+      descriptionEditMiss = {
+        code: 'anchor_not_found',
+        message: anchorNotFoundMessage(
+          'descrição',
+          edited.failures.map((failure) => failure.anchor),
+          currentMarkdown(),
+        ),
+      };
+      notes.push(`description NÃO alterada. ${descriptionEditMiss.message}`);
+    } else if (edited.changed) {
+      const { images, otherAttachmentLabels } = parseTaskDescription(task.description);
+      const hasFiles = images.length > 0 || otherAttachmentLabels.length > 0;
+      write('description', edited.empty && !hasFiles ? null : edited.doc);
+    }
+  }
+
   for (const key of fieldKeys) {
     if (args[key] === undefined) continue;
 
@@ -1039,6 +1128,17 @@ async function executeUpdateTask(
     pendingQuestion = undefined;
   }
   if (pendingQuestion) pendingQuestion = { ...pendingQuestion, taskId, taskTitle: task.title };
+
+  // Nothing else to save and the description edit was held back: a failure
+  // the model fixes by itself (see contextualEdits.ts), not "nothing changed".
+  if (descriptionEditMiss && !fields.length && args.reminders === undefined) {
+    return {
+      success: false,
+      error_code: descriptionEditMiss.code,
+      message: descriptionEditMiss.message,
+      entity: { type: 'task', id: taskId, title: task.title },
+    };
+  }
 
   if (!fields.length && args.reminders === undefined) {
     const result: ToolExecutionResult = {
@@ -1776,6 +1876,90 @@ async function executeUpdateNotificationSettings(
   };
 }
 
+/**
+ * Edits the note open beside the chat (Notas). The note comes from the
+ * context, never from the model, and write access was checked for this user
+ * before the turn started. `data` stays small on purpose: the web applies the
+ * same edits (the call's `edits`) to the open editor.
+ */
+async function executeUpdateNote(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const note = ctx.openNote;
+  if (!note) {
+    return {
+      success: false,
+      error_code: 'no_open_note',
+      message: 'não há uma nota aberta nesta conversa',
+    };
+  }
+  const entity = { type: 'note' as const, id: note.id };
+  if (!note.canWrite) {
+    return {
+      success: false,
+      error_code: 'read_only',
+      message: 'você só tem acesso de leitura a ela',
+      entity,
+    };
+  }
+
+  const edits = parseDocEdits(args.edits);
+  const title = typeof args.title === 'string' ? args.title.trim() : '';
+  if (edits.length === 0 && !title) {
+    return { success: false, error_code: 'invalid_arguments', message: 'Informe edits e/ou title', entity };
+  }
+  const writtenChars = edits.reduce((total, edit) => total + (edit.content?.length ?? 0), 0);
+  if (writtenChars > NOTE_CHAT_WRITE_MAX_CHARS) {
+    return {
+      success: false,
+      error_code: 'invalid_arguments',
+      message: `o conteúdo passa de ${NOTE_CHAT_WRITE_MAX_CHARS} caracteres: divida em mais de uma chamada`,
+      entity,
+    };
+  }
+
+  const written = await writeNoteFromChat(note.id, { edits, title });
+  if (!written.ok) {
+    if (written.code === 'anchor_not_found') {
+      return {
+        success: false,
+        error_code: 'anchor_not_found',
+        message: anchorNotFoundMessage('nota', written.anchors, written.markdown),
+        entity,
+      };
+    }
+    return written.code === 'too_large'
+      ? { success: false, error_code: 'too_large', message: 'a nota passou do limite de tamanho', entity }
+      : { success: false, error_code: 'not_found', message: 'a nota não existe mais', entity };
+  }
+
+  const changes: Record<string, unknown> = {};
+  if (written.contentChanged) changes.content = docEditsKind(edits);
+  if (written.titleChanged) changes.title = written.title;
+
+  return {
+    success: true,
+    // `note_*` keys: `id` / `title` in a tool result are read as a task.
+    data: {
+      note_id: note.id,
+      note_title: written.title,
+      ...(written.contentChanged ? { content_changed: true } : {}),
+      ...(written.titleChanged ? { title_changed: true } : {}),
+    },
+    changes,
+    unchanged: Object.keys(changes).length === 0,
+    entity: { ...entity, title: written.title || undefined },
+  };
+}
+
+/** What a batch of edits did to the text, for the confirmation. */
+function docEditsKind(edits: DocEdit[]): 'rewrite' | 'add' | 'edit' {
+  if (edits.some((edit) => edit.action === 'replace_all')) return 'rewrite';
+  const adds = new Set(['append', 'append_to_section', 'insert_after', 'insert_before']);
+  return edits.some((edit) => adds.has(edit.action)) ? 'add' : 'edit';
+}
+
 /** Legacy (flag off) closure of the onboarding journey, driven by the model. */
 async function executeCompleteOnboardingJourney(
   ctx: AgentContext,
@@ -1841,6 +2025,8 @@ export async function executeToolCall(
       return executeOfferChoices(args);
     case 'update_notification_settings':
       return executeUpdateNotificationSettings(args, ctx);
+    case 'update_note':
+      return executeUpdateNote(args, ctx);
     case 'complete_onboarding_journey':
       return executeCompleteOnboardingJourney(ctx, profile);
     default:

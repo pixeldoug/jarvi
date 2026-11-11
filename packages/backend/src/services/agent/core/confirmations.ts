@@ -59,13 +59,37 @@ const WRITE_CATEGORY_TOOLS = new Set(['create_category', 'update_category', 'del
 
 const WRITE_SETTINGS_TOOLS = new Set(['update_notification_settings']);
 
+/** Notas: the chat writing in the note open beside it. */
+const WRITE_NOTE_TOOLS = new Set(['update_note']);
+
 export function isWriteTool(tool: string): boolean {
   return (
     WRITE_TASK_TOOLS.has(tool) ||
     WRITE_CATEGORY_TOOLS.has(tool) ||
     WRITE_SETTINGS_TOOLS.has(tool) ||
+    WRITE_NOTE_TOOLS.has(tool) ||
     tool === 'update_memory'
   );
+}
+
+/**
+ * One sentence for everything the chat wrote in the open note this iteration.
+ * The text itself is on screen, in the note — the chat only says it is there.
+ */
+function noteSentence(ops: AgentOperation[], preferredName: string | undefined): string | null {
+  if (ops.length === 0) return null;
+  const changed = ops.filter((op) => !op.unchanged);
+  if (changed.length === 0) return 'Nada foi alterado na nota.';
+  // `content`: what the edits did to the text (see docEditsKind in tools.ts).
+  const kinds = changed.map((op) => op.persisted?.content);
+  const what = kinds.includes('rewrite')
+    ? 'Reescrevi sua nota.'
+    : kinds.includes('add')
+      ? 'Escrevi na sua nota.'
+      : kinds.includes('edit')
+        ? 'Atualizei sua nota.'
+        : 'Atualizei o título da nota.';
+  return `${greeting(preferredName)} ${what}`;
 }
 
 /** "20:00" → "20h", "07:30" → "7h30". */
@@ -92,9 +116,24 @@ function notificationSentence(op: AgentOperation): string {
   return `Pronto, o ${name} está ligado de novo.`;
 }
 
-/** Tools whose outcome the user must be told about (memory stays silent by design). */
+/**
+ * A text edit held back for the model to redo: it named a line the text does
+ * not have, or would overwrite a description it only saw the start of. Nothing
+ * was written and the model got the current text to try again.
+ */
+const RETRIABLE_EDIT_ERRORS = new Set(['anchor_not_found', 'description_unseen']);
+
+/**
+ * Tools whose outcome the user must be told about. Memory stays silent by
+ * design; so does a held-back edit (see above): "não consegui" followed by
+ * "pronto" would be noise.
+ */
 function isUserVisibleWrite(op: AgentOperation): boolean {
-  return op.kind === 'write' && op.tool !== 'update_memory';
+  return (
+    op.kind === 'write' &&
+    op.tool !== 'update_memory' &&
+    !RETRIABLE_EDIT_ERRORS.has(op.error?.code ?? '')
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -281,11 +320,13 @@ function failureSentence(op: AgentOperation, surface: Surface): string {
     create_category: 'criar a categoria',
     update_category: 'atualizar a categoria',
     delete_category: 'excluir a categoria',
+    update_note: 'escrever na nota',
   };
   const what = verb[op.tool] ?? 'fazer isso';
   const code = op.error?.code;
 
   if (code === 'not_found') {
+    if (op.tool === 'update_note') return 'Não encontrei a nota para escrever.';
     if (op.tool.endsWith('_task')) {
       const action: Record<string, string> = {
         update_task: 'atualizar',
@@ -456,6 +497,13 @@ export function buildConfirmation(
     else if (op.tool === 'update_category') lines.push(`Categoria ${name} atualizada.`.replace('  ', ' '));
     else lines.push('Categoria excluída.');
   }
+
+  // ── Notas: the note open beside the chat ───────────────────────────────
+  const note = noteSentence(
+    ops.filter((o) => o.success && WRITE_NOTE_TOOLS.has(o.tool)),
+    options.preferredName,
+  );
+  if (note) lines.push(note);
 
   // ── Notification settings (Resumo do dia / Planejamento semanal) ───────
   for (const op of ops.filter((o) => o.success && WRITE_SETTINGS_TOOLS.has(o.tool))) {

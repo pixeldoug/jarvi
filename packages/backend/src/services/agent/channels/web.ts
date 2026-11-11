@@ -121,6 +121,7 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   update_memory: 'Atualizando memória…',
   offer_choices: 'Preparando opções…',
   update_notification_settings: 'Atualizando notificações…',
+  update_note: 'Escrevendo na nota…',
 };
 
 const SILENT_WEB_TOOLS = new Set(['complete_onboarding_journey']);
@@ -145,6 +146,11 @@ export interface StreamChatOptions {
    * mode, appended after the regular prompt.
    */
   noteContext?: string;
+  /**
+   * Notas: the note open beside the chat. With `canWrite`, general mode also
+   * gets `update_note`, which writes to this note and no other.
+   */
+  openNote?: { id: string; canWrite: boolean };
 }
 
 export async function streamChat(
@@ -201,6 +207,12 @@ export async function streamChat(
       .reverse()
       .find((m) => m.role === 'user')
       ?.content;
+
+    // Notas: writing in the open note is offered only beside a note the user
+    // can edit (the model never sees the tool anywhere else).
+    if (mode !== 'task' && options.openNote?.canWrite) {
+      profile.toolsAvailable = [...profile.toolsAvailable, 'update_note'];
+    }
 
     let ctx: AgentContext;
     let systemPrompt: string;
@@ -261,6 +273,7 @@ export async function streamChat(
         onboardingJourneyPending,
         whatsappVerified,
         pendingQuestion: profile.reliableExecution ? options.pendingQuestion : undefined,
+        openNote: options.openNote,
       };
       systemPrompt = buildSystemPrompt(ctx, profile);
       if (options.noteContext) {

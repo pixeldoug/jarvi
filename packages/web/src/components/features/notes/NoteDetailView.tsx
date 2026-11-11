@@ -23,6 +23,8 @@ import { NoteSummaryTab } from './NoteSummaryTab';
 import { NoteTranscriptTab } from './NoteTranscriptTab';
 import { RecordingChip } from './RecordingChip';
 import { useNoteAutosave } from './noteAutosave';
+import { useChatNoteEdits } from './chatNoteEdits';
+import { applyDocEditsToRaw, type DocEditFocus } from '../../../utils/docEdits';
 import { generateNoteSummary, scheduleAutoSummary, useIsGeneratingSummary } from './summaryGeneration';
 import {
   AudioImportError,
@@ -55,6 +57,8 @@ import styles from './NoteDetailView.module.css';
 
 const TITLE_SAVE_DELAY_MS = 600;
 const CONTENT_SAVE_DELAY_MS = 1000;
+/** The tab slide (NOTE_TAB_TRANSITION) has to end before the new text can be scrolled to. */
+const CHAT_EDIT_SCROLL_DELAY_MS = 350;
 
 /**
  * Tab content slides like a carousel (custom = -1 | 0 | 1): the new tab comes
@@ -285,6 +289,43 @@ export function NoteDetailView({
   const handleFlush = useCallback(() => {
     void flush();
   }, [flush]);
+
+  // ── What the chat writes in this note ───────────────────────────────────────
+  // The server saved it already; the drafts here are never read back from it,
+  // so the same edit goes into them: the editor redraws with the new doc and
+  // the autosave sends it again, together with anything typed meanwhile.
+  const [chatEditSeq, redrawNotes] = useReducer((n: number) => n + 1, 0);
+  const chatEditFocusRef = useRef<DocEditFocus | null>(null);
+  useChatNoteEdits(note.id, (edit) => {
+    if (!canEdit) return;
+    if (edit.title !== undefined && edit.title !== titleRef.current) handleTitleChange(edit.title);
+    if (edit.edits.length === 0) return;
+    // An edit whose line changed here meanwhile is skipped; the rest applies.
+    const { doc, changed, focus } = applyDocEditsToRaw(notesDraftRef.current, edit.edits);
+    if (!changed) return;
+    handleNotesChange(doc);
+    chatEditFocusRef.current = focus;
+    redrawNotes();
+    if (tab !== 'notas') {
+      void flush();
+      onTabChange('notas');
+    }
+  });
+
+  // Bring what the chat changed into view: it may be anywhere in the note.
+  useEffect(() => {
+    const focus = chatEditFocusRef.current;
+    if (focus === null || tab !== 'notas') return;
+    const timer = window.setTimeout(() => {
+      chatEditFocusRef.current = null;
+      const block = scrollerRef.current?.querySelector('.prosemirror-editor')?.children[focus.block];
+      // A list's children are its items
+      const target = (focus.item !== undefined && block?.children[focus.item]) || block;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target?.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    }, CHAT_EDIT_SCROLL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [chatEditSeq, tab]);
 
   const { setNotePinned } = useNoteMutations();
   const handleTogglePin = useCallback(() => {

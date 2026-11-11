@@ -97,6 +97,8 @@ export type ToolName =
   | 'offer_choices'
   /** Ligar/desligar/mudar horário do Resumo do dia e do Planejamento semanal (WhatsApp). */
   | 'update_notification_settings'
+  /** Notas (web): write in the note the user has open beside the chat. Needs `ctx.openNote`. */
+  | 'update_note'
   /** Legacy (flag off) only — with reliable execution the backend closes the journey itself. */
   | 'complete_onboarding_journey';
 
@@ -138,7 +140,13 @@ export interface ToolExecutionResult {
 
 export type AgentOperationKind = 'write' | 'read';
 
-export type AgentOperationEntityType = 'task' | 'category' | 'memory' | 'gmail' | 'notification';
+export type AgentOperationEntityType =
+  | 'task'
+  | 'category'
+  | 'memory'
+  | 'gmail'
+  | 'notification'
+  | 'note';
 
 export interface AgentOperationEntity {
   type: AgentOperationEntityType;
@@ -339,6 +347,18 @@ export interface AgentContext {
    * backend fast path for quick replies / acknowledgements.
    */
   pendingQuestion?: AgentPendingQuestionRef;
+  /**
+   * Notas (web): the note open beside the chat. `update_note` only ever writes
+   * to this note — the model never picks a note id — and only with `canWrite`
+   * (owner or write share; checked by the controller for this user).
+   */
+  openNote?: { id: string; canWrite: boolean };
+  /**
+   * Tasks whose whole description a tool result showed the model this turn
+   * (filled by `update_task`). With the focused task and the descriptions
+   * short enough to fit a task line, these are the ones it may overwrite.
+   */
+  descriptionsSeen?: Set<string>;
   /** Channel-specific metadata (e.g. WhatsApp phone / message SID). */
   whatsappPhone?: string;
   whatsappMessageSid?: string;

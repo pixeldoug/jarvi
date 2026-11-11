@@ -19,6 +19,7 @@
     "eval:onboarding-rescue": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/onboarding-rescue.deterministic.ts",
     "eval:notes-next-steps": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/notes-next-steps.deterministic.ts",
     "eval:notes-next-steps:live": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/notes-next-steps.live.ts",
+    "eval:contextual-edits": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/contextual-edits.deterministic.ts",
     "eval:chat-history": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/chat-history.deterministic.ts",
     "eval:chat-titles:live": "npx ts-node --require dotenv/config -P tsconfig.eval.json evals/chat-titles.live.ts"
   },
