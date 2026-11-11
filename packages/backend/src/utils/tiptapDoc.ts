@@ -145,6 +145,32 @@ export function tiptapDocToMarkdown(raw: string | null | undefined): string {
     .trim();
 }
 
+const LIST_TYPES = new Set(['bulletList', 'orderedList', 'taskList']);
+
+/**
+ * The doc's section titles, in order: headings, and short label lines that
+ * introduce a list ("Critérios de aceite:"). None for legacy plain text.
+ */
+export function tiptapDocSections(raw: string | null | undefined): string[] {
+  const doc = raw ? parseDoc(raw) : null;
+  if (!doc) return [];
+  const blocks = children(doc);
+  const titles: string[] = [];
+  blocks.forEach((node, index) => {
+    const next = blocks[index + 1];
+    const isLabel =
+      node.type === 'paragraph' && !!next && LIST_TYPES.has(next.type ?? '') && children(node).length > 0;
+    if (node.type !== 'heading' && !isLabel) return;
+    const title = inlineMarkdown(children(node))
+      .replace(/[*_`~]/g, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[\s:]+$/, '')
+      .trim();
+    if (title && (node.type === 'heading' || title.length <= 60)) titles.push(title);
+  });
+  return titles;
+}
+
 function collectText(node: DocNode, parts: string[]): void {
   if (node.type === 'text') {
     if (node.text) parts.push(node.text);

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
 import type { ChatStoredMessage } from '../lib/chatsApi';
 import { stripTaskRefs } from '../lib/taskRefs';
+import { flushNoteSaves } from '../components/features/notes/noteAutosave';
 import { chatsKeys } from './useChats';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -446,6 +447,10 @@ export function useChatStream(
     };
 
     try {
+      // Note mode: the agent reads the note from the server (and may write in
+      // it), so what was just typed has to be there first. Never rejects.
+      if (mode === 'note' && noteId) await flushNoteSaves(queryClient, noteId);
+
       const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
         method: 'POST',
         headers: {

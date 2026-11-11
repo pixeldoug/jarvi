@@ -7,7 +7,12 @@ import {
 } from '../services/chatAttachmentService';
 import type { AgentPendingQuestionRef } from '../services/agent/core/types';
 import { beginChatTurn, toAttachmentNames, type ChatTurnRecorder } from '../services/chatHistoryService';
-import { buildNoteChatContext, getNoteAccess, getUserTimezone } from '../services/noteService';
+import {
+  buildNoteChatContext,
+  canWriteNote,
+  getNoteAccess,
+  getUserTimezone,
+} from '../services/noteService';
 import {
   isTextRewriteAction,
   rewriteSelection,
@@ -159,17 +164,21 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
   // Notas: the general agent plus the open note as context. Access is checked
   // here, before the SSE headers, so a bad id is a plain JSON error.
   let noteContext: string | undefined;
+  // …and, when the user can edit it, the note the chat may write in.
+  let openNote: { id: string; canWrite: boolean } | undefined;
   if (mode === 'note') {
     try {
       const access = await getNoteAccess(noteId as string, userId);
+      const canWrite = canWriteNote(access);
       const context = access
-        ? await buildNoteChatContext(noteId as string, await getUserTimezone(userId))
+        ? await buildNoteChatContext(noteId as string, await getUserTimezone(userId), { canWrite })
         : null;
       if (!context) {
         res.status(404).json({ error: 'Nota não encontrada' });
         return;
       }
       noteContext = context;
+      openNote = { id: noteId as string, canWrite };
     } catch (err) {
       console.error('Failed to load note for chat:', err);
       res.status(500).json({ error: 'Failed to load note' });
@@ -232,7 +241,7 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
       mode === 'note' ? 'general' : mode,
       mode === 'note' ? undefined : taskId,
       sendEvent,
-      mode === 'note' ? { pendingQuestion, noteContext } : { pendingQuestion },
+      mode === 'note' ? { pendingQuestion, noteContext, openNote } : { pendingQuestion },
     );
   } catch (err: any) {
     console.error('AI chat controller error:', err);

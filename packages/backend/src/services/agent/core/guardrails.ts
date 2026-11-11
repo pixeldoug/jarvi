@@ -44,6 +44,10 @@ export function shouldRetryWithForcedTool(
   const claimedCreation = CREATION_CLAIM_REGEX.test(responseText);
   const claimedUpdate = UPDATE_CLAIM_REGEX.test(responseText);
 
+  // "Anotei na sua nota" after update_note is true, and it is not a task:
+  // forcing a tool call here would create one the user never asked for.
+  if (toolCallNames.includes('update_note')) return false;
+
   if (claimedCreation && !calledCreationTool) return true;
 
   // "Marquei a tarefa" / "coloquei para sexta" right after create_task is a
