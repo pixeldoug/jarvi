@@ -13,6 +13,7 @@ import { Calendar } from '../../../ui/Calendar';
 import { Button } from '../../../ui/Button';
 import { ListItem } from '../../../ui/ListItem';
 import { TextInput } from '../../../ui/TextInput';
+import { formatShortMonth } from '../../../../lib/utils';
 import styles from './TaskDatePicker.module.css';
 
 export interface TaskDatePickerProps {
@@ -260,10 +261,8 @@ export function TaskDatePicker({
     
     // Para outras datas, mostrar formato "25 Jul" ou "25 Jul 14:00"
     const day = selectedDate.getDate();
-    const month = selectedDate.toLocaleDateString('pt-BR', { month: 'short' })
-      .replace('.', '')
-      .replace(/^./, str => str.toUpperCase());
-    
+    const month = formatShortMonth(selectedDate);
+
     return `${day} ${month}${timeSuffix}`;
   }, [selectedDate, selectedTime, isDayMode]);
 
