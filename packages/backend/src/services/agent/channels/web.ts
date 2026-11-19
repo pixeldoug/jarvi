@@ -15,7 +15,7 @@ import {
   triggerMemoryReconciliation,
 } from '../core/memory';
 import { buildSystemPrompt, buildTaskFocusedPrompt, buildWebExtras } from '../core/prompt';
-import { runAgent, isRateLimitError, isRequestTooLargeError } from '../core/runAgent';
+import { runAgent, isContextTooLargeError, isRateLimitError, isRequestTooLargeError } from '../core/runAgent';
 import { parseTaskDescription, type TaskImageAttachment } from '../core/taskDescription';
 import {
   getActiveTaskCount,
@@ -233,6 +233,7 @@ export async function streamChat(
         // The date guard reads the user's own words. Only wired with the flag
         // so the legacy task-mode path stays untouched (it never had it).
         originalUserMessage: profile.reliableExecution ? lastUserMessage : undefined,
+        latestUserMessage: lastUserMessage,
         pendingQuestion: profile.reliableExecution ? options.pendingQuestion : undefined,
       };
       systemPrompt = buildTaskFocusedPrompt(task, ctx, profile);
@@ -393,13 +394,17 @@ export async function streamChat(
     }
   } catch (err) {
     console.error('AI Chat stream error:', err);
+    // The provider's own error text ("400 Input tokens exceed…") is for the
+    // logs above, never for the person.
     const message = isRequestTooLargeError(err)
       ? 'Esse conteúdo é grande demais para eu processar de uma vez — provavelmente uma imagem muito pesada. Tente reduzir o tamanho da imagem antes de continuar. 🙏'
-      : isRateLimitError(err)
-        ? 'Estou recebendo muitas mensagens agora e atingi um limite temporário. Tenta de novo em alguns instantes. 🙏'
-        : err instanceof Error
-          ? err.message
-          : 'Erro ao processar resposta da IA';
+      : isContextTooLargeError(err)
+        ? 'Não consegui ler tudo de uma vez: a conversa ou os arquivos ficaram grandes demais. Tente de novo com um arquivo menor ou em uma conversa nova. 🙏'
+        : isRateLimitError(err)
+          ? 'Estou recebendo muitas mensagens agora e atingi um limite temporário. Tenta de novo em alguns instantes. 🙏'
+          : process.env.NODE_ENV !== 'production' && err instanceof Error
+            ? err.message
+            : 'Não consegui responder agora. Tenta de novo em alguns instantes. 🙏';
     onEvent({ type: 'error', message });
     onEvent({ type: 'done' });
   }

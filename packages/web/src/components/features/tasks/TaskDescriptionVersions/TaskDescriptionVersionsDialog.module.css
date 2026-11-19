@@ -1,0 +1,79 @@
+/**
+ * TaskDescriptionVersionsDialog styles (StepReviewDialog layout: title block,
+ * content, actions at the end)
+ */
+
+.dialogContent {
+  gap: 0 !important;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-6);
+  width: 100%;
+  min-width: 0;
+}
+
+.textBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-2);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--typography-heading-md-font-family);
+  font-size: var(--typography-heading-md-font-size);
+  font-weight: var(--typography-heading-md-font-weight);
+  line-height: var(--typography-heading-md-line-height);
+  letter-spacing: var(--typography-heading-md-letter-spacing);
+  color: var(--semantic-content-primary);
+}
+
+.description,
+.empty {
+  margin: 0;
+  font-family: var(--typography-body-md-font-family);
+  font-size: var(--typography-body-md-font-size);
+  font-weight: var(--typography-body-md-font-weight);
+  line-height: var(--typography-body-md-line-height);
+  letter-spacing: var(--typography-body-md-letter-spacing);
+  color: var(--semantic-content-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sizes-1);
+  /* Rows reach the title's left edge: ListItem brings its own side padding */
+  margin: 0 calc(var(--sizes-4) * -1);
+}
+
+/* Date on the first line, the version's first words on the second */
+button.row {
+  padding-top: var(--sizes-2);
+  padding-bottom: var(--sizes-2);
+}
+
+/* The version, read-only. Scrolls on its own so the actions stay in view. */
+.preview {
+  max-height: min(48vh, 480px);
+  overflow-y: auto;
+  padding: var(--sizes-4) var(--sizes-5);
+  border-radius: var(--radius-sm);
+  background: var(--semantic-surface-secondary);
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sizes-2);
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

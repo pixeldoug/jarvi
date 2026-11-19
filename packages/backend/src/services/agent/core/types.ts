@@ -320,6 +320,12 @@ export interface AgentContext {
   /** Original user message text (used by some tool executors for trace context). */
   originalUserMessage?: string;
   /**
+   * The user's latest message, on every path (`originalUserMessage` is not
+   * set on the web's legacy task mode). Read to tell whether the user asked
+   * for something to be removed from a description.
+   */
+  latestUserMessage?: string;
+  /**
    * True while the post-wizard first-tasks chat is still open
    * (`onboarding_completed_at` set, `onboarding_journey_completed_at` null).
    */

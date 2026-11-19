@@ -8,6 +8,10 @@ import {
   setTasksCompletion,
   setTasksOrder,
 } from '../controllers/taskController';
+import {
+  getTaskDescriptionVersions,
+  restoreTaskDescription,
+} from '../controllers/taskDescriptionVersionController';
 import { authenticateToken } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/requireSubscription';
 import subTaskRouter from './subTaskRoutes';
@@ -23,6 +27,15 @@ router.patch('/order', authenticateToken, requireActiveSubscription, setTasksOrd
 router.put('/:id', authenticateToken, requireActiveSubscription, updateTask);
 router.delete('/:id', authenticateToken, requireActiveSubscription, deleteTask);
 router.patch('/:id/toggle', authenticateToken, requireActiveSubscription, toggleTaskCompletion);
+
+// What the description said before each AI change, and going back to it
+router.get('/:id/description-versions', authenticateToken, requireActiveSubscription, getTaskDescriptionVersions);
+router.post(
+  '/:id/description-versions/:versionId/restore',
+  authenticateToken,
+  requireActiveSubscription,
+  restoreTaskDescription,
+);
 
 // Sub-task routes nested under tasks
 router.use('/:taskId/subtasks', subTaskRouter);
