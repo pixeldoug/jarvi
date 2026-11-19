@@ -310,6 +310,22 @@ const createTables = async (): Promise<void> => {
       created_at ${timestampType}
     );`,
     `CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation ON chat_messages (conversation_id, seq);`,
+
+    // Tarefas: what a description said before an AI write (the agent on web /
+    // WhatsApp, an MCP client) or before a restore, so the user can go back to
+    // it. `description` is the stored doc without its `_attachments`. Capped
+    // per task (see taskDescriptionVersionService). SQLite does not enforce
+    // the FK: its rows outlive a deleted task, unreachable.
+    `CREATE TABLE IF NOT EXISTS task_description_versions (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      description TEXT NOT NULL,
+      source TEXT NOT NULL,
+      created_at ${timestampType},
+      FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );`,
+    `CREATE INDEX IF NOT EXISTS idx_task_description_versions_task ON task_description_versions (task_id, created_at);`,
     
     `CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,

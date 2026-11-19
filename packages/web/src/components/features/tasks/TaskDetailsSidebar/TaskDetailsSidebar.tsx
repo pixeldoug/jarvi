@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { Calendar, Hash, Fire, Sparkle, Bell, Repeat, Trash } from '@phosphor-icons/react';
+import { Calendar, ClockCounterClockwise, Hash, Fire, Sparkle, Bell, Repeat, Trash } from '@phosphor-icons/react';
 import type { RecurrenceType, TaskReminderDraft } from '@jarvi/shared';
 import { Task, useTasks } from '../../../../contexts/TaskContext';
 import { useCategories, type Category } from '../../../../contexts/CategoryContext';
@@ -25,6 +25,7 @@ import { formatFrequencyChip, parseRecurrenceConfig } from '../../../../lib/recu
 import { formatRemindersChipLabel } from '../../../../lib/reminders';
 import { toast } from '../../../ui/Sonner';
 import { RichTextEditor } from '../../../ui/RichTextEditor/RichTextEditor';
+import { TaskDescriptionVersionsDialog, useTaskDescriptionVersions } from '../TaskDescriptionVersions';
 import { TaskDetailsFooter } from './TaskDetailsFooter';
 import { TaskPeekToolbar, type TaskPeekMode } from './TaskPeekToolbar';
 import styles from './TaskDetailsSidebar.module.css';
@@ -87,6 +88,14 @@ export function TaskDetailsSidebar({
   const prevTaskRef = useRef<typeof task>(null);
   const onUpdateTaskRef = useRef(onUpdateTask);
   onUpdateTaskRef.current = onUpdateTask;
+  // "Versões anteriores": what the description said before each AI change.
+  // A restore is already saved on the server; `onUpdateTask` is how the page's
+  // own copy of the task (and the list) gets the restored text.
+  const { versions, restore: restoreVersion, restoringId } = useTaskDescriptionVersions(
+    task?.id,
+    (taskId, restoredDescription) => void onUpdateTaskRef.current(taskId, { description: restoredDescription }),
+  );
+  const [showVersions, setShowVersions] = useState(false);
   // Legacy id-only ref kept for logging instrumentation
   const prevTaskIdRef = useRef<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -804,6 +813,16 @@ export function TaskDetailsSidebar({
     </div>
   );
 
+  const versionsDialog = (
+    <TaskDescriptionVersionsDialog
+      isOpen={showVersions}
+      onClose={() => setShowVersions(false)}
+      versions={versions}
+      restoringId={restoringId}
+      onRestore={restoreVersion}
+    />
+  );
+
   if (variant === 'expanded') {
     const menuItems = [
       ...(onOpenChat && showCloseButton ? [{ label: 'Abrir assistente AI', onSelect: onOpenChat }] : []),
@@ -832,6 +851,18 @@ export function TaskDetailsSidebar({
           />
           <div className={styles.topBarActions}>
             <TaskDetailsFooter task={task} />
+            {versions.length > 0 && (
+              <Tooltip label="Versões anteriores" position="bottom">
+                <Button
+                  variant="secondary"
+                  size="medium"
+                  icon={ClockCounterClockwise}
+                  iconPosition="icon-only"
+                  aria-label="Versões anteriores da descrição"
+                  onClick={() => setShowVersions(true)}
+                />
+              </Tooltip>
+            )}
             {onDelete && (
               <Tooltip label="Excluir" position="bottom">
                 <Button
@@ -901,6 +932,7 @@ export function TaskDetailsSidebar({
             ariaLabel="Descrição da tarefa"
           />
         </div>
+        {versionsDialog}
       </div>
     );
   }
@@ -1011,10 +1043,12 @@ export function TaskDetailsSidebar({
             <TaskDetailsFooter
               task={task}
               onDelete={onDelete ? handleDeleteClick : undefined}
+              onShowVersions={versions.length > 0 ? () => setShowVersions(true) : undefined}
             />
           }
         />
       </div>
+      {versionsDialog}
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { Clock, Trash } from '@phosphor-icons/react';
+import { Clock, ClockCounterClockwise, Trash } from '@phosphor-icons/react';
 import type { Task } from '../../../../contexts/TaskContext';
-import { Button, Chip } from '../../../ui';
+import { Button, Chip, Tooltip } from '../../../ui';
 
 function formatCreatedChip(date: Date): string {
   const day = date.getDate();
@@ -14,9 +14,12 @@ function formatCreatedChip(date: Date): string {
 export function TaskDetailsFooter({
   task,
   onDelete,
+  onShowVersions,
 }: {
   task: Task;
   onDelete?: () => void;
+  /** Opens "Versões anteriores" (passed when the description has any) */
+  onShowVersions?: () => void;
 }) {
   return (
     <>
@@ -26,6 +29,17 @@ export function TaskDetailsFooter({
         size="medium"
         chipStyle="filled"
       />
+      {onShowVersions && (
+        <Tooltip label="Versões anteriores" position="top" showDelay={300}>
+          <Button
+            variant="ghost"
+            icon={ClockCounterClockwise}
+            iconPosition="icon-only"
+            onClick={onShowVersions}
+            aria-label="Versões anteriores da descrição"
+          />
+        </Tooltip>
+      )}
       {onDelete && (
         <Button
           variant="ghost"
