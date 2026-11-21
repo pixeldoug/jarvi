@@ -1,0 +1,22 @@
+{
+  "plan": {
+    "loading": "…",
+    "monthly": "Monthly",
+    "annual": "Annual",
+    "lifetime": "Lifetime",
+    "trialDays_one": "Trial: {{count}} day left",
+    "trialDays_other": "Trial: {{count}} days left",
+    "pastDue": "Payment past due",
+    "none": "No plan"
+  },
+  "trialExpired": {
+    "title": "Your free trial has ended",
+    "titleExtended": "Your trial period is over",
+    "body": "Your tasks are still saved. As soon as your subscription is active, everything will work here again.",
+    "extend": "Get a few more days",
+    "checkAgain": "I've subscribed, refresh",
+    "notActiveYet": "We couldn't find an active subscription on this account yet.",
+    "extendError": "Couldn't extend your trial.",
+    "checkError": "Couldn't check your subscription."
+  }
+}

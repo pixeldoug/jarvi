@@ -1,18 +1,43 @@
 {
   "cli": {
-    "version": ">= 16.18.0",
+    "version": ">= 16.0.0",
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "24.22.1",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "933867383204-gc7lts7bcc9to2k1puqumheetic5tbai.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "933867383204-ieshtq1903hud854ja1lfk0v2lkf86s9.apps.googleusercontent.com"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://jarvi-staging.up.railway.app"
+      }
+    },
+    "development-simulator": {
+      "extends": "development",
+      "ios": {
+        "simulator": true
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "extends": "base",
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://jarvi-staging.up.railway.app"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "extends": "base",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://jarvi-production.up.railway.app"
+      }
     }
   },
   "submit": {

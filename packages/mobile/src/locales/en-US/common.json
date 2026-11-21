@@ -1,0 +1,145 @@
+{
+  "app": {
+    "name": "Jarvi",
+    "version": "Jarvi {{version}}"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "remove": "Remove",
+    "undo": "Undo",
+    "close": "Close",
+    "back": "Back",
+    "continue": "Continue",
+    "confirm": "Confirm",
+    "edit": "Edit",
+    "add": "Add",
+    "send": "Send",
+    "done": "Done",
+    "ok": "OK",
+    "tryAgain": "Try again",
+    "signOut": "Log out"
+  },
+  "status": {
+    "loading": "Loading…",
+    "saving": "Saving…"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Can't reach Jarvi. Check your internet connection.",
+    "offline": "Check your connection and try again.",
+    "loadFailed": "Couldn't load this",
+    "httpStatus": "HTTP {{status}}"
+  },
+  "time": {
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "yesterday": "Yesterday",
+    "noDate": "No date",
+    "justNow": "just now",
+    "yesterdayInline": "yesterday",
+    "minutesAgo_one": "{{count}} minute ago",
+    "minutesAgo_other": "{{count}} minutes ago",
+    "hoursAgo_one": "{{count}} hour ago",
+    "hoursAgo_other": "{{count}} hours ago",
+    "daysAgo_one": "{{count}} day ago",
+    "daysAgo_other": "{{count}} days ago",
+    "onDate": "on {{date}}",
+    "dateAtTime": "{{date}} at {{time}}",
+    "dateWithTime": "{{date}}, {{time}}"
+  },
+  "calendar": {
+    "monthsShort": {
+      "jan": "Jan",
+      "feb": "Feb",
+      "mar": "Mar",
+      "apr": "Apr",
+      "may": "May",
+      "jun": "Jun",
+      "jul": "Jul",
+      "aug": "Aug",
+      "sep": "Sep",
+      "oct": "Oct",
+      "nov": "Nov",
+      "dec": "Dec"
+    },
+    "monthsLong": {
+      "jan": "January",
+      "feb": "February",
+      "mar": "March",
+      "apr": "April",
+      "may": "May",
+      "jun": "June",
+      "jul": "July",
+      "aug": "August",
+      "sep": "September",
+      "oct": "October",
+      "nov": "November",
+      "dec": "December"
+    },
+    "monthsInline": {
+      "jan": "January",
+      "feb": "February",
+      "mar": "March",
+      "apr": "April",
+      "may": "May",
+      "jun": "June",
+      "jul": "July",
+      "aug": "August",
+      "sep": "September",
+      "oct": "October",
+      "nov": "November",
+      "dec": "December"
+    },
+    "weekdaysShort": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    },
+    "weekdaysLong": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "weekdaysFull": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "am": "AM",
+    "pm": "PM",
+    "formats": {
+      "dayMonth": "{{month}} {{day}}",
+      "dayMonthYear": "{{month}} {{day}}, {{year}}",
+      "dayMonthLong": "{{month}} {{day}}",
+      "weekdayDayMonthLong": "{{weekday}}, {{month}} {{day}}",
+      "monthYear": "{{month}} {{year}}"
+    }
+  },
+  "list": {
+    "and": "{{first}} and {{last}}",
+    "andSerial": "{{first}}, and {{last}}",
+    "or": "{{first}} or {{last}}",
+    "orSerial": "{{first}}, or {{last}}"
+  },
+  "user": {
+    "you": "You"
+  },
+  "language": {
+    "label": "Language",
+    "changeError": "We couldn't save the language to your account. Please try again."
+  }
+}

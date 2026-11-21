@@ -1,0 +1,92 @@
+{
+  "screens": {
+    "profile": "Profile",
+    "notifications": "Notifications",
+    "memory": "Memory",
+    "categories": "Categories"
+  },
+  "sections": {
+    "account": "Account",
+    "organization": "Organization",
+    "app": "App"
+  },
+  "rows": {
+    "profile": "Profile",
+    "notifications": "Notifications",
+    "memory": "Jarvi's memory",
+    "plan": "Plan",
+    "categories": "Categories",
+    "appearance": "Appearance",
+    "openWeb": "Open Jarvi on the web",
+    "deleteAccount": "Delete account",
+    "deletingAccount": "Deleting account…"
+  },
+  "appearance": {
+    "system": "Automatic",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "signOut": {
+    "confirmTitle": "Log out of Jarvi?"
+  },
+  "deleteAccount": {
+    "confirmTitle": "Delete account?",
+    "confirmMessage": "Your tasks, categories, and reminders will be erased for good. This can't be undone.",
+    "confirm": "Delete account",
+    "error": "Couldn't delete your account"
+  },
+  "profile": {
+    "nameLabel": "Name",
+    "preferredNameLabel": "What should Jarvi call you?",
+    "preferredNamePlaceholder": "Nickname (optional)",
+    "nameRequired": "Enter your name",
+    "saved": "Profile updated.",
+    "saveError": "Couldn't save",
+    "timezone": {
+      "title": "Time zone",
+      "footer": "Reminders and summaries follow this time zone.",
+      "current": "Current",
+      "loading": "…",
+      "useDevice": "Use {{timezone}}",
+      "updated": "Time zone: {{timezone}}.",
+      "updateError": "Couldn't update your time zone"
+    }
+  },
+  "memory": {
+    "intro": "What Jarvi knows about you, so it can organize your tasks better. It also learns from your conversations.",
+    "placeholder": "e.g. house chores on Fridays, I pay my bills on the 10th",
+    "label": "Jarvi's memory",
+    "saved": "Memory updated.",
+    "saveError": "Couldn't save"
+  },
+  "notifications": {
+    "intro": "Messages Jarvi sends to your WhatsApp.",
+    "enabled": "On",
+    "time": "Time",
+    "daily": {
+      "name": "Daily summary",
+      "description": "Every day, what you've got on for today.",
+      "timeLabel": "Daily summary time",
+      "saveError": "Couldn't save the Daily summary."
+    },
+    "weekly": {
+      "name": "Weekly planning",
+      "description": "On Sundays, a plan for the week ahead.",
+      "timeLabel": "Weekly planning time",
+      "saveError": "Couldn't save Weekly planning."
+    }
+  },
+  "categories": {
+    "newPlaceholder": "New category",
+    "create": "Create",
+    "emptyTitle": "No categories yet",
+    "emptyDescription": "Categories help you filter your tasks.",
+    "footer": "Tap a name to rename it. Hidden categories stay on your tasks but don't show up in filters.",
+    "renameLabel": "New name for {{name}}",
+    "renameHint": "Rename",
+    "showInFilters": "Show {{name}} in filters",
+    "deleteLabel": "Delete {{name}}",
+    "deleteTitle": "Delete \"{{name}}\"?",
+    "deleteMessage": "Your tasks stay put, they just won't have a category anymore."
+  }
+}

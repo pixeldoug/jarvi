@@ -2,31 +2,14 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "baseUrl": ".",
+    "noUncheckedIndexedAccess": true,
+    "types": ["jest", "expo/types"],
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
-      "@/screens/*": [
-        "src/screens/*"
-      ],
-      "@/components/*": [
-        "src/components/*"
-      ],
-      "@/services/*": [
-        "src/services/*"
-      ],
-      "@/types/*": [
-        "../shared/src/types/*"
-      ],
-      "@/utils/*": [
-        "../shared/src/utils/*"
-      ]
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./assets/*"],
+      // Type icons from the published .d.ts; Metro still bundles the per-icon source.
+      "phosphor-react-native/src/icons/*": ["./node_modules/phosphor-react-native/lib/typescript/icons/*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "nativewind-env.d.ts"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }

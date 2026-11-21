@@ -1,0 +1,127 @@
+{
+  "options": {
+    "tracking": {
+      "mobileNotes": "Anotações no celular",
+      "paperNotebook": "Papel & caderno",
+      "selfWhatsapp": "WhatsApp comigo mesmo",
+      "agendaCalendar": "Agenda & Calendário",
+      "spreadsheets": "Planilhas",
+      "productivityApps": "Apps de produtividade (Notion, ClickUp, etc)",
+      "memoryOnly": "Tento lembrar de cabeça",
+      "noSystem": "Não tenho um sistema para isso",
+      "other": "Outros"
+    },
+    "pain": {
+      "forgetFastCapture": "Esqueço tarefas se não anoto na hora",
+      "hardPrioritization": "Tenho dificuldade em decidir o que é mais importante",
+      "overwhelmedManyTasks": "Me sinto sobrecarregado(a) com tudo que tenho pra fazer",
+      "procrastinateImportant": "Procrastino tarefas importantes",
+      "dontKnowStart": "Não sei por onde começar",
+      "other": "Outros"
+    }
+  },
+  "interview": {
+    "prompts": {
+      "name": "Como você prefere ser chamado?",
+      "tracking": "Como você cria e lembra das suas tarefas?",
+      "pain": "Você lida com algumas das opções abaixo?",
+      "open": "Como seria a Jarvi ideal para você no dia a dia?",
+      "firstTasks": "Vamos criar suas primeiras tarefas"
+    },
+    "placeholders": {
+      "name": "Seu nome ou apelido",
+      "trackingOther": "Conte como você faz",
+      "painOther": "Conte o que mais te atrapalha",
+      "open": "Ex.: me lembrar das contas e não deixar nada vencer"
+    },
+    "nameLabel": "Como você prefere ser chamado",
+    "openLabel": "Como seria a Jarvi ideal para você",
+    "optional": "Opcional",
+    "progress": "Passo {{current}} de {{total}}",
+    "createTasks": "Criar minhas tarefas"
+  },
+  "validation": {
+    "name": "Diga como você prefere ser chamado.",
+    "selectOption": "Selecione ao menos uma opção.",
+    "selectChallenge": "Selecione ao menos um desafio.",
+    "describeOther": "Descreva o que entra em \"Outros\".",
+    "firstTask": "Conte pelo menos uma coisa que você precisa fazer."
+  },
+  "errors": {
+    "completeFailed": "Não foi possível concluir agora."
+  },
+  "preparing": {
+    "title": "Preparando sua Jarvi…",
+    "body": "Organizando suas primeiras tarefas."
+  },
+  "firstTasks": {
+    "intro": "Escreva o que está na sua cabeça. A Jarvi organiza e te lembra no WhatsApp.",
+    "firstPlaceholder": "Ex.: Renovar CNH",
+    "nextPlaceholder": "Outra tarefa",
+    "taskLabel": "Tarefa {{number}}",
+    "removeTask": "Remover tarefa",
+    "addTask": "Adicionar tarefa",
+    "ideasTitle": "Sem ideias? Toque para adicionar"
+  },
+  "ideas": {
+    "topics": {
+      "health": {
+        "title": "Saúde",
+        "examples": {
+          "checkup": "Agendar check-up anual",
+          "dentist": "Agendar consulta no dentista",
+          "eyeDoctor": "Agendar consulta no oftalmologista",
+          "vaccines": "Pesquisar calendário de vacinas"
+        }
+      },
+      "money": {
+        "title": "Dinheiro",
+        "examples": {
+          "creditCard": "Pagar fatura do cartão de crédito",
+          "emergencyFund": "Guardar dinheiro para a reserva de emergência",
+          "subscriptions": "Revisar assinaturas de aplicativos",
+          "monthlySpending": "Fechar os gastos do mês passado"
+        }
+      },
+      "home": {
+        "title": "Casa",
+        "examples": {
+          "airConditioner": "Agendar limpeza do ar-condicionado",
+          "household": "Comprar gás",
+          "internet": "Pagar a internet",
+          "waterFilter": "Trocar o filtro de água"
+        }
+      },
+      "documents": {
+        "title": "Documentos",
+        "examples": {
+          "driversLicense": "Renovar CNH",
+          "passport": "Renovar passaporte",
+          "vehicle": "Pagar IPVA",
+          "taxes": "Declarar Imposto de Renda"
+        }
+      },
+      "people": {
+        "title": "Pessoas",
+        "examples": {
+          "callRelative": "Ligar para um parente",
+          "lunch": "Agendar um almoço",
+          "birthday": "Lembrar um aniversário",
+          "message": "Mandar uma mensagem"
+        }
+      }
+    }
+  },
+  "memory": {
+    "name": "Você se chama {{name}}.",
+    "tracking": "Hoje você registra tarefas usando: {{list}}.",
+    "pain": "Os principais desafios atuais são: {{list}}.",
+    "idealOutcome": "A Jarvi ideal no dia a dia: {{text}}",
+    "empty": "Conte um pouco sobre sua rotina para a Jarvi te ajudar melhor."
+  },
+  "chatSeed": {
+    "welcome": "Bem-vindo!",
+    "welcomeName": "Bem-vindo, {{name}}!",
+    "readyAck": "Tudo pronto, criei suas primeiras tarefas."
+  }
+}

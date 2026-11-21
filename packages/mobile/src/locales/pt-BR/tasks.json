@@ -1,0 +1,137 @@
+{
+  "screen": {
+    "title": "Tarefas",
+    "newTask": "Nova tarefa",
+    "talkToJarvi": "Falar com a Jarvi",
+    "sectionA11y_one": "{{title}}, {{count}} tarefas",
+    "sectionA11y_other": "{{title}}, {{count}} tarefas"
+  },
+  "views": {
+    "all": "Todas",
+    "inbox": "Caixa de entrada",
+    "overdue": "Vencidas",
+    "recurring": "Recorrentes"
+  },
+  "sections": {
+    "overdue": "Vencidas",
+    "today": "Hoje",
+    "tomorrow": "Amanhã",
+    "thisWeek": "Esta semana",
+    "nextWeek": "Próxima semana",
+    "later": "Mais tarde",
+    "inbox": "Caixa de entrada",
+    "completed": "Concluídas",
+    "recurring": "Recorrentes"
+  },
+  "empty": {
+    "all": {
+      "title": "Nada por aqui",
+      "description": "Crie uma tarefa ou conte para a Jarvi o que você precisa fazer."
+    },
+    "inbox": {
+      "title": "Caixa de entrada vazia",
+      "description": "Tarefas sem data aparecem aqui."
+    },
+    "overdue": {
+      "title": "Nada vencido",
+      "description": "Você está em dia."
+    },
+    "recurring": {
+      "title": "Nenhuma tarefa recorrente",
+      "description": "Tarefas que se repetem aparecem aqui."
+    },
+    "category": {
+      "title": "Nada nesta categoria",
+      "description": "Tarefas desta categoria aparecem aqui."
+    },
+    "list": {
+      "title": "Nada neste filtro",
+      "description": "Tarefas que combinam com este filtro aparecem aqui."
+    }
+  },
+  "calendar": {
+    "newTaskOn": "Nova tarefa em {{date}}",
+    "emptyTitle": "Dia livre",
+    "emptyDescription": "Nenhuma tarefa para este dia."
+  },
+  "detail": {
+    "title": "Tarefa",
+    "notFoundTitle": "Tarefa não encontrada",
+    "notFoundDescription": "Ela pode ter sido excluída em outro aparelho.",
+    "titleRequired": "A tarefa precisa de um título",
+    "saveFailed": "Não foi possível salvar",
+    "deleteConfirmTitle": "Excluir tarefa?",
+    "delete": "Excluir tarefa",
+    "deleted": "Tarefa excluída.",
+    "whatsappOrigin": "MENSAGEM ORIGINAL NO WHATSAPP"
+  },
+  "newTask": {
+    "title": "Nova tarefa",
+    "create": "Criar",
+    "createFailed": "Não foi possível criar a tarefa"
+  },
+  "form": {
+    "titlePlaceholder": "O que precisa ser feito?",
+    "titleA11y": "Título da tarefa",
+    "notesPlaceholder": "Adicionar notas",
+    "notesA11y": "Notas da tarefa",
+    "noNotes": "Sem notas",
+    "notesReadOnly": "Estas notas têm formatação ou anexos. Edite pela web.",
+    "date": "Data",
+    "nextWeek": "Próxima semana",
+    "otherDate": "Outra data",
+    "pickDate": "Escolher data",
+    "time": "Horário",
+    "noTime": "Sem horário",
+    "pickTime": "Escolher horário",
+    "repeat": "Repetir",
+    "category": "Categoria",
+    "noCategory": "Sem categoria",
+    "newCategory": "Nova categoria",
+    "newCategoryA11y": "Nome da nova categoria",
+    "createCategoryFailed": "Não foi possível criar a categoria.",
+    "priority": "Prioridade",
+    "noPriority": "Nenhuma"
+  },
+  "priority": {
+    "low": "Baixa",
+    "medium": "Média",
+    "high": "Alta",
+    "urgent": "Urgente"
+  },
+  "repeat": {
+    "none": "Não repetir",
+    "hourly": "A cada hora",
+    "daily": "Diariamente",
+    "weekdays": "Dias úteis",
+    "weekly": "Semanalmente",
+    "monthly": "Mensalmente",
+    "custom": "Personalizado"
+  },
+  "categories": {
+    "defaults": {
+      "work": "Trabalho",
+      "personal": "Pessoal",
+      "shopping": "Compras"
+    }
+  },
+  "row": {
+    "viaWhatsApp": "pelo WhatsApp",
+    "openHint": "Abre os detalhes da tarefa"
+  },
+  "toast": {
+    "createdFromWhatsApp": "Nova tarefa criada pelo WhatsApp.",
+    "nextOccurrence": "Próxima repetição: {{when}}.",
+    "updateFailed": "Não foi possível atualizar a tarefa.",
+    "deleteFailed": "Não foi possível excluir a tarefa.",
+    "undoFailed": "Não foi possível desfazer."
+  },
+  "discard": {
+    "title": "Descartar alterações?",
+    "keepEditing": "Continuar editando",
+    "discard": "Descartar"
+  },
+  "description": {
+    "attachment": "anexo"
+  }
+}

@@ -12,7 +12,7 @@ Jarvi is an npm workspaces monorepo with 6 packages:
 | Web (React + Vite) | `packages/web` | `npm run dev:web` | 3000 |
 | Marketing (Next.js) | `packages/marketing` | `npm run dev:marketing` | 3002 |
 | Handbook (VitePress) | `packages/handbook` | `npm run dev:handbook` | 3003 |
-| Mobile (Expo) | `packages/mobile` | `npm run dev:mobile` | 8081 |
+| Mobile (Expo, own lockfile) | `packages/mobile` | `npm run dev:mobile` | 8081 |
 | Shared (types/tokens) | `packages/shared` | `npm run build:shared` | N/A |
 
 Run backend + web together: `npm run dev` from the root.
@@ -45,6 +45,7 @@ Dev uses SQLite (auto-created at `packages/backend/jarvi.db`). No external datab
 
 - **Redis not required for core dev**: The WhatsApp/Gmail queue workers will log `ECONNREFUSED` to Redis (port 6379) on startup but the app runs fine without Redis. These are non-blocking background workers.
 - **Shared must be built before web/backend**: Run `npm run build:shared` if you change code in `packages/shared`. The update script handles this.
+- **Mobile is not an npm workspace**: `packages/mobile` (Expo SDK 58, React 19) has its own `package-lock.json`, because the web is on React 18 and hoisting would mix the two. Install it with `cd packages/mobile && npm install`; add packages with `npx expo install`. Checks: `npm run check` inside `packages/mobile`. See [packages/mobile/README.md](packages/mobile/README.md).
 - **ESLint config is broken**: The `.eslintrc.js` files reference `@typescript-eslint/recommended` (v8 style) but use `@typescript-eslint/eslint-plugin` v6 which expects `plugin:@typescript-eslint/recommended`. Use `npx tsc --noEmit` for type checking instead.
 - **No automated test suites**: No `test` scripts are configured in workspace packages.
 - **Build verification**: `npx tsc --noEmit` in `packages/backend` and `packages/web` are the best static verification checks.

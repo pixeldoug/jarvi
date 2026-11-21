@@ -1,0 +1,23 @@
+{
+  "tabs": {
+    "tasks": "Tasks",
+    "calendar": "Calendar",
+    "notes": "Notes",
+    "jarvi": "Jarvi",
+    "settings": "Settings"
+  },
+  "chip": {
+    "remove": "Remove {{label}}"
+  },
+  "taskCheckbox": {
+    "complete": "Mark {{label}} as done",
+    "reopen": "Mark {{label}} as not done"
+  },
+  "otp": {
+    "label_one": "{{count}}-digit code",
+    "label_other": "{{count}}-digit code"
+  },
+  "listRow": {
+    "labelWithValue": "{{label}}: {{value}}"
+  }
+}

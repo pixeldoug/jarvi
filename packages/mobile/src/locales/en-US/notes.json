@@ -1,0 +1,160 @@
+{
+  "untitled": "New note",
+  "list": {
+    "title": "Notes",
+    "newNote": "New note",
+    "rowHint": "Touch and hold to pin or delete",
+    "groups": {
+      "pinned": "Pinned",
+      "upcoming": "Upcoming",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "Last 7 days",
+      "older": "Older"
+    },
+    "empty": {
+      "title": "No notes yet",
+      "description": "Jot down what's on your mind or record a conversation. Jarvi transcribes it, sums it up and suggests next steps."
+    }
+  },
+  "menu": {
+    "pin": "Pin to top",
+    "unpin": "Unpin",
+    "more": "More options",
+    "askJarvi": "Ask Jarvi about this note"
+  },
+  "toast": {
+    "createFailed": "We couldn't create the note.",
+    "deleteFailed": "We couldn't delete the note.",
+    "pinFailed": "We couldn't pin the note.",
+    "unpinFailed": "We couldn't unpin the note.",
+    "summaryReady": "Summary ready.",
+    "view": "View"
+  },
+  "deleteDialog": {
+    "title": "Delete note?",
+    "description": "This note's notes, summary and transcript will be deleted. This can't be undone."
+  },
+  "detail": {
+    "notFound": {
+      "title": "Note not found",
+      "description": "It may have been deleted on another device."
+    },
+    "titleLabel": "Note title",
+    "saveFailed": "We couldn't save. We'll try again on your next edit.",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "Write your notes…",
+    "webFormatting": "This note has formatting from the web app. Edit it on your computer to keep the formatting."
+  },
+  "tabs": {
+    "notes": "Notes",
+    "transcript": "Transcript",
+    "summary": "Summary"
+  },
+  "record": {
+    "start": "Record",
+    "stop": "Stop",
+    "elapsedLabel": "Recording, {{elapsed}}",
+    "startFailed": "We couldn't start recording.",
+    "denied": {
+      "title": "Microphone blocked",
+      "message": "Allow microphone access in Settings to record your notes.",
+      "notNow": "Not now",
+      "openSettings": "Open Settings"
+    },
+    "leave": {
+      "title": "Stop recording?",
+      "message": "What you've recorded so far will still be transcribed.",
+      "keepRecording": "Keep recording",
+      "stopAndLeave": "Stop and leave"
+    },
+    "interrupted": "Recording stopped because of an error. What was recorded is still being transcribed."
+  },
+  "transcript": {
+    "transcribing": "Transcribing…",
+    "failed_one": "{{count}} clip wasn't transcribed.",
+    "failed_other": "{{count}} clips weren't transcribed.",
+    "recording": "Recording…",
+    "empty": {
+      "title": "No transcript yet",
+      "recording": "The transcript shows up here every 30 seconds while you record.",
+      "idle": "Start recording to see the transcript here."
+    }
+  },
+  "summary": {
+    "needsSource": "Write a few notes or record some audio first.",
+    "failed": "We couldn't generate the summary.",
+    "generatedAt": "Generated {{when}}",
+    "regenerate": "Regenerate",
+    "regenerateDialog": {
+      "title": "Regenerate?",
+      "message": "The current summary, including your edits, will be replaced."
+    },
+    "empty": {
+      "title": "No summary yet",
+      "description": "Jarvi writes a summary from your notes and the transcript."
+    },
+    "generate": "Generate summary",
+    "outdated": "Your notes or transcript have new details since this summary.",
+    "update": "Update summary",
+    "generating": "Writing the summary…"
+  },
+  "nextSteps": {
+    "title": "Next steps",
+    "addToTasks": "Sync with tasks",
+    "openTask": "Open the task {{title}}",
+    "taskBadge": "Task",
+    "isItATask": "Already a task?",
+    "saveFailed": "We couldn't save the step."
+  },
+  "tasksSync": {
+    "synced_one": "{{count}} task synced",
+    "synced_other": "{{count}} tasks synced",
+    "failed": "We couldn't create the tasks.",
+    "skipped_one": "One step changed and didn't become a task. Open the note again and retry.",
+    "skipped_other": "{{count}} steps changed and didn't become tasks. Open the note again and retry.",
+    "title": "Sync with tasks",
+    "confirm": "Sync",
+    "checking": "Checking whether any step is already in your tasks…",
+    "description": "The selected next steps go to Tasks.",
+    "descriptionMatches": "Checked steps go to Tasks. If one is already there, the note uses the task you have instead of repeating it.",
+    "prepareFailed": "We couldn't get the steps ready. Close and try again.",
+    "empty": "No next steps to sync.",
+    "alreadyTask": "Already a task",
+    "createNew": "Create new",
+    "useExisting": "Use existing",
+    "inList": "Already in your tasks",
+    "inListAs": "Already in your tasks as “{{title}}”",
+    "willCreate": "Will become a new task",
+    "willUse": "Will use the task you already have",
+    "willUseAs": "Will use the task you already have: “{{title}}”",
+    "linked_one": "Step tied to the task you already had",
+    "linked_other": "{{count}} steps tied to tasks you already had",
+    "syncedWithExisting_one": "{{synced}} ({{count}} already existed)",
+    "syncedWithExisting_other": "{{synced}} ({{count}} already existed)"
+  },
+  "stepReview": {
+    "title": "Already a task?",
+    "message": "“{{text}}” looks like a step you already turned into a task: “{{existing}}”. If it's the same one, it stays linked to that task. If it's different, you can create a separate task for it.",
+    "existingFallback": "a step from this note",
+    "distinct": "It's a different step",
+    "same": "It's the same step",
+    "alreadyReviewed": "This step was already reviewed.",
+    "saveFailed": "We couldn't save your choice."
+  },
+  "chat": {
+    "newConversation": "New conversation",
+    "emptyTitle": "Ask about this note",
+    "emptyDescription": "Jarvi reads the notes, the transcript and the summary, and can create tasks from them.",
+    "placeholder": "Ask anything about this note…",
+    "suggestions": {
+      "nextStepTasks": "Turn next steps into tasks",
+      "decisions": "What did we decide?",
+      "summarize": "Sum it up in 3 points",
+      "openItems": "What's still open?"
+    }
+  },
+  "doc": {
+    "image": "[image]"
+  }
+}
