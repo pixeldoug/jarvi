@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme/theme-provider';
@@ -43,7 +44,8 @@ export function EmptyState({ icon, title, description, actionLabel, onAction }: 
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <EmptyState title="Não deu para carregar" description={message} actionLabel="Tentar de novo" onAction={onRetry} />;
+  const { t } = useTranslation();
+  return <EmptyState title={t('errors.loadFailed')} description={message} actionLabel={t('actions.tryAgain')} onAction={onRetry} />;
 }
 
 const styles = StyleSheet.create({

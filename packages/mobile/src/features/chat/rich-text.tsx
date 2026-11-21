@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme/theme-provider';
@@ -18,6 +19,7 @@ const BULLET_RE = /^\s*(?:[-*•]|(\d+)[.)])\s+(.*)$/;
  * lists, **bold**) plus `{{task:id|title}}` mentions as tappable text.
  */
 export function RichText({ text, onOpenTask }: RichTextProps) {
+  const { t } = useTranslation('chat');
   const { colors } = useTheme();
   const lines = text.replace(/\r\n/g, '\n').trim().split('\n');
 
@@ -30,7 +32,7 @@ export function RichText({ text, onOpenTask }: RichTextProps) {
             variant="body-md"
             color="contentInfo"
             accessibilityRole="link"
-            accessibilityHint="Abre a tarefa"
+            accessibilityHint={t('taskMention.openHint')}
             onPress={() => onOpenTask(segment.id)}
             style={styles.mention}
           >

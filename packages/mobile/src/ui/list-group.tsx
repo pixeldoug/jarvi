@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { useTheme } from '@/theme/theme-provider';
@@ -54,6 +55,7 @@ export function ListRow({
   accessory,
   last = false,
 }: ListRowProps) {
+  const { t } = useTranslation('ui');
   const { colors } = useTheme();
   const hasSwitch = switchValue !== undefined;
 
@@ -97,7 +99,7 @@ export function ListRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={value ? `${label}: ${value}` : label}
+      accessibilityLabel={value ? t('listRow.labelWithValue', { label, value }) : label}
       onPress={onPress}
       disabled={disabled}
       style={({ pressed }) => [{ opacity: disabled ? 0.5 : 1 }, pressed && { backgroundColor: colors.surfaceSecondary }]}

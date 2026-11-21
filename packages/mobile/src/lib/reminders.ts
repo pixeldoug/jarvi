@@ -1,72 +1,120 @@
 /**
  * Reminder labels and API mapping. Port of packages/web/src/lib/reminders.ts.
- * Reminders are sent by the backend over WhatsApp or a phone call.
+ * Reminders are sent by the backend over WhatsApp or a phone call. Text lives
+ * in `src/locales/<locale>/dates.json` (`reminders.*`) and comes out in
+ * `options.locale`, else the current UI language. Components pass `{ locale }`
+ * so the React Compiler re-runs the call after a language switch.
  */
+import { formatDate, formatDateTime, formatTime, i18n, weekdayNames, type FormatOptions } from '@/i18n';
 import type {
   ReminderChannel,
   RelativeReminderOffset,
   TaskReminder,
   TaskReminderDraft,
 } from '@/types/reminder';
-import { MONTHS_SHORT_PT } from './dates';
 
 export type ConfiguredReminder = Exclude<TaskReminderDraft, { type: 'unset' }>;
 
 export interface RelativeReminderPreset {
   id: string;
-  label: string;
+  /** Read in the current UI language each time it is accessed. Components use `getPresetLabel`. */
+  readonly label: string;
   offset: RelativeReminderOffset;
 }
 
+/** "No horário", "15 min antes", "1 hora antes" / "At the time", "15 min before", "1 hour before". */
+function presetLabel(offset: RelativeReminderOffset, options?: FormatOptions): string {
+  const lng = options?.locale;
+  if (offset.amount === 0) return i18n.t('dates:reminders.presets.atTime', { lng });
+  if (offset.unit === 'minutes') return i18n.t('dates:reminders.presets.minutesBefore', { minutes: offset.amount, lng });
+  if (offset.unit === 'hours') return i18n.t('dates:reminders.presets.hoursBefore', { count: offset.amount, lng });
+  return i18n.t('dates:reminders.presets.daysBefore', { count: offset.amount, lng });
+}
+
+export function getPresetLabel(preset: RelativeReminderPreset, options?: FormatOptions): string {
+  return presetLabel(preset.offset, options);
+}
+
+function relativePreset(id: string, offset: RelativeReminderOffset): RelativeReminderPreset {
+  return {
+    id,
+    offset,
+    get label() {
+      return presetLabel(offset);
+    },
+  };
+}
+
 export const RELATIVE_REMINDER_PRESETS: RelativeReminderPreset[] = [
-  { id: 'at-time', label: 'No horário', offset: { amount: 0, unit: 'minutes', direction: 'before' } },
-  { id: '5m-before', label: '5 min antes', offset: { amount: 5, unit: 'minutes', direction: 'before' } },
-  { id: '15m-before', label: '15 min antes', offset: { amount: 15, unit: 'minutes', direction: 'before' } },
-  { id: '30m-before', label: '30 min antes', offset: { amount: 30, unit: 'minutes', direction: 'before' } },
-  { id: '1h-before', label: '1 hora antes', offset: { amount: 1, unit: 'hours', direction: 'before' } },
-  { id: '2h-before', label: '2 horas antes', offset: { amount: 2, unit: 'hours', direction: 'before' } },
-  { id: '1d-before', label: '1 dia antes', offset: { amount: 1, unit: 'days', direction: 'before' } },
+  relativePreset('at-time', { amount: 0, unit: 'minutes', direction: 'before' }),
+  relativePreset('5m-before', { amount: 5, unit: 'minutes', direction: 'before' }),
+  relativePreset('15m-before', { amount: 15, unit: 'minutes', direction: 'before' }),
+  relativePreset('30m-before', { amount: 30, unit: 'minutes', direction: 'before' }),
+  relativePreset('1h-before', { amount: 1, unit: 'hours', direction: 'before' }),
+  relativePreset('2h-before', { amount: 2, unit: 'hours', direction: 'before' }),
+  relativePreset('1d-before', { amount: 1, unit: 'days', direction: 'before' }),
 ];
 
-export const CHANNEL_LABELS: Record<ReminderChannel, string> = {
-  whatsapp: 'WhatsApp',
-  call: 'Ligação',
-};
+const CHANNELS: readonly ReminderChannel[] = ['whatsapp', 'call'];
 
-const WEEKDAY_LABELS_PT = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
-
-function formatOffset(offset: RelativeReminderOffset): string {
-  if (offset.amount === 0) return 'No horário';
-  const units = {
-    minutes: ['minuto', 'minutos'],
-    hours: ['hora', 'horas'],
-    days: ['dia', 'dias'],
-  } as const;
-  const [singular, plural] = units[offset.unit];
-  return `${offset.amount} ${offset.amount === 1 ? singular : plural} ${offset.direction === 'before' ? 'antes' : 'depois'}`;
+/** "WhatsApp" / "Ligação" (en "Phone call"). */
+export function getChannelLabel(channel: ReminderChannel, options?: FormatOptions): string {
+  return i18n.t(`dates:reminders.channels.${channel}`, { lng: options?.locale });
 }
 
-function formatAbsolute(isoLocal: string): string {
+/** @deprecated Use `getChannelLabel(channel)`. Values follow the UI language. */
+export const CHANNEL_LABELS: Record<ReminderChannel, string> = (() => {
+  const record = {} as Record<ReminderChannel, string>;
+  for (const channel of CHANNELS) {
+    Object.defineProperty(record, channel, { enumerable: true, get: () => getChannelLabel(channel) });
+  }
+  return record;
+})();
+
+function formatOffset(offset: RelativeReminderOffset, options?: FormatOptions): string {
+  const lng = options?.locale;
+  if (offset.amount === 0) return i18n.t('dates:reminders.presets.atTime', { lng });
+  const count = offset.amount;
+  const before = offset.direction === 'before';
+  switch (offset.unit) {
+    case 'minutes':
+      return before
+        ? i18n.t('dates:reminders.offset.minutesBefore', { count, lng })
+        : i18n.t('dates:reminders.offset.minutesAfter', { count, lng });
+    case 'hours':
+      return before
+        ? i18n.t('dates:reminders.offset.hoursBefore', { count, lng })
+        : i18n.t('dates:reminders.offset.hoursAfter', { count, lng });
+    default:
+      return before
+        ? i18n.t('dates:reminders.offset.daysBefore', { count, lng })
+        : i18n.t('dates:reminders.offset.daysAfter', { count, lng });
+  }
+}
+
+/** "5 Nov às 14:30" / "Nov 5 at 2:30 PM"; "5 Nov 2026" / "Nov 5, 2026" without a time. */
+function formatAbsolute(isoLocal: string, options?: FormatOptions): string {
   if (/Z$|[+-]\d{2}:\d{2}$/i.test(isoLocal)) {
     const parsed = new Date(isoLocal);
-    if (!Number.isNaN(parsed.getTime())) {
-      const hh = String(parsed.getHours()).padStart(2, '0');
-      const mm = String(parsed.getMinutes()).padStart(2, '0');
-      return `${parsed.getDate()} ${MONTHS_SHORT_PT[parsed.getMonth()]} às ${hh}:${mm}`;
-    }
+    if (!Number.isNaN(parsed.getTime())) return formatDateTime(parsed, 'dayMonth', { ...options, joiner: 'at' });
   }
   const [datePart = '', timePart] = isoLocal.split('T');
-  const [year, month, day] = datePart.split('-').map(Number);
-  const monthLabel = MONTHS_SHORT_PT[(month ?? 1) - 1];
-  if (!timePart) return `${day} ${monthLabel} ${year}`;
-  const [hh = '00', mm = '00'] = timePart.split('.')[0]!.split(':');
-  return `${day} ${monthLabel} às ${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
+  const [year = NaN, month = 1, day = NaN] = datePart.split('-').map(Number);
+  if (!timePart) return formatDate(new Date(year, month - 1, day), 'dayMonthYear', options);
+  const [hh = '0', mm = '0'] = timePart.split('.')[0]!.split(':');
+  return formatDateTime(new Date(year, month - 1, day, Number(hh), Number(mm)), 'dayMonth', { ...options, joiner: 'at' });
 }
 
-export function formatReminder(reminder: TaskReminderDraft): string {
+/** Stored `HH:mm` shown in the UI language; the raw value if it does not parse. */
+function displayTime(time: string, options?: FormatOptions): string {
+  return formatTime(time, undefined, options) || time;
+}
+
+export function formatReminder(reminder: TaskReminderDraft, options?: FormatOptions): string {
+  const lng = options?.locale;
   switch (reminder.type) {
     case 'unset':
-      return 'Definir';
+      return i18n.t('dates:reminders.set', { lng });
     case 'relative': {
       const preset = RELATIVE_REMINDER_PRESETS.find(
         (p) =>
@@ -74,20 +122,27 @@ export function formatReminder(reminder: TaskReminderDraft): string {
           p.offset.unit === reminder.offset.unit &&
           p.offset.direction === reminder.offset.direction,
       );
-      return preset?.label ?? formatOffset(reminder.offset);
+      return preset ? getPresetLabel(preset, options) : formatOffset(reminder.offset, options);
     }
-    case 'recurring':
-      return reminder.frequency === 'daily'
-        ? `Todos os dias às ${reminder.time}`
-        : `Toda ${reminder.weekday !== undefined ? WEEKDAY_LABELS_PT[reminder.weekday] : 'semana'} às ${reminder.time}`;
+    case 'recurring': {
+      const time = displayTime(reminder.time, options);
+      if (reminder.frequency === 'daily') return i18n.t('dates:reminders.recurring.daily', { time, lng });
+      if (reminder.weekday === undefined) return i18n.t('dates:reminders.recurring.everyWeek', { time, lng });
+      const weekday = weekdayNames('full', 0, options)[reminder.weekday] ?? '';
+      return i18n.t('dates:reminders.recurring.weekly', { weekday, time, lng });
+    }
     case 'absolute':
-      return formatAbsolute(reminder.scheduledAt);
+      return formatAbsolute(reminder.scheduledAt, options);
   }
 }
 
-/** "WhatsApp · 15 min antes" */
-export function formatReminderWithChannel(reminder: ConfiguredReminder): string {
-  return `${CHANNEL_LABELS[reminder.channel]} · ${formatReminder(reminder)}`;
+/** "WhatsApp · 15 min antes" / "WhatsApp · 15 min before" */
+export function formatReminderWithChannel(reminder: ConfiguredReminder, options?: FormatOptions): string {
+  return i18n.t('dates:reminders.withChannel', {
+    channel: getChannelLabel(reminder.channel, options),
+    when: formatReminder(reminder, options),
+    lng: options?.locale,
+  });
 }
 
 export function createReminderId(): string {

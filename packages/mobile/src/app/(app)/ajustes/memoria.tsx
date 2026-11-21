@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert } from 'react-native';
 
 import { errorMessage } from '@/api/client';
@@ -14,6 +15,7 @@ import { useToast } from '@/ui/toast';
 const memoryKey = ['memory'] as const;
 
 function MemoryEditor({ initial }: { initial: string }) {
+  const { t } = useTranslation(['settings', 'common']);
   const toast = useToast();
   const queryClient = useQueryClient();
   const [text, setText] = useState(initial);
@@ -24,9 +26,9 @@ function MemoryEditor({ initial }: { initial: string }) {
     try {
       const { message } = await usersApi.setMemory(text.trim());
       queryClient.setQueryData(memoryKey, { memoryText: text.trim() });
-      toast({ message: message || 'Memória atualizada.' });
+      toast({ message: message || t('memory.saved') });
     } catch (error) {
-      Alert.alert('Não foi possível salvar', errorMessage(error));
+      Alert.alert(t('memory.saveError'), errorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -37,17 +39,17 @@ function MemoryEditor({ initial }: { initial: string }) {
       grouped
       scroll
       edges={['bottom']}
-      footer={<Button label="Salvar" onPress={() => void save()} loading={saving} disabled={text.trim() === initial.trim()} />}
+      footer={<Button label={t('common:actions.save')} onPress={() => void save()} loading={saving} disabled={text.trim() === initial.trim()} />}
     >
       <Text variant="body-md" color="contentSecondary">
-        O que a Jarvi sabe sobre você para organizar melhor suas tarefas. Ela também aprende com as conversas.
+        {t('memory.intro')}
       </Text>
       <TextField
         value={text}
         onChangeText={setText}
         multiline
-        placeholder="Ex.: trabalho de casa às sextas, pago as contas no dia 10"
-        accessibilityLabel="Memória da Jarvi"
+        placeholder={t('memory.placeholder')}
+        accessibilityLabel={t('memory.label')}
         style={{ minHeight: 220 }}
       />
     </Screen>

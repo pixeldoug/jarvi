@@ -1,9 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { categoriesApi } from '@/api/endpoints';
+import { categoryLabel } from '@/features/tasks/category-label';
+import { useLocale } from '@/i18n';
 import { queryKeys, useCategories } from '@/features/tasks/use-tasks';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing, typography } from '@/theme/tokens';
@@ -27,16 +30,26 @@ interface CategoryRowProps {
 
 /** Tap the name to rename in place; the switch hides it from filters. */
 function CategoryRow({ category, last, onRename, onToggleVisible, onDelete }: CategoryRowProps) {
+  const { t } = useTranslation('settings');
+  const locale = useLocale();
   const { colors } = useTheme();
+  // Default names ("Trabalho") show translated; the stored name stays as is
+  // unless the person actually types a different one.
+  const label = categoryLabel(category.name, { locale });
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(category.name);
+  const [value, setValue] = useState(label);
   const visible = category.visible !== false;
+
+  const startEditing = () => {
+    setValue(label);
+    setEditing(true);
+  };
 
   const commit = () => {
     setEditing(false);
     const next = value.trim();
-    if (next && next !== category.name) onRename(next);
-    else setValue(category.name);
+    if (next && next !== label && next !== category.name) onRename(next);
+    else setValue(label);
   };
 
   return (
@@ -55,18 +68,18 @@ function CategoryRow({ category, last, onRename, onToggleVisible, onDelete }: Ca
           returnKeyType="done"
           onSubmitEditing={commit}
           onBlur={commit}
-          accessibilityLabel={`Novo nome para ${category.name}`}
+          accessibilityLabel={t('categories.renameLabel', { name: label })}
           style={[typography['body-md'], styles.name, { color: colors.contentPrimary }]}
         />
       ) : (
         <Pressable
           accessibilityRole="button"
-          accessibilityHint="Renomear"
-          onPress={() => setEditing(true)}
+          accessibilityHint={t('categories.renameHint')}
+          onPress={startEditing}
           style={styles.name}
         >
           <Text variant="body-md" color={visible ? 'contentPrimary' : 'contentTertiary'} numberOfLines={1}>
-            {category.name}
+            {label}
           </Text>
         </Pressable>
       )}
@@ -74,9 +87,9 @@ function CategoryRow({ category, last, onRename, onToggleVisible, onDelete }: Ca
         value={visible}
         onValueChange={onToggleVisible}
         trackColor={{ true: colors.contentInfo }}
-        accessibilityLabel={`Mostrar ${category.name} nos filtros`}
+        accessibilityLabel={t('categories.showInFilters', { name: label })}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel={`Excluir ${category.name}`} hitSlop={8} onPress={onDelete}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('categories.deleteLabel', { name: label })} hitSlop={8} onPress={onDelete}>
         <TrashIcon size={18} color={colors.contentTertiary} />
       </Pressable>
     </View>
@@ -84,6 +97,8 @@ function CategoryRow({ category, last, onRename, onToggleVisible, onDelete }: Ca
 }
 
 export default function CategoriesScreen() {
+  const { t } = useTranslation(['settings', 'common']);
+  const locale = useLocale();
   const toast = useToast();
   const queryClient = useQueryClient();
   const categories = useCategories();
@@ -113,9 +128,9 @@ export default function CategoriesScreen() {
   const remove = useMutation({ mutationFn: (id: string) => categoriesApi.remove(id), onSuccess: refresh, onError });
 
   const confirmDelete = (category: Category) =>
-    Alert.alert(`Excluir "${category.name}"?`, 'As tarefas continuam, só ficam sem categoria.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: () => remove.mutate(category.id) },
+    Alert.alert(t('categories.deleteTitle', { name: categoryLabel(category.name, { locale }) }), t('categories.deleteMessage'), [
+      { text: t('common:actions.cancel'), style: 'cancel' },
+      { text: t('common:actions.delete'), style: 'destructive', onPress: () => remove.mutate(category.id) },
     ]);
 
   if (categories.isPending) return <LoadingState />;
@@ -131,18 +146,18 @@ export default function CategoriesScreen() {
           <TextField
             value={name}
             onChangeText={setName}
-            placeholder="Nova categoria"
+            placeholder={t('categories.newPlaceholder')}
             returnKeyType="done"
             onSubmitEditing={submit}
           />
         </View>
-        <Button label="Criar" size="sm" onPress={submit} disabled={!name.trim()} loading={create.isPending} />
+        <Button label={t('categories.create')} size="sm" onPress={submit} disabled={!name.trim()} loading={create.isPending} />
       </View>
 
       {list.length === 0 ? (
-        <EmptyState title="Nenhuma categoria" description="Categorias ajudam a filtrar suas tarefas." />
+        <EmptyState title={t('categories.emptyTitle')} description={t('categories.emptyDescription')} />
       ) : (
-        <ListGroup footer="Toque no nome para renomear. Categorias ocultas continuam nas tarefas, mas saem dos filtros.">
+        <ListGroup footer={t('categories.footer')}>
           {list.map((category, index) => (
             <CategoryRow
               key={category.id}

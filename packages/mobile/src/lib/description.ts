@@ -4,6 +4,7 @@
  * The app shows any of them as text, but only edits the ones it can write
  * back without losing formatting.
  */
+import { i18n } from '@/i18n';
 
 interface DocNode {
   type?: string;
@@ -23,7 +24,7 @@ export interface ParsedDescription {
 function inlineText(node: DocNode): string {
   if (node.type === 'text') return node.text ?? '';
   if (node.type === 'hardBreak') return '\n';
-  if (node.type === 'attachmentRef') return `[${String(node.attrs?.name ?? 'anexo')}]`;
+  if (node.type === 'attachmentRef') return `[${String(node.attrs?.name ?? i18n.t('tasks:description.attachment'))}]`;
   return (node.content ?? []).map(inlineText).join('');
 }
 

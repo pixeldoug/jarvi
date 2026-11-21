@@ -1,8 +1,28 @@
-import { dateKeyOf, formatDueLabel, monthGrid, nextMonday, normalizeTime, startOfWeek, toDateKey } from './dates';
+import { i18n } from '@/i18n';
+
+import {
+  MONTHS_SHORT_PT,
+  dateKeyOf,
+  formatDueLabel,
+  formatLongDate,
+  monthGrid,
+  nextMonday,
+  normalizeTime,
+  startOfWeek,
+  toDateKey,
+  toTimeString,
+} from './dates';
 import { parseDescription, serializeDescription } from './description';
 import { formatE164, formatNationalNumber, toE164, validateNationalNumber } from './phone';
-import { buildDefaultRecurrenceConfig, formatRecurrence } from './recurrence';
-import { formatReminder, reminderFromApi, reminderToApi } from './reminders';
+import { REPEAT_OPTION_LABELS_PT, buildDefaultRecurrenceConfig, formatRecurrence } from './recurrence';
+import {
+  CHANNEL_LABELS,
+  RELATIVE_REMINDER_PRESETS,
+  formatReminder,
+  formatReminderWithChannel,
+  reminderFromApi,
+  reminderToApi,
+} from './reminders';
 
 const NOW = new Date(2026, 9, 28, 15, 30); // Wednesday
 
@@ -46,6 +66,12 @@ describe('dates', () => {
     expect(toDateKey(days[0]!)).toBe('2026-09-28');
     expect(toDateKey(days[days.length - 1]!)).toBe('2026-11-01');
   });
+
+  it('keeps the Portuguese long date and legacy name lists', () => {
+    expect(formatLongDate(NOW)).toBe('Quarta, 28 de outubro');
+    expect(MONTHS_SHORT_PT[9]).toBe('Out');
+    expect(MONTHS_SHORT_PT.length).toBe(12);
+  });
 });
 
 describe('recurrence', () => {
@@ -59,6 +85,10 @@ describe('recurrence', () => {
       formatRecurrence('custom', { custom: { frequency: 'weekly', interval: 2 }, until: { type: 'never' } }),
     ).toBe('A cada 2 semanas');
     expect(formatRecurrence('weekly', 'not json')).toBe('Semanalmente');
+    expect(formatRecurrence('custom', { custom: { frequency: 'monthly', interval: 3 }, until: { type: 'never' } })).toBe(
+      'A cada 3 meses',
+    );
+    expect(REPEAT_OPTION_LABELS_PT.none).toBe('Não repetir');
   });
 
   it('seeds defaults from the base date', () => {
@@ -83,6 +113,18 @@ describe('reminders', () => {
     expect(formatReminder({ id: 'r', channel: 'whatsapp', type: 'recurring', frequency: 'weekly', weekday: 1, time: '08:00' })).toBe(
       'Toda segunda-feira às 08:00',
     );
+    expect(formatReminder({ id: 'r', channel: 'whatsapp', type: 'recurring', frequency: 'daily', time: '18:30' })).toBe(
+      'Todos os dias às 18:30',
+    );
+    expect(formatReminder({ id: 'r', channel: 'call', type: 'relative', offset: { amount: 1, unit: 'days', direction: 'before' } })).toBe(
+      '1 dia antes',
+    );
+    expect(formatReminder({ id: 'r', channel: 'call', type: 'absolute', scheduledAt: '2026-11-05' })).toBe('5 Nov 2026');
+    expect(formatReminder({ id: 'r', channel: 'call', type: 'unset' })).toBe('Definir');
+    expect(
+      formatReminderWithChannel({ id: 'r', channel: 'call', type: 'relative', offset: { amount: 0, unit: 'minutes', direction: 'before' } }),
+    ).toBe('Ligação · No horário');
+    expect(CHANNEL_LABELS.whatsapp).toBe('WhatsApp');
   });
 
   it('round-trips the API shape', () => {
@@ -105,6 +147,77 @@ describe('reminders', () => {
       type: 'relative',
       offset: { amount: 1, unit: 'days', direction: 'before' },
     });
+  });
+});
+
+describe('en-US', () => {
+  beforeEach(() => {
+    void i18n.changeLanguage('en-US');
+  });
+  afterEach(() => {
+    void i18n.changeLanguage('pt-BR');
+  });
+
+  it.each([
+    ['2026-10-28', null, 'Today'],
+    ['2026-10-28', '09:00', 'Today, 9:00 AM'],
+    ['2026-10-29', '14:30', 'Tomorrow, 2:30 PM'],
+    ['2026-10-27', null, 'Yesterday'],
+    ['2026-10-31', null, 'Saturday'],
+    ['2026-11-04', null, 'Nov 4'],
+    ['2027-01-07', '08:00', 'Jan 7, 2027, 8:00 AM'],
+  ])('labels %s %s as %s', (date, time, expected) => {
+    expect(formatDueLabel(date, time, NOW)).toBe(expected);
+  });
+
+  it('starts weeks on Sunday and keeps stored times in 24h', () => {
+    expect(toDateKey(startOfWeek(NOW))).toBe('2026-10-25');
+    const days = monthGrid(new Date(2026, 9, 1));
+    expect(days.length % 7).toBe(0);
+    expect(toDateKey(days[0]!)).toBe('2026-09-27');
+    expect(toDateKey(days[days.length - 1]!)).toBe('2026-10-31');
+    expect(toTimeString(new Date(2026, 9, 28, 14, 5))).toBe('14:05');
+    expect(formatLongDate(NOW)).toBe('Wednesday, October 28');
+    expect(MONTHS_SHORT_PT[9]).toBe('Oct');
+  });
+
+  it('formats recurrence', () => {
+    expect(formatRecurrence('daily', null)).toBe('Daily');
+    expect(formatRecurrence('hourly', { everyHours: 2, until: { type: 'never' } })).toBe('Every 2 hours');
+    expect(formatRecurrence('weekly', '{"daysOfWeek":[5,1,3],"until":{"type":"never"}}')).toBe('Mon, Wed, Fri');
+    expect(formatRecurrence('monthly', { monthDay: 5, until: { type: 'never' } })).toBe('Monthly on day 5');
+    expect(
+      formatRecurrence('custom', { custom: { frequency: 'weekly', interval: 2 }, until: { type: 'never' } }),
+    ).toBe('Every 2 weeks');
+    expect(REPEAT_OPTION_LABELS_PT.none).toBe("Don't repeat");
+  });
+
+  it('formats reminders', () => {
+    expect(RELATIVE_REMINDER_PRESETS.map((p) => p.label)).toEqual([
+      'At the time',
+      '5 min before',
+      '15 min before',
+      '30 min before',
+      '1 hour before',
+      '2 hours before',
+      '1 day before',
+    ]);
+    expect(CHANNEL_LABELS.call).toBe('Phone call');
+    expect(
+      formatReminder({ id: 'r', channel: 'call', type: 'relative', offset: { amount: 3, unit: 'hours', direction: 'after' } }),
+    ).toBe('3 hours after');
+    expect(formatReminder({ id: 'r', channel: 'call', type: 'absolute', scheduledAt: '2026-11-05T14:30' })).toBe(
+      'Nov 5 at 2:30 PM',
+    );
+    expect(formatReminder({ id: 'r', channel: 'whatsapp', type: 'recurring', frequency: 'weekly', weekday: 1, time: '08:00' })).toBe(
+      'Every Monday at 8:00 AM',
+    );
+    expect(formatReminder({ id: 'r', channel: 'whatsapp', type: 'recurring', frequency: 'daily', time: '18:30' })).toBe(
+      'Every day at 6:30 PM',
+    );
+    expect(
+      formatReminderWithChannel({ id: 'r', channel: 'whatsapp', type: 'relative', offset: { amount: 15, unit: 'minutes', direction: 'before' } }),
+    ).toBe('WhatsApp · 15 min before');
   });
 });
 

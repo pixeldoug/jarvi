@@ -1,6 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { errorMessage } from '@/api/client';
 import { authApi } from '@/api/endpoints';
@@ -15,6 +16,7 @@ import { Text } from '@/ui/text';
 export default function VerifyEmailScreen() {
   const { email = '' } = useLocalSearchParams<{ email: string }>();
   const { acceptSession } = useAuth();
+  const { t } = useTranslation('auth');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -27,7 +29,7 @@ export default function VerifyEmailScreen() {
     try {
       await acceptSession(await authApi.verifyEmailCode(email, value));
     } catch (err) {
-      setError(errorMessage(err, 'Código inválido. Confira e tente de novo.'));
+      setError(errorMessage(err, t('code.invalid')));
       setCode('');
     } finally {
       setBusy(false);
@@ -38,18 +40,18 @@ export default function VerifyEmailScreen() {
     setError(null);
     try {
       await authApi.resendVerification(email);
-      setNotice('Enviamos um novo código.');
+      setNotice(t('verifyEmail.resent'));
     } catch (err) {
-      setError(errorMessage(err, 'Não foi possível reenviar o código.'));
+      setError(errorMessage(err, t('code.resendFailed')));
     }
   };
 
   return (
     <Screen scroll edges={['bottom']}>
       <View style={styles.header}>
-        <Text variant="heading-lg">Confirme seu e-mail</Text>
+        <Text variant="heading-lg">{t('verifyEmail.title')}</Text>
         <Text variant="body-md" color="contentSecondary">
-          Digite o código de 6 dígitos que enviamos para {email}.
+          {t('verifyEmail.description', { email })}
         </Text>
       </View>
       <OtpInput value={code} onChange={setCode} onComplete={(value) => void verify(value)} error={!!error} disabled={busy} />
@@ -62,7 +64,7 @@ export default function VerifyEmailScreen() {
           {notice}
         </Text>
       ) : null}
-      <Button label="Reenviar código" variant="secondary" onPress={() => void resend()} disabled={busy} />
+      <Button label={t('code.resend')} variant="secondary" onPress={() => void resend()} disabled={busy} />
     </Screen>
   );
 }

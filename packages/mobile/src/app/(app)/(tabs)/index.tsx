@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, RefreshControl, SectionList, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,7 +15,7 @@ import { TaskRow } from '@/features/tasks/task-row';
 import { useCategoryNames, useLists, useTasks } from '@/features/tasks/use-tasks';
 import { useToggleWithFeedback } from '@/features/tasks/use-toggle-with-feedback';
 import { ViewPicker } from '@/features/tasks/view-picker';
-import { formatLongDate } from '@/lib/dates';
+import { useFormat } from '@/i18n';
 import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing } from '@/theme/tokens';
@@ -23,17 +24,10 @@ import { EmptyState, ErrorState, LoadingState } from '@/ui/states';
 import { Text } from '@/ui/text';
 import type { Task } from '@/types/models';
 
-const EMPTY_COPY: Record<TaskView['kind'], { title: string; description: string }> = {
-  all: { title: 'Nada por aqui', description: 'Crie uma tarefa ou conte para a Jarvi o que você precisa fazer.' },
-  inbox: { title: 'Caixa de entrada vazia', description: 'Tarefas sem data aparecem aqui.' },
-  overdue: { title: 'Nada vencido', description: 'Você está em dia.' },
-  recurring: { title: 'Nenhuma tarefa recorrente', description: 'Tarefas que se repetem aparecem aqui.' },
-  category: { title: 'Nada nesta categoria', description: 'Tarefas desta categoria aparecem aqui.' },
-  list: { title: 'Nada neste filtro', description: 'Tarefas que combinam com este filtro aparecem aqui.' },
-};
-
 export default function TasksScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation('tasks');
+  const { formatDate } = useFormat();
   const tasks = useTasks();
   const lists = useLists();
   const categories = useCategoryNames();
@@ -71,14 +65,14 @@ export default function TasksScreen() {
     <View style={styles.header}>
       <View style={styles.titleRow}>
         <View style={styles.titleBlock}>
-          <Text variant="heading-lg">Tarefas</Text>
+          <Text variant="heading-lg">{t('screen.title')}</Text>
           <Text variant="body-sm" color="contentSecondary">
-            {formatLongDate(today)}
+            {formatDate(today, 'weekdayDayMonthLong', { now: today })}
           </Text>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Nova tarefa"
+          accessibilityLabel={t('screen.newTask')}
           hitSlop={8}
           onPress={() => router.push('/nova-tarefa')}
           style={({ pressed }) => [styles.addButton, { backgroundColor: colors.surfaceAccent, opacity: pressed ? 0.8 : 1 }]}
@@ -101,12 +95,14 @@ export default function TasksScreen() {
         sections={visibleSections}
         keyExtractor={(task) => task.id}
         renderItem={({ item }) => <TaskRow task={item} today={today} onToggle={toggle} onOpen={openTask} />}
-        renderSectionHeader={({ section }) =>
-          collapsible ? (
+        renderSectionHeader={({ section }) => {
+          if (!collapsible) return null;
+          const title = t(`sections.${section.titleKey}`);
+          return (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: !collapsed.has(section.id) }}
-              accessibilityLabel={`${section.title}, ${section.count} tarefas`}
+              accessibilityLabel={t('screen.sectionA11y', { title, count: section.count })}
               onPress={() => toggleSection(section.id)}
               style={[styles.sectionHeader, { backgroundColor: colors.surfacePrimary }]}
             >
@@ -116,23 +112,23 @@ export default function TasksScreen() {
                 <CaretDownIcon size={14} color={colors.contentSecondary} weight="bold" />
               )}
               <Text variant="label-md" color={section.id === 'overdue' ? 'contentNegative' : 'contentPrimary'}>
-                {section.title}
+                {title}
               </Text>
               <Text variant="label-sm" color="contentTertiary">
                 {section.count}
               </Text>
             </Pressable>
-          ) : null
-        }
+          );
+        }}
         stickySectionHeadersEnabled={false}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={visibleSections.length === 0 ? styles.emptyContainer : styles.listContent}
         ListEmptyComponent={
           <EmptyState
             icon={<SparkleIcon size={32} color={colors.contentInfo} />}
-            title={EMPTY_COPY[view.kind].title}
-            description={EMPTY_COPY[view.kind].description}
-            actionLabel={view.kind === 'all' ? 'Falar com a Jarvi' : undefined}
+            title={t(`empty.${view.kind}.title`)}
+            description={t(`empty.${view.kind}.description`)}
+            actionLabel={view.kind === 'all' ? t('screen.talkToJarvi') : undefined}
             onAction={view.kind === 'all' ? () => router.navigate('/jarvi') : undefined}
           />
         }

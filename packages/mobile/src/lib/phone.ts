@@ -1,18 +1,37 @@
 /** Phone helpers for WhatsApp sign-in. Same countries and masks as the web. */
+import { i18n, type Locale } from '@/i18n';
+
+export type CountryIso = 'BR' | 'PT' | 'US' | 'AR';
 
 export interface CountryDial {
-  iso: string;
+  iso: CountryIso;
   flag: string;
   dial: string;
-  placeholder: string;
 }
 
 export const COUNTRY_DIALS: CountryDial[] = [
-  { iso: 'BR', flag: '🇧🇷', dial: '55', placeholder: '(11) 99000-9900' },
-  { iso: 'PT', flag: '🇵🇹', dial: '351', placeholder: 'Seu número' },
-  { iso: 'US', flag: '🇺🇸', dial: '1', placeholder: '(555) 123-4567' },
-  { iso: 'AR', flag: '🇦🇷', dial: '54', placeholder: 'Seu número com DDD' },
+  { iso: 'BR', flag: '🇧🇷', dial: '55' },
+  { iso: 'PT', flag: '🇵🇹', dial: '351' },
+  { iso: 'US', flag: '🇺🇸', dial: '1' },
+  { iso: 'AR', flag: '🇦🇷', dial: '54' },
 ];
+
+/** Placeholder of the number field (`auth` keys; resolve with `t()` at render). */
+export const PHONE_PLACEHOLDER_KEYS = {
+  BR: 'whatsapp.placeholders.BR',
+  PT: 'whatsapp.placeholders.PT',
+  US: 'whatsapp.placeholders.US',
+  AR: 'whatsapp.placeholders.AR',
+} as const satisfies Record<CountryIso, string>;
+
+/**
+ * Country the sign-in starts on: the US for en-US, Brazil otherwise. The UI
+ * language is only a hint here (language is not country); the person can
+ * still pick another one.
+ */
+export function defaultCountryIso(locale: Locale): CountryIso {
+  return locale === 'en-US' ? 'US' : 'BR';
+}
 
 export function countryByIso(iso: string): CountryDial {
   return COUNTRY_DIALS.find((country) => country.iso === iso) ?? COUNTRY_DIALS[0]!;
@@ -39,11 +58,14 @@ export function toE164(dial: string, national: string): string {
   return `+${dial}${national.replace(/\D/g, '')}`;
 }
 
-/** Error message for an invalid national number, or null when it looks fine. */
+/**
+ * Error message (current language) for an invalid national number, or null
+ * when it looks fine. Call it when validating, never at module load.
+ */
 export function validateNationalNumber(national: string, iso: string): string | null {
   const digits = national.replace(/\D/g, '');
-  if (iso === 'BR' && digits.length < 10) return 'Digite um número válido com DDD.';
-  if (digits.length < 8) return 'Digite um número válido.';
+  if (iso === 'BR' && digits.length < 10) return i18n.t('auth:whatsapp.errors.invalidWithAreaCode');
+  if (digits.length < 8) return i18n.t('auth:whatsapp.errors.invalid');
   return null;
 }
 

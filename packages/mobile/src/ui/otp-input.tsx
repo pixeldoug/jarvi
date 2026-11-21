@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, TextInput, View, type TextInputInstance } from 'react-native';
 
 import { useTheme } from '@/theme/theme-provider';
@@ -17,6 +18,7 @@ interface OtpInputProps {
 
 /** One hidden input behind N boxes, so paste and one-time-code autofill work. */
 export function OtpInput({ value, onChange, onComplete, length = 6, error = false, disabled = false }: OtpInputProps) {
+  const { t } = useTranslation('ui');
   const { colors } = useTheme();
   const inputRef = useRef<TextInputInstance>(null);
 
@@ -55,7 +57,7 @@ export function OtpInput({ value, onChange, onComplete, length = 6, error = fals
         textContentType="oneTimeCode"
         autoComplete="one-time-code"
         maxLength={length}
-        accessibilityLabel={`Código de ${length} dígitos`}
+        accessibilityLabel={t('otp.label', { count: length })}
         onChangeText={(text) => {
           if (disabled) return;
           const digits = text.replace(/\D/g, '').slice(0, length);

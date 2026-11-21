@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { errorMessage } from '@/api/client';
 import { onboardingApi } from '@/api/endpoints';
@@ -8,9 +9,10 @@ import { useAuth, useCurrentUser } from '@/auth/auth-provider';
 import { setPendingChatSeed } from '@/features/chat/pending-seed';
 import { FirstTasksStep } from '@/features/onboarding/first-tasks-step';
 import {
-  INTERVIEW_PROMPTS,
+  INTERVIEW_PROMPT_KEYS,
   INTERVIEW_STEPS,
   PAIN_POINT_OPTIONS,
+  PLACEHOLDER_NAME,
   TRACKING_METHOD_OPTIONS,
   buildMemorySeed,
   buildOnboardingChat,
@@ -28,13 +30,11 @@ import { Screen } from '@/ui/screen';
 import { Text } from '@/ui/text';
 import { TextField } from '@/ui/text-field';
 
-/** Placeholder name the backend gives WhatsApp sign-ups. */
-const PLACEHOLDER_NAME = 'Você';
-
 export default function OnboardingScreen() {
   const user = useCurrentUser();
   const { updateUser, signOut } = useAuth();
   const { colors } = useTheme();
+  const { t } = useTranslation(['onboarding', 'common']);
   const queryClient = useQueryClient();
   const initialName = user.preferred_name || user.name;
   const [stepIndex, setStepIndex] = useState(0);
@@ -88,7 +88,7 @@ export default function OnboardingScreen() {
         preferred_name: answers.name.trim(),
       });
     } catch (err) {
-      setError(errorMessage(err, 'Não foi possível concluir agora.'));
+      setError(errorMessage(err, t('errors.completeFailed')));
       setSubmitting(false);
     }
   };
@@ -113,10 +113,10 @@ export default function OnboardingScreen() {
       <Screen contentStyle={styles.preparing}>
         <ActivityIndicator color={colors.contentInfo} size="large" />
         <Text variant="heading-sm" align="center">
-          Preparando sua Jarvi…
+          {t('preparing.title')}
         </Text>
         <Text variant="body-md" color="contentSecondary" align="center">
-          Organizando suas primeiras tarefas.
+          {t('preparing.body')}
         </Text>
       </Screen>
     );
@@ -135,16 +135,16 @@ export default function OnboardingScreen() {
               </Text>
             </View>
           ) : null}
-          <Button label={isLast ? 'Criar minhas tarefas' : 'Continuar'} onPress={next} loading={submitting} />
+          <Button label={isLast ? t('interview.createTasks') : t('common:actions.continue')} onPress={next} loading={submitting} />
           {stepIndex > 0 ? (
-            <Button label="Voltar" variant="ghost" onPress={() => setStepIndex((index) => index - 1)} />
+            <Button label={t('common:actions.back')} variant="ghost" onPress={() => setStepIndex((index) => index - 1)} />
           ) : (
-            <Button label="Sair" variant="ghost" onPress={() => void signOut()} />
+            <Button label={t('common:actions.signOut')} variant="ghost" onPress={() => void signOut()} />
           )}
         </>
       }
     >
-      <View style={styles.progress} accessibilityLabel={`Passo ${stepIndex + 1} de ${INTERVIEW_STEPS.length}`}>
+      <View style={styles.progress} accessibilityLabel={t('interview.progress', { current: stepIndex + 1, total: INTERVIEW_STEPS.length })}>
         {INTERVIEW_STEPS.map((id, index) => (
           <View
             key={id}
@@ -153,19 +153,19 @@ export default function OnboardingScreen() {
         ))}
       </View>
 
-      <Text variant="heading-lg">{INTERVIEW_PROMPTS[step]}</Text>
+      <Text variant="heading-lg">{t(INTERVIEW_PROMPT_KEYS[step])}</Text>
 
       {step === 'name' ? (
         <TextField
           value={answers.name}
           onChangeText={(name) => set({ name })}
-          placeholder="Seu nome ou apelido"
+          placeholder={t('interview.placeholders.name')}
           autoFocus
           autoCapitalize="words"
           textContentType="givenName"
           returnKeyType="next"
           onSubmitEditing={next}
-          accessibilityLabel="Como você prefere ser chamado"
+          accessibilityLabel={t('interview.nameLabel')}
         />
       ) : null}
 
@@ -180,7 +180,7 @@ export default function OnboardingScreen() {
             <TextField
               value={answers.trackingMethodsOther}
               onChangeText={(trackingMethodsOther) => set({ trackingMethodsOther })}
-              placeholder="Conte como você faz"
+              placeholder={t('interview.placeholders.trackingOther')}
               autoFocus
             />
           ) : null}
@@ -194,7 +194,7 @@ export default function OnboardingScreen() {
             <TextField
               value={answers.painPointsOther}
               onChangeText={(painPointsOther) => set({ painPointsOther })}
-              placeholder="Conte o que mais te atrapalha"
+              placeholder={t('interview.placeholders.painOther')}
               autoFocus
             />
           ) : null}
@@ -205,11 +205,11 @@ export default function OnboardingScreen() {
         <TextField
           value={answers.idealOutcomeText}
           onChangeText={(idealOutcomeText) => set({ idealOutcomeText })}
-          placeholder="Ex.: me lembrar das contas e não deixar nada vencer"
+          placeholder={t('interview.placeholders.open')}
           multiline
           autoFocus
-          hint="Opcional"
-          accessibilityLabel="Como seria a Jarvi ideal para você"
+          hint={t('interview.optional')}
+          accessibilityLabel={t('interview.openLabel')}
         />
       ) : null}
 

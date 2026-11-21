@@ -1,0 +1,47 @@
+{
+  "screen": {
+    "newConversation": "New conversation",
+    "emptyTitle": "How can I help?",
+    "emptyDescription": "Tell me what you need to get done. Jarvi creates and organizes your tasks."
+  },
+  "skills": {
+    "general": {
+      "planDay": "Plan my day",
+      "whatNow": "What should I do now?",
+      "captureIdea": "Capture an idea",
+      "amILate": "Am I behind?",
+      "summarizeWeek": "Recap my week"
+    },
+    "note": {
+      "nextStepTasks": "Turn next steps into tasks",
+      "decisions": "What did we decide?",
+      "summarize": "Sum it up in 3 points",
+      "openItems": "What's still open?"
+    }
+  },
+  "composer": {
+    "placeholder": "Message Jarvi",
+    "inputLabel": "Message to Jarvi",
+    "stop": "Stop response"
+  },
+  "taskCard": {
+    "created": "Task created",
+    "updated": "Task updated",
+    "completed": "Task completed",
+    "deleted": "Task deleted",
+    "untitled": "Task"
+  },
+  "taskMention": {
+    "openHint": "Opens the task"
+  },
+  "thinking": {
+    "live": "Thinking…"
+  },
+  "stream": {
+    "preparing": "Getting your answer ready…",
+    "optionsLine": "Options: {{options}}",
+    "resume": "Continue",
+    "error": "Something went wrong.",
+    "connectionError": "Couldn't reach Jarvi right now. Try again."
+  }
+}

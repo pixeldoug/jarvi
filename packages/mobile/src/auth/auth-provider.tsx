@@ -3,6 +3,7 @@ import { createContext, use, useCallback, useEffect, useState, type ReactNode } 
 
 import { ApiError, setSessionToken } from '@/api/client';
 import { authApi } from '@/api/endpoints';
+import { applyUserLocale } from '@/i18n';
 import { appEvents } from '@/lib/events';
 import { STORAGE_KEYS, storage } from '@/lib/storage';
 import type { AuthSession, User } from '@/types/models';
@@ -33,7 +34,10 @@ async function restoreSession(): Promise<RestoredSession> {
   if (!token) return { status: 'signedOut' };
   setSessionToken(token);
   try {
-    return { status: 'signedIn', user: await authApi.profile() };
+    const user = await authApi.profile();
+    // The language saved on the account wins over this device's (before the first signed-in frame).
+    await applyUserLocale(user.locale);
+    return { status: 'signedIn', user };
   } catch (error) {
     // 401/403: missing or expired token. 404: the account was deleted.
     if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404)) {
@@ -79,6 +83,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       setSessionToken(session.token);
       await storage.set(STORAGE_KEYS.token, session.token);
+      // Sign-in/sign-up sent X-Jarvi-Locale (this device's language); an existing account's choice wins.
+      await applyUserLocale(session.user.locale);
       setUser(session.user);
       setStatus('signedIn');
     },

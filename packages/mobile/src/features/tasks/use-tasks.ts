@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 
 import { errorMessage } from '@/api/client';
 import { categoriesApi, listsApi, tasksApi } from '@/api/endpoints';
+import { compareText, i18n } from '@/i18n';
 import { reminderFromApi, reminderToApi, type ConfiguredReminder } from '@/lib/reminders';
 import type { Category, CreateTaskInput, Task, UpdateTaskInput } from '@/types/models';
 import { useToast } from '@/ui/toast';
@@ -97,7 +98,7 @@ export function useDeleteTask() {
       await queryClient.cancelQueries(taskList);
       setTasks(queryClient, (tasks) => tasks.filter((t) => t.id !== task.id));
     },
-    onError: (error) => toast({ message: errorMessage(error, 'Não foi possível excluir a tarefa.') }),
+    onError: (error) => toast({ message: errorMessage(error, i18n.t('tasks:toast.deleteFailed')) }),
     onSettled: () => queryClient.invalidateQueries(taskList),
   });
   const restore = useMutation({
@@ -112,7 +113,7 @@ export function useDeleteTask() {
         dueDate: task.due_date ?? undefined,
       }),
     onSuccess: (task) => setTasks(queryClient, (tasks) => [...tasks, task]),
-    onError: (error) => toast({ message: errorMessage(error, 'Não foi possível desfazer.') }),
+    onError: (error) => toast({ message: errorMessage(error, i18n.t('tasks:toast.undoFailed')) }),
   });
   return { remove, restore };
 }
@@ -159,7 +160,7 @@ export function useCategoryNames(): string[] {
   const known = new Set(categories.map((c) => c.name));
   const visible = categories.filter((c) => c.visible !== false).map((c) => c.name);
   const orphan = [...new Set(tasks.map((t) => t.category).filter((name): name is string => !!name && !known.has(name)))];
-  return [...visible, ...orphan.sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  return [...visible, ...orphan.sort((a, b) => compareText(a, b))];
 }
 
 export function useLists() {

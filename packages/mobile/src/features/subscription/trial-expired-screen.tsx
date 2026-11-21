@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
@@ -17,9 +18,11 @@ import { useSubscription } from './use-subscription';
  * options) is decided before the public store release.
  */
 export function TrialExpiredScreen() {
+  const { t } = useTranslation(['subscription', 'common']);
   const { signOut } = useAuth();
   const { data, refresh } = useSubscription();
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The backend allows one extension per account (web TrialExpiredGate).
   const canExtend = !data?.trialExtended;
@@ -30,10 +33,24 @@ export function TrialExpiredScreen() {
     try {
       await subscriptionApi.extendTrial();
     } catch (err) {
-      setError(errorMessage(err, 'Não foi possível estender o teste.'));
+      setError(errorMessage(err, t('trialExpired.extendError')));
     } finally {
       await refresh();
       setBusy(false);
+    }
+  };
+
+  // On success the gate lifts and this screen goes away; otherwise say so.
+  const checkAgain = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      const info = await refresh();
+      if (!info?.isActive) setError(t('trialExpired.notActiveYet'));
+    } catch (err) {
+      setError(errorMessage(err, t('trialExpired.checkError')));
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -42,19 +59,19 @@ export function TrialExpiredScreen() {
       contentStyle={styles.content}
       footer={
         <>
-          {canExtend ? <Button label="Ganhar mais alguns dias" onPress={() => void extend()} loading={busy} /> : null}
-          <Button label="Já assinei, atualizar" variant="secondary" onPress={() => void refresh()} />
-          <Button label="Sair" variant="ghost" onPress={() => void signOut()} />
+          {canExtend ? <Button label={t('trialExpired.extend')} onPress={() => void extend()} loading={busy} /> : null}
+          <Button label={t('trialExpired.checkAgain')} variant="secondary" loading={checking} onPress={() => void checkAgain()} />
+          <Button label={t('common:actions.signOut')} variant="ghost" onPress={() => void signOut()} />
         </>
       }
     >
       <Logo size={44} />
       <View style={styles.text}>
         <Text variant="heading-lg" align="center">
-          {data?.trialExtended ? 'Seu período de teste acabou' : 'Seu teste grátis terminou'}
+          {data?.trialExtended ? t('trialExpired.titleExtended') : t('trialExpired.title')}
         </Text>
         <Text variant="body-md" color="contentSecondary" align="center">
-          Suas tarefas continuam salvas. Assim que sua assinatura estiver ativa, tudo volta a funcionar aqui.
+          {t('trialExpired.body')}
         </Text>
         {error ? (
           <Text variant="body-sm" color="contentNegative" align="center">

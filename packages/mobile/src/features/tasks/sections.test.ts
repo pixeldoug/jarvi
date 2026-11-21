@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n';
 import type { Task, TaskList } from '@/types/models';
 import { groupTasks, sectionOf, sectionsForView, sortTasks } from './sections';
 
@@ -73,7 +74,7 @@ describe('groupTasks', () => {
       [task({ due_date: '2026-11-20' }), task({ due_date: '2026-10-28' }), task(), task({ due_date: '2026-10-01' })],
       NOW,
     );
-    expect(sections.map((s) => s.title)).toEqual(['Vencidas', 'Hoje', 'Mais tarde', 'Caixa de entrada']);
+    expect(sections.map((s) => i18n.t(`tasks:sections.${s.titleKey}`))).toEqual(['Vencidas', 'Hoje', 'Mais tarde', 'Caixa de entrada']);
   });
 
   it('sinks completed tasks to the end of "Hoje"', () => {

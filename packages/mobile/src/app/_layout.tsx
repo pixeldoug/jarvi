@@ -1,3 +1,6 @@
+// First import: initialises i18n synchronously before any screen module runs.
+import '@/i18n';
+
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
@@ -10,6 +13,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvide
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AppState, StyleSheet } from 'react-native';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
@@ -31,6 +35,7 @@ focusManager.setEventListener((handleFocus) => {
 function RootNavigator() {
   const { status, user, retry } = useAuth();
   const { scheme, colors } = useTheme();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (status !== 'loading') void SplashScreen.hideAsync();
@@ -40,7 +45,7 @@ function RootNavigator() {
   if (status === 'offline') {
     return (
       <Screen contentStyle={styles.centered}>
-        <ErrorState message="Verifique sua conexão e tente de novo." onRetry={retry} />
+        <ErrorState message={t('errors.offline')} onRetry={retry} />
       </Screen>
     );
   }

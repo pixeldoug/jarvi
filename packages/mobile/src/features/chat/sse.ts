@@ -4,6 +4,7 @@
  */
 
 export type ChatStreamEventType =
+  | 'conversation'
   | 'text'
   | 'reasoning'
   | 'status'
@@ -17,6 +18,9 @@ export type ChatStreamEventType =
 
 export interface ChatStreamEvent {
   type: ChatStreamEventType;
+  /** `conversation`: the recorded conversation this turn belongs to. */
+  id?: string;
+  title?: string;
   content?: string;
   message?: string;
   toolName?: string;

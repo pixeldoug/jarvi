@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme/theme-provider';
@@ -17,6 +18,7 @@ export interface ChipProps {
 }
 
 export function Chip({ label, selected = false, icon, onPress, onClear, accessibilityLabel }: ChipProps) {
+  const { t } = useTranslation('ui');
   const { colors } = useTheme();
   const tint = selected ? colors.contentInfo : colors.contentPrimary;
 
@@ -44,7 +46,7 @@ export function Chip({ label, selected = false, icon, onPress, onClear, accessib
       {onClear ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Remover ${label}`}
+          accessibilityLabel={t('chip.remove', { label })}
           onPress={onClear}
           hitSlop={8}
         >

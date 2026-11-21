@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +9,8 @@ import { sortTasks } from '@/features/tasks/sections';
 import { TaskRow } from '@/features/tasks/task-row';
 import { useTasks } from '@/features/tasks/use-tasks';
 import { useToggleWithFeedback } from '@/features/tasks/use-toggle-with-feedback';
-import { dateKeyOf, formatLongDate, parseDateKey, toDateKey } from '@/lib/dates';
+import { useFormat } from '@/i18n';
+import { dateKeyOf, parseDateKey, toDateKey } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/theme-provider';
 import { spacing } from '@/theme/tokens';
@@ -19,6 +21,8 @@ import type { Task } from '@/types/models';
 
 export default function CalendarScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation('tasks');
+  const { formatDate } = useFormat();
   const { data: tasks = [] } = useTasks();
   const toggle = useToggleWithFeedback();
   const today = useToday();
@@ -46,6 +50,7 @@ export default function CalendarScreen() {
 
   const openTask = useCallback((task: Task) => router.push({ pathname: '/tarefa/[id]', params: { id: task.id } }), []);
   const selectedDate = parseDateKey(selectedKey) ?? today;
+  const selectedLabel = formatDate(selectedDate, 'weekdayDayMonthLong', { now: today });
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: colors.surfacePrimary }]}>
@@ -70,10 +75,10 @@ export default function CalendarScreen() {
               onMonthChange={setMonth}
             />
             <View style={[styles.dayHeader, { borderTopColor: colors.borderPrimary }]}>
-              <Text variant="label-md">{formatLongDate(selectedDate)}</Text>
+              <Text variant="label-md">{selectedLabel}</Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Nova tarefa em ${formatLongDate(selectedDate)}`}
+                accessibilityLabel={t('calendar.newTaskOn', { date: selectedLabel })}
                 hitSlop={8}
                 onPress={() => router.push({ pathname: '/nova-tarefa', params: { dueDate: selectedKey } })}
               >
@@ -82,7 +87,7 @@ export default function CalendarScreen() {
             </View>
           </View>
         }
-        ListEmptyComponent={<EmptyState title="Dia livre" description="Nenhuma tarefa para este dia." />}
+        ListEmptyComponent={<EmptyState title={t('calendar.emptyTitle')} description={t('calendar.emptyDescription')} />}
       />
     </SafeAreaView>
   );

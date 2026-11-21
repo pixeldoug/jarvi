@@ -1,12 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { categoriesApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/auth-provider';
-import { addDays, formatDueLabel, nextMonday, parseDateKey, timeToDate, toDateKey, toTimeString } from '@/lib/dates';
-import { formatRecurrence, REPEAT_OPTION_LABELS_PT, REPEAT_OPTIONS } from '@/lib/recurrence';
+import { useFormat } from '@/i18n';
+import { addDays, nextMonday, parseDateKey, timeToDate, toDateKey, toTimeString } from '@/lib/dates';
+import { formatRecurrence, REPEAT_OPTIONS } from '@/lib/recurrence';
+import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing, typography } from '@/theme/tokens';
 import { Chip } from '@/ui/chip';
@@ -15,19 +18,13 @@ import { CalendarBlankIcon, CheckIcon, ClockIcon, FireSimpleIcon, HashIcon, Repe
 import { ListGroup, ListRow } from '@/ui/list-group';
 import { Text } from '@/ui/text';
 import { useToast } from '@/ui/toast';
-import type { TaskPriority } from '@/types/models';
+import { categoryLabel } from './category-label';
+import { formatDueLabel } from './due-label';
 import { RemindersEditor } from './reminders-editor';
 import { applyDraftPatch, withRecurrence, type TaskDraft } from './task-draft';
 import { queryKeys, useCategoryNames } from './use-tasks';
 
 type Field = 'date' | 'time' | 'repeat' | 'category' | 'priority';
-
-export const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Alta',
-  urgent: 'Urgente',
-};
 
 interface TaskFormProps {
   draft: TaskDraft;
@@ -43,6 +40,8 @@ interface TaskFormProps {
  */
 export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: TaskFormProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation(['tasks', 'common']);
+  const { locale, formatTime } = useFormat();
   const { user } = useAuth();
   const categories = useCategoryNames();
   const queryClient = useQueryClient();
@@ -53,13 +52,13 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
   const set = (patch: Partial<TaskDraft>) => onChange(applyDraftPatch(draft, patch));
   const toggle = (field: Field) => setOpen((current) => (current === field ? null : field));
   const iconColor = colors.contentSecondary;
-  const today = new Date();
+  const today = useToday();
   const dateShortcuts = [
-    { label: 'Hoje', key: toDateKey(today) },
-    { label: 'Amanhã', key: toDateKey(addDays(today, 1)) },
-    { label: 'Próxima semana', key: toDateKey(nextMonday(today)) },
+    { id: 'today', label: t('common:time.today'), key: toDateKey(today) },
+    { id: 'tomorrow', label: t('common:time.tomorrow'), key: toDateKey(addDays(today, 1)) },
+    { id: 'nextWeek', label: t('tasks:form.nextWeek'), key: toDateKey(nextMonday(today)) },
   ];
-  const recurrenceLabel = formatRecurrence(draft.recurrenceType, draft.recurrenceConfig);
+  const recurrenceLabel = formatRecurrence(draft.recurrenceType, draft.recurrenceConfig, { locale });
   const hasWhatsApp = !!(user?.whatsappVerified || user?.whatsappPhone);
 
   const createCategory = async () => {
@@ -72,7 +71,7 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
       setNewCategory('');
       setOpen(null);
     } catch (error) {
-      toast({ message: errorMessage(error, 'Não foi possível criar a categoria.') });
+      toast({ message: errorMessage(error, t('tasks:form.createCategoryFailed')) });
     }
   };
 
@@ -83,12 +82,12 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
         <TextInput
           value={draft.title}
           onChangeText={(title) => set({ title })}
-          placeholder="O que precisa ser feito?"
+          placeholder={t('tasks:form.titlePlaceholder')}
           placeholderTextColor={colors.contentTertiary}
           autoFocus={autoFocusTitle}
           multiline
           submitBehavior="blurAndSubmit"
-          accessibilityLabel="Título da tarefa"
+          accessibilityLabel={t('tasks:form.titleA11y')}
           style={[typography['heading-sm'], styles.title, { color: colors.contentPrimary }]}
         />
       </View>
@@ -97,26 +96,26 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
         <TextInput
           value={draft.description}
           onChangeText={(description) => set({ description })}
-          placeholder="Adicionar notas"
+          placeholder={t('tasks:form.notesPlaceholder')}
           placeholderTextColor={colors.contentTertiary}
           multiline
-          accessibilityLabel="Notas da tarefa"
+          accessibilityLabel={t('tasks:form.notesA11y')}
           style={[typography['body-md'], styles.notes, { color: colors.contentPrimary }]}
         />
       ) : (
         <View style={[styles.readOnlyNotes, { backgroundColor: colors.surfaceSecondary }]}>
-          <Text variant="body-md">{draft.description || 'Sem notas'}</Text>
+          <Text variant="body-md">{draft.description || t('tasks:form.noNotes')}</Text>
           <Text variant="body-sm" color="contentTertiary">
-            Estas notas têm formatação ou anexos. Edite pela web.
+            {t('tasks:form.notesReadOnly')}
           </Text>
         </View>
       )}
 
       <ListGroup>
         <ListRow
-          label="Data"
+          label={t('tasks:form.date')}
           icon={<CalendarBlankIcon size={18} color={iconColor} />}
-          value={formatDueLabel(draft.dueDate) ?? 'Sem data'}
+          value={formatDueLabel(draft.dueDate, null, { now: today, locale }) ?? t('common:time.noDate')}
           onPress={() => toggle('date')}
         />
         {open === 'date' ? (
@@ -124,27 +123,27 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
             <View style={styles.chips}>
               {dateShortcuts.map((shortcut) => (
                 <Chip
-                  key={shortcut.label}
+                  key={shortcut.id}
                   label={shortcut.label}
                   selected={draft.dueDate === shortcut.key}
                   onPress={() => set({ dueDate: shortcut.key })}
                 />
               ))}
               <Chip
-                label="Sem data"
+                label={t('common:time.noDate')}
                 selected={!draft.dueDate}
                 onPress={() => set({ dueDate: null, time: null, recurrenceType: 'none', recurrenceConfig: null })}
               />
             </View>
             <View style={styles.pickerRow}>
               <Text variant="body-md" color="contentSecondary">
-                Outra data
+                {t('tasks:form.otherDate')}
               </Text>
               <DateTimeField
                 mode="date"
                 value={parseDateKey(draft.dueDate) ?? today}
                 onChange={(date) => set({ dueDate: toDateKey(date) })}
-                accessibilityLabel="Escolher data"
+                accessibilityLabel={t('tasks:form.pickDate')}
               />
             </View>
           </Expanded>
@@ -153,9 +152,9 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
         {draft.dueDate ? (
           <>
             <ListRow
-              label="Horário"
+              label={t('tasks:form.time')}
               icon={<ClockIcon size={18} color={iconColor} />}
-              value={draft.time ?? 'Sem horário'}
+              value={draft.time ? formatTime(draft.time) : t('tasks:form.noTime')}
               onPress={() => toggle('time')}
             />
             {open === 'time' ? (
@@ -165,9 +164,9 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
                     mode="time"
                     value={timeToDate(draft.time)}
                     onChange={(date) => set({ time: toTimeString(date) })}
-                    accessibilityLabel="Escolher horário"
+                    accessibilityLabel={t('tasks:form.pickTime')}
                   />
-                  <Chip label="Sem horário" selected={!draft.time} onPress={() => set({ time: null })} />
+                  <Chip label={t('tasks:form.noTime')} selected={!draft.time} onPress={() => set({ time: null })} />
                 </View>
               </Expanded>
             ) : null}
@@ -175,9 +174,9 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
         ) : null}
 
         <ListRow
-          label="Repetir"
+          label={t('tasks:form.repeat')}
           icon={<RepeatIcon size={18} color={iconColor} />}
-          value={recurrenceLabel ?? 'Não repetir'}
+          value={recurrenceLabel ?? t('tasks:repeat.none')}
           onPress={() => toggle('repeat')}
         />
         {open === 'repeat' ? (
@@ -186,8 +185,8 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
               const selected = draft.recurrenceType === type;
               const label =
                 type === draft.recurrenceType && !REPEAT_OPTIONS.includes(type)
-                  ? (recurrenceLabel ?? REPEAT_OPTION_LABELS_PT[type])
-                  : REPEAT_OPTION_LABELS_PT[type];
+                  ? (recurrenceLabel ?? t(`tasks:repeat.${type}`))
+                  : t(`tasks:repeat.${type}`);
               return (
                 <Pressable
                   key={type}
@@ -210,47 +209,47 @@ export function TaskForm({ draft, onChange, autoFocusTitle = false, leading }: T
         ) : null}
 
         <ListRow
-          label="Categoria"
+          label={t('tasks:form.category')}
           icon={<HashIcon size={18} color={iconColor} />}
-          value={draft.category ?? 'Sem categoria'}
+          value={categoryLabel(draft.category, { locale }) ?? t('tasks:form.noCategory')}
           onPress={() => toggle('category')}
         />
         {open === 'category' ? (
           <Expanded>
             <View style={styles.chips}>
-              <Chip label="Sem categoria" selected={!draft.category} onPress={() => set({ category: null })} />
+              <Chip label={t('tasks:form.noCategory')} selected={!draft.category} onPress={() => set({ category: null })} />
               {categories.map((name) => (
-                <Chip key={name} label={name} selected={draft.category === name} onPress={() => set({ category: name })} />
+                <Chip key={name} label={categoryLabel(name, { locale })} selected={draft.category === name} onPress={() => set({ category: name })} />
               ))}
             </View>
             <TextInput
               value={newCategory}
               onChangeText={setNewCategory}
-              placeholder="Nova categoria"
+              placeholder={t('tasks:form.newCategory')}
               placeholderTextColor={colors.contentTertiary}
               returnKeyType="done"
               onSubmitEditing={() => void createCategory()}
-              accessibilityLabel="Nome da nova categoria"
+              accessibilityLabel={t('tasks:form.newCategoryA11y')}
               style={[typography['body-md'], styles.inlineInput, { color: colors.contentPrimary, borderColor: colors.borderPrimary }]}
             />
           </Expanded>
         ) : null}
 
         <ListRow
-          label="Prioridade"
+          label={t('tasks:form.priority')}
           icon={<FireSimpleIcon size={18} color={iconColor} />}
-          value={draft.priority ? PRIORITY_LABELS[draft.priority] : 'Nenhuma'}
+          value={draft.priority ? t(`tasks:priority.${draft.priority}`) : t('tasks:form.noPriority')}
           onPress={() => toggle('priority')}
           last={open !== 'priority'}
         />
         {open === 'priority' ? (
           <Expanded last>
             <View style={styles.chips}>
-              <Chip label="Nenhuma" selected={!draft.priority} onPress={() => set({ priority: null })} />
+              <Chip label={t('tasks:form.noPriority')} selected={!draft.priority} onPress={() => set({ priority: null })} />
               {(['low', 'medium', 'high'] as const).map((priority) => (
                 <Chip
                   key={priority}
-                  label={PRIORITY_LABELS[priority]}
+                  label={t(`tasks:priority.${priority}`)}
                   selected={draft.priority === priority}
                   onPress={() => set({ priority })}
                 />

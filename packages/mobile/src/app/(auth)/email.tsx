@@ -2,11 +2,13 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useRef, useState } from 'react';
 import { StyleSheet, View, type TextInputInstance } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { ApiError, errorMessage } from '@/api/client';
 import { authApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/auth-provider';
 import { GoogleButton } from '@/auth/google-button';
+import { useLocale } from '@/i18n';
 import { WEB_APP_URL } from '@/lib/links';
 import { spacing } from '@/theme/tokens';
 import { Button } from '@/ui/button';
@@ -16,6 +18,8 @@ import { TextField } from '@/ui/text-field';
 
 export default function EmailSignInScreen() {
   const { acceptSession } = useAuth();
+  const { t } = useTranslation('auth');
+  const locale = useLocale();
   const passwordRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +29,7 @@ export default function EmailSignInScreen() {
   const signIn = async () => {
     const normalized = email.trim().toLowerCase();
     if (!normalized || !password) {
-      setError('Preencha e-mail e senha.');
+      setError(t('email.errors.missingFields'));
       return;
     }
     setBusy(true);
@@ -37,7 +41,7 @@ export default function EmailSignInScreen() {
         router.push({ pathname: '/verificar-email', params: { email: normalized } });
         return;
       }
-      setError(errorMessage(err, 'E-mail ou senha incorretos.'));
+      setError(errorMessage(err, t('email.errors.wrongCredentials')));
     } finally {
       setBusy(false);
     }
@@ -49,24 +53,24 @@ export default function EmailSignInScreen() {
       edges={['bottom']}
       footer={
         <>
-          <Button label="Entrar" onPress={() => void signIn()} loading={busy} />
+          <Button label={t('email.submit')} onPress={() => void signIn()} loading={busy} />
           <GoogleButton />
         </>
       }
     >
       <View style={styles.header}>
-        <Text variant="heading-lg">Entrar com e-mail</Text>
+        <Text variant="heading-lg">{t('email.title')}</Text>
         <Text variant="body-md" color="contentSecondary">
-          Use o e-mail e a senha da sua conta Jarvi.
+          {t('email.subtitle')}
         </Text>
       </View>
 
       <View style={styles.form}>
         <TextField
-          label="E-mail"
+          label={t('email.emailLabel')}
           value={email}
           onChangeText={setEmail}
-          placeholder="voce@email.com"
+          placeholder={t('email.emailPlaceholder')}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -77,10 +81,10 @@ export default function EmailSignInScreen() {
         />
         <TextField
           ref={passwordRef}
-          label="Senha"
+          label={t('email.passwordLabel')}
           value={password}
           onChangeText={setPassword}
-          placeholder="Sua senha"
+          placeholder={t('email.passwordPlaceholder')}
           secureTextEntry
           textContentType="password"
           autoComplete="current-password"
@@ -89,11 +93,12 @@ export default function EmailSignInScreen() {
           error={error}
         />
         <Button
-          label="Esqueci minha senha"
+          label={t('email.forgotPassword')}
           variant="ghost"
           size="sm"
           style={styles.forgot}
-          onPress={() => void WebBrowser.openBrowserAsync(`${WEB_APP_URL}/forgot-password`)}
+          // `?lang=` opens the web page in the app's language (web ignores it when unknown).
+          onPress={() => void WebBrowser.openBrowserAsync(`${WEB_APP_URL}/forgot-password?lang=${locale}`)}
         />
       </View>
     </Screen>

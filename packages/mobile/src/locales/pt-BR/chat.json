@@ -1,0 +1,47 @@
+{
+  "screen": {
+    "newConversation": "Nova conversa",
+    "emptyTitle": "Como posso ajudar?",
+    "emptyDescription": "Conte o que você precisa fazer. A Jarvi cria e organiza suas tarefas."
+  },
+  "skills": {
+    "general": {
+      "planDay": "Planejar meu dia",
+      "whatNow": "O que fazer agora?",
+      "captureIdea": "Capturar ideia",
+      "amILate": "Estou atrasado?",
+      "summarizeWeek": "Resumir minha semana"
+    },
+    "note": {
+      "nextStepTasks": "Criar tarefas dos próximos passos",
+      "decisions": "Quais foram as decisões?",
+      "summarize": "Resumir em 3 tópicos",
+      "openItems": "O que ficou em aberto?"
+    }
+  },
+  "composer": {
+    "placeholder": "Fale com a Jarvi",
+    "inputLabel": "Mensagem para a Jarvi",
+    "stop": "Parar resposta"
+  },
+  "taskCard": {
+    "created": "Tarefa criada",
+    "updated": "Tarefa atualizada",
+    "completed": "Tarefa concluída",
+    "deleted": "Tarefa excluída",
+    "untitled": "Tarefa"
+  },
+  "taskMention": {
+    "openHint": "Abre a tarefa"
+  },
+  "thinking": {
+    "live": "Pensando…"
+  },
+  "stream": {
+    "preparing": "Preparando resposta…",
+    "optionsLine": "Opções: {{options}}",
+    "resume": "Continuar",
+    "error": "Ocorreu um erro.",
+    "connectionError": "Não foi possível falar com a Jarvi agora. Tente de novo."
+  }
+}

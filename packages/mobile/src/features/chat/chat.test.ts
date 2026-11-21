@@ -82,6 +82,27 @@ describe('resolveChoiceArtifact', () => {
     const artifact = resolveChoiceArtifact(assistant({ content: 'Resumo:\n- Prazo: amanhã\n- Categoria: Casa' }));
     expect(artifact.choices).toEqual([]);
   });
+
+  it('reads English replies from the new backend', () => {
+    const artifact = resolveChoiceArtifact(
+      assistant({ content: 'I have two options.\n\nWhich one works for you?\n- **Morning**\n- Afternoon' }),
+    );
+    expect(artifact).toEqual({
+      content: 'I have two options.',
+      contentAfter: '',
+      question: 'Which one works for you?',
+      choices: ['Morning', 'Afternoon'],
+    });
+  });
+
+  it('ignores English fact bullets after a question', () => {
+    const artifact = resolveChoiceArtifact(
+      assistant({ content: 'Anything to change?\n- Due date: tomorrow\n- Category: Home' }),
+    );
+    expect(artifact.choices).toEqual([]);
+    const pt = resolveChoiceArtifact(assistant({ content: 'Quer mudar algo?\n- Prazo: amanhã\n- Categoria: Casa' }));
+    expect(pt.choices).toEqual([]);
+  });
 });
 
 describe('pendingQuestionOf', () => {

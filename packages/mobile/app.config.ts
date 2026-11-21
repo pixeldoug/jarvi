@@ -29,7 +29,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      // pt-BR is the default language (docs/decisions/0005-i18n.md): a device in
+      // an unsupported language gets the Portuguese system strings, like the JS UI.
+      CFBundleDevelopmentRegion: 'pt',
     },
+  },
+  // Native strings per language (iOS InfoPlist.strings). Keep the pt text equal
+  // to `microphonePermission` below, which is the base value.
+  locales: {
+    pt: './src/locales/native/pt.json',
+    en: './src/locales/native/en.json',
   },
   android: {
     package: 'com.jarvi.app',
@@ -43,7 +52,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     'expo-router',
     'expo-secure-store',
+    [
+      'expo-localization',
+      {
+        // Languages the app speaks (iOS CFBundleLocalizations, Android per-app
+        // language list). Must match SUPPORTED_LOCALES in src/i18n/locale.ts.
+        supportedLocales: { ios: ['pt', 'en'], android: ['pt-BR', 'en-US'] },
+      },
+    ],
     '@react-native-community/datetimepicker',
+    [
+      'expo-audio',
+      {
+        microphonePermission: 'A Jarvi usa o microfone para transcrever o que você grava nas suas notas.',
+        // A meeting keeps recording with the screen locked.
+        enableBackgroundRecording: true,
+      },
+    ],
     [
       'expo-splash-screen',
       {

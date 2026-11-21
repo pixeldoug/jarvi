@@ -1,8 +1,10 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { displayTitle } from '@/features/tasks/task-row';
-import { formatDueLabel } from '@/lib/dates';
+import { useFormat } from '@/i18n';
+import { dateKeyOf } from '@/lib/dates';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing } from '@/theme/tokens';
 import { Chip } from '@/ui/chip';
@@ -13,17 +15,24 @@ import { RichText } from './rich-text';
 import { splitTaskRefs } from './task-refs';
 import type { ChatMessageData, ToolCallData } from './types';
 
-const TASK_TOOL_LABELS: Record<string, string> = {
-  create_task: 'Tarefa criada',
-  update_task: 'Tarefa atualizada',
-  complete_task: 'Tarefa concluída',
-  delete_task: 'Tarefa excluída',
-};
+/** Task tools that get a card, and the `chat:taskCard.*` label each one shows. */
+const TASK_TOOL_LABEL_KEYS = {
+  create_task: 'created',
+  update_task: 'updated',
+  complete_task: 'completed',
+  delete_task: 'deleted',
+} as const;
+
+type TaskToolName = keyof typeof TASK_TOOL_LABEL_KEYS;
+
+const isTaskTool = (name: string): name is TaskToolName => Object.prototype.hasOwnProperty.call(TASK_TOOL_LABEL_KEYS, name);
 
 interface ChatMessageProps {
   message: ChatMessageData;
   /** Only the latest assistant message offers quick replies. */
   isLatest: boolean;
+  /** From useToday(), so memoized messages relabel task dates when the day changes. */
+  today: Date;
   isStreaming: boolean;
   status: string | null;
   isWaiting: boolean;
@@ -38,7 +47,7 @@ function taskCards(message: ChatMessageData, text: string): ToolCallData[] {
   );
   const byTask = new Map<string, ToolCallData>();
   for (const call of message.toolCalls ?? []) {
-    if (!call.result?.success || !(call.toolName in TASK_TOOL_LABELS)) continue;
+    if (!call.result?.success || !isTaskTool(call.toolName)) continue;
     const id = String(call.result.data?.id ?? '');
     if (!id || mentioned.has(id)) continue;
     byTask.set(id, call);
@@ -46,8 +55,20 @@ function taskCards(message: ChatMessageData, text: string): ToolCallData[] {
   return [...byTask.values()];
 }
 
-function ChatMessageComponent({ message, isLatest, isStreaming, status, isWaiting, onReply, onOpenTask }: ChatMessageProps) {
+function ChatMessageComponent({ message, isLatest, today, isStreaming, status, isWaiting, onReply, onOpenTask }: ChatMessageProps) {
+  const { t } = useTranslation(['chat', 'common']);
   const { colors } = useTheme();
+  const { formatRelativeDay, formatTime } = useFormat();
+
+  /** "Hoje", "Amanhã", "Quarta", "7 Jan", plus ", 09:00" when timed (pt) / "Today, 9:00 AM" (en). */
+  const dueLabel = (dueDate: unknown, time: unknown): string | null => {
+    // Day only: a stored "2026-10-28T00:00:00Z" is that calendar day, not UTC midnight.
+    const key = typeof dueDate === 'string' ? dateKeyOf(dueDate) : null;
+    const date = key ? formatRelativeDay(key, { now: today, weekdayThisWeek: true }) : '';
+    if (!date) return null;
+    const clock = typeof time === 'string' ? formatTime(time) : '';
+    return clock ? t('common:time.dateWithTime', { date, time: clock }) : date;
+  };
 
   if (message.role === 'user') {
     return (
@@ -73,7 +94,7 @@ function ChatMessageComponent({ message, isLatest, isStreaming, status, isWaitin
         const data = call.result?.data ?? {};
         const id = String(data.id);
         const deleted = call.toolName === 'delete_task';
-        const when = formatDueLabel(data.due_date as string | null, data.time as string | null);
+        const when = dueLabel(data.due_date, data.time);
         return (
           <Pressable
             key={id}
@@ -92,10 +113,10 @@ function ChatMessageComponent({ message, isLatest, isStreaming, status, isWaitin
             )}
             <View style={styles.cardBody}>
               <Text variant="label-sm" color="contentSecondary">
-                {TASK_TOOL_LABELS[call.toolName]}
+                {isTaskTool(call.toolName) ? t(`taskCard.${TASK_TOOL_LABEL_KEYS[call.toolName]}`) : null}
               </Text>
               <Text variant="body-md" numberOfLines={2} style={deleted && styles.struck}>
-                {displayTitle(String(data.title ?? call.toolArgs.title ?? 'Tarefa'))}
+                {displayTitle(String(data.title ?? call.toolArgs.title ?? t('taskCard.untitled')))}
               </Text>
               {when && !deleted ? (
                 <Text variant="body-sm" color="contentSecondary">
@@ -111,7 +132,7 @@ function ChatMessageComponent({ message, isLatest, isStreaming, status, isWaitin
         <View style={styles.status} accessibilityLiveRegion="polite">
           <ActivityIndicator size="small" color={colors.contentInfo} />
           <Text variant="body-sm" color="contentSecondary">
-            {status ?? 'Pensando…'}
+            {status ?? t('thinking.live')}
           </Text>
         </View>
       ) : null}

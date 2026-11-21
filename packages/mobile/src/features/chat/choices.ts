@@ -17,7 +17,12 @@ export interface ChatChoiceArtifact {
 }
 
 const BULLET_RE = /^(?:[•\-*]|\d+[.)]|[A-Ea-e][.)])\s+(.+)$/;
-const FACT_LABEL_RE = /^(prazo|categoria|prioridade|hor[aá]rio|t[ií]tulo|resumo|atualiza[cç][aã]o)\s*:/i;
+/**
+ * Fact bullets ("Prazo: amanhã" / "Due date: tomorrow") are not choices. The
+ * agent writes in the user's language, so both languages (same as the web).
+ */
+const FACT_LABEL_RE =
+  /^(prazo|categoria|prioridade|hor[aá]rio|t[ií]tulo|resumo|atualiza[cç][aã]o|due(?: date)?|deadline|category|priority|time|title|summary|update)\s*:/i;
 const MAX_CHOICES = 5;
 const MIN_CHOICES = 2;
 const MAX_CHOICE_LENGTH = 80;

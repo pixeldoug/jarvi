@@ -1,0 +1,137 @@
+{
+  "screen": {
+    "title": "Tasks",
+    "newTask": "New task",
+    "talkToJarvi": "Talk to Jarvi",
+    "sectionA11y_one": "{{title}}, {{count}} task",
+    "sectionA11y_other": "{{title}}, {{count}} tasks"
+  },
+  "views": {
+    "all": "All",
+    "inbox": "Inbox",
+    "overdue": "Overdue",
+    "recurring": "Recurring"
+  },
+  "sections": {
+    "overdue": "Overdue",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "later": "Later",
+    "inbox": "Inbox",
+    "completed": "Completed",
+    "recurring": "Recurring"
+  },
+  "empty": {
+    "all": {
+      "title": "Nothing here yet",
+      "description": "Create a task or tell Jarvi what you need to do."
+    },
+    "inbox": {
+      "title": "Your inbox is empty",
+      "description": "Tasks without a date show up here."
+    },
+    "overdue": {
+      "title": "Nothing overdue",
+      "description": "You're all caught up."
+    },
+    "recurring": {
+      "title": "No recurring tasks",
+      "description": "Tasks that repeat show up here."
+    },
+    "category": {
+      "title": "Nothing in this category",
+      "description": "Tasks in this category show up here."
+    },
+    "list": {
+      "title": "Nothing in this filter",
+      "description": "Tasks that match this filter show up here."
+    }
+  },
+  "calendar": {
+    "newTaskOn": "New task on {{date}}",
+    "emptyTitle": "Free day",
+    "emptyDescription": "No tasks for this day."
+  },
+  "detail": {
+    "title": "Task",
+    "notFoundTitle": "Task not found",
+    "notFoundDescription": "It may have been deleted on another device.",
+    "titleRequired": "Your task needs a title",
+    "saveFailed": "Couldn't save",
+    "deleteConfirmTitle": "Delete task?",
+    "delete": "Delete task",
+    "deleted": "Task deleted.",
+    "whatsappOrigin": "ORIGINAL WHATSAPP MESSAGE"
+  },
+  "newTask": {
+    "title": "New task",
+    "create": "Create",
+    "createFailed": "Couldn't create the task"
+  },
+  "form": {
+    "titlePlaceholder": "What needs to be done?",
+    "titleA11y": "Task title",
+    "notesPlaceholder": "Add notes",
+    "notesA11y": "Task notes",
+    "noNotes": "No notes",
+    "notesReadOnly": "These notes have formatting or attachments. Edit them on the web.",
+    "date": "Date",
+    "nextWeek": "Next week",
+    "otherDate": "Another date",
+    "pickDate": "Pick a date",
+    "time": "Time",
+    "noTime": "No time",
+    "pickTime": "Pick a time",
+    "repeat": "Repeat",
+    "category": "Category",
+    "noCategory": "No category",
+    "newCategory": "New category",
+    "newCategoryA11y": "New category name",
+    "createCategoryFailed": "Couldn't create the category.",
+    "priority": "Priority",
+    "noPriority": "None"
+  },
+  "priority": {
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "urgent": "Urgent"
+  },
+  "repeat": {
+    "none": "Don't repeat",
+    "hourly": "Every hour",
+    "daily": "Daily",
+    "weekdays": "Weekdays",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "custom": "Custom"
+  },
+  "categories": {
+    "defaults": {
+      "work": "Work",
+      "personal": "Personal",
+      "shopping": "Shopping"
+    }
+  },
+  "row": {
+    "viaWhatsApp": "from WhatsApp",
+    "openHint": "Opens the task details"
+  },
+  "toast": {
+    "createdFromWhatsApp": "New task added from WhatsApp.",
+    "nextOccurrence": "Next one: {{when}}.",
+    "updateFailed": "Couldn't update the task.",
+    "deleteFailed": "Couldn't delete the task.",
+    "undoFailed": "Couldn't undo that."
+  },
+  "discard": {
+    "title": "Discard changes?",
+    "keepEditing": "Keep editing",
+    "discard": "Discard"
+  },
+  "description": {
+    "attachment": "attachment"
+  }
+}

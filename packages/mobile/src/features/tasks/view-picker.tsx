@@ -1,10 +1,13 @@
+import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet } from 'react-native';
 
+import { useLocale } from '@/i18n';
 import { spacing } from '@/theme/tokens';
 import { Chip } from '@/ui/chip';
 import { HashIcon } from '@/ui/icons';
 import { useTheme } from '@/theme/theme-provider';
 import type { TaskList } from '@/types/models';
+import { categoryLabel } from './category-label';
 import type { TaskView } from './sections';
 
 interface ViewPickerProps {
@@ -14,16 +17,14 @@ interface ViewPickerProps {
   lists: TaskList[];
 }
 
-const SMART_VIEWS: { kind: 'all' | 'inbox' | 'overdue' | 'recurring'; label: string }[] = [
-  { kind: 'all', label: 'Todas' },
-  { kind: 'inbox', label: 'Caixa de entrada' },
-  { kind: 'overdue', label: 'Vencidas' },
-  { kind: 'recurring', label: 'Recorrentes' },
-];
+/** Labels are `tasks:views.<kind>`, resolved while rendering. */
+const SMART_VIEWS = ['all', 'inbox', 'overdue', 'recurring'] as const;
 
 /** Same entries as the web sidebar: smart lists, saved filters, then categories. */
 export function ViewPicker({ view, onChange, categories, lists }: ViewPickerProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation('tasks');
+  const locale = useLocale();
   return (
     <ScrollView
       horizontal
@@ -31,13 +32,8 @@ export function ViewPicker({ view, onChange, categories, lists }: ViewPickerProp
       contentContainerStyle={styles.row}
       accessibilityRole="tablist"
     >
-      {SMART_VIEWS.map((option) => (
-        <Chip
-          key={option.kind}
-          label={option.label}
-          selected={view.kind === option.kind}
-          onPress={() => onChange({ kind: option.kind })}
-        />
+      {SMART_VIEWS.map((kind) => (
+        <Chip key={kind} label={t(`views.${kind}`)} selected={view.kind === kind} onPress={() => onChange({ kind })} />
       ))}
       {lists.map((list) => (
         <Chip
@@ -52,7 +48,7 @@ export function ViewPicker({ view, onChange, categories, lists }: ViewPickerProp
         return (
           <Chip
             key={name}
-            label={name}
+            label={categoryLabel(name, { locale })}
             icon={<HashIcon size={12} color={selected ? colors.contentInfo : colors.contentSecondary} />}
             selected={selected}
             onPress={() => onChange({ kind: 'category', name })}

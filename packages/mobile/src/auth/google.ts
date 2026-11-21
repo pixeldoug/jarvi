@@ -1,5 +1,7 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
+import { i18n } from '@/i18n';
+
 /**
  * Native Google Sign-In. The module ships native code, so it only exists in
  * development and store builds; Expo Go hides the button instead of crashing.
@@ -26,19 +28,19 @@ function loadGoogle(): Promise<GoogleModule> {
 
 /** Returns a Google ID token, or null when the person cancels. */
 export async function getGoogleIdToken(): Promise<string | null> {
-  if (!isGoogleSignInAvailable) throw new Error('Entrar com Google não está disponível nesta versão do app.');
+  if (!isGoogleSignInAvailable) throw new Error(i18n.t('auth:google.errors.unavailable'));
   const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = await loadGoogle();
   try {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const response = await GoogleSignin.signIn();
     if (!isSuccessResponse(response)) return null;
-    if (!response.data.idToken) throw new Error('O Google não devolveu um token. Tente de novo.');
+    if (!response.data.idToken) throw new Error(i18n.t('auth:google.errors.noToken'));
     return response.data.idToken;
   } catch (error) {
     if (isErrorWithCode(error)) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED || error.code === statusCodes.IN_PROGRESS) return null;
       if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        throw new Error('Atualize o Google Play Services para entrar com Google.');
+        throw new Error(i18n.t('auth:google.errors.updatePlayServices'));
       }
     }
     throw error;

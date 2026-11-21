@@ -1,13 +1,16 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { MONTHS_LONG_PT, monthGrid, toDateKey } from '@/lib/dates';
+import { useFormat } from '@/i18n';
+import { monthGrid, toDateKey } from '@/lib/dates';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing } from '@/theme/tokens';
 import { CaretLeftIcon, CaretRightIcon } from '@/ui/icons';
 import { Text } from '@/ui/text';
 
-const WEEK_HEADER = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+/** Weekday ids by `Date#getDay()`; the header letters are read at render time. */
+const WEEKDAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 interface MonthCalendarProps {
   month: Date;
@@ -21,29 +24,32 @@ interface MonthCalendarProps {
 
 function MonthCalendarComponent({ month, todayKey, selectedKey, busyKeys, onSelect, onMonthChange }: MonthCalendarProps) {
   const { colors } = useTheme();
-  const days = monthGrid(month);
+  const { t } = useTranslation('dates');
+  const { formatDate, weekStartsOn } = useFormat();
+  const days = monthGrid(month, weekStartsOn);
+  const weekHeader = Array.from({ length: 7 }, (_, i) => WEEKDAY_IDS[(weekStartsOn + i) % 7]!);
   const shift = (delta: number) => onMonthChange(new Date(month.getFullYear(), month.getMonth() + delta, 1));
 
   return (
     <View style={styles.root}>
       <View style={styles.header}>
         <Text variant="heading-sm" accessibilityRole="header">
-          {`${MONTHS_LONG_PT[month.getMonth()]} ${month.getFullYear()}`}
+          {formatDate(month, 'monthYear')}
         </Text>
         <View style={styles.arrows}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Mês anterior" hitSlop={8} onPress={() => shift(-1)} style={styles.arrow}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('calendar.previousMonth')} hitSlop={8} onPress={() => shift(-1)} style={styles.arrow}>
             <CaretLeftIcon size={18} color={colors.contentPrimary} />
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Próximo mês" hitSlop={8} onPress={() => shift(1)} style={styles.arrow}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('calendar.nextMonth')} hitSlop={8} onPress={() => shift(1)} style={styles.arrow}>
             <CaretRightIcon size={18} color={colors.contentPrimary} />
           </Pressable>
         </View>
       </View>
 
       <View style={styles.week}>
-        {WEEK_HEADER.map((label, index) => (
-          <Text key={index} variant="label-sm" color="contentTertiary" style={styles.cell} align="center">
-            {label}
+        {weekHeader.map((id) => (
+          <Text key={id} variant="label-sm" color="contentTertiary" style={styles.cell} align="center">
+            {t(`calendar.weekdaysNarrow.${id}`)}
           </Text>
         ))}
       </View>
@@ -54,12 +60,13 @@ function MonthCalendarComponent({ month, todayKey, selectedKey, busyKeys, onSele
           const inMonth = day.getMonth() === month.getMonth();
           const selected = key === selectedKey;
           const isToday = key === todayKey;
+          const dayLabel = formatDate(day, 'dayMonthLong');
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              accessibilityLabel={`${day.getDate()} de ${MONTHS_LONG_PT[day.getMonth()]}${busyKeys.has(key) ? ', com tarefas' : ''}`}
+              accessibilityLabel={busyKeys.has(key) ? t('calendar.dayWithTasks', { date: dayLabel }) : dayLabel}
               onPress={() => onSelect(key)}
               style={styles.cell}
             >

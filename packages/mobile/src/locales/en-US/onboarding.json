@@ -1,0 +1,127 @@
+{
+  "options": {
+    "tracking": {
+      "mobileNotes": "Notes on my phone",
+      "paperNotebook": "Pen & paper",
+      "selfWhatsapp": "Texting myself",
+      "agendaCalendar": "Planner & calendar",
+      "spreadsheets": "Spreadsheets",
+      "productivityApps": "Productivity apps (Notion, ClickUp, etc.)",
+      "memoryOnly": "I try to keep it all in my head",
+      "noSystem": "I don't have a system for this",
+      "other": "Other"
+    },
+    "pain": {
+      "forgetFastCapture": "I forget things if I don't write them down right away",
+      "hardPrioritization": "I struggle to decide what matters most",
+      "overwhelmedManyTasks": "I feel overwhelmed by everything on my plate",
+      "procrastinateImportant": "I put off important tasks",
+      "dontKnowStart": "I don't know where to start",
+      "other": "Other"
+    }
+  },
+  "interview": {
+    "prompts": {
+      "name": "What should we call you?",
+      "tracking": "How do you keep track of your tasks today?",
+      "pain": "Do any of these sound familiar?",
+      "open": "What would the perfect Jarvi look like in your day?",
+      "firstTasks": "Let's create your first tasks"
+    },
+    "placeholders": {
+      "name": "Your name or nickname",
+      "trackingOther": "Tell us how you do it",
+      "painOther": "Tell us what gets in your way the most",
+      "open": "E.g., remind me about bills so nothing slips past its due date"
+    },
+    "nameLabel": "What should we call you",
+    "openLabel": "What the perfect Jarvi looks like for you",
+    "optional": "Optional",
+    "progress": "Step {{current}} of {{total}}",
+    "createTasks": "Create my tasks"
+  },
+  "validation": {
+    "name": "Tell us what you'd like to be called.",
+    "selectOption": "Pick at least one option.",
+    "selectChallenge": "Pick at least one challenge.",
+    "describeOther": "Tell us what \"Other\" means for you.",
+    "firstTask": "Add at least one thing you need to do."
+  },
+  "errors": {
+    "completeFailed": "We couldn't finish that right now."
+  },
+  "preparing": {
+    "title": "Getting your Jarvi ready…",
+    "body": "Organizing your first tasks."
+  },
+  "firstTasks": {
+    "intro": "Write down what's on your mind. Jarvi organizes it and reminds you on WhatsApp.",
+    "firstPlaceholder": "E.g., Renew my driver's license",
+    "nextPlaceholder": "Another task",
+    "taskLabel": "Task {{number}}",
+    "removeTask": "Remove task",
+    "addTask": "Add task",
+    "ideasTitle": "Need ideas? Tap to add"
+  },
+  "ideas": {
+    "topics": {
+      "health": {
+        "title": "Health",
+        "examples": {
+          "checkup": "Schedule my annual checkup",
+          "dentist": "Book a dentist appointment",
+          "eyeDoctor": "Book an eye exam",
+          "vaccines": "Check which vaccines are due"
+        }
+      },
+      "money": {
+        "title": "Money",
+        "examples": {
+          "creditCard": "Pay the credit card bill",
+          "emergencyFund": "Put money into the emergency fund",
+          "subscriptions": "Review app subscriptions",
+          "monthlySpending": "Go over last month's spending"
+        }
+      },
+      "home": {
+        "title": "Home",
+        "examples": {
+          "airConditioner": "Schedule AC maintenance",
+          "household": "Replace the smoke detector batteries",
+          "internet": "Pay the internet bill",
+          "waterFilter": "Replace the water filter"
+        }
+      },
+      "documents": {
+        "title": "Paperwork",
+        "examples": {
+          "driversLicense": "Renew my driver's license",
+          "passport": "Renew my passport",
+          "vehicle": "Renew my car registration",
+          "taxes": "File my taxes"
+        }
+      },
+      "people": {
+        "title": "People",
+        "examples": {
+          "callRelative": "Call a family member",
+          "lunch": "Set up a lunch with a friend",
+          "birthday": "Remember a birthday",
+          "message": "Text someone back"
+        }
+      }
+    }
+  },
+  "memory": {
+    "name": "You go by {{name}}.",
+    "tracking": "Right now you keep track of tasks using: {{list}}.",
+    "pain": "Your main challenges right now: {{list}}.",
+    "idealOutcome": "What the ideal Jarvi looks like in your day: {{text}}",
+    "empty": "Tell Jarvi a bit about your routine so it can help you better."
+  },
+  "chatSeed": {
+    "welcome": "Welcome!",
+    "welcomeName": "Welcome, {{name}}!",
+    "readyAck": "All set, I created your first tasks."
+  }
+}

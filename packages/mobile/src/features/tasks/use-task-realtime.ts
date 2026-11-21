@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 
-import { API_URL, getSessionToken } from '@/api/client';
+import { API_URL, getSessionToken, localeHeaders } from '@/api/client';
+import { i18n } from '@/i18n';
 import { useToast } from '@/ui/toast';
 import { queryKeys } from './use-tasks';
 
@@ -23,10 +24,10 @@ export function useTaskRealtime() {
     const connect = () => {
       const token = getSessionToken();
       if (!token || socket) return;
-      socket = io(API_URL, { auth: { token }, transports: ['websocket'] });
+      socket = io(API_URL, { auth: { token }, transports: ['websocket'], extraHeaders: localeHeaders() });
       socket.on('task:created', (payload?: { source?: string }) => {
         refresh();
-        if (payload?.source === 'whatsapp') toast({ message: 'Nova tarefa criada pelo WhatsApp.' });
+        if (payload?.source === 'whatsapp') toast({ message: i18n.t('tasks:toast.createdFromWhatsApp') });
       });
       socket.on('task:changed', refresh);
     };

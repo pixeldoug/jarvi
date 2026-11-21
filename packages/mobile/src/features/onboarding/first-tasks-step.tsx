@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { addDays, toDateKey } from '@/lib/dates';
+import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing, typography } from '@/theme/tokens';
 import { Chip } from '@/ui/chip';
@@ -13,11 +15,12 @@ interface FirstTasksStepProps {
   onChange: (tasks: OnboardingDraftTask[]) => void;
 }
 
-const today = () => toDateKey(new Date());
-const tomorrow = () => toDateKey(addDays(new Date(), 1));
-
 export function FirstTasksStep({ tasks, onChange }: FirstTasksStepProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation(['onboarding', 'common']);
+  const now = useToday();
+  const today = toDateKey(now);
+  const tomorrow = toDateKey(addDays(now, 1));
 
   const update = (id: string, patch: Partial<OnboardingDraftTask>) =>
     onChange(tasks.map((task) => (task.id === id ? { ...task, ...patch } : task)));
@@ -31,7 +34,7 @@ export function FirstTasksStep({ tasks, onChange }: FirstTasksStepProps) {
   return (
     <View style={styles.root}>
       <Text variant="body-md" color="contentSecondary">
-        Escreva o que está na sua cabeça. A Jarvi organiza e te lembra no WhatsApp.
+        {t('firstTasks.intro')}
       </Text>
 
       <View style={styles.rows}>
@@ -41,17 +44,17 @@ export function FirstTasksStep({ tasks, onChange }: FirstTasksStepProps) {
               <TextInput
                 value={task.title}
                 onChangeText={(title) => update(task.id, { title })}
-                placeholder={index === 0 ? 'Ex.: Renovar CNH' : 'Outra tarefa'}
+                placeholder={index === 0 ? t('firstTasks.firstPlaceholder') : t('firstTasks.nextPlaceholder')}
                 placeholderTextColor={colors.contentTertiary}
                 autoFocus={index === 0 && !task.title}
                 returnKeyType="done"
-                accessibilityLabel={`Tarefa ${index + 1}`}
+                accessibilityLabel={t('firstTasks.taskLabel', { number: index + 1 })}
                 style={[typography['body-md'], styles.input, { color: colors.contentPrimary }]}
               />
               {tasks.length > 1 ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Remover tarefa"
+                  accessibilityLabel={t('firstTasks.removeTask')}
                   hitSlop={8}
                   onPress={() => onChange(tasks.filter((t) => t.id !== task.id))}
                 >
@@ -60,45 +63,57 @@ export function FirstTasksStep({ tasks, onChange }: FirstTasksStepProps) {
               ) : null}
             </View>
             <View style={styles.dates}>
-              <Chip label="Sem data" selected={!task.dueDate} onPress={() => update(task.id, { dueDate: null })} />
-              <Chip label="Hoje" selected={task.dueDate === today()} onPress={() => update(task.id, { dueDate: today() })} />
               <Chip
-                label="Amanhã"
-                selected={task.dueDate === tomorrow()}
-                onPress={() => update(task.id, { dueDate: tomorrow() })}
+                label={t('common:time.noDate')}
+                selected={!task.dueDate}
+                onPress={() => update(task.id, { dueDate: null })}
+              />
+              <Chip
+                label={t('common:time.today')}
+                selected={task.dueDate === today}
+                onPress={() => update(task.id, { dueDate: today })}
+              />
+              <Chip
+                label={t('common:time.tomorrow')}
+                selected={task.dueDate === tomorrow}
+                onPress={() => update(task.id, { dueDate: tomorrow })}
               />
             </View>
           </View>
         ))}
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={t('firstTasks.addTask')}
           onPress={() => onChange([...tasks, createDraftTask()])}
           style={styles.add}
           hitSlop={4}
         >
           <PlusIcon size={16} color={colors.contentInfo} weight="bold" />
           <Text variant="label-md" color="contentInfo">
-            Adicionar tarefa
+            {t('firstTasks.addTask')}
           </Text>
         </Pressable>
       </View>
 
       <View style={styles.ideas}>
-        <Text variant="label-md">Sem ideias? Toque para adicionar</Text>
+        <Text variant="label-md">{t('firstTasks.ideasTitle')}</Text>
         {FIRST_TASK_TOPICS.map((topic) => (
           <View key={topic.id} style={styles.topic}>
             <Text variant="label-sm" color="contentSecondary">
-              {topic.title}
+              {t(topic.titleKey)}
             </Text>
             <View style={styles.chips}>
-              {topic.examples.map((example) => (
-                <Chip
-                  key={example}
-                  label={example}
-                  selected={tasks.some((t) => t.title.trim() === example)}
-                  onPress={() => addIdea(example)}
-                />
-              ))}
+              {topic.examples.map((exampleKey) => {
+                const example = t(exampleKey);
+                return (
+                  <Chip
+                    key={exampleKey}
+                    label={example}
+                    selected={tasks.some((task) => task.title.trim() === example)}
+                    onPress={() => addIdea(example)}
+                  />
+                );
+              })}
             </View>
           </View>
         ))}

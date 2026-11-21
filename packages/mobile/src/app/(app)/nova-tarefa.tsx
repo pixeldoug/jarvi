@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, StyleSheet } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +17,7 @@ import { ModalHeader } from '@/ui/modal-header';
 
 export default function NewTaskScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation('tasks');
   const { dueDate } = useLocalSearchParams<{ dueDate?: string }>();
   const create = useCreateTask();
   const [initial] = useState(() => emptyDraft({ dueDate: dateKeyOf(dueDate) }));
@@ -28,17 +30,17 @@ export default function NewTaskScreen() {
       await create.mutateAsync(createInput(draft));
       leave();
     } catch (error) {
-      Alert.alert('Não foi possível criar a tarefa', errorMessage(error));
+      Alert.alert(t('newTask.createFailed'), errorMessage(error));
     }
   };
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.root, { backgroundColor: colors.surfaceGrouped }]}>
       <ModalHeader
-        title="Nova tarefa"
+        title={t('newTask.title')}
         onCancel={() => router.back()}
         onConfirm={() => void save()}
-        confirmLabel="Criar"
+        confirmLabel={t('newTask.create')}
         confirmDisabled={!draft.title.trim()}
         busy={create.isPending}
       />

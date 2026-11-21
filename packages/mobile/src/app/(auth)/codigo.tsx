@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { errorMessage } from '@/api/client';
 import { onboardingApi } from '@/api/endpoints';
@@ -17,6 +18,7 @@ const RESEND_SECONDS = 30;
 export default function WhatsAppCodeScreen() {
   const { phone = '', devCode } = useLocalSearchParams<{ phone: string; devCode?: string }>();
   const { acceptSession } = useAuth();
+  const { t } = useTranslation('auth');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,7 +44,7 @@ export default function WhatsAppCodeScreen() {
         void onboardingApi.recordStep('whatsapp').catch(() => undefined);
       }
     } catch (err) {
-      setError(errorMessage(err, 'Código inválido. Confira e tente de novo.'));
+      setError(errorMessage(err, t('code.invalid')));
       setCode('');
     } finally {
       setBusy(false);
@@ -56,16 +58,16 @@ export default function WhatsAppCodeScreen() {
       setTestCode(next || null);
       setCooldown(RESEND_SECONDS);
     } catch (err) {
-      setError(errorMessage(err, 'Não foi possível reenviar o código.'));
+      setError(errorMessage(err, t('code.resendFailed')));
     }
   };
 
   return (
     <Screen scroll edges={['bottom']}>
       <View style={styles.header}>
-        <Text variant="heading-lg">Confirme seu WhatsApp</Text>
+        <Text variant="heading-lg">{t('whatsapp.confirmTitle')}</Text>
         <Text variant="body-md" color="contentSecondary">
-          Enviamos um código de 6 dígitos para {formatE164(phone)}.
+          {t('whatsapp.codeSent', { phone: formatE164(phone) })}
         </Text>
       </View>
 
@@ -78,18 +80,18 @@ export default function WhatsAppCodeScreen() {
       ) : null}
       {testCode ? (
         <Text variant="body-sm" color="contentTertiary" align="center">
-          Código de teste: {testCode}
+          {t('whatsapp.testCode', { code: testCode })}
         </Text>
       ) : null}
 
       <View style={styles.actions}>
         <Button
-          label={cooldown > 0 ? `Reenviar código em ${cooldown}s` : 'Reenviar código'}
+          label={cooldown > 0 ? t('code.resendIn', { seconds: cooldown }) : t('code.resend')}
           variant="secondary"
           disabled={cooldown > 0 || busy}
           onPress={() => void resend()}
         />
-        <Button label="Editar número" variant="ghost" onPress={() => router.back()} disabled={busy} />
+        <Button label={t('whatsapp.editNumber')} variant="ghost" onPress={() => router.back()} disabled={busy} />
       </View>
     </Screen>
   );

@@ -3,40 +3,47 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { errorMessage } from '@/api/client';
 import { usersApi } from '@/api/endpoints';
 import { useAuth, useCurrentUser } from '@/auth/auth-provider';
+import { displayName } from '@/features/onboarding/display-name';
 import { useSubscription } from '@/features/subscription/use-subscription';
+import { i18n, useLocale, type Locale } from '@/i18n';
 import { WEB_APP_URL } from '@/lib/links';
 import { formatE164 } from '@/lib/phone';
 import { useTheme, type AppearancePreference } from '@/theme/theme-provider';
 import { spacing } from '@/theme/tokens';
+import { LanguagePicker } from '@/ui/language-picker';
 import { ListGroup, ListRow } from '@/ui/list-group';
 import { Text } from '@/ui/text';
 import type { SubscriptionInfo } from '@/types/models';
 
-const APPEARANCE_LABELS: Record<AppearancePreference, string> = {
-  system: 'Automático',
-  light: 'Claro',
-  dark: 'Escuro',
-};
 const APPEARANCE_ORDER: AppearancePreference[] = ['system', 'light', 'dark'];
 
-function planLabel(info: SubscriptionInfo | undefined, daysLeft: number | null): string {
-  if (!info) return '…';
+/** Takes the locale so the React Compiler re-runs it after a language switch. */
+function planLabel(info: SubscriptionInfo | undefined, daysLeft: number | null, locale: Locale): string {
+  const t = i18n.getFixedT(locale, 'subscription');
+  if (!info) return t('plan.loading');
   if (info.isActive && info.status === 'active') {
-    return info.planType === 'annual' ? 'Anual' : info.planType === 'lifetime' ? 'Vitalício' : 'Mensal';
+    return info.planType === 'annual'
+      ? t('plan.annual')
+      : info.planType === 'lifetime'
+        ? t('plan.lifetime')
+        : t('plan.monthly');
   }
   if (info.status === 'trialing' && daysLeft !== null) {
-    return daysLeft === 1 ? 'Teste: 1 dia' : `Teste: ${daysLeft} dias`;
+    return t('plan.trialDays', { count: daysLeft });
   }
-  if (info.status === 'past_due') return 'Pagamento pendente';
-  return 'Sem plano';
+  if (info.status === 'past_due') return t('plan.pastDue');
+  return t('plan.none');
 }
 
 export default function SettingsScreen() {
+  const { t } = useTranslation(['settings', 'common']);
+  const locale = useLocale();
   const user = useCurrentUser();
   const { signOut } = useAuth();
   const { colors, preference, setPreference } = useTheme();
@@ -45,9 +52,9 @@ export default function SettingsScreen() {
   const contact = user.whatsappPhone ? formatE164(user.whatsappPhone) : user.email;
 
   const confirmSignOut = () =>
-    Alert.alert('Sair da Jarvi?', undefined, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => void signOut() },
+    Alert.alert(t('signOut.confirmTitle'), undefined, [
+      { text: t('common:actions.cancel'), style: 'cancel' },
+      { text: t('common:actions.signOut'), style: 'destructive', onPress: () => void signOut() },
     ]);
 
   const deleteAccount = async () => {
@@ -56,18 +63,18 @@ export default function SettingsScreen() {
       await usersApi.deleteAccount();
       await signOut();
     } catch (error) {
-      Alert.alert('Não foi possível excluir a conta', errorMessage(error));
+      Alert.alert(t('deleteAccount.error'), errorMessage(error));
       setDeleting(false);
     }
   };
 
   const confirmDelete = () =>
     Alert.alert(
-      'Excluir conta?',
-      'Suas tarefas, categorias e lembretes serão apagados para sempre. Essa ação não pode ser desfeita.',
+      t('deleteAccount.confirmTitle'),
+      t('deleteAccount.confirmMessage'),
       [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir conta', style: 'destructive', onPress: () => void deleteAccount() },
+        { text: t('common:actions.cancel'), style: 'cancel' },
+        { text: t('deleteAccount.confirm'), style: 'destructive', onPress: () => void deleteAccount() },
       ],
     );
 
@@ -80,7 +87,7 @@ export default function SettingsScreen() {
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: colors.surfaceGrouped }]}>
       <ScrollView contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
         <View style={styles.profile}>
-          <Text variant="heading-lg">{user.preferred_name || user.name}</Text>
+          <Text variant="heading-lg">{displayName(user, { locale })}</Text>
           {contact ? (
             <Text variant="body-md" color="contentSecondary">
               {contact}
@@ -88,33 +95,34 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
-        <ListGroup title="Conta">
-          <ListRow label="Perfil" onPress={() => router.push('/ajustes/perfil')} />
-          <ListRow label="Notificações" onPress={() => router.push('/ajustes/notificacoes')} />
-          <ListRow label="Memória da Jarvi" onPress={() => router.push('/ajustes/memoria')} />
-          <ListRow label="Plano" value={planLabel(subscription.data, subscription.daysLeft)} last />
+        <ListGroup title={t('sections.account')}>
+          <ListRow label={t('rows.profile')} onPress={() => router.push('/ajustes/perfil')} />
+          <ListRow label={t('rows.notifications')} onPress={() => router.push('/ajustes/notificacoes')} />
+          <ListRow label={t('rows.memory')} onPress={() => router.push('/ajustes/memoria')} />
+          <ListRow label={t('rows.plan')} value={planLabel(subscription.data, subscription.daysLeft, locale)} last />
         </ListGroup>
 
-        <ListGroup title="Organização">
-          <ListRow label="Categorias" onPress={() => router.push('/ajustes/categorias')} last />
+        <ListGroup title={t('sections.organization')}>
+          <ListRow label={t('rows.categories')} onPress={() => router.push('/ajustes/categorias')} last />
         </ListGroup>
 
-        <ListGroup title="App">
-          <ListRow label="Aparência" value={APPEARANCE_LABELS[preference]} onPress={cycleAppearance} />
+        <ListGroup title={t('sections.app')}>
+          <LanguagePicker />
+          <ListRow label={t('rows.appearance')} value={t(`appearance.${preference}`)} onPress={cycleAppearance} />
           <ListRow
-            label="Abrir a Jarvi na web"
+            label={t('rows.openWeb')}
             onPress={() => void WebBrowser.openBrowserAsync(WEB_APP_URL)}
             last
           />
         </ListGroup>
 
         <ListGroup>
-          <ListRow label="Sair" onPress={confirmSignOut} destructive />
-          <ListRow label={deleting ? 'Excluindo conta…' : 'Excluir conta'} onPress={confirmDelete} destructive disabled={deleting} last />
+          <ListRow label={t('common:actions.signOut')} onPress={confirmSignOut} destructive />
+          <ListRow label={deleting ? t('rows.deletingAccount') : t('rows.deleteAccount')} onPress={confirmDelete} destructive disabled={deleting} last />
         </ListGroup>
 
         <Text variant="body-sm" color="contentTertiary" align="center">
-          {`Jarvi ${Constants.expoConfig?.version ?? ''}`}
+          {t('common:app.version', { version: Constants.expoConfig?.version ?? '' })}
         </Text>
       </ScrollView>
     </SafeAreaView>

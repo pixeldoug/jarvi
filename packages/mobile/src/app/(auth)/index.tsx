@@ -1,11 +1,21 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { errorMessage } from '@/api/client';
 import { onboardingApi } from '@/api/endpoints';
 import { GoogleButton } from '@/auth/google-button';
-import { COUNTRY_DIALS, countryByIso, formatNationalNumber, toE164, validateNationalNumber } from '@/lib/phone';
+import { useLocale } from '@/i18n';
+import {
+  COUNTRY_DIALS,
+  PHONE_PLACEHOLDER_KEYS,
+  countryByIso,
+  defaultCountryIso,
+  formatNationalNumber,
+  toE164,
+  validateNationalNumber,
+} from '@/lib/phone';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing, typography } from '@/theme/tokens';
 import { Button } from '@/ui/button';
@@ -17,7 +27,9 @@ import { Text } from '@/ui/text';
 /** WhatsApp sign-in. A new number creates the account, so this is also sign-up. */
 export default function WhatsAppSignInScreen() {
   const { colors } = useTheme();
-  const [iso, setIso] = useState('BR');
+  const { t } = useTranslation('auth');
+  const locale = useLocale();
+  const [iso, setIso] = useState(() => defaultCountryIso(locale));
   const [national, setNational] = useState('');
   const [countryOpen, setCountryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +49,7 @@ export default function WhatsAppSignInScreen() {
       const { devCode } = await onboardingApi.requestWhatsAppCode(phone);
       router.push({ pathname: '/codigo', params: { phone, devCode: devCode ?? '' } });
     } catch (err) {
-      setError(errorMessage(err, 'Não foi possível enviar o código.'));
+      setError(errorMessage(err, t('whatsapp.errors.sendFailed')));
     } finally {
       setBusy(false);
     }
@@ -48,17 +60,17 @@ export default function WhatsAppSignInScreen() {
       scroll
       footer={
         <>
-          <Button label="Receber código no WhatsApp" onPress={() => void requestCode()} loading={busy} />
+          <Button label={t('whatsapp.submit')} onPress={() => void requestCode()} loading={busy} />
           <GoogleButton />
-          <Button label="Entrar com e-mail" variant="ghost" onPress={() => router.push('/email')} />
+          <Button label={t('whatsapp.withEmail')} variant="ghost" onPress={() => router.push('/email')} />
         </>
       }
     >
       <View style={styles.header}>
         <Logo size={44} />
-        <Text variant="heading-lg">Digite seu WhatsApp</Text>
+        <Text variant="heading-lg">{t('whatsapp.title')}</Text>
         <Text variant="body-md" color="contentSecondary">
-          Enviamos um código para entrar. Se for seu primeiro acesso, sua conta é criada na hora.
+          {t('whatsapp.subtitle')}
         </Text>
       </View>
 
@@ -71,7 +83,7 @@ export default function WhatsAppSignInScreen() {
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`País: ${country.iso}, +${country.dial}. Trocar país`}
+            accessibilityLabel={t('whatsapp.countryButton', { iso: country.iso, dial: country.dial })}
             onPress={() => setCountryOpen((open) => !open)}
             style={styles.countryButton}
           >
@@ -84,14 +96,14 @@ export default function WhatsAppSignInScreen() {
               setNational(text.replace(/\D/g, ''));
               if (error) setError(null);
             }}
-            placeholder={country.placeholder}
+            placeholder={t(PHONE_PLACEHOLDER_KEYS[country.iso])}
             placeholderTextColor={colors.contentTertiary}
             keyboardType="phone-pad"
             textContentType="telephoneNumber"
             autoComplete="tel-national"
             returnKeyType="send"
             onSubmitEditing={() => void requestCode()}
-            accessibilityLabel="Número do WhatsApp com DDD"
+            accessibilityLabel={t('whatsapp.phoneLabel')}
             style={[typography['body-lg'], styles.phoneInput, { color: colors.contentPrimary }]}
           />
         </View>

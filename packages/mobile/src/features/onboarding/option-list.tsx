@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing } from '@/theme/tokens';
@@ -7,7 +8,7 @@ import { Text } from '@/ui/text';
 import type { OnboardingOption } from './onboarding';
 
 interface OptionListProps {
-  options: OnboardingOption[];
+  options: readonly OnboardingOption[];
   selected: string[];
   onToggle: (value: string) => void;
 }
@@ -15,16 +16,18 @@ interface OptionListProps {
 /** Multi-select answers for the interview steps. */
 export function OptionList({ options, selected, onToggle }: OptionListProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation('onboarding');
   return (
     <View style={styles.list}>
       {options.map((option) => {
         const checked = selected.includes(option.value);
+        const label = t(option.labelKey);
         return (
           <Pressable
             key={option.value}
             accessibilityRole="checkbox"
             accessibilityState={{ checked }}
-            accessibilityLabel={option.label}
+            accessibilityLabel={label}
             onPress={() => onToggle(option.value)}
             style={({ pressed }) => [
               styles.option,
@@ -36,7 +39,7 @@ export function OptionList({ options, selected, onToggle }: OptionListProps) {
             ]}
           >
             <Text variant="body-md" style={styles.label}>
-              {option.label}
+              {label}
             </Text>
             <View
               style={[

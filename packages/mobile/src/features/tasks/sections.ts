@@ -8,16 +8,11 @@ import type { Task, TaskList } from '@/types/models';
 
 export type SectionId = 'overdue' | 'today' | 'tomorrow' | 'thisWeek' | 'nextWeek' | 'later' | 'inbox' | 'completed';
 
-export const SECTION_TITLES: Record<SectionId, string> = {
-  overdue: 'Vencidas',
-  today: 'Hoje',
-  tomorrow: 'Amanhã',
-  thisWeek: 'Esta semana',
-  nextWeek: 'Próxima semana',
-  later: 'Mais tarde',
-  inbox: 'Caixa de entrada',
-  completed: 'Concluídas',
-};
+/**
+ * Key of a section's title in `tasks:sections` (resolved while rendering).
+ * The recurring smart view reuses the `later` id but has its own title.
+ */
+export type SectionTitleKey = SectionId | 'recurring';
 
 const SECTION_ORDER: SectionId[] = ['overdue', 'today', 'tomorrow', 'thisWeek', 'nextWeek', 'later', 'inbox', 'completed'];
 
@@ -26,7 +21,8 @@ export const COLLAPSED_BY_DEFAULT: ReadonlySet<SectionId> = new Set(['overdue', 
 
 export interface TaskSection {
   id: SectionId;
-  title: string;
+  /** Title key in `tasks:sections`, resolved while rendering. */
+  titleKey: SectionTitleKey;
   data: Task[];
 }
 
@@ -80,7 +76,7 @@ export function groupTasks(tasks: Task[], now: Date = new Date()): TaskSection[]
   }
   return SECTION_ORDER.filter((id) => buckets.has(id)).map((id) => ({
     id,
-    title: SECTION_TITLES[id],
+    titleKey: id,
     data: buckets.get(id)!,
   }));
 }
@@ -116,25 +112,25 @@ export function applyList(tasks: Task[], list: TaskList): Task[] {
  */
 export function sectionsForView(tasks: Task[], view: TaskView, now: Date = new Date()): TaskSection[] {
   const todayKey = toDateKey(startOfDay(now));
-  const flat = (id: SectionId, title: string, data: Task[]): TaskSection[] =>
-    data.length > 0 ? [{ id, title, data: sortTasks(data) }] : [];
+  const flat = (id: SectionId, titleKey: SectionTitleKey, data: Task[]): TaskSection[] =>
+    data.length > 0 ? [{ id, titleKey, data: sortTasks(data) }] : [];
 
   switch (view.kind) {
     case 'all':
       return groupTasks(tasks, now);
     case 'inbox':
-      return flat('inbox', SECTION_TITLES.inbox, tasks.filter((t) => !t.completed && !dateKeyOf(t.due_date)));
+      return flat('inbox', 'inbox', tasks.filter((t) => !t.completed && !dateKeyOf(t.due_date)));
     case 'overdue':
       return flat(
         'overdue',
-        SECTION_TITLES.overdue,
+        'overdue',
         tasks.filter((t) => {
           const key = dateKeyOf(t.due_date);
           return !t.completed && !!key && key < todayKey;
         }),
       );
     case 'recurring':
-      return flat('later', 'Recorrentes', tasks.filter((t) => !t.completed && isRecurring(t)));
+      return flat('later', 'recurring', tasks.filter((t) => !t.completed && isRecurring(t)));
     case 'category':
       return groupTasks(
         tasks.filter((t) => t.category === view.name),

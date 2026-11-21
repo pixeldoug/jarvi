@@ -1,7 +1,9 @@
 import { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { dateKeyOf, formatDueLabel, toDateKey } from '@/lib/dates';
+import { useLocale } from '@/i18n';
+import { dateKeyOf, toDateKey } from '@/lib/dates';
 import { formatRecurrence } from '@/lib/recurrence';
 import { useTheme } from '@/theme/theme-provider';
 import { spacing } from '@/theme/tokens';
@@ -9,8 +11,13 @@ import { FireSimpleIcon, HashIcon, RepeatIcon, WhatsappLogoIcon } from '@/ui/ico
 import { TaskCheckbox } from '@/ui/task-checkbox';
 import { Text } from '@/ui/text';
 import type { Task } from '@/types/models';
+import { categoryLabel } from './category-label';
+import { formatDueLabel } from './due-label';
 
-/** Web `capitalizeTaskTitle`: the AI and WhatsApp often send lowercase titles. */
+/**
+ * Web `capitalizeTaskTitle`: the AI and WhatsApp often send lowercase titles.
+ * A fixed locale keeps casing stable (pt-BR and en-US case letters alike).
+ */
 export function displayTitle(title: string): string {
   const trimmed = title.trim();
   return trimmed.charAt(0).toLocaleUpperCase('pt-BR') + trimmed.slice(1);
@@ -26,10 +33,12 @@ interface TaskRowProps {
 
 function TaskRowComponent({ task, today, onToggle, onOpen }: TaskRowProps) {
   const { colors } = useTheme();
-  const dueLabel = formatDueLabel(task.due_date, task.time, today);
+  const { t } = useTranslation('tasks');
+  const locale = useLocale();
+  const dueLabel = formatDueLabel(task.due_date, task.time, { now: today, locale });
   const dueKey = dateKeyOf(task.due_date);
   const overdue = !task.completed && !!dueKey && dueKey < toDateKey(today);
-  const recurrence = formatRecurrence(task.recurrence_type, task.recurrence_config);
+  const recurrence = formatRecurrence(task.recurrence_type, task.recurrence_config, { locale });
   const fromWhatsApp = task.source === 'whatsapp' || !!task.original_whatsapp_content;
   const priorityColor =
     task.priority === 'high' || task.priority === 'urgent'
@@ -38,15 +47,16 @@ function TaskRowComponent({ task, today, onToggle, onOpen }: TaskRowProps) {
         ? colors.contentWarning
         : colors.contentInfo;
   const title = displayTitle(task.title);
+  const category = categoryLabel(task.category, { locale });
   const metaColor = task.completed ? colors.contentTertiary : colors.contentSecondary;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[title, dueLabel, recurrence, task.category, fromWhatsApp && 'pelo WhatsApp']
+      accessibilityLabel={[title, dueLabel, recurrence, category, fromWhatsApp && t('row.viaWhatsApp')]
         .filter(Boolean)
         .join(', ')}
-      accessibilityHint="Abre os detalhes da tarefa"
+      accessibilityHint={t('row.openHint')}
       onPress={() => onOpen(task)}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceSecondary }]}
     >
@@ -67,7 +77,7 @@ function TaskRowComponent({ task, today, onToggle, onOpen }: TaskRowProps) {
             {title}
           </Text>
         </View>
-        {dueLabel || recurrence || task.category || fromWhatsApp ? (
+        {dueLabel || recurrence || category || fromWhatsApp ? (
           <View style={styles.meta}>
             {dueLabel ? (
               <Text variant="body-sm" style={{ color: overdue ? colors.contentNegative : metaColor }}>
@@ -82,11 +92,11 @@ function TaskRowComponent({ task, today, onToggle, onOpen }: TaskRowProps) {
                 </Text>
               </View>
             ) : null}
-            {task.category ? (
+            {category ? (
               <View style={styles.metaItem}>
                 <HashIcon size={12} color={metaColor} />
                 <Text variant="body-sm" style={{ color: metaColor }} numberOfLines={1}>
-                  {task.category}
+                  {category}
                 </Text>
               </View>
             ) : null}

@@ -114,6 +114,8 @@ export interface User {
   whatsappVerified?: boolean;
   whatsappPhone?: string | null;
   emailVerified?: boolean;
+  /** UI language saved on the account ('pt-BR' | 'en-US'). Missing on the old backend. */
+  locale?: string | null;
 }
 
 export interface AuthSession {

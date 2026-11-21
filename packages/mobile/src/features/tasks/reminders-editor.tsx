@@ -1,12 +1,15 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { useLocale } from '@/i18n';
 import { addDays, toDateKey, toTimeString } from '@/lib/dates';
 import {
-  CHANNEL_LABELS,
   RELATIVE_REMINDER_PRESETS,
   createReminderId,
   formatReminderWithChannel,
+  getChannelLabel,
+  getPresetLabel,
   isSameReminder,
   type ConfiguredReminder,
 } from '@/lib/reminders';
@@ -35,6 +38,8 @@ function defaultAbsolute(): Date {
 
 export function RemindersEditor({ reminders, hasTime, hasWhatsApp, onChange }: RemindersEditorProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation(['dates', 'common']);
+  const locale = useLocale();
   const [adding, setAdding] = useState(false);
   const [channel, setChannel] = useState<ReminderChannel>('whatsapp');
   const [presetId, setPresetId] = useState<string | null>(hasTime ? '15m-before' : null);
@@ -42,8 +47,13 @@ export function RemindersEditor({ reminders, hasTime, hasWhatsApp, onChange }: R
 
   if (!hasWhatsApp) {
     return (
-      <ListGroup title="Lembretes" footer="Vincule seu WhatsApp na web para receber lembretes por mensagem ou ligação.">
-        <ListRow label="Lembretes" icon={<BellIcon size={18} color={colors.contentSecondary} />} value="Indisponível" last />
+      <ListGroup title={t('reminders.title')} footer={t('reminders.linkWhatsAppHint')}>
+        <ListRow
+          label={t('reminders.title')}
+          icon={<BellIcon size={18} color={colors.contentSecondary} />}
+          value={t('reminders.unavailable')}
+          last
+        />
       </ListGroup>
     );
   }
@@ -58,11 +68,11 @@ export function RemindersEditor({ reminders, hasTime, hasWhatsApp, onChange }: R
   };
 
   return (
-    <ListGroup title="Lembretes" footer={reminders.length === 0 && !adding ? 'A Jarvi te avisa pelo WhatsApp ou liga para você.' : undefined}>
+    <ListGroup title={t('reminders.title')} footer={reminders.length === 0 && !adding ? t('reminders.emptyHint') : undefined}>
       {reminders.map((reminder) => (
         <ListRow
           key={reminder.id}
-          label={formatReminderWithChannel(reminder)}
+          label={formatReminderWithChannel(reminder, { locale })}
           icon={
             reminder.channel === 'call' ? (
               <PhoneIcon size={18} color={colors.contentSecondary} />
@@ -73,7 +83,7 @@ export function RemindersEditor({ reminders, hasTime, hasWhatsApp, onChange }: R
           accessory={
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Remover lembrete ${formatReminderWithChannel(reminder)}`}
+              accessibilityLabel={t('reminders.removeA11y', { label: formatReminderWithChannel(reminder, { locale }) })}
               hitSlop={10}
               onPress={() => onChange(reminders.filter((r) => r.id !== reminder.id))}
               style={styles.remove}
@@ -87,37 +97,37 @@ export function RemindersEditor({ reminders, hasTime, hasWhatsApp, onChange }: R
       {adding ? (
         <View style={[styles.adding, { backgroundColor: colors.surfaceGrouped }]}>
           <Text variant="label-sm" color="contentSecondary">
-            Como
+            {t('reminders.fields.how')}
           </Text>
           <View style={styles.chips}>
             {(['whatsapp', 'call'] as const).map((option) => (
-              <Chip key={option} label={CHANNEL_LABELS[option]} selected={channel === option} onPress={() => setChannel(option)} />
+              <Chip key={option} label={getChannelLabel(option, { locale })} selected={channel === option} onPress={() => setChannel(option)} />
             ))}
           </View>
           <Text variant="label-sm" color="contentSecondary">
-            Quando
+            {t('reminders.fields.when')}
           </Text>
           {hasTime ? (
             <View style={styles.chips}>
               {RELATIVE_REMINDER_PRESETS.map((preset) => (
-                <Chip key={preset.id} label={preset.label} selected={presetId === preset.id} onPress={() => setPresetId(preset.id)} />
+                <Chip key={preset.id} label={getPresetLabel(preset, { locale })} selected={presetId === preset.id} onPress={() => setPresetId(preset.id)} />
               ))}
-              <Chip label="Data e hora" selected={presetId === null} onPress={() => setPresetId(null)} />
+              <Chip label={t('reminders.dateAndTime')} selected={presetId === null} onPress={() => setPresetId(null)} />
             </View>
           ) : null}
           {!hasTime || presetId === null ? (
             <View style={styles.pickerRow}>
-              <DateTimeField mode="datetime" value={at} onChange={setAt} minimumDate={new Date()} accessibilityLabel="Data e hora do lembrete" />
+              <DateTimeField mode="datetime" value={at} onChange={setAt} minimumDate={new Date()} accessibilityLabel={t('reminders.dateAndTimeA11y')} />
             </View>
           ) : null}
           <View style={styles.actions}>
-            <Button label="Cancelar" variant="ghost" size="sm" onPress={() => setAdding(false)} />
-            <Button label="Adicionar" size="sm" onPress={add} />
+            <Button label={t('common:actions.cancel')} variant="ghost" size="sm" onPress={() => setAdding(false)} />
+            <Button label={t('common:actions.add')} size="sm" onPress={add} />
           </View>
         </View>
       ) : (
         <ListRow
-          label="Adicionar lembrete"
+          label={t('reminders.add')}
           icon={<BellIcon size={18} color={colors.contentInfo} />}
           onPress={() => {
             setPresetId(hasTime ? '15m-before' : null);

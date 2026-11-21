@@ -15,6 +15,19 @@ import type {
   UpdateTaskInput,
   User,
 } from '@/types/models';
+import type {
+  NoteCreatedTask,
+  NoteDetail,
+  NoteListItem,
+  NotePatch,
+  NotePatchResponse,
+  NoteStepDecision,
+  NoteStepReviewResponse,
+  NoteSummaryResponse,
+  NoteTaskMatch,
+  NoteTranscriptSegment,
+  TranscriptionUpload,
+} from '@/types/notes';
 import { api } from './client';
 
 export const authApi = {
@@ -116,4 +129,28 @@ export const usersApi = {
 export const subscriptionApi = {
   status: () => api.get<SubscriptionInfo>('/api/subscriptions/status'),
   extendTrial: () => api.post<unknown>('/api/subscriptions/extend-trial'),
+};
+
+const notePath = (id: string) => `/api/notes/${encodeURIComponent(id)}`;
+
+export const notesApi = {
+  list: () => api.get<NoteListItem[]>('/api/notes'),
+  get: (id: string) => api.get<NoteDetail>(notePath(id)),
+  create: () => api.post<NoteDetail>('/api/notes', {}),
+  update: (id: string, patch: NotePatch) => api.patch<NotePatchResponse>(notePath(id), patch),
+  remove: (id: string) => api.delete<{ id: string }>(notePath(id)),
+  setPinned: (id: string, pinned: boolean) => api.put<{ pinned_at: string | null }>(`${notePath(id)}/pin`, { pinned }),
+  /** `segment` is null when the audio had no speech. */
+  transcribe: (id: string, body: TranscriptionUpload) =>
+    api.post<{ segment: NoteTranscriptSegment | null }>(`${notePath(id)}/transcriptions`, body),
+  generateSummary: (id: string) => api.post<NoteSummaryResponse>(`${notePath(id)}/summary`, {}),
+  /** One task per item, answered in the order of `items`. */
+  /** Open tasks the user already has that may be these next steps (at most one per step). */
+  findTaskMatches: (id: string, texts: string[]) =>
+    api.post<{ matches: NoteTaskMatch[] }>(`${notePath(id)}/task-matches`, { texts }),
+  /** One task per item; an item with `link_task_id` is tied to that task of the user instead. */
+  createTasks: (id: string, items: { text: string; step_id: string; link_task_id?: string }[]) =>
+    api.post<{ tasks: NoteCreatedTask[] }>(`${notePath(id)}/tasks`, { items }),
+  reviewStep: (id: string, stepId: string, decision: NoteStepDecision) =>
+    api.post<NoteStepReviewResponse>(`${notePath(id)}/steps/${encodeURIComponent(stepId)}/review`, { decision }),
 };

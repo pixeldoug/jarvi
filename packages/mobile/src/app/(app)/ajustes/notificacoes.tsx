@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
@@ -12,15 +13,18 @@ import { Text } from '@/ui/text';
 import { useToast } from '@/ui/toast';
 import type { NotificationSetting } from '@/types/models';
 
+/** Which card; picks its texts under `settings:notifications.<kind>`. */
+type NotificationKind = 'daily' | 'weekly';
+
 interface NotificationCardProps {
   endpoint: NotificationEndpoint;
-  name: string;
-  description: string;
+  kind: NotificationKind;
   defaultTime: string;
 }
 
 /** One WhatsApp message preference (web SettingsDialog › Notificações). */
-function NotificationCard({ endpoint, name, description, defaultTime }: NotificationCardProps) {
+function NotificationCard({ endpoint, kind, defaultTime }: NotificationCardProps) {
+  const { t } = useTranslation('settings');
   const toast = useToast();
   const queryClient = useQueryClient();
   const key = ['notifications', endpoint];
@@ -37,14 +41,14 @@ function NotificationCard({ endpoint, name, description, defaultTime }: Notifica
     onSuccess: (saved) => queryClient.setQueryData(key, saved),
     onError: (error, _patch, context) => {
       queryClient.setQueryData(key, context?.previous);
-      toast({ message: errorMessage(error, `Não foi possível salvar ${name.toLowerCase()}.`) });
+      toast({ message: errorMessage(error, t(`notifications.${kind}.saveError`)) });
     },
   });
 
   return (
-    <ListGroup title={name} footer={description}>
+    <ListGroup title={t(`notifications.${kind}.name`)} footer={t(`notifications.${kind}.description`)}>
       <ListRow
-        label="Ativado"
+        label={t('notifications.enabled')}
         switchValue={settings.enabled}
         onSwitchChange={(enabled) => save.mutate({ enabled })}
         disabled={query.isPending}
@@ -52,13 +56,13 @@ function NotificationCard({ endpoint, name, description, defaultTime }: Notifica
       />
       {settings.enabled ? (
         <ListRow
-          label="Horário"
+          label={t('notifications.time')}
           accessory={
             <DateTimeField
               mode="time"
               value={timeToDate(settings.sendTime)}
               onChange={(date) => save.mutate({ sendTime: toTimeString(date) })}
-              accessibilityLabel={`Horário do ${name.toLowerCase()}`}
+              accessibilityLabel={t(`notifications.${kind}.timeLabel`)}
             />
           }
           last
@@ -69,25 +73,16 @@ function NotificationCard({ endpoint, name, description, defaultTime }: Notifica
 }
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation('settings');
   return (
     <Screen grouped scroll edges={['bottom']}>
       <View style={styles.intro}>
         <Text variant="body-md" color="contentSecondary">
-          Mensagens que a Jarvi manda no seu WhatsApp.
+          {t('notifications.intro')}
         </Text>
       </View>
-      <NotificationCard
-        endpoint="daily-summary"
-        name="Resumo do dia"
-        description="Todo dia, o que você tem para hoje."
-        defaultTime="08:00"
-      />
-      <NotificationCard
-        endpoint="weekly-planning"
-        name="Planejamento semanal"
-        description="Aos domingos, um plano para a semana."
-        defaultTime="19:00"
-      />
+      <NotificationCard endpoint="daily-summary" kind="daily" defaultTime="08:00" />
+      <NotificationCard endpoint="weekly-planning" kind="weekly" defaultTime="19:00" />
     </Screen>
   );
 }

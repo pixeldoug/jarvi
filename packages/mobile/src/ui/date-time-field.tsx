@@ -1,7 +1,9 @@
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, StyleSheet } from 'react-native';
 
-import { formatShortDate, toTimeString } from '@/lib/dates';
+import { useFormat } from '@/i18n';
+import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing } from '@/theme/tokens';
 import { Text } from './text';
@@ -14,18 +16,17 @@ interface DateTimeFieldProps {
   minimumDate?: Date;
 }
 
-function formatValue(mode: DateTimeFieldProps['mode'], value: Date): string {
-  if (mode === 'time') return toTimeString(value);
-  if (mode === 'date') return formatShortDate(value);
-  return `${formatShortDate(value)}, ${toTimeString(value)}`;
-}
-
 /**
  * Native date/time control: the compact iOS picker (opens the system popover)
  * or a button that opens the Android dialogs (date, then time).
  */
 export function DateTimeField({ mode, value, onChange, accessibilityLabel, minimumDate }: DateTimeFieldProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation('dates');
+  const { locale, formatDate, formatTime, formatDateTime } = useFormat();
+  const today = useToday();
+  /** pt-BR uses a 24h clock, en-US 12h (matches `formatTime`). */
+  const is24Hour = locale !== 'en-US';
 
   if (Platform.OS === 'ios') {
     return (
@@ -33,7 +34,7 @@ export function DateTimeField({ mode, value, onChange, accessibilityLabel, minim
         value={value}
         mode={mode}
         display="compact"
-        locale="pt-BR"
+        locale={locale}
         accentColor={colors.contentInfo}
         minimumDate={minimumDate}
         onValueChange={(_event, date) => onChange(date)}
@@ -46,7 +47,7 @@ export function DateTimeField({ mode, value, onChange, accessibilityLabel, minim
     DateTimePickerAndroid.open({
       value: base,
       mode: 'time',
-      is24Hour: true,
+      is24Hour,
       onValueChange: (_event, date) => onChange(date),
     });
 
@@ -67,14 +68,21 @@ export function DateTimeField({ mode, value, onChange, accessibilityLabel, minim
     });
   };
 
+  const label =
+    mode === 'time'
+      ? formatTime(value)
+      : mode === 'date'
+        ? formatDate(value, 'dayMonthAuto', { now: today })
+        : formatDateTime(value, 'dayMonthAuto', { now: today });
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${accessibilityLabel}: ${formatValue(mode, value)}`}
+      accessibilityLabel={t('field.valueA11y', { label: accessibilityLabel, value: label })}
       onPress={open}
       style={({ pressed }) => [styles.button, { backgroundColor: colors.surfaceSecondary, opacity: pressed ? 0.7 : 1 }]}
     >
-      <Text variant="label-md">{formatValue(mode, value)}</Text>
+      <Text variant="label-md">{label}</Text>
     </Pressable>
   );
 }

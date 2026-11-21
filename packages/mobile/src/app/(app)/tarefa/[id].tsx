@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Alert, StyleSheet, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,6 +33,7 @@ import type { Task } from '@/types/models';
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
+  const { t } = useTranslation('tasks');
   const tasks = useTasks();
   const live = tasks.data?.find((t) => t.id === id);
   // Keep showing the task while the modal closes after a delete.
@@ -45,8 +47,8 @@ export default function TaskDetailScreen() {
   if (!task) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: colors.surfaceGrouped }]}>
-        <ModalHeader title="Tarefa" onCancel={() => router.back()} />
-        <EmptyState title="Tarefa não encontrada" description="Ela pode ter sido excluída em outro aparelho." />
+        <ModalHeader title={t('detail.title')} onCancel={() => router.back()} />
+        <EmptyState title={t('detail.notFoundTitle')} description={t('detail.notFoundDescription')} />
       </SafeAreaView>
     );
   }
@@ -57,7 +59,7 @@ export default function TaskDetailScreen() {
   if (reminders.isError) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: colors.surfaceGrouped }]}>
-        <ModalHeader title="Tarefa" onCancel={() => router.back()} />
+        <ModalHeader title={t('detail.title')} onCancel={() => router.back()} />
         <ErrorState message={errorMessage(reminders.error)} onRetry={() => void reminders.refetch()} />
       </SafeAreaView>
     );
@@ -72,6 +74,7 @@ export default function TaskDetailScreen() {
  */
 function TaskEditor({ task, reminders }: { task: Task; reminders: ConfiguredReminder[] }) {
   const { colors } = useTheme();
+  const { t } = useTranslation(['tasks', 'common']);
   const update = useUpdateTask();
   const replaceReminders = useReplaceReminders(task.id);
   const { remove, restore } = useDeleteTask();
@@ -88,7 +91,7 @@ function TaskEditor({ task, reminders }: { task: Task; reminders: ConfiguredRemi
 
   const save = async () => {
     if (!draft.title.trim()) {
-      Alert.alert('A tarefa precisa de um título');
+      Alert.alert(t('tasks:detail.titleRequired'));
       return;
     }
     setSaving(true);
@@ -97,30 +100,40 @@ function TaskEditor({ task, reminders }: { task: Task; reminders: ConfiguredRemi
       if (reminderChange) await replaceReminders.mutateAsync(draft.reminders);
       leave();
     } catch (error) {
-      Alert.alert('Não foi possível salvar', errorMessage(error));
+      Alert.alert(t('tasks:detail.saveFailed'), errorMessage(error));
     } finally {
       setSaving(false);
     }
   };
 
   const confirmDelete = () =>
-    Alert.alert('Excluir tarefa?', displayTitle(task.title), [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(t('tasks:detail.deleteConfirmTitle'), displayTitle(task.title), [
+      { text: t('common:actions.cancel'), style: 'cancel' },
       {
-        text: 'Excluir',
+        text: t('common:actions.delete'),
         style: 'destructive',
         onPress: () => {
           // Failures are reported by the mutation itself: this screen is gone by then.
           remove.mutate(task);
           leave();
-          toast({ message: 'Tarefa excluída.', actionLabel: 'Desfazer', onAction: () => restore.mutate(task) });
+          toast({
+            message: t('tasks:detail.deleted'),
+            actionLabel: t('common:actions.undo'),
+            onAction: () => restore.mutate(task),
+          });
         },
       },
     ]);
 
   return (
     <SafeAreaView edges={['bottom']} style={[styles.root, { backgroundColor: colors.surfaceGrouped }]}>
-      <ModalHeader title="Tarefa" onCancel={() => router.back()} onConfirm={() => void save()} confirmDisabled={!dirty} busy={saving} />
+      <ModalHeader
+        title={t('tasks:detail.title')}
+        onCancel={() => router.back()}
+        onConfirm={() => void save()}
+        confirmDisabled={!dirty}
+        busy={saving}
+      />
       <KeyboardAwareScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -139,7 +152,7 @@ function TaskEditor({ task, reminders }: { task: Task; reminders: ConfiguredRemi
         {task.original_whatsapp_content ? (
           <View style={styles.origin}>
             <Text variant="label-sm" color="contentSecondary">
-              MENSAGEM ORIGINAL NO WHATSAPP
+              {t('tasks:detail.whatsappOrigin')}
             </Text>
             <Text variant="body-sm" color="contentSecondary">
               {task.original_whatsapp_content}
@@ -147,7 +160,7 @@ function TaskEditor({ task, reminders }: { task: Task; reminders: ConfiguredRemi
           </View>
         ) : null}
         <Button
-          label="Excluir tarefa"
+          label={t('tasks:detail.delete')}
           variant="ghost"
           icon={<TrashIcon size={18} color={colors.contentNegative} />}
           onPress={confirmDelete}
