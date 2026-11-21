@@ -44,7 +44,10 @@ function deferred() {
 }
 
 describe('noteSaves', () => {
-  beforeEach(() => mockSaveNotePatch.mockReset());
+  beforeEach(() => {
+    mockSaveNotePatch.mockReset();
+    noteSaves.setAccount('user-a');
+  });
 
   it('sends one save at a time, in order, and flush waits for the earlier ones', async () => {
     const first = deferred();
@@ -91,8 +94,28 @@ describe('noteSaves', () => {
   });
 });
 
+describe('noteSaves across accounts', () => {
+  it('keeps a draft with the account that typed it and never sends it as another one', async () => {
+    mockSaveNotePatch.mockReset();
+    noteSaves.setAccount('user-a');
+    mockSaveNotePatch.mockRejectedValueOnce(new Error('offline'));
+    noteSaves.schedule(client, 'shared', { title: 'Rascunho da A' }, 10_000);
+    await expect(noteSaves.flush(client, 'shared')).rejects.toThrow('offline');
+
+    noteSaves.setAccount(null);
+    noteSaves.setAccount('user-b');
+    expect(noteSaves.unsaved('shared')).toEqual({});
+    await noteSaves.flush(client, 'shared');
+    expect(mockSaveNotePatch).toHaveBeenCalledTimes(1);
+
+    noteSaves.setAccount('user-a');
+    expect(noteSaves.unsaved('shared')).toEqual({ title: 'Rascunho da A' });
+  });
+});
+
 describe('transcriptionQueue', () => {
-  const segment = (segmentId: string) => ({
+  const segment = (segmentId: string, accountId = 'user-a') => ({
+    accountId,
     segmentId,
     noteId: 'note-a',
     uri: `file:///${segmentId}.m4a`,
@@ -130,9 +153,16 @@ describe('transcriptionQueue', () => {
     expect(mockDeletedFiles).toEqual(['file:///s1.m4a']);
   });
 
-  it('records nothing while signed out', () => {
+  it('keeps the last segment of a recording cut by a sign-out until its account returns', async () => {
     transcriptionQueue.setAccount(null);
     transcriptionQueue.enqueue(segment('s2'));
-    expect(transcriptionQueue.snapshot('note-a')).toEqual({ pending: 0, failed: 0 });
+    expect(transcriptionQueue.snapshot('note-a')).toEqual({ pending: 1, failed: 0 });
+    expect(mockTranscribe).not.toHaveBeenCalled();
+
+    mockTranscribe.mockResolvedValueOnce({ segment: null });
+    transcriptionQueue.setAccount('user-a');
+    await transcriptionQueue.whenIdle('note-a');
+    expect(mockTranscribe).toHaveBeenCalledTimes(1);
+    expect(mockDeletedFiles).toEqual(['file:///s2.m4a']);
   });
 });

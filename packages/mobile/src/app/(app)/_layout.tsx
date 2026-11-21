@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/auth/auth-provider';
 import { ChatProvider } from '@/features/chat/chat-provider';
 import { takePendingChatSeed } from '@/features/chat/pending-seed';
+import { noteSaves } from '@/features/notes/note-saves';
 import { transcriptionQueue } from '@/features/notes/transcription-queue';
 import { TrialExpiredScreen } from '@/features/subscription/trial-expired-screen';
 import { useSubscription } from '@/features/subscription/use-subscription';
@@ -22,12 +23,16 @@ export default function SignedInLayout() {
   // Transcribed segments land in the note caches even after the note screen closed.
   const queryClient = useQueryClient();
   useEffect(() => transcriptionQueue.setQueryClient(queryClient), [queryClient]);
-  // Recordings upload only for the account that made them; signing out pauses them.
+  // Recordings and unsaved note edits belong to the account that made them; signing out pauses them.
   const { user } = useAuth();
   const accountId = user?.id ?? null;
   useEffect(() => {
     transcriptionQueue.setAccount(accountId);
-    return () => transcriptionQueue.setAccount(null);
+    noteSaves.setAccount(accountId);
+    return () => {
+      transcriptionQueue.setAccount(null);
+      noteSaves.setAccount(null);
+    };
   }, [accountId]);
 
   useEffect(() => {

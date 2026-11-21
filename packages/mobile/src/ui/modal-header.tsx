@@ -8,6 +8,8 @@ import { Text } from './text';
 interface ModalHeaderProps {
   title: string;
   onCancel: () => void;
+  /** Defaults to "Cancelar" / "Cancel"; "Fechar" where nothing is discarded. */
+  cancelLabel?: string;
   onConfirm?: () => void;
   /** Defaults to "Salvar" / "Save". */
   confirmLabel?: string;
@@ -16,14 +18,22 @@ interface ModalHeaderProps {
 }
 
 /** Cancel / title / confirm bar for modal screens (native headers are off there). */
-export function ModalHeader({ title, onCancel, onConfirm, confirmLabel, confirmDisabled = false, busy = false }: ModalHeaderProps) {
+export function ModalHeader({
+  title,
+  onCancel,
+  cancelLabel,
+  onConfirm,
+  confirmLabel,
+  confirmDisabled = false,
+  busy = false,
+}: ModalHeaderProps) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   return (
     <View style={[styles.bar, { borderBottomColor: colors.borderPrimary }]}>
       <Pressable accessibilityRole="button" hitSlop={8} onPress={onCancel} style={styles.side}>
         <Text variant="body-md" color="contentSecondary">
-          {t('actions.cancel')}
+          {cancelLabel ?? t('actions.cancel')}
         </Text>
       </Pressable>
       <Text variant="label-md" style={styles.title} accessibilityRole="header" numberOfLines={1}>

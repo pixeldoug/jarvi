@@ -1,14 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatView } from '@/features/chat/chat-view';
 import { useChatSession } from '@/features/chat/use-chat-session';
 import { useNote } from '@/features/notes/use-notes';
 import { useTheme } from '@/theme/theme-provider';
-import { spacing } from '@/theme/tokens';
-import { Text } from '@/ui/text';
+import { ModalHeader } from '@/ui/modal-header';
 
 /**
  * Same suggestions as the web note chat (AIChatPanel/SkillChips, note mode).
@@ -27,25 +26,14 @@ export default function NoteChatScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: colors.surfacePrimary }]}>
-      <View style={[styles.header, { borderBottomColor: colors.borderPrimary }]}>
-        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()} style={styles.side}>
-          <Text variant="body-md" color="contentSecondary">
-            {t('common:actions.close')}
-          </Text>
-        </Pressable>
-        <Text variant="label-md" numberOfLines={1} accessibilityRole="header" style={styles.title}>
-          {note.data?.title.trim() || t('untitled')}
-        </Text>
-        <View style={[styles.side, styles.right]}>
-          {session.messages.length > 0 ? (
-            <Pressable accessibilityRole="button" hitSlop={8} onPress={session.reset} disabled={session.isStreaming}>
-              <Text variant="label-md" color={session.isStreaming ? 'contentTertiary' : 'contentInfo'}>
-                {t('chat.newConversation')}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
+      <ModalHeader
+        title={note.data?.title.trim() || t('untitled')}
+        onCancel={() => router.back()}
+        cancelLabel={t('common:actions.close')}
+        onConfirm={session.messages.length > 0 ? session.reset : undefined}
+        confirmLabel={t('chat.newConversation')}
+        confirmDisabled={session.isStreaming}
+      />
       <ChatView
         session={session}
         emptyTitle={t('chat.emptyTitle')}
@@ -60,23 +48,5 @@ export default function NoteChatScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  side: {
-    minWidth: 96,
-  },
-  right: {
-    alignItems: 'flex-end',
-  },
-  title: {
-    flex: 1,
-    textAlign: 'center',
   },
 });

@@ -8,6 +8,9 @@
  * - A failed save keeps its edits here (merged under anything typed since).
  *   Reopening the note shows them and sends them again, so leaving a note
  *   offline does not lose them while the app stays open.
+ * - Edits belong to the account that typed them: they are kept per account,
+ *   sent only while that account is signed in, and never shown to another
+ *   one (a shared note has the same id for everyone).
  */
 import type { QueryClient } from '@tanstack/react-query';
 
@@ -25,39 +28,67 @@ interface NoteSaveState {
 
 const states = new Map<string, NoteSaveState>();
 const listeners = new Set<() => void>();
+/** The signed-in user; null (signed out) holds every save. */
+let account: string | null = null;
 
-function stateOf(noteId: string): NoteSaveState {
-  let state = states.get(noteId);
+const keyOf = (accountId: string, noteId: string) => `${accountId}\u0000${noteId}`;
+
+function stateOf(accountId: string, noteId: string): NoteSaveState {
+  const key = keyOf(accountId, noteId);
+  let state = states.get(key);
   if (!state) {
     state = { pending: {}, chain: Promise.resolve(), timer: null, failed: false };
-    states.set(noteId, state);
+    states.set(key, state);
   }
   return state;
+}
+
+function notify() {
+  listeners.forEach((listener) => listener());
 }
 
 function setFailed(state: NoteSaveState, failed: boolean) {
   if (state.failed === failed) return;
   state.failed = failed;
-  listeners.forEach((listener) => listener());
+  notify();
 }
 
 export const noteSaves = {
+  /** The signed-in user (the signed-in layout keeps it current). Signing out stops every timer. */
+  setAccount(id: string | null) {
+    if (id === account) return;
+    account = id;
+    states.forEach((state) => {
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+    });
+    notify();
+  },
+
   /** Queues edits and saves them after `delay` ms without new ones. */
   schedule(queryClient: QueryClient, noteId: string, patch: NotePatch, delay: number) {
-    const state = stateOf(noteId);
+    if (!account) return;
+    const state = stateOf(account, noteId);
     state.pending = { ...state.pending, ...patch };
     if (state.timer) clearTimeout(state.timer);
     state.timer = setTimeout(() => void noteSaves.flush(queryClient, noteId).catch(() => undefined), delay);
   },
 
-  /** Saves the pending edits now; resolves once every earlier save is done. Rejects if this one failed. */
+  /**
+   * Saves the signed-in user's pending edits now; resolves once every earlier
+   * save is done. Rejects if this one failed. Signed out, it saves nothing.
+   */
   flush(queryClient: QueryClient, noteId: string): Promise<void> {
-    const state = stateOf(noteId);
+    if (!account) return Promise.resolve();
+    const owner = account;
+    const state = stateOf(owner, noteId);
     if (state.timer) clearTimeout(state.timer);
     state.timer = null;
     const run = state.chain
       .catch(() => undefined)
       .then(async () => {
+        // Another account signed in meanwhile: these edits wait for theirs.
+        if (account !== owner) return;
         const patch = state.pending;
         if (Object.keys(patch).length === 0) return;
         state.pending = {};
@@ -75,13 +106,13 @@ export const noteSaves = {
     return run;
   },
 
-  /** Edits of this note the server does not have yet. */
+  /** The signed-in user's edits of this note that the server does not have yet. */
   unsaved(noteId: string): NotePatch {
-    return states.get(noteId)?.pending ?? {};
+    return account ? (states.get(keyOf(account, noteId))?.pending ?? {}) : {};
   },
 
   isFailed(noteId: string): boolean {
-    return states.get(noteId)?.failed ?? false;
+    return account ? (states.get(keyOf(account, noteId))?.failed ?? false) : false;
   },
 
   subscribe(listener: () => void) {

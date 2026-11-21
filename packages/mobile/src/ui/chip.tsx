@@ -29,7 +29,8 @@ export function Chip({ label, selected = false, icon, onPress, onClear, accessib
       accessibilityState={{ selected }}
       onPress={onPress}
       disabled={!onPress}
-      hitSlop={4}
+      // 32pt chip + 6pt on each side: the 44pt minimum touch target.
+      hitSlop={6}
       style={({ pressed }) => [
         styles.chip,
         {
@@ -48,7 +49,8 @@ export function Chip({ label, selected = false, icon, onPress, onClear, accessib
           accessibilityRole="button"
           accessibilityLabel={t('chip.remove', { label })}
           onPress={onClear}
-          hitSlop={8}
+          // 12pt icon + 16pt on each side: 44pt.
+          hitSlop={16}
         >
           <XIcon size={12} color={tint} weight="bold" />
         </Pressable>

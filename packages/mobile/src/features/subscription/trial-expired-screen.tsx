@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { errorMessage } from '@/api/client';
 import { subscriptionApi } from '@/api/endpoints';
-import { useAuth } from '@/auth/auth-provider';
+import { useConfirmSignOut } from '@/auth/use-confirm-sign-out';
 import { spacing } from '@/theme/tokens';
 import { Button } from '@/ui/button';
 import { Logo } from '@/ui/logo';
@@ -19,7 +19,7 @@ import { useSubscription } from './use-subscription';
  */
 export function TrialExpiredScreen() {
   const { t } = useTranslation(['subscription', 'common']);
-  const { signOut } = useAuth();
+  const confirmSignOut = useConfirmSignOut();
   const { data, refresh } = useSubscription();
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -61,7 +61,7 @@ export function TrialExpiredScreen() {
         <>
           {canExtend ? <Button label={t('trialExpired.extend')} onPress={() => void extend()} loading={busy} /> : null}
           <Button label={t('trialExpired.checkAgain')} variant="secondary" loading={checking} onPress={() => void checkAgain()} />
-          <Button label={t('common:actions.signOut')} variant="ghost" onPress={() => void signOut()} />
+          <Button label={t('common:actions.signOut')} variant="ghost" onPress={confirmSignOut} />
         </>
       }
     >

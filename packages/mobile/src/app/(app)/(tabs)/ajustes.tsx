@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { errorMessage } from '@/api/client';
 import { usersApi } from '@/api/endpoints';
 import { useAuth, useCurrentUser } from '@/auth/auth-provider';
+import { useConfirmSignOut } from '@/auth/use-confirm-sign-out';
 import { displayName } from '@/features/onboarding/display-name';
 import { useSubscription } from '@/features/subscription/use-subscription';
 import { i18n, useLocale, type Locale } from '@/i18n';
@@ -51,11 +52,7 @@ export default function SettingsScreen() {
   const [deleting, setDeleting] = useState(false);
   const contact = user.whatsappPhone ? formatE164(user.whatsappPhone) : user.email;
 
-  const confirmSignOut = () =>
-    Alert.alert(t('signOut.confirmTitle'), undefined, [
-      { text: t('common:actions.cancel'), style: 'cancel' },
-      { text: t('common:actions.signOut'), style: 'destructive', onPress: () => void signOut() },
-    ]);
+  const confirmSignOut = useConfirmSignOut();
 
   const deleteAccount = async () => {
     setDeleting(true);

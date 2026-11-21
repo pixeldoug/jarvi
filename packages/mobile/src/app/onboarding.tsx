@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { errorMessage } from '@/api/client';
 import { onboardingApi } from '@/api/endpoints';
 import { useAuth, useCurrentUser } from '@/auth/auth-provider';
+import { useConfirmSignOut } from '@/auth/use-confirm-sign-out';
 import { setPendingChatSeed } from '@/features/chat/pending-seed';
 import { FirstTasksStep } from '@/features/onboarding/first-tasks-step';
 import {
@@ -32,7 +33,8 @@ import { TextField } from '@/ui/text-field';
 
 export default function OnboardingScreen() {
   const user = useCurrentUser();
-  const { updateUser, signOut } = useAuth();
+  const { updateUser } = useAuth();
+  const confirmSignOut = useConfirmSignOut();
   const { colors } = useTheme();
   const { t } = useTranslation(['onboarding', 'common']);
   const queryClient = useQueryClient();
@@ -139,7 +141,7 @@ export default function OnboardingScreen() {
           {stepIndex > 0 ? (
             <Button label={t('common:actions.back')} variant="ghost" onPress={() => setStepIndex((index) => index - 1)} />
           ) : (
-            <Button label={t('common:actions.signOut')} variant="ghost" onPress={() => void signOut()} />
+            <Button label={t('common:actions.signOut')} variant="ghost" onPress={confirmSignOut} />
           )}
         </>
       }

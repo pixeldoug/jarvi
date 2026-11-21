@@ -65,6 +65,8 @@ export function useNoteRecorder(noteId: string, onStopped: (info: StopInfo) => v
   const [state, setState] = useState<RecorderState>('idle');
   const [elapsedMs, setElapsedMs] = useState(0);
   const segment = useRef<Segment | null>(null);
+  /** Who started the recording: its segments upload for that account only. */
+  const accountId = useRef<string | null>(null);
   const startedAt = useRef(0);
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null);
   const rolling = useRef(false);
@@ -105,8 +107,9 @@ export function useNoteRecorder(noteId: string, onStopped: (info: StopInfo) => v
       if (!current || !uri) return;
       const durationMs = Date.now() - current.startedAt;
       const silent = current.peak !== null && current.peak > DIGITAL_ZERO_DB && current.peak < SILENCE_DB;
-      if (silent || (isLast && durationMs < MIN_SEGMENT_MS)) return;
+      if (silent || (isLast && durationMs < MIN_SEGMENT_MS) || !accountId.current) return;
       transcriptionQueue.enqueue({
+        accountId: accountId.current,
         segmentId: current.id,
         noteId,
         uri,
@@ -155,6 +158,11 @@ export function useNoteRecorder(noteId: string, onStopped: (info: StopInfo) => v
       if (!permission.granted) {
         setRecorderState('idle');
         return 'denied';
+      }
+      accountId.current = transcriptionQueue.currentAccount();
+      if (!accountId.current) {
+        setRecorderState('idle');
+        return 'failed';
       }
       // Keep recording with the screen locked (a meeting); ignored where unsupported.
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, allowsBackgroundRecording: true });

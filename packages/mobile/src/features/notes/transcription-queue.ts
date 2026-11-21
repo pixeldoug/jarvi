@@ -147,9 +147,17 @@ function createQueue() {
       if (id) void run();
     },
 
-    enqueue(input: Omit<QueueItem, 'accountId' | 'attempts' | 'failed'>) {
-      if (!account) return;
-      items = [...items, { ...input, accountId: account, attempts: 0, failed: false }];
+    /** The signed-in user, to tie a recording to its account when it starts. */
+    currentAccount(): string | null {
+      return account;
+    },
+
+    /**
+     * Queues a segment for `accountId` (the recording's account, so the last
+     * segment of a recording cut by a sign-out is kept for when it returns).
+     */
+    enqueue(input: Omit<QueueItem, 'attempts' | 'failed'>) {
+      items = [...items, { ...input, attempts: 0, failed: false }];
       notify();
       void run();
     },
