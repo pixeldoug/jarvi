@@ -3,6 +3,7 @@ import { Stack, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '@/auth/auth-provider';
 import { ChatProvider } from '@/features/chat/chat-provider';
 import { takePendingChatSeed } from '@/features/chat/pending-seed';
 import { transcriptionQueue } from '@/features/notes/transcription-queue';
@@ -21,6 +22,13 @@ export default function SignedInLayout() {
   // Transcribed segments land in the note caches even after the note screen closed.
   const queryClient = useQueryClient();
   useEffect(() => transcriptionQueue.setQueryClient(queryClient), [queryClient]);
+  // Recordings upload only for the account that made them; signing out pauses them.
+  const { user } = useAuth();
+  const accountId = user?.id ?? null;
+  useEffect(() => {
+    transcriptionQueue.setAccount(accountId);
+    return () => transcriptionQueue.setAccount(null);
+  }, [accountId]);
 
   useEffect(() => {
     if (initialChat) router.navigate('/jarvi');

@@ -50,7 +50,12 @@ interface Segment {
   peak: number | null;
 }
 
-export function useNoteRecorder(noteId: string, onStopped: () => void) {
+/** `interrupted`: the recorder failed mid-way and the recording was ended for the user. */
+export interface StopInfo {
+  interrupted: boolean;
+}
+
+export function useNoteRecorder(noteId: string, onStopped: (info: StopInfo) => void) {
   // `stop()` resolves before the file is fully written (the m4a has no index
   // yet and Whisper rejects it); the status event with `isFinished` says it is.
   const onFinished = useRef<(() => void) | null>(null);
@@ -125,10 +130,20 @@ export function useNoteRecorder(noteId: string, onStopped: () => void) {
     try {
       await finishSegment(false);
       if (stateRef.current === 'recording') await beginSegment();
-    } catch (error) {
-      console.warn('segment roll failed', error);
-    } finally {
       rolling.current = false;
+    } catch (error) {
+      // Nothing is being captured anymore: end the recording and say so,
+      // instead of showing a timer over a dead recorder. What was queued is still transcribed.
+      console.warn('segment roll failed', error);
+      rolling.current = false;
+      if (stateRef.current !== 'recording') return;
+      if (ticker.current) clearInterval(ticker.current);
+      ticker.current = null;
+      segment.current = null;
+      await recorder.stop().catch(() => undefined);
+      await setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false }).catch(() => undefined);
+      setRecorderState('idle');
+      onStoppedRef.current({ interrupted: true });
     }
   }, [recorder, finishSegment, beginSegment]);
 
@@ -170,7 +185,7 @@ export function useNoteRecorder(noteId: string, onStopped: () => void) {
     }
     await setAudioModeAsync({ allowsRecording: false, allowsBackgroundRecording: false }).catch(() => undefined);
     setRecorderState('idle');
-    onStoppedRef.current();
+    onStoppedRef.current({ interrupted: false });
   }, [finishSegment]);
 
   // Leaving the note stops the recording; what was said is still transcribed.

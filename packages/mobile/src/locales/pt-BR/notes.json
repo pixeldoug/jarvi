@@ -67,7 +67,8 @@
       "message": "O que já foi gravado continua sendo transcrito.",
       "keepRecording": "Continuar gravando",
       "stopAndLeave": "Parar e sair"
-    }
+    },
+    "interrupted": "A gravação parou por um erro. O que já foi gravado continua sendo transcrito."
   },
   "transcript": {
     "transcribing": "Transcrevendo…",

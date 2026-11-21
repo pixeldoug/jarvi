@@ -1,56 +1,37 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
-import type { NotePatch } from '@/types/notes';
-import { registerNoteSaves } from './summary-generation';
-import { saveNotePatch } from './use-notes';
+import { noteSaves } from './note-saves';
 
 const TITLE_SAVE_DELAY_MS = 600;
 const CONTENT_SAVE_DELAY_MS = 1000;
 
 /**
- * Debounced saves of a note's title and notes (same delays as the web).
- * Pending edits are saved when the screen closes and before a summary is
- * generated; a failed save keeps them for the next try.
+ * Debounced saves of a note's title and notes (same delays as the web),
+ * through `noteSaves` so they run in order and outlive the screen. Edits a
+ * failed save kept are sent again when the note opens and when it closes.
  */
 export function useNoteAutosave(noteId: string) {
   const queryClient = useQueryClient();
-  const pending = useRef<NotePatch>({});
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [saveFailed, setSaveFailed] = useState(false);
+  const saveFailed = useSyncExternalStore(noteSaves.subscribe, () => noteSaves.isFailed(noteId));
 
-  const flush = useCallback(async () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    const patch = pending.current;
-    if (Object.keys(patch).length === 0) return;
-    pending.current = {};
-    try {
-      await saveNotePatch(queryClient, noteId, patch);
-      setSaveFailed(false);
-    } catch (error) {
-      // Edits typed meanwhile win over the ones that failed.
-      pending.current = { ...patch, ...pending.current };
-      setSaveFailed(true);
-      throw error;
-    }
-  }, [queryClient, noteId]);
+  const flush = useCallback(() => noteSaves.flush(queryClient, noteId), [queryClient, noteId]);
 
-  const schedule = useCallback(
-    (patch: NotePatch, delay: number) => {
-      pending.current = { ...pending.current, ...patch };
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void flush().catch(() => undefined), delay);
-    },
-    [flush],
-  );
-
-  useEffect(() => registerNoteSaves(noteId, flush), [noteId, flush]);
-  useEffect(() => () => void flush().catch(() => undefined), [flush]);
+  // Opening the note retries what an earlier visit could not save; closing it saves the rest.
+  useEffect(() => {
+    void flush().catch(() => undefined);
+    return () => void flush().catch(() => undefined);
+  }, [flush]);
 
   return {
-    setTitle: useCallback((title: string) => schedule({ title }, TITLE_SAVE_DELAY_MS), [schedule]),
-    setContent: useCallback((content: string) => schedule({ content }, CONTENT_SAVE_DELAY_MS), [schedule]),
+    setTitle: useCallback(
+      (title: string) => noteSaves.schedule(queryClient, noteId, { title }, TITLE_SAVE_DELAY_MS),
+      [queryClient, noteId],
+    ),
+    setContent: useCallback(
+      (content: string) => noteSaves.schedule(queryClient, noteId, { content }, CONTENT_SAVE_DELAY_MS),
+      [queryClient, noteId],
+    ),
     flush,
     saveFailed,
   };

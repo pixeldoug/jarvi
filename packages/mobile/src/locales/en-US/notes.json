@@ -67,7 +67,8 @@
       "message": "What you've recorded so far will still be transcribed.",
       "keepRecording": "Keep recording",
       "stopAndLeave": "Stop and leave"
-    }
+    },
+    "interrupted": "Recording stopped because of an error. What was recorded is still being transcribed."
   },
   "transcript": {
     "transcribing": "Transcribing…",

@@ -73,24 +73,27 @@ export function useTaskSync(note: NoteDetail | undefined) {
       }
       const offered = syncSteps(withIds);
       setSteps(offered);
-      const pending = offered.filter((step) => !step.taskId).slice(0, NOTE_TASKS_MAX_ITEMS);
-      if (pending.length === 0) {
-        setMatches(new Map());
-        return;
+      // Every step without a task is checked, in batches of the server's limit, so a
+      // long summary does not repeat a task from its later steps.
+      const pending = offered.filter((step) => !step.taskId);
+      const found = new Map<string, ExistingTask>();
+      for (let start = 0; start < pending.length; start += NOTE_TASKS_MAX_ITEMS) {
+        const chunk = pending.slice(start, start + NOTE_TASKS_MAX_ITEMS);
+        try {
+          const { matches: chunkMatches } = await notesApi.findTaskMatches(
+            noteId,
+            chunk.map((step) => step.text.slice(0, NOTE_TASK_TEXT_MAX_LENGTH)),
+          );
+          chunkMatches.forEach(({ index, task }) => {
+            const step = chunk[index];
+            if (step) found.set(step.stepId, task);
+          });
+        } catch (error) {
+          // Nothing found is no reason to block: those steps become new tasks, as before.
+          console.warn('task matches failed', error instanceof Error ? error.message : error);
+        }
       }
-      try {
-        const { matches: found } = await notesApi.findTaskMatches(
-          noteId,
-          pending.map((step) => step.text.slice(0, NOTE_TASK_TEXT_MAX_LENGTH)),
-        );
-        setMatches(
-          new Map(found.flatMap(({ index, task }) => (pending[index] ? [[pending[index].stepId, task] as const] : []))),
-        );
-      } catch (error) {
-        // Nothing found is no reason to block: every step becomes a new task, as before.
-        console.warn('task matches failed', error instanceof Error ? error.message : error);
-        setMatches(new Map());
-      }
+      setMatches(found);
     })();
   }, [note, noteId, queryClient]);
 

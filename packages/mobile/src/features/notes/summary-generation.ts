@@ -9,13 +9,12 @@ import { useSyncExternalStore } from 'react';
 import { ApiError } from '@/api/client';
 import { notesApi } from '@/api/endpoints';
 import type { NoteDetail } from '@/types/notes';
+import { noteSaves } from './note-saves';
 import { transcriptionQueue } from './transcription-queue';
 import { applySummary, notesKeys } from './use-notes';
 
 const inFlight = new Map<string, Promise<SummaryResult>>();
 const listeners = new Set<() => void>();
-/** The open note's pending edits, saved before the server reads the note. */
-const pendingSaves = new Map<string, () => Promise<void>>();
 
 export type SummaryResult = 'ok' | 'empty' | 'failed';
 
@@ -30,14 +29,6 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** The note screen registers its autosave flush while it is open. */
-export function registerNoteSaves(noteId: string, flush: () => Promise<void>): () => void {
-  pendingSaves.set(noteId, flush);
-  return () => {
-    if (pendingSaves.get(noteId) === flush) pendingSaves.delete(noteId);
-  };
-}
-
 /** Saves pending edits, then stores a new summary. Concurrent calls share one request. */
 export function generateNoteSummary(queryClient: QueryClient, noteId: string): Promise<SummaryResult> {
   const existing = inFlight.get(noteId);
@@ -45,7 +36,8 @@ export function generateNoteSummary(queryClient: QueryClient, noteId: string): P
 
   const run = (async (): Promise<SummaryResult> => {
     try {
-      await pendingSaves.get(noteId)?.();
+      // The server reads the note: what the user typed must be saved first.
+      await noteSaves.flush(queryClient, noteId);
       applySummary(queryClient, noteId, await notesApi.generateSummary(noteId));
       return 'ok';
     } catch (error) {

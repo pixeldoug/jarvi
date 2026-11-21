@@ -111,6 +111,14 @@ export function useDeleteTask() {
         important: task.important,
         time: task.time ?? undefined,
         dueDate: task.due_date ?? undefined,
+        // A recurring task comes back recurring (completing it still schedules the next one).
+        ...(task.recurrence_type && task.recurrence_type !== 'none'
+          ? {
+              recurrence_type: task.recurrence_type,
+              recurrence_config: task.recurrence_config ?? undefined,
+              recurrence_until: task.recurrence_until ?? null,
+            }
+          : {}),
       }),
     onSuccess: (task) => setTasks(queryClient, (tasks) => [...tasks, task]),
     onError: (error) => toast({ message: errorMessage(error, i18n.t('tasks:toast.undoFailed')) }),

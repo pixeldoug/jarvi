@@ -13,6 +13,7 @@ import { noteDay } from '@/features/notes/note-text';
 import { NoteTranscript } from '@/features/notes/note-transcript';
 import { scheduleAutoSummary } from '@/features/notes/summary-generation';
 import { transcriptionQueue } from '@/features/notes/transcription-queue';
+import { noteSaves } from '@/features/notes/note-saves';
 import { useNoteAutosave } from '@/features/notes/use-note-autosave';
 import { formatElapsed, useNoteRecorder } from '@/features/notes/use-note-recorder';
 import { notesKeys, useDeleteNote, useNote, useSetNotePinned } from '@/features/notes/use-notes';
@@ -84,8 +85,10 @@ function NoteEditor({ note }: { note: NoteDetail }) {
   const canEdit = note.access_level !== 'read';
 
   const [tab, setTab] = useState<NoteTab>(note.summary ? 'summary' : 'notes');
-  const [initial] = useState(() => parseDescription(note.content));
-  const [title, setTitle] = useState(note.title);
+  // Edits an earlier visit could not save (offline) win over the server copy; they are sent again on open.
+  const [unsaved] = useState(() => noteSaves.unsaved(note.id));
+  const [initial] = useState(() => parseDescription(unsaved.content ?? note.content));
+  const [title, setTitle] = useState(unsaved.title ?? note.title);
   const [text, setText] = useState(initial.text);
   // The summary fills an empty title with the AI's suggestion; show it unless the user typed one.
   const [serverTitle, setServerTitle] = useState(note.title);
@@ -95,7 +98,8 @@ function NoteEditor({ note }: { note: NoteDetail }) {
   }
   const autosave = useNoteAutosave(note.id);
 
-  const recorder = useNoteRecorder(note.id, () => {
+  const recorder = useNoteRecorder(note.id, ({ interrupted }) => {
+    if (interrupted) toast({ message: t('record.interrupted') });
     void scheduleAutoSummary(queryClient, note.id).then((result) => {
       if (result === 'ok') toast({ message: t('toast.summaryReady'), actionLabel: t('toast.view'), onAction: () => setTab('summary') });
       else if (result === 'failed') toast({ message: t('summary.failed') });

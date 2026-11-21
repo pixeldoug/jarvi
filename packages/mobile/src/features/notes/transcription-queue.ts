@@ -7,6 +7,11 @@
  * retried upload with the stored segment instead of a duplicate. The audio
  * file is deleted once the text is saved (docs/decisions/0003: Notas keep the
  * transcript, never the audio).
+ *
+ * Every segment belongs to the account that recorded it: the queue only runs
+ * while that account is signed in (the API client sends the current session),
+ * and pauses on sign-out, so another account never gets a 404 for it and
+ * deletes the recording.
  */
 import type { QueryClient } from '@tanstack/react-query';
 import { File } from 'expo-file-system';
@@ -19,6 +24,8 @@ const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 2000;
 
 interface QueueItem {
+  /** The user who recorded it */
+  accountId: string;
   segmentId: string;
   noteId: string;
   uri: string;
@@ -61,6 +68,8 @@ function createQueue() {
   let items: QueueItem[] = [];
   let running = false;
   let queryClient: QueryClient | null = null;
+  /** The signed-in user; null pauses the queue */
+  let account: string | null = null;
   const listeners = new Set<() => void>();
   const snapshots = new Map<string, QueueSnapshot>();
   const idleWaiters: { noteId: string; resolve: () => void }[] = [];
@@ -94,13 +103,18 @@ function createQueue() {
     if (running) return;
     running = true;
     for (;;) {
-      const item = items.find((candidate) => !candidate.failed);
+      const item = items.find((candidate) => !candidate.failed && candidate.accountId === account);
       if (!item) break;
       try {
         await upload(item);
         items = items.filter((candidate) => candidate !== item);
         deleteFile(item.uri);
       } catch (error) {
+        // The session changed mid-request: this answer is not about its account.
+        if (account !== item.accountId) {
+          notify();
+          continue;
+        }
         item.attempts += 1;
         // No status: the file could not be read (the OS purged it); retrying will not help.
         const status = error instanceof ApiError ? error.status : null;
@@ -126,8 +140,16 @@ function createQueue() {
       queryClient = client;
     },
 
-    enqueue(input: Omit<QueueItem, 'attempts' | 'failed'>) {
-      items = [...items, { ...input, attempts: 0, failed: false }];
+    /** The signed-in user (the signed-in layout keeps it current); null on sign-out pauses uploads. */
+    setAccount(id: string | null) {
+      account = id;
+      notify();
+      if (id) void run();
+    },
+
+    enqueue(input: Omit<QueueItem, 'accountId' | 'attempts' | 'failed'>) {
+      if (!account) return;
+      items = [...items, { ...input, accountId: account, attempts: 0, failed: false }];
       notify();
       void run();
     },

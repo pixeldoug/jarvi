@@ -38,12 +38,17 @@ export default function TasksScreen() {
   const today = useToday();
 
   const sections = useMemo(() => sectionsForView(tasks.data ?? [], view, today), [tasks.data, view, today]);
-  const visibleSections = useMemo(
-    () => sections.map((section) => ({ ...section, count: section.data.length, data: collapsed.has(section.id) ? [] : section.data })),
-    [sections, collapsed],
-  );
-  // Smart views are a single list; only date-sectioned views collapse.
+  // Smart views are a single list with no header to expand; only date-sectioned views collapse.
   const collapsible = view.kind === 'all' || view.kind === 'category' || view.kind === 'list';
+  const visibleSections = useMemo(
+    () =>
+      sections.map((section) => ({
+        ...section,
+        count: section.data.length,
+        data: collapsible && collapsed.has(section.id) ? [] : section.data,
+      })),
+    [sections, collapsed, collapsible],
+  );
 
   const openTask = useCallback((task: Task) => router.push({ pathname: '/tarefa/[id]', params: { id: task.id } }), []);
 
