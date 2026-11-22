@@ -65,12 +65,20 @@ enum TodayTasks {
     var today: [WatchTask] = []
   }
 
-  static func dateKey(_ date: Date, calendar: Calendar = .current) -> String {
+  /// Stored dates (YYYY-MM-DD) are Gregorian, as on the iPhone and the web,
+  /// whatever calendar the watch is set to (Buddhist, Japanese…); local time zone.
+  static var keyCalendar: Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = .current
+    return calendar
+  }
+
+  static func dateKey(_ date: Date, calendar: Calendar = keyCalendar) -> String {
     let parts = calendar.dateComponents([.year, .month, .day], from: date)
     return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
   }
 
-  static func sections(from tasks: [WatchTask], now: Date = Date(), calendar: Calendar = .current) -> Sections {
+  static func sections(from tasks: [WatchTask], now: Date = Date(), calendar: Calendar = keyCalendar) -> Sections {
     let todayKey = dateKey(now, calendar: calendar)
     var result = Sections()
     var completedToday: [WatchTask] = []
@@ -105,15 +113,22 @@ enum TodayTasks {
     }
   }
 
-  /// "12 nov" / "Nov 12" for an overdue task's date.
-  static func shortDate(_ key: String, locale: Locale = .current, calendar: Calendar = .current) -> String {
+  /// "12 nov" / "Nov 12" for an overdue task's date. The key is read as
+  /// Gregorian (`keyCalendar`) and shown in the watch's own calendar.
+  static func shortDate(
+    _ key: String,
+    locale: Locale = .current,
+    keyCalendar: Calendar = keyCalendar,
+    displayCalendar: Calendar = .current
+  ) -> String {
     let parts = key.split(separator: "-").compactMap { Int($0) }
     guard parts.count == 3,
-          let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+          let date = keyCalendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     else { return key }
     let formatter = DateFormatter()
     formatter.locale = locale
-    formatter.calendar = calendar
+    formatter.calendar = displayCalendar
+    formatter.timeZone = keyCalendar.timeZone
     formatter.setLocalizedDateFormatFromTemplate("dMMM")
     return formatter.string(from: date)
   }

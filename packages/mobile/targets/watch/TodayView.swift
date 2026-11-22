@@ -25,6 +25,9 @@ struct TodayView: View {
       .navigationTitle("Hoje")
     }
     .task(id: session.token) {
+      // A new session (another account, or signed out) starts from an empty list.
+      model.switchSession(to: session.token)
+      draft = ""
       if let api { await model.load(api) }
     }
     .onChange(of: scenePhase) { _, phase in
@@ -103,8 +106,8 @@ struct TodayView: View {
     Task {
       if await model.create(title: title, dueDate: TodayTasks.dateKey(Date()), api: api) {
         WKInterfaceDevice.current().play(.success)
-      } else {
-        // Give the text back so it can be sent again.
+      } else if draft.isEmpty, api.token == session.token {
+        // Give the text back so it can be sent again, unless a newer one is being typed.
         draft = title
       }
     }
