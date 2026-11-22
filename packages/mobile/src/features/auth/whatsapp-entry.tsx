@@ -95,7 +95,7 @@ export function WhatsAppEntry({ mode }: WhatsAppEntryProps) {
             ]}
           >
             <View style={styles.flag}>
-              <Text style={styles.flagEmoji}>{country.flag}</Text>
+              <Text variant="flag-fill">{country.flag}</Text>
             </View>
             <Text variant="body-lg">{`+${country.dial}`}</Text>
           </Pressable>
@@ -216,10 +216,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  flagEmoji: {
-    fontSize: 32,
-    lineHeight: 38,
   },
   numberPill: {
     flex: 1,

@@ -16,7 +16,6 @@ const loginBackground: ImageSourcePropType = require('../../../assets/images/log
 
 /** Where the sheet starts on a 874pt-tall phone; smaller phones get less sky. */
 const SHEET_TOP = 268;
-const SHEET_RADIUS = 36;
 /** Room for the submit button under a field. */
 const KEYBOARD_OFFSET = 96;
 /** Room for everything under the code boxes (message, "Abrir o WhatsApp", links). */
@@ -54,7 +53,7 @@ export function AuthScenery() {
       <Image
         source={loginBackground}
         resizeMode="cover"
-        style={[styles.sky, { width, height: sheetTop + SHEET_RADIUS * 4 }]}
+        style={[styles.sky, { width, height: sheetTop + radius.sheet * 4 }]}
         accessibilityIgnoresInvertColors
       />
       <View style={[styles.sheet, styles.restingSheet, { top: sheetTop, minHeight: height - sheetTop, backgroundColor: colors.surfacePrimary }]} />
@@ -146,8 +145,8 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
     paddingTop: spacing.xxl + spacing.xl,
     paddingHorizontal: spacing.xl,
-    borderTopLeftRadius: SHEET_RADIUS,
-    borderTopRightRadius: SHEET_RADIUS,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     borderCurve: 'continuous',
   },
   restingSheet: {

@@ -23,7 +23,8 @@ export default function VerifyEmailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [cooldown, setCooldown] = useState(RESEND_SECONDS);
+  // This screen sends nothing on open, so resend is available right away; the wait starts after a resend.
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
     if (cooldown <= 0) return;
