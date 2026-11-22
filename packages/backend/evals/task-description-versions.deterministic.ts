@@ -80,9 +80,9 @@ async function main(): Promise<void> {
   const list = async (task: TaskRow) => (await versions.listTaskDescriptionVersions(task.id, 'eval-user')) ?? [];
 
   /** The agent's own write path, as the model's `update_task` call lands. */
-  const aiUpdate = async (task: TaskRow, args: Record<string, unknown>, profile: ChannelProfile = WEB) => {
+  const aiUpdate = async (task: TaskRow, args: Record<string, unknown>, profile: ChannelProfile = WEB, userMessage = 'atualiza a tarefa') => {
     const current = { ...task, description: await rawOf(task.id) };
-    const ctx = { ...buildContext({ focusedTask: current }), originalUserMessage: 'atualiza a tarefa', latestUserMessage: 'atualiza a tarefa' };
+    const ctx = { ...buildContext({ focusedTask: current }), originalUserMessage: userMessage, latestUserMessage: userMessage };
     return executeToolCall('update_task', { task_id: task.id, ...args }, ctx, profile);
   };
 
@@ -205,6 +205,41 @@ async function main(): Promise<void> {
       const keptNewer = after.find((v) => v.id === restored?.replaced_version_id);
       check(tiptapDocToMarkdown(keptNewer?.description) === tiptapDocToMarkdown(docOf(NEWER)), 'the text saved in between was kept, and is what undo goes back to', after.map((v) => v.preview));
       check(after.some((v) => tiptapDocToMarkdown(v.description).includes('trocou a placa')), 'the text from before that save is kept too', after.map((v) => v.preview));
+    } finally {
+      await getDatabase().run('DROP TRIGGER IF EXISTS eval_save_in_between');
+      await getDatabase().run('DROP TABLE IF EXISTS eval_other_tab');
+    }
+  });
+
+  await testCase('restaurar a versão mais antiga com a lista cheia, com um salvamento no meio', async () => {
+    const task = makeTask({ title: 'Diário da reforma', description: docOf('Dia 0: começou a reforma.') });
+    await seedTasksForEval([task]);
+    // A full list: the oldest version is the one that goes when another is kept.
+    for (let day = 1; day <= versions.TASK_DESCRIPTION_VERSIONS_MAX; day++) {
+      await aiUpdate(task, { description: `Dia ${day}: registro ${day}.`, user_asked_to_remove: true }, WEB, 'reescreve a descrição');
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+    const full = await list(task);
+    const oldest = full[full.length - 1];
+    check(full.length === versions.TASK_DESCRIPTION_VERSIONS_MAX && oldest.preview.includes('Dia 0'), 'the list is full and its oldest is day 0', { length: full.length, oldest: oldest.preview });
+
+    await getDatabase().run('CREATE TABLE eval_other_tab (description TEXT)');
+    await getDatabase().run('INSERT INTO eval_other_tab VALUES (?)', [docOf('Salvo em outra aba no meio da restauração.')]);
+    await getDatabase().run(
+      `CREATE TRIGGER eval_save_in_between AFTER INSERT ON task_description_versions
+       WHEN NEW.source = 'restore' AND (SELECT COUNT(*) FROM eval_other_tab) > 0
+       BEGIN
+         UPDATE tasks SET description = (SELECT description FROM eval_other_tab) WHERE id = NEW.task_id;
+         DELETE FROM eval_other_tab;
+       END`,
+    );
+    try {
+      const restored = await versions.restoreTaskDescriptionVersion(task.id, oldest.id, 'eval-user');
+      check(restored !== null, 'the restore is not refused as "version not found"');
+      check((await markdownOf(task.id)).includes('Dia 0: começou a reforma.'), 'the chosen text is the description', await markdownOf(task.id));
+      const after = await list(task);
+      check(after.some((v) => v.preview.includes('Salvo em outra aba')), 'the text saved in between was kept', after.map((v) => v.preview));
+      check(after.length <= versions.TASK_DESCRIPTION_VERSIONS_MAX, 'the cap still holds', after.length);
     } finally {
       await getDatabase().run('DROP TRIGGER IF EXISTS eval_save_in_between');
       await getDatabase().run('DROP TABLE IF EXISTS eval_other_tab');

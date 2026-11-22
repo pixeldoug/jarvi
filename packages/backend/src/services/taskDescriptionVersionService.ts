@@ -259,14 +259,18 @@ export async function restoreTaskDescriptionVersion(
   versionId: string,
   userId: string,
 ): Promise<RestoredTaskDescription | null> {
+  if (!(await ownedTask(taskId, userId))) return null;
+  // Read once and held here: keeping the current text below may push this very
+  // version out of the task's cap, and a second try must still have its text.
+  const [version] = await many<VersionRow>(
+    'SELECT id, description FROM task_description_versions WHERE id = $1 AND task_id = $2 AND user_id = $3',
+    [versionId, taskId, userId],
+  );
+  if (!version) return null;
+
   for (let attempt = 0; attempt < RESTORE_ATTEMPTS; attempt++) {
     const task = await ownedTask(taskId, userId);
     if (!task) return null;
-    const [version] = await many<VersionRow>(
-      'SELECT id, description FROM task_description_versions WHERE id = $1 AND task_id = $2 AND user_id = $3',
-      [versionId, taskId, userId],
-    );
-    if (!version) return null;
 
     const restored = withAttachmentsOf(version.description, task.description);
     const replacedVersionId = await keepTaskDescriptionVersion({
