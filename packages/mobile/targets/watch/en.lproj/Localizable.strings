@@ -1,0 +1,17 @@
+/* Watch app strings in English. Keys are the Portuguese text
+   (pt.lproj/Localizable.strings); wording follows src/locales/en-US. */
+
+"Hoje" = "Today";
+"Vencidas" = "Overdue";
+"Nova tarefa" = "New task";
+"Nada para hoje." = "Nothing for today.";
+"Concluída" = "Completed";
+"Pendente" = "Not completed";
+"Não deu certo" = "That didn't work";
+"OK" = "OK";
+"Tentar de novo" = "Try again";
+"Abra a Jarvi no iPhone para entrar." = "Open Jarvi on your iPhone to sign in.";
+"Abra a Jarvi no iPhone para entrar de novo." = "Open Jarvi on your iPhone to sign in again.";
+"Sua assinatura não está ativa. Veja na Jarvi do iPhone." = "Your subscription isn't active. Check Jarvi on your iPhone.";
+"Sem conexão. Tente de novo." = "No connection. Try again.";
+"Algo deu errado. Tente de novo." = "Something went wrong. Please try again.";

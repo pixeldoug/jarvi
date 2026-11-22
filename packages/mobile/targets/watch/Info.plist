@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged into the Info.plist Xcode generates. CFBundleDevelopmentRegion
+	     cannot be set here (Xcode writes the project's "en"), so a watch in a
+	     language other than pt/en shows English, unlike the iPhone app. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>pt</string>
+		<string>en</string>
+	</array>
+</dict>
+</plist>
