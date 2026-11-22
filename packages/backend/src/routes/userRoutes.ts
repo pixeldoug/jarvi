@@ -1494,6 +1494,9 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
         await client.query('DELETE FROM chat_messages WHERE user_id = $1', [userId]);
         await client.query('DELETE FROM chat_conversations WHERE user_id = $1', [userId]);
 
+        // Delete the kept versions of task descriptions
+        await client.query('DELETE FROM task_description_versions WHERE user_id = $1', [userId]);
+
         // Delete categories
         await client.query('DELETE FROM categories WHERE user_id = $1', [userId]);
 
@@ -1550,6 +1553,7 @@ router.delete('/me', authenticateToken, async (req: Request, res: Response) => {
       await db.run('DELETE FROM notes WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM chat_messages WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM chat_conversations WHERE user_id = ?', [userId]);
+      await db.run('DELETE FROM task_description_versions WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM categories WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM lists WHERE user_id = ?', [userId]);
       await db.run('DELETE FROM user_memory_profiles WHERE user_id = ?', [userId]);

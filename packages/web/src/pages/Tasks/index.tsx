@@ -19,6 +19,7 @@ import {
   isChoicePreviewRequested,
 } from '../../lib/choiceUiInstrumentation';
 import { mergeAttachmentsIntoDescription, buildAiTaskDescription } from '../../utils/chatAttachments';
+import { taskDescriptionVersionsQueryKey } from '../../lib/taskDescriptionVersionsApi';
 import { CalendarView, PendingTaskCard, TaskItem, TaskDetailsSidebar, PendingTaskDetailsSidebar } from '../../components/features/tasks';
 import type { PendingTask } from '../../hooks/usePendingTasks';
 import { AIChatPanel } from '../../components/features/tasks/AIChatPanel';
@@ -932,6 +933,8 @@ export function Tasks() {
         }
         case 'update_task': {
           const updatedId = d.id as string;
+          // The AI may have replaced the description: its kept versions changed.
+          void queryClient.invalidateQueries({ queryKey: taskDescriptionVersionsQueryKey(updatedId) });
           const attachmentsForUpdate = pendingChatAttachmentsRef.current;
           let description = d.description as string | undefined;
           if (description !== undefined && attachmentsForUpdate.length > 0) {

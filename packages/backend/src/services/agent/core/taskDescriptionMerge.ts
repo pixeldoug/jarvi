@@ -7,6 +7,7 @@
  */
 
 import { markdownToTiptapDoc } from '../../../utils/markdownToTiptapDoc';
+import { hasDescriptionHistory, keepDescriptionHistory } from './descriptionHistory';
 import { prepareDescriptionForStorage } from './prepareDescriptionForStorage';
 import { parseTaskDescription } from './taskDescription';
 
@@ -30,6 +31,19 @@ export interface DescriptionMergeResult {
   value: string | null;
   /** When true, skip updating the description column entirely. */
   skip: boolean;
+  /** Why a clear was refused. */
+  held?: 'attachments' | 'history';
+  /** Lines the new text had left out, put back under `## Histórico`. */
+  preserved?: string[];
+}
+
+export interface DescriptionMergeOptions {
+  /**
+   * The user asked for something to be removed or rewritten: the new text is
+   * stored as sent. Otherwise nothing the description already says is lost
+   * (see descriptionHistory.ts).
+   */
+  allowRemoval?: boolean;
 }
 
 /**
@@ -37,17 +51,23 @@ export interface DescriptionMergeResult {
  * - Replaces the text content with the agent's Markdown (rendered as structured nodes).
  * - Preserves `_attachments` always — agents cannot delete files.
  * - Blocks clearing when attachments exist.
+ * - Keeps what the description already said, unless `allowRemoval`: lines the
+ *   new text leaves out go to `## Histórico`, and a clear is refused.
  */
 export function mergeAgentDescriptionUpdate(
   existingRaw: string | null | undefined,
   incomingRaw: unknown,
   timezone = 'America/Sao_Paulo',
+  options: DescriptionMergeOptions = {},
 ): DescriptionMergeResult {
   if (incomingRaw === undefined) return { value: null, skip: true };
 
   if (incomingRaw === null) {
     if (hasProtectedAttachments(existingRaw)) {
-      return { value: null, skip: true };
+      return { value: null, skip: true, held: 'attachments' };
+    }
+    if (!options.allowRemoval && hasDescriptionHistory(existingRaw)) {
+      return { value: null, skip: true, held: 'history' };
     }
     return { value: null, skip: false };
   }
@@ -64,5 +84,8 @@ export function mergeAgentDescriptionUpdate(
   };
   if (attachments.length > 0) merged._attachments = attachments;
 
-  return { value: JSON.stringify(merged), skip: false };
+  const value = JSON.stringify(merged);
+  if (options.allowRemoval) return { value, skip: false };
+  const kept = keepDescriptionHistory(existingRaw, value);
+  return { value: kept.value, skip: false, preserved: kept.preserved };
 }

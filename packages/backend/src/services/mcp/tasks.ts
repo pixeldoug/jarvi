@@ -4,6 +4,7 @@ import { sanitizeTimeString } from '../../utils/taskTime';
 import { generateNextOccurrenceIfRecurring } from '../recurrenceService';
 import { cancelPendingRemindersForTask, rescheduleRemindersForTask } from '../reminderService';
 import { emitTaskEvent, insertTask } from '../taskInsert';
+import { keepTaskDescriptionVersion } from '../taskDescriptionVersionService';
 import { prepareDescriptionForStorage } from '../agent/core/prepareDescriptionForStorage';
 import {
   getTaskById,
@@ -152,6 +153,17 @@ export async function updateTask(userId: string, taskId: string, input: TaskInpu
   const category =
     input.category !== undefined ? await resolveCategory(userId, input.category) : existing.category ?? null;
   const now = new Date().toISOString();
+
+  // An MCP client is an AI writing for the user: what it replaces is kept.
+  if (input.description !== undefined) {
+    await keepTaskDescriptionVersion({
+      taskId,
+      userId,
+      previous: existing.description,
+      next: description,
+      source: 'mcp',
+    });
+  }
 
   if (isPostgreSQL()) {
     await getPool().query(

@@ -22,6 +22,9 @@ import {
 import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
 import { mergeAgentDescriptionUpdate } from './taskDescriptionMerge';
+import { isRemovalRequested } from './descriptionHistory';
+import { keepTaskDescriptionVersion } from '../../taskDescriptionVersionService';
+import { summarizeTaskDescription } from './taskDescription';
 import { prepareDescriptionForStorage } from './prepareDescriptionForStorage';
 import {
   getTaskById,
@@ -124,7 +127,12 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           description: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
             description:
-              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Segunda pessoa ("você"), nunca "o usuário". Reescreva o documento inteiro de forma coerente: preserve fatos em Contexto/Atualizações, mas reavalie Próximos passos para refletir só ações ainda pendentes. Anexos da tarefa são preservados automaticamente pelo sistema. Use datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Use null para limpar apenas quando não houver anexos.',
+              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Segunda pessoa ("você"), nunca "o usuário". Envie o documento inteiro: TODAS as linhas que já existem em Contexto, nas seções de atualização e em Histórico copiadas exatamente como estão (sem resumir, juntar ou apagar), mais as linhas novas; só Próximos passos é reavaliada para refletir as ações ainda pendentes. O que sumir do texto sem o usuário ter pedido é devolvido pelo sistema para "## Histórico". Anexos da tarefa são preservados automaticamente pelo sistema. Use datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Use null para limpar apenas quando o usuário pedir e não houver anexos.',
+          },
+          user_asked_to_remove: {
+            type: 'boolean',
+            description:
+              'true SOMENTE quando o usuário pediu, com as palavras dele, para apagar, tirar, encurtar, corrigir ou reescrever algo que já está na descrição. Sem isso, nada do que já está registrado pode sumir.',
           },
           priority: {
             anyOf: [
@@ -970,10 +978,20 @@ async function executeUpdateTask(
     if (args[key] === undefined) continue;
 
     if (key === 'description') {
-      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone);
+      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone, {
+        allowRemoval: isRemovalRequested(args.user_asked_to_remove, ctx.latestUserMessage ?? ctx.originalUserMessage),
+      });
       if (merged.skip) {
-        if (args[key] === null) notes.push('description não limpa: a tarefa tem anexos protegidos.');
+        if (merged.held === 'attachments') notes.push('description não limpa: a tarefa tem anexos protegidos.');
+        if (merged.held === 'history') {
+          notes.push('description não limpa: o usuário não pediu para apagar o que já está registrado.');
+        }
         continue;
+      }
+      if (merged.preserved?.length) {
+        notes.push(
+          `description: ${merged.preserved.length} linha(s) que já estavam registradas e sumiram do seu texto foram mantidas em "## Histórico" (o usuário não pediu para apagar).`,
+        );
       }
       write(key, merged.value);
       continue;
@@ -1058,6 +1076,17 @@ async function executeUpdateTask(
     values.push(now);
     values.push(taskId);
     values.push(ctx.userId);
+
+    // The text about to be replaced stays reachable ("Versões anteriores").
+    if ('description' in changes) {
+      await keepTaskDescriptionVersion({
+        taskId,
+        userId: ctx.userId,
+        previous: task.description,
+        next: changes.description as string | null,
+        source: profile.id === 'whatsapp' ? 'agent_whatsapp' : 'agent_web',
+      });
+    }
 
     const sql = `UPDATE tasks SET ${fields.join(', ')} WHERE id = ${ph()} AND user_id = ${ph()}`;
     if (isPostgreSQL()) {
@@ -1288,7 +1317,8 @@ async function executeSearchTasks(
     priority: t.priority ?? null,
     category: t.category ?? null,
     completed: Boolean(t.completed),
-    description: t.description?.trim() ? truncateDescription(t.description) : null,
+    // The readable text: a stored doc is JSON and may carry files as base64.
+    description: truncateDescription(summarizeTaskDescription(t.description) ?? '') || null,
   }));
 
   return { success: true, data: { count: tasks.length, tasks } };
