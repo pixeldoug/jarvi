@@ -5,7 +5,7 @@ import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing, typography } from '@/theme/tokens';
 import { Text } from './text';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
 
 export interface ButtonProps {
   label: string;
@@ -36,6 +36,7 @@ export function Button({
   const background = {
     primary: colors.surfaceAccent,
     secondary: colors.surfaceSecondary,
+    outline: colors.surfacePrimary,
     ghost: 'transparent',
     destructive: colors.destructive,
   }[variant];
@@ -54,6 +55,7 @@ export function Button({
         styles.base,
         size === 'sm' ? styles.sm : styles.md,
         { backgroundColor: background, opacity: inactive ? 0.5 : pressed ? 0.8 : 1 },
+        variant === 'outline' && { borderWidth: 1, borderColor: colors.borderPrimary },
         style,
       ]}
     >

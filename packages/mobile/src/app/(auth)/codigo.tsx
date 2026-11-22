@@ -1,23 +1,27 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { errorMessage } from '@/api/client';
 import { onboardingApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/auth-provider';
+import { AuthBackdrop, CODE_KEYBOARD_OFFSET } from '@/features/auth/auth-backdrop';
 import { formatE164 } from '@/lib/phone';
+import { useTheme } from '@/theme/theme-provider';
 import { spacing } from '@/theme/tokens';
 import { Button } from '@/ui/button';
+import { WhatsappLogoIcon } from '@/ui/icons';
 import { OtpInput } from '@/ui/otp-input';
-import { Screen } from '@/ui/screen';
 import { Text } from '@/ui/text';
+import { TextLink } from '@/ui/text-link';
 
 const RESEND_SECONDS = 30;
 
 export default function WhatsAppCodeScreen() {
   const { phone = '', devCode } = useLocalSearchParams<{ phone: string; devCode?: string }>();
   const { acceptSession } = useAuth();
+  const { colors } = useTheme();
   const { t } = useTranslation('auth');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +67,7 @@ export default function WhatsAppCodeScreen() {
   };
 
   return (
-    <Screen scroll edges={['bottom']}>
+    <AuthBackdrop onBack={() => router.back()} keyboardOffset={CODE_KEYBOARD_OFFSET}>
       <View style={styles.header}>
         <Text variant="heading-lg">{t('whatsapp.confirmTitle')}</Text>
         <Text variant="body-md" color="contentSecondary">
@@ -71,29 +75,43 @@ export default function WhatsAppCodeScreen() {
         </Text>
       </View>
 
-      <OtpInput value={code} onChange={setCode} onComplete={(value) => void verify(value)} error={!!error} disabled={busy} />
+      <View style={styles.code}>
+        <OtpInput value={code} onChange={setCode} onComplete={(value) => void verify(value)} error={!!error} disabled={busy} />
+        {error ? (
+          <Text variant="body-sm" color="contentNegative" align="center" accessibilityLiveRegion="polite">
+            {error}
+          </Text>
+        ) : busy ? (
+          <Text variant="label-md" color="contentInfo" align="center" accessibilityLiveRegion="polite">
+            {t('code.checking')}
+          </Text>
+        ) : null}
+        {testCode ? (
+          <Text variant="body-sm" color="contentTertiary" align="center">
+            {t('whatsapp.testCode', { code: testCode })}
+          </Text>
+        ) : null}
+      </View>
 
-      {error ? (
-        <Text variant="body-sm" color="contentNegative" align="center" accessibilityLiveRegion="polite">
-          {error}
-        </Text>
-      ) : null}
-      {testCode ? (
-        <Text variant="body-sm" color="contentTertiary" align="center">
-          {t('whatsapp.testCode', { code: testCode })}
-        </Text>
-      ) : null}
+      <Button
+        label={t('whatsapp.openApp')}
+        variant="outline"
+        icon={<WhatsappLogoIcon size={18} color={colors.contentPrimary} />}
+        // Nothing to do when WhatsApp is not installed: the code also arrives on WhatsApp Web.
+        onPress={() => void Linking.openURL('whatsapp://').catch(() => undefined)}
+      />
 
-      <View style={styles.actions}>
-        <Button
+      <View style={styles.links}>
+        <TextLink
           label={cooldown > 0 ? t('code.resendIn', { seconds: cooldown }) : t('code.resend')}
-          variant="secondary"
+          color={cooldown > 0 ? 'contentTertiary' : 'contentInfo'}
+          underline={cooldown <= 0}
           disabled={cooldown > 0 || busy}
           onPress={() => void resend()}
         />
-        <Button label={t('whatsapp.editNumber')} variant="ghost" onPress={() => router.back()} disabled={busy} />
+        <TextLink label={t('whatsapp.editNumber')} onPress={() => router.back()} disabled={busy} />
       </View>
-    </Screen>
+    </AuthBackdrop>
   );
 }
 
@@ -101,7 +119,11 @@ const styles = StyleSheet.create({
   header: {
     gap: spacing.sm,
   },
-  actions: {
-    gap: spacing.sm,
+  code: {
+    gap: spacing.md,
+  },
+  links: {
+    alignItems: 'center',
+    gap: spacing.lg,
   },
 });
