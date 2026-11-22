@@ -34,17 +34,36 @@ function normalizeTime(time?: string | null): string | undefined {
   return trimmed;
 }
 
+/** "Jan" … "Dez" by month index, each formatted once */
+const shortMonthLabels: Array<string | undefined> = [];
+
+/**
+ * A date's short month, capitalized and without the dot ("Jan").
+ * The label depends only on the month, and formatting it is slow enough to
+ * show in a list of tasks, so each month is formatted once per page load.
+ */
+export function formatShortMonth(date: Date): string {
+  const month = date.getMonth();
+  const cached = shortMonthLabels[month];
+  if (cached !== undefined) return cached;
+
+  const label = date.toLocaleDateString('pt-BR', { month: 'short' })
+    .replace('.', '')
+    .replace(/^./, str => str.toUpperCase());
+  // An invalid date has no month: formatted as before, never kept
+  if (Number.isInteger(month)) shortMonthLabels[month] = label;
+  return label;
+}
+
 export function formatTaskDate(dueDate?: string, time?: string): string | null {
   const date = parseDateString(dueDate);
   if (!date) return null;
-  
+
   try {
     const t = normalizeTime(time);
     const dayNum = date.getDate();
-    const monthStr = date.toLocaleDateString('pt-BR', { month: 'short' })
-      .replace('.', '')
-      .replace(/^./, str => str.toUpperCase());
-    
+    const monthStr = formatShortMonth(date);
+
     // Format: "7 Jan, 09:00" when time exists, otherwise "7 Jan"
     return t ? `${dayNum} ${monthStr}, ${t}` : `${dayNum} ${monthStr}`;
   } catch {

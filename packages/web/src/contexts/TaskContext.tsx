@@ -217,7 +217,9 @@ export const TaskProvider: React.FC<TaskProviderProps> = ({ children }) => {
     const cleanupInterval = setInterval(() => {
       setDeletedTasks(prev => {
         const now = Date.now();
-        return prev.filter(deleted => now - deleted.deletedAt < 30000);
+        const kept = prev.filter(deleted => now - deleted.deletedAt < 30000);
+        // Nothing expired: the same array, so the tick re-renders no one
+        return kept.length === prev.length ? prev : kept;
       });
     }, 10000);
     return () => clearInterval(cleanupInterval);
