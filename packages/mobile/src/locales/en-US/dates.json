@@ -1,0 +1,91 @@
+{
+  "recurrence": {
+    "repeat": {
+      "none": "Don't repeat",
+      "hourly": "Every hour",
+      "daily": "Daily",
+      "weekdays": "Weekdays",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "custom": "Custom"
+    },
+    "chip": {
+      "everyHours": "Every {{hours}} hours",
+      "monthDay": "Monthly on day {{day}}",
+      "everyInterval": {
+        "hourly_one": "Every {{count}} hour",
+        "hourly_other": "Every {{count}} hours",
+        "daily_one": "Every {{count}} day",
+        "daily_other": "Every {{count}} days",
+        "weekly_one": "Every {{count}} week",
+        "weekly_other": "Every {{count}} weeks",
+        "monthly_one": "Every {{count}} month",
+        "monthly_other": "Every {{count}} months"
+      }
+    }
+  },
+  "reminders": {
+    "title": "Reminders",
+    "add": "Add reminder",
+    "removeA11y": "Remove reminder: {{label}}",
+    "unavailable": "Unavailable",
+    "linkWhatsAppHint": "Link your WhatsApp on the web to get reminders by message or phone call.",
+    "emptyHint": "Jarvi will message you on WhatsApp or give you a call.",
+    "fields": {
+      "how": "How",
+      "when": "When"
+    },
+    "dateAndTime": "Date and time",
+    "dateAndTimeA11y": "Reminder date and time",
+    "set": "Set",
+    "withChannel": "{{channel}} · {{when}}",
+    "presets": {
+      "atTime": "At the time",
+      "minutesBefore": "{{minutes}} min before",
+      "hoursBefore_one": "{{count}} hour before",
+      "hoursBefore_other": "{{count}} hours before",
+      "daysBefore_one": "{{count}} day before",
+      "daysBefore_other": "{{count}} days before"
+    },
+    "offset": {
+      "minutesBefore_one": "{{count}} minute before",
+      "minutesBefore_other": "{{count}} minutes before",
+      "minutesAfter_one": "{{count}} minute after",
+      "minutesAfter_other": "{{count}} minutes after",
+      "hoursBefore_one": "{{count}} hour before",
+      "hoursBefore_other": "{{count}} hours before",
+      "hoursAfter_one": "{{count}} hour after",
+      "hoursAfter_other": "{{count}} hours after",
+      "daysBefore_one": "{{count}} day before",
+      "daysBefore_other": "{{count}} days before",
+      "daysAfter_one": "{{count}} day after",
+      "daysAfter_other": "{{count}} days after"
+    },
+    "recurring": {
+      "daily": "Every day at {{time}}",
+      "weekly": "Every {{weekday}} at {{time}}",
+      "everyWeek": "Every week at {{time}}"
+    },
+    "channels": {
+      "whatsapp": "WhatsApp",
+      "call": "Phone call"
+    }
+  },
+  "calendar": {
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "dayWithTasks": "{{date}}, has tasks",
+    "weekdaysNarrow": {
+      "sun": "S",
+      "mon": "M",
+      "tue": "T",
+      "wed": "W",
+      "thu": "T",
+      "fri": "F",
+      "sat": "S"
+    }
+  },
+  "field": {
+    "valueA11y": "{{label}}: {{value}}"
+  }
+}

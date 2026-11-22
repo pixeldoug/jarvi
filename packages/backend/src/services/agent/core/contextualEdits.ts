@@ -7,7 +7,15 @@
  * utils/docEdits.ts.
  */
 
-import { DOC_EDIT_ACTIONS } from '../../../utils/docEdits';
+import { DOC_EDIT_ACTIONS, type DocEditFailure } from '../../../utils/docEdits';
+
+/**
+ * How much of a description the model is shown: in the focused task's prompt,
+ * and in the message that asks it to redo an edit. A longer description is
+ * shown cut, and then does not count as read (see hasSeenDescription in
+ * tools.ts).
+ */
+export const DESCRIPTION_SHOWN_MAX_CHARS = 12_000;
 
 /** JSON schema of an `edits` array (a tool property). */
 export function docEditsToolProperty(subject: 'nota' | 'descrição'): Record<string, unknown> {
@@ -56,22 +64,40 @@ export function contextualEditRules(subject: 'nota' | 'descrição', field: stri
  * What the model reads when it tried to overwrite text it never saw whole (a
  * task line shows only the start of a description): nothing was written.
  */
-export function unseenTextMessage(currentMarkdown: string): string {
+export function unseenTextMessage(currentMarkdown: string, truncated = false): string {
   return [
     'Você só viu o começo desta descrição, e essa chamada apagaria trechos que você não leu: nada foi alterado.',
-    `Texto atual da descrição:\n<texto>\n${currentMarkdown.trim()}\n</texto>`,
-    'Chame de novo com description_edits mexendo só no que muda: `replace` / `delete` na linha, `append_to_section` para o que entra. Não diga ao usuário que deu erro: só refaça.',
+    `Texto atual da descrição${truncated ? ' (só o começo; o texto continua)' : ''}:\n<texto>\n${currentMarkdown.trim()}\n</texto>`,
+    truncated
+      ? 'A descrição é longa demais para ser mostrada inteira, então ela não pode ser reescrita nem ter uma seção inteira trocada por aqui. Chame de novo com description_edits mexendo só nas linhas que mudam: `replace` / `delete` na linha, `append_to_section` para o que entra. Não diga ao usuário que deu erro: só refaça.'
+      : 'Chame de novo com description_edits mexendo só no que muda: `replace` / `delete` na linha, `append_to_section` para o que entra. Não diga ao usuário que deu erro: só refaça.',
   ].join('\n');
 }
 
-/** What the model reads when an anchor matched nothing: nothing was written, try again. */
-export function anchorNotFoundMessage(subject: 'nota' | 'descrição', anchors: string[], currentMarkdown: string): string {
-  const quoted = anchors.filter(Boolean).map((anchor) => `"${anchor}"`).join(', ');
+/**
+ * What the model reads when an edit could not be placed: nothing was written,
+ * try again. `truncated`: the text shown is only its start.
+ */
+export function anchorNotFoundMessage(
+  subject: 'nota' | 'descrição',
+  failures: Pick<DocEditFailure, 'anchor' | 'reason'>[],
+  currentMarkdown: string,
+  truncated = false,
+): string {
+  const quote = (list: typeof failures): string =>
+    list.filter((failure) => failure.anchor).map((failure) => `"${failure.anchor}"`).join(', ');
+  const missing = failures.filter((failure) => failure.reason !== 'part_not_replaceable');
+  const parts = failures.filter((failure) => failure.reason === 'part_not_replaceable');
   return [
-    `Não achei ${quoted || 'o trecho'} na ${subject}: nada foi alterado.`,
+    missing.length > 0 ? `Não achei ${quote(missing) || 'o trecho'} na ${subject}: nada foi alterado.` : null,
+    parts.length > 0
+      ? `Não dá para trocar só o trecho ${quote(parts)} dentro da linha: nada foi alterado. Mande a linha inteira em \`anchor\` e a linha nova completa em \`content\`.`
+      : null,
     currentMarkdown.trim()
-      ? `Texto atual da ${subject}:\n<texto>\n${currentMarkdown.trim()}\n</texto>`
+      ? `Texto atual da ${subject}${truncated ? ' (só o começo; o texto continua)' : ''}:\n<texto>\n${currentMarkdown.trim()}\n</texto>`
       : `A ${subject} está vazia.`,
     'Chame de novo com um `anchor` que exista nesse texto (copie a linha), ou com `append` se nada ali tiver relação. Não diga ao usuário que deu erro: só refaça.',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }

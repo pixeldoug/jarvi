@@ -53,7 +53,13 @@ export interface DocEditFailure {
   /** Position of the edit in the request */
   index: number;
   anchor: string;
-  reason: 'anchor_not_found' | 'anchor_required';
+  /**
+   * `anchor_not_found`: no line has that text. `anchor_required`: the action
+   * needs an anchor. `part_not_replaceable`: the anchor names part of a line,
+   * but that part cannot be swapped on its own (it spans a file chip or a
+   * line break) — the caller has to send the whole line.
+   */
+  reason: 'anchor_not_found' | 'anchor_required' | 'part_not_replaceable';
 }
 
 export interface DocEditResult {
@@ -123,7 +129,7 @@ function normalizeLine(value: string): string {
   const line = value.split('\n').find((part) => part.trim() !== '') ?? '';
   return line
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/^\s*(?:#{1,6}\s+|[-*+]\s+(?:\[[ x]\]\s+)?|\d+[.)]\s+|>\s?)/, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -134,8 +140,14 @@ function normalizeLine(value: string): string {
 }
 
 interface Unit {
+  /** Top-level block the line is in */
   block: number;
-  /** Set when the line is an item of the list at `block` */
+  /**
+   * Set when the line is a list item: the way down to its list (the block,
+   * then item and child indices for a list nested under an item) and the
+   * item's position in that list.
+   */
+  list?: number[];
   item?: number;
   text: string;
   heading: boolean;
@@ -144,18 +156,42 @@ interface Unit {
 /** How an anchor matched its line: all of it, its start, or a part inside it. */
 type AnchorMatch = 'exact' | 'prefix' | 'inside';
 
+/** Every line an anchor can name, in reading order: items nested under an item too. */
 function listUnits(blocks: PMNode[]): Unit[] {
   const units: Unit[] = [];
-  blocks.forEach((node, block) => {
-    if (isList(node)) {
-      kids(node).forEach((item, index) => {
-        units.push({ block, item: index, text: normalizeLine(itemLine(item)), heading: false });
+  const visitList = (list: PMNode, path: number[]): void => {
+    kids(list).forEach((item, index) => {
+      units.push({ block: path[0], list: path, item: index, text: normalizeLine(itemLine(item)), heading: false });
+      kids(item).forEach((child, childIndex) => {
+        if (isList(child)) visitList(child, [...path, index, childIndex]);
       });
-    } else {
-      units.push({ block, text: normalizeLine(nodeText(node)), heading: node.type === 'heading' });
-    }
+    });
+  };
+  blocks.forEach((node, block) => {
+    if (isList(node)) visitList(node, [block]);
+    else units.push({ block, text: normalizeLine(nodeText(node)), heading: node.type === 'heading' });
   });
   return units.filter((unit) => unit.text !== '');
+}
+
+/** The node `path` leads to: a block, then children by index. */
+function nodeAt(blocks: PMNode[], path: number[]): PMNode {
+  let node = blocks[path[0]];
+  for (let depth = 1; depth < path.length; depth += 1) node = kids(node)[path[depth]];
+  return node;
+}
+
+/** `blocks` with the node at `path` swapped for `node` (null: taken out). Nothing else changes. */
+function withNodeAt(blocks: PMNode[], path: number[], node: PMNode | null): PMNode[] {
+  const swap = (siblings: PMNode[], depth: number): PMNode[] => {
+    const out = [...siblings];
+    const index = path[depth];
+    if (depth < path.length - 1) out[index] = { ...siblings[index], content: swap(kids(siblings[index]), depth + 1) };
+    else if (node) out[index] = node;
+    else out.splice(index, 1);
+    return out;
+  };
+  return swap(blocks, 0);
 }
 
 /** The line `anchor` names: the same text, else one that starts with or contains it. */
@@ -248,28 +284,36 @@ function fold(value: string): string {
   return out;
 }
 
-/** An anchor as it appears inside a line: no Markdown markers around it. */
-function anchorText(anchor: string): string {
+/**
+ * An anchor as it appears inside a line: no Markdown around it. A link is its
+ * text, the way the line's own text has it (`[Figma](https://…)` → `Figma`).
+ */
+function anchorText(anchor: string, keepMarkers = false): string {
   const line = anchor.split('\n').find((part) => part.trim() !== '') ?? '';
-  return line
+  const text = line
     .replace(/^\s*(?:#{1,6}\s+|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s?)/, '')
-    .replace(/[*_`~]/g, '')
-    .trim();
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+  return (keepMarkers ? text : text.replace(/[*_`~]/g, '')).trim();
 }
 
 /**
  * `line` (a paragraph or heading) with the part `anchor` names swapped for
- * `replacement`, which takes the formatting of the text it replaces. The rest
- * of the line is untouched. Null when that part is not in the line as written.
+ * `replacement`, which takes the formatting of the text it replaces (bold,
+ * italic — not its link: new text under an old address would point to the
+ * wrong place). The rest of the line is untouched. Null when that part is not
+ * in the line as written.
  */
 function replaceInLine(line: PMNode, anchor: string, replacement: PMNode[]): PMNode | null {
-  const needle = fold(anchorText(anchor));
-  if (!needle) return null;
   const children = kids(line);
   // Non-text inline nodes (a file chip, a line break) count as one character.
   const haystack = children.map((child) => (typeof child.text === 'string' ? fold(child.text) : '\u0000')).join('');
+  // As written first (`user_id` is text, not italics), then without the
+  // Markdown markers the model may have copied around it (`**Figma**`).
+  const needle = [anchorText(anchor, true), anchorText(anchor)]
+    .map(fold)
+    .find((candidate) => candidate !== '' && haystack.includes(candidate));
+  if (!needle) return null;
   const from = haystack.indexOf(needle);
-  if (from === -1) return null;
   const to = from + needle.length;
 
   const out: PMNode[] = [];
@@ -288,9 +332,10 @@ function replaceInLine(line: PMNode, anchor: string, replacement: PMNode[]): PMN
     if (before) out.push({ ...child, text: before });
     if (!placed) {
       placed = true;
+      const marks = (child.marks ?? []).filter((mark) => mark.type !== 'link');
       out.push(
         ...replacement.map((node) =>
-          typeof node.text === 'string' && !node.marks && child.marks ? { ...node, marks: child.marks } : node,
+          typeof node.text === 'string' && !node.marks && marks.length > 0 ? { ...node, marks } : node,
         ),
       );
     }
@@ -301,44 +346,62 @@ function replaceInLine(line: PMNode, anchor: string, replacement: PMNode[]): PMN
 
 /**
  * `replace` with an anchor that is only part of its line: swap that part and
- * keep the rest of the line. Null when the edit is not that — the content is
+ * keep the rest of the line.
+ *
+ * Null when the edit is not that, and the whole line is meant: the content is
  * a block of its own (a list item, a title, several lines), or it restates the
- * line from its start (an abbreviated anchor: the whole line is meant).
+ * line from its start (an abbreviated anchor). `part_not_replaceable` when it
+ * is that but the part cannot be swapped on its own — never a reason to
+ * replace the whole line, which would drop the text around the part.
  */
-function replacePartOfLine(blocks: PMNode[], unit: Unit & { match: AnchorMatch }, edit: DocEdit, nodes: PMNode[]): Applied | null {
+function replacePartOfLine(
+  blocks: PMNode[],
+  unit: Unit & { match: AnchorMatch },
+  edit: DocEdit,
+  nodes: PMNode[],
+): Applied | 'part_not_replaceable' | null {
   if (unit.match === 'exact' || !edit.anchor) return null;
   if (nodes.length !== 1 || nodes[0].type !== 'paragraph') return null;
   if (unit.match === 'prefix' && fold(nodeText(nodes[0])).startsWith(fold(anchorText(edit.anchor)))) return null;
 
-  const block = blocks[unit.block];
-  const out = [...blocks];
-  if (unit.item === undefined) {
-    const line = replaceInLine(block, edit.anchor, kids(nodes[0]));
-    if (!line) return null;
-    out[unit.block] = line;
-    return { blocks: out, focus: { block: unit.block } };
+  if (unit.list === undefined || unit.item === undefined) {
+    const line = replaceInLine(blocks[unit.block], edit.anchor, kids(nodes[0]));
+    if (!line) return 'part_not_replaceable';
+    return { blocks: withNodeAt(blocks, [unit.block], line), focus: { block: unit.block } };
   }
-  const item = kids(block)[unit.item];
-  const first = item ? kids(item)[0] : undefined;
+  const itemPath = [...unit.list, unit.item];
+  const item = nodeAt(blocks, itemPath);
+  const first = kids(item)[0];
   const line = first ? replaceInLine(first, edit.anchor, kids(nodes[0])) : null;
-  if (!item || !line) return null;
-  const items = [...kids(block)];
-  items[unit.item] = { ...item, content: [line, ...kids(item).slice(1)] };
-  out[unit.block] = { ...block, content: items };
-  return { blocks: out, focus: { block: unit.block, item: unit.item } };
+  if (!line) return 'part_not_replaceable';
+  return {
+    blocks: withNodeAt(blocks, itemPath, { ...item, content: [line, ...kids(item).slice(1)] }),
+    focus: itemFocus(unit.list, unit.item),
+  };
 }
 
-/** Changes the items of the list at `block`; a list left without items goes. */
-function spliceItems(blocks: PMNode[], block: number, at: number, remove: number, items: PMNode[]): Applied {
-  const next = [...kids(blocks[block])];
+/** Where an item is, for the view: nested items point at the top-level item they are under. */
+function itemFocus(list: number[], item: number): DocEditFocus {
+  return { block: list[0], item: list.length > 1 ? list[1] : item };
+}
+
+/**
+ * Changes the items of the list at `path` (a top-level block, or a list
+ * nested under an item); a list left without items goes.
+ */
+function spliceItems(blocks: PMNode[], path: number[], at: number, remove: number, items: PMNode[]): Applied {
+  const list = nodeAt(blocks, path);
+  const next = [...kids(list)];
   next.splice(at, remove, ...items);
-  const out = [...blocks];
   if (next.length === 0) {
-    out.splice(block, 1);
-    return { blocks: out, focus: { block: Math.max(0, Math.min(block, out.length - 1)) } };
+    const out = withNodeAt(blocks, path, null);
+    if (path.length > 1) return { blocks: out, focus: itemFocus(path, 0) };
+    return { blocks: out, focus: { block: Math.max(0, Math.min(path[0], out.length - 1)) } };
   }
-  out[block] = { ...blocks[block], content: next };
-  return { blocks: out, focus: { block, item: Math.min(at, next.length - 1) } };
+  return {
+    blocks: withNodeAt(blocks, path, { ...list, content: next }),
+    focus: itemFocus(path, Math.min(at, next.length - 1)),
+  };
 }
 
 /**
@@ -377,26 +440,27 @@ function dropTrailingBlanks(blocks: PMNode[]): PMNode[] {
   return blocks.slice(0, end);
 }
 
-/** An edit anchored on an item of the list at `unit.block`. */
+/** An edit anchored on a list item (`unit.list` leads to its list). */
 function editListItem(blocks: PMNode[], unit: Unit, action: DocEditAction, nodes: PMNode[]): Applied {
-  const list = blocks[unit.block];
+  const path = unit.list ?? [unit.block];
+  const list = nodeAt(blocks, path);
   const index = unit.item ?? 0;
   const old = kids(list)[index];
 
-  if (action === 'delete') return spliceItems(blocks, unit.block, index, 1, []);
+  if (action === 'delete') return spliceItems(blocks, path, index, 1, []);
 
   if (action === 'replace' || action === 'replace_section') {
-    if (nodes.length === 0) return spliceItems(blocks, unit.block, index, 1, []);
+    if (nodes.length === 0) return spliceItems(blocks, path, index, 1, []);
     const items = asItems(nodes, list.type, old?.attrs?.checked === true);
     if (items) {
       // One line for one line: what was nested under the old item stays.
       if (items.length === 1 && kids(items[0]).length === 1 && old) {
         items[0] = { ...items[0], content: [...kids(items[0]), ...kids(old).slice(1)] };
       }
-      return spliceItems(blocks, unit.block, index, 1, items);
+      return spliceItems(blocks, path, index, 1, items);
     }
-    // Not list material: it goes below the list, and the item leaves.
-    const without = spliceItems(blocks, unit.block, index, 1, []).blocks;
+    // Not list material: it goes below the (top-level) list, and the item leaves.
+    const without = spliceItems(blocks, path, index, 1, []).blocks;
     const listStays = without.length === blocks.length;
     return insertBlocks(without, listStays ? unit.block + 1 : unit.block, nodes);
   }
@@ -404,7 +468,7 @@ function editListItem(blocks: PMNode[], unit: Unit, action: DocEditAction, nodes
   const items = asItems(nodes, list.type);
   if (items) {
     const at = action === 'insert_before' ? index : action === 'insert_after' ? index + 1 : kids(list).length;
-    return spliceItems(blocks, unit.block, at, 0, items);
+    return spliceItems(blocks, path, at, 0, items);
   }
   return insertBlocks(blocks, action === 'insert_before' ? unit.block : unit.block + 1, nodes);
 }
@@ -452,7 +516,7 @@ function editBlock(blocks: PMNode[], index: number, action: DocEditAction, nodes
         const onlyLists = body.every((node) => isList(node) || isBlank(node));
         const joins = nodes.every((node) => isList(node)) || (onlyLists && listAt === at - 1);
         const items = joins ? asItems(nodes, blocks[listAt].type) : null;
-        if (items) return spliceItems(blocks, listAt, kids(blocks[listAt]).length, 0, items);
+        if (items) return spliceItems(blocks, [listAt], kids(blocks[listAt]).length, 0, items);
       }
       return insertBlocks(blocks, at, nodes);
     }
@@ -478,7 +542,7 @@ function applyEdit(blocks: PMNode[], edit: DocEdit): Applied | DocEditFailure['r
     if (part) return part;
   }
 
-  return unit.item !== undefined
+  return unit.list !== undefined
     ? editListItem(blocks, unit, edit.action, nodes)
     : editBlock(blocks, unit.block, edit.action, nodes);
 }

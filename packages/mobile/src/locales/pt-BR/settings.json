@@ -1,0 +1,92 @@
+{
+  "screens": {
+    "profile": "Perfil",
+    "notifications": "Notificações",
+    "memory": "Memória",
+    "categories": "Categorias"
+  },
+  "sections": {
+    "account": "Conta",
+    "organization": "Organização",
+    "app": "App"
+  },
+  "rows": {
+    "profile": "Perfil",
+    "notifications": "Notificações",
+    "memory": "Memória da Jarvi",
+    "plan": "Plano",
+    "categories": "Categorias",
+    "appearance": "Aparência",
+    "openWeb": "Abrir a Jarvi na web",
+    "deleteAccount": "Excluir conta",
+    "deletingAccount": "Excluindo conta…"
+  },
+  "appearance": {
+    "system": "Automático",
+    "light": "Claro",
+    "dark": "Escuro"
+  },
+  "signOut": {
+    "confirmTitle": "Sair da Jarvi?"
+  },
+  "deleteAccount": {
+    "confirmTitle": "Excluir conta?",
+    "confirmMessage": "Suas tarefas, categorias e lembretes serão apagados para sempre. Essa ação não pode ser desfeita.",
+    "confirm": "Excluir conta",
+    "error": "Não foi possível excluir a conta"
+  },
+  "profile": {
+    "nameLabel": "Nome",
+    "preferredNameLabel": "Como a Jarvi te chama",
+    "preferredNamePlaceholder": "Apelido (opcional)",
+    "nameRequired": "Informe seu nome",
+    "saved": "Perfil atualizado.",
+    "saveError": "Não foi possível salvar",
+    "timezone": {
+      "title": "Fuso horário",
+      "footer": "Lembretes e resumos seguem este fuso.",
+      "current": "Atual",
+      "loading": "…",
+      "useDevice": "Usar {{timezone}}",
+      "updated": "Fuso horário: {{timezone}}.",
+      "updateError": "Não foi possível atualizar o fuso"
+    }
+  },
+  "memory": {
+    "intro": "O que a Jarvi sabe sobre você para organizar melhor suas tarefas. Ela também aprende com as conversas.",
+    "placeholder": "Ex.: trabalho de casa às sextas, pago as contas no dia 10",
+    "label": "Memória da Jarvi",
+    "saved": "Memória atualizada.",
+    "saveError": "Não foi possível salvar"
+  },
+  "notifications": {
+    "intro": "Mensagens que a Jarvi manda no seu WhatsApp.",
+    "enabled": "Ativado",
+    "time": "Horário",
+    "daily": {
+      "name": "Resumo do dia",
+      "description": "Todo dia, o que você tem para hoje.",
+      "timeLabel": "Horário do resumo do dia",
+      "saveError": "Não foi possível salvar resumo do dia."
+    },
+    "weekly": {
+      "name": "Planejamento semanal",
+      "description": "Aos domingos, um plano para a semana.",
+      "timeLabel": "Horário do planejamento semanal",
+      "saveError": "Não foi possível salvar planejamento semanal."
+    }
+  },
+  "categories": {
+    "newPlaceholder": "Nova categoria",
+    "create": "Criar",
+    "emptyTitle": "Nenhuma categoria",
+    "emptyDescription": "Categorias ajudam a filtrar suas tarefas.",
+    "footer": "Toque no nome para renomear. Categorias ocultas continuam nas tarefas, mas saem dos filtros.",
+    "renameLabel": "Novo nome para {{name}}",
+    "renameHint": "Renomear",
+    "showInFilters": "Mostrar {{name}} nos filtros",
+    "deleteLabel": "Excluir {{name}}",
+    "deleteTitle": "Excluir \"{{name}}\"?",
+    "deleteMessage": "As tarefas continuam, só ficam sem categoria."
+  }
+}

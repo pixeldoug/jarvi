@@ -24,7 +24,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { markdownToTiptapDoc } from '../utils/markdownToTiptapDoc';
-import { applyDocEditsToRaw, type DocEdit } from '../utils/docEdits';
+import { applyDocEditsToRaw, type DocEdit, type DocEditFailure } from '../utils/docEdits';
 import { tiptapDocToMarkdown, tiptapDocToPlainText } from '../utils/tiptapDoc';
 import { getUserCategories, normalizeTaskDueDate, resolveExistingCategoryName } from './agent/core/tasks';
 import { contextualEditRules } from './agent/core/contextualEdits';
@@ -1860,8 +1860,8 @@ export type NoteChatWriteResult =
   | {
       ok: false;
       code: 'anchor_not_found';
-      /** The anchors that matched nothing */
-      anchors: string[];
+      /** The edits that could not be placed */
+      failures: DocEditFailure[];
       /** The notes as they are, in Markdown, for the model to try again */
       markdown: string;
     };
@@ -1893,7 +1893,7 @@ export async function writeNoteFromChat(
       return {
         ok: false,
         code: 'anchor_not_found',
-        anchors: edited.failures.map((failure) => failure.anchor),
+        failures: edited.failures,
         markdown: clampMiddle(tiptapDocToMarkdown(current.content), NOTE_CHAT_RETRY_MAX_CHARS, 0.5),
       };
     }

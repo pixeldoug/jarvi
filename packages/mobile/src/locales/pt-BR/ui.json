@@ -1,0 +1,23 @@
+{
+  "tabs": {
+    "tasks": "Tarefas",
+    "calendar": "Calendário",
+    "notes": "Notas",
+    "jarvi": "Jarvi",
+    "settings": "Ajustes"
+  },
+  "chip": {
+    "remove": "Remover {{label}}"
+  },
+  "taskCheckbox": {
+    "complete": "Concluir {{label}}",
+    "reopen": "Reabrir {{label}}"
+  },
+  "otp": {
+    "label_one": "Código de {{count}} dígito",
+    "label_other": "Código de {{count}} dígitos"
+  },
+  "listRow": {
+    "labelWithValue": "{{label}}: {{value}}"
+  }
+}

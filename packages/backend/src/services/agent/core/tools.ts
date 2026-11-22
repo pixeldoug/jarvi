@@ -22,6 +22,9 @@ import {
 import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
 import { mergeAgentDescriptionUpdate } from './taskDescriptionMerge';
+import { isRemovalRequested, keepDescriptionHistory } from './descriptionHistory';
+import { keepTaskDescriptionVersion } from '../../taskDescriptionVersionService';
+import { summarizeTaskDescription } from './taskDescription';
 import { prepareDescriptionForStorage } from './prepareDescriptionForStorage';
 import {
   getTaskById,
@@ -56,8 +59,13 @@ import { updateWeeklyPlanningSettings } from '../../weeklyPlanningService';
 import { NOTE_CHAT_WRITE_MAX_CHARS, writeNoteFromChat } from '../../noteService';
 import { applyDocEditsToRaw, parseDocEdits, type DocEdit } from '../../../utils/docEdits';
 import { tiptapDocToMarkdown } from '../../../utils/tiptapDoc';
-import { anchorNotFoundMessage, docEditsToolProperty, unseenTextMessage } from './contextualEdits';
-import { parseTaskDescription, summarizeTaskDescription } from './taskDescription';
+import {
+  anchorNotFoundMessage,
+  DESCRIPTION_SHOWN_MAX_CHARS,
+  docEditsToolProperty,
+  unseenTextMessage,
+} from './contextualEdits';
+import { parseTaskDescription } from './taskDescription';
 import {
   decideNextQuestion,
   dueDateQuestion,
@@ -130,7 +138,12 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           description: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
             description:
-              'Descrição COMPLETA em Markdown estruturado (## títulos, - listas, - [ ] checklists): substitui o texto inteiro. Use SÓ quando a tarefa ainda não tem descrição ou quando o usuário pedir para reescrever/reorganizar tudo. Para acrescentar, corrigir ou tirar uma parte de uma descrição que já existe, use description_edits (nunca os dois juntos). Segunda pessoa ("você"), nunca "o usuário". Datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Anexos da tarefa são preservados automaticamente pelo sistema. Use null para limpar apenas quando não houver anexos.',
+              'Descrição COMPLETA em Markdown estruturado (## títulos, - listas, - [ ] checklists): substitui o texto inteiro. Use SÓ quando a tarefa ainda não tem descrição ou quando o usuário pedir para reescrever/reorganizar tudo; para acrescentar, corrigir ou tirar uma parte de uma descrição que já existe, use description_edits (nunca os dois juntos). Ao enviar o documento inteiro, TODAS as linhas que já existem em Contexto, nas seções de atualização e em Histórico vão copiadas exatamente como estão (sem resumir, juntar ou apagar), mais as linhas novas; só Próximos passos é reavaliada para refletir as ações ainda pendentes. O que sumir do texto sem o usuário ter pedido é devolvido pelo sistema para "## Histórico". Segunda pessoa ("você"), nunca "o usuário". Datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Anexos da tarefa são preservados automaticamente pelo sistema. Use null para limpar apenas quando o usuário pedir e não houver anexos.',
+          },
+          user_asked_to_remove: {
+            type: 'boolean',
+            description:
+              'true SOMENTE quando o usuário pediu, com as palavras dele, para apagar, tirar, encurtar, corrigir ou reescrever algo que já está na descrição — vale para description e para description_edits (replace, replace_section, delete). Sem isso, nada do que já está registrado pode sumir.',
           },
           description_edits: docEditsToolProperty('descrição'),
           priority: {
@@ -512,8 +525,6 @@ export const UPDATE_TOOL_NAMES = new Set<ToolName>([
 // ---------------------------------------------------------------------------
 
 const PENDING_TASK_TTL_DAYS = 7;
-/** The description shown back to the model when an edit names a line that is not there. */
-const DESCRIPTION_RETRY_MAX_CHARS = 6_000;
 
 /** "9:30" / "13:30:00" → "09:30". Leaves anything unparseable untouched. */
 function normalizeClockTime(value: string | null): string | null {
@@ -916,13 +927,17 @@ async function executeCreateTaskAsPending(
 }
 
 /**
- * Did the model read this task's whole description? It is in its prompt for
- * the focused task, fits a task line when short, or came back in a tool result
- * earlier this turn. Otherwise it only saw the first characters, and a rewrite
- * would drop what it never read.
+ * Did the model read this task's WHOLE description? Only then may it replace
+ * the text, a whole section of it, or clear it. It did when the description
+ * is in its prompt uncut (the focused task, up to DESCRIPTION_SHOWN_MAX_CHARS),
+ * fits a task line, or came back whole in a tool result earlier this turn.
+ * A description shown cut is not read: what lies past the cut would be lost.
  */
 function hasSeenDescription(ctx: AgentContext, task: { id: string; description?: string | null }): boolean {
-  if (ctx.focusedTask?.id === task.id || ctx.descriptionsSeen?.has(task.id)) return true;
+  if (ctx.descriptionsSeen?.has(task.id)) return true;
+  if (ctx.focusedTask?.id === task.id) {
+    return tiptapDocToMarkdown(task.description).length <= DESCRIPTION_SHOWN_MAX_CHARS;
+  }
   const text = (summarizeTaskDescription(task.description) ?? '').replace(/\s+/g, ' ').trim();
   return text.length <= TASK_LINE_DESCRIPTION_MAX_CHARS;
 }
@@ -1013,26 +1028,33 @@ async function executeUpdateTask(
   // Edits to part of the description: only the nodes they touch change (the
   // rest, files included, stays as stored). A full `description` wins.
   let descriptionEditMiss: { code: string; message: string } | null = null;
-  const currentMarkdown = (): string =>
-    tiptapDocToMarkdown(task.description).slice(0, DESCRIPTION_RETRY_MAX_CHARS);
+  const fullMarkdown = tiptapDocToMarkdown(task.description);
+  const shownMarkdown = fullMarkdown.slice(0, DESCRIPTION_SHOWN_MAX_CHARS);
+  const shownCut = fullMarkdown.length > DESCRIPTION_SHOWN_MAX_CHARS;
+  const markSeen = (): void => {
+    (ctx.descriptionsSeen ??= new Set()).add(taskId);
+  };
   const edits = parseDocEdits(args.description_edits).map((edit) =>
     edit.content ? { ...edit, content: prepareDescriptionForStorage(edit.content, ctx.timezone) } : edit,
   );
-  // A whole new text, or a whole section: only over a description the model read.
+  // May what the description already says go away? (ADR 0006: only when the
+  // user asked, in their own words.)
+  const allowRemoval = isRemovalRequested(
+    args.user_asked_to_remove,
+    ctx.latestUserMessage ?? ctx.originalUserMessage,
+  );
+  // A whole new text, a whole section, or clearing it: only over a description
+  // the model read whole.
   const overwrites =
-    typeof args.description === 'string' ||
+    args.description !== undefined ||
     edits.some((edit) => edit.action === 'replace_section' || edit.action === 'replace_all');
-  const seen = hasSeenDescription(ctx, task);
-  // From here on the model has the description: in the retry message below,
-  // or in this call's result.
-  if (args.description !== undefined || args.description_edits !== undefined) {
-    (ctx.descriptionsSeen ??= new Set()).add(taskId);
-  }
 
-  if (overwrites && !seen) {
-    descriptionEditMiss = { code: 'description_unseen', message: unseenTextMessage(currentMarkdown()) };
+  if (overwrites && !hasSeenDescription(ctx, task)) {
+    descriptionEditMiss = { code: 'description_unseen', message: unseenTextMessage(shownMarkdown, shownCut) };
     notes.push(`description NÃO alterada. ${descriptionEditMiss.message}`);
     delete args.description;
+    // The message above carries the description: read, unless it was cut.
+    if (!shownCut) markSeen();
   } else if (args.description_edits !== undefined && args.description !== undefined) {
     notes.push('description_edits ignorado: description (texto completo) veio na mesma chamada.');
   } else if (args.description_edits !== undefined) {
@@ -1041,17 +1063,25 @@ async function executeUpdateTask(
       // All or nothing, so the model can try again with a line that exists.
       descriptionEditMiss = {
         code: 'anchor_not_found',
-        message: anchorNotFoundMessage(
-          'descrição',
-          edited.failures.map((failure) => failure.anchor),
-          currentMarkdown(),
-        ),
+        message: anchorNotFoundMessage('descrição', edited.failures, shownMarkdown, shownCut),
       };
       notes.push(`description NÃO alterada. ${descriptionEditMiss.message}`);
+      if (!shownCut) markSeen();
     } else if (edited.changed) {
+      // Same rule as a full rewrite: a line an edit replaced or removed goes
+      // to "## Histórico" unless the user asked for it to go.
+      const kept = allowRemoval
+        ? { value: edited.doc, preserved: [] as string[] }
+        : keepDescriptionHistory(task.description, edited.doc);
+      if (kept.preserved.length > 0) {
+        notes.push(
+          `description: ${kept.preserved.length} linha(s) que já estavam registradas e saíram com a edição foram mantidas em "## Histórico" (o usuário não pediu para apagar).`,
+        );
+      }
       const { images, otherAttachmentLabels } = parseTaskDescription(task.description);
       const hasFiles = images.length > 0 || otherAttachmentLabels.length > 0;
-      write('description', edited.empty && !hasFiles ? null : edited.doc);
+      const isEmpty = edited.empty && kept.preserved.length === 0;
+      write('description', isEmpty && !hasFiles ? null : kept.value);
     }
   }
 
@@ -1059,10 +1089,18 @@ async function executeUpdateTask(
     if (args[key] === undefined) continue;
 
     if (key === 'description') {
-      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone);
+      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone, { allowRemoval });
       if (merged.skip) {
-        if (args[key] === null) notes.push('description não limpa: a tarefa tem anexos protegidos.');
+        if (merged.held === 'attachments') notes.push('description não limpa: a tarefa tem anexos protegidos.');
+        if (merged.held === 'history') {
+          notes.push('description não limpa: o usuário não pediu para apagar o que já está registrado.');
+        }
         continue;
+      }
+      if (merged.preserved?.length) {
+        notes.push(
+          `description: ${merged.preserved.length} linha(s) que já estavam registradas e sumiram do seu texto foram mantidas em "## Histórico" (o usuário não pediu para apagar).`,
+        );
       }
       write(key, merged.value);
       continue;
@@ -1158,6 +1196,19 @@ async function executeUpdateTask(
     values.push(now);
     values.push(taskId);
     values.push(ctx.userId);
+
+    // The text about to be replaced stays reachable ("Versões anteriores").
+    if ('description' in changes) {
+      // …and the result of this call carries the new one, whole.
+      markSeen();
+      await keepTaskDescriptionVersion({
+        taskId,
+        userId: ctx.userId,
+        previous: task.description,
+        next: changes.description as string | null,
+        source: profile.id === 'whatsapp' ? 'agent_whatsapp' : 'agent_web',
+      });
+    }
 
     const sql = `UPDATE tasks SET ${fields.join(', ')} WHERE id = ${ph()} AND user_id = ${ph()}`;
     if (isPostgreSQL()) {
@@ -1388,7 +1439,8 @@ async function executeSearchTasks(
     priority: t.priority ?? null,
     category: t.category ?? null,
     completed: Boolean(t.completed),
-    description: t.description?.trim() ? truncateDescription(t.description) : null,
+    // The readable text: a stored doc is JSON and may carry files as base64.
+    description: truncateDescription(summarizeTaskDescription(t.description) ?? '') || null,
   }));
 
   return { success: true, data: { count: tasks.length, tasks } };
@@ -1925,7 +1977,7 @@ async function executeUpdateNote(
       return {
         success: false,
         error_code: 'anchor_not_found',
-        message: anchorNotFoundMessage('nota', written.anchors, written.markdown),
+        message: anchorNotFoundMessage('nota', written.failures, written.markdown),
         entity,
       };
     }

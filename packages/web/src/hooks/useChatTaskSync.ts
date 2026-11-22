@@ -17,6 +17,7 @@ import { useTasks } from '../contexts/TaskContext';
 import { publishChatNoteEdit } from '../components/features/notes/chatNoteEdits';
 import { parseDocEdits } from '../utils/docEdits';
 import { buildAiTaskDescription, mergeAttachmentsIntoDescription } from '../utils/chatAttachments';
+import { taskDescriptionVersionsQueryKey } from '../lib/taskDescriptionVersionsApi';
 import type { ChatAttachment, ToolCallData } from './useChatStream';
 import { notesKeys } from './useNotes';
 
@@ -63,6 +64,8 @@ export function useChatTaskSync() {
           ).catch((err) => console.error('Failed to persist AI task description/attachments:', err)),
         );
       } else if (tc.toolName === 'update_task') {
+        // The AI may have replaced the description: its kept versions changed.
+        void queryClient.invalidateQueries({ queryKey: taskDescriptionVersionsQueryKey(d.id as string) });
         const description = d.description as string | undefined;
         if (description === undefined || attachments.length === 0) return;
         pendingChatAttachmentsRef.current = [];

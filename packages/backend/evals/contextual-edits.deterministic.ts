@@ -167,6 +167,71 @@ async function main(): Promise<void> {
     check(r.md.includes('- Lançar em março\n- Preço sobe 5%'), 'content that is a list item replaces the line', r.md);
   });
 
+  await testCase('engine/trecho que é um link: troca o trecho, nunca o parágrafo', () => {
+    const TEXT = 'O protótipo está no [Figma](https://figma.com) e a revisão é na sexta.';
+    let r = edit(TEXT, [{ action: 'replace', anchor: '[Figma](https://figma.com)', content: 'Canva' }]);
+    check(r.md === 'O protótipo está no Canva e a revisão é na sexta.', 'only the link text changes; no stale link kept', r.md);
+    check(r.failures.length === 0, 'applied', r.failures);
+    r = edit('Campo `user_id` é obrigatório no cadastro.', [{ action: 'replace', anchor: 'user_id', content: 'account_id' }]);
+    check(r.md === 'Campo `account_id` é obrigatório no cadastro.', 'markers that are part of the text still match', r.md);
+
+    // A part that cannot be swapped on its own (it spans a line break) fails:
+    // the rest of the paragraph is never dropped to make it fit.
+    const broken = JSON.stringify({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Entrega na' }, { type: 'hardBreak' }, { type: 'text', text: 'sexta, sem falta.' }] }],
+    });
+    const held = applyDocEditsToRaw(broken, [{ action: 'replace', anchor: 'na sexta', content: 'no sábado' }]);
+    check(!held.changed, 'paragraph untouched', held.doc);
+    check(held.failures[0]?.reason === 'part_not_replaceable', 'reported as a part that cannot be replaced', held.failures);
+  });
+
+  await testCase('engine/itens aninhados podem ser editados sem mexer no pai', () => {
+    const nested = JSON.stringify({
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Plano' }] },
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'Fase 1' }] },
+                {
+                  type: 'taskList',
+                  content: [
+                    { type: 'taskItem', attrs: { checked: true }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Mapear telas' }] }] },
+                    { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Validar com o time' }] }] },
+                  ],
+                },
+              ],
+            },
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Fase 2' }] }] },
+          ],
+        },
+      ],
+    });
+    const inner = (doc: string) => JSON.parse(doc).content[1].content[0].content[1];
+    const texts = (doc: string): string[] =>
+      inner(doc).content.map((item: { content: { content: { text: string }[] }[] }) => item.content[0].content[0].text);
+
+    let r = applyDocEditsToRaw(nested, [{ action: 'replace', anchor: 'Validar com o time', content: 'Validar com o time de produto' }]);
+    check(r.failures.length === 0, 'a nested item is found', r.failures);
+    check(JSON.stringify(texts(r.doc)) === JSON.stringify(['Mapear telas', 'Validar com o time de produto']), 'replaced in the nested list', texts(r.doc));
+    check(JSON.parse(r.doc).content[1].content[0].content[0].content[0].text === 'Fase 1', 'parent item untouched');
+
+    r = applyDocEditsToRaw(nested, [{ action: 'insert_after', anchor: 'Mapear telas', content: '- Desenhar o fluxo' }]);
+    check(JSON.stringify(texts(r.doc)) === JSON.stringify(['Mapear telas', 'Desenhar o fluxo', 'Validar com o time']), 'inserted in the nested list', texts(r.doc));
+    check(inner(r.doc).content[1].type === 'taskItem' && inner(r.doc).content[1].attrs.checked === false, 'takes the nested list form (unchecked box)', inner(r.doc).content[1]);
+    check(r.focus?.block === 1 && r.focus.item === 0, 'focus is the top-level item it is under', r.focus);
+
+    r = applyDocEditsToRaw(nested, [{ action: 'delete', anchor: 'Mapear telas' }, { action: 'delete', anchor: 'Validar com o time' }]);
+    const parent = JSON.parse(r.doc).content[1].content[0];
+    check(parent.content.length === 1 && parent.content[0].content[0].text === 'Fase 1', 'a nested list left empty goes, the parent stays', parent);
+    check(JSON.parse(r.doc).content[1].content.length === 2, 'sibling items untouched');
+  });
+
   await testCase('engine/remover linha e refazer seção', () => {
     let r = edit(NOTE, [{ action: 'delete', anchor: 'Preço fica igual' }, { action: 'delete', anchor: 'Lançar em março' }]);
     check(r.md.includes('## Decisões\n\n## Próximos passos'), 'a list left empty goes', r.md);
@@ -336,15 +401,74 @@ async function main(): Promise<void> {
     check(precise.success === true, 'edit after reading is saved', precise);
     const md = tiptapDocToMarkdown(await readDescription(task.id));
     check(md.includes('- Protótipo no Figma, página "Login v3"\n- Documento de requisitos') && md.includes('- Planilha de casos de teste'), 'one line changed, the others kept', md);
+    // ADR 0006: the user did not ask for anything to go, so the old line is kept.
+    check(/## Histórico\n\n- Protótipo no Figma, página "Login v2"/.test(md), 'the replaced line went to Histórico', md);
+    check((precise.notes ?? []).some((note) => note.includes('"## Histórico"')), 'the model is told', precise.notes);
 
     // A new turn, a blind full rewrite: held back too.
     const blindRewrite = await executeToolCall('update_task', { task_id: task.id, description: 'Só isso.' }, buildContext({}), WEB);
     check(blindRewrite.success === false && blindRewrite.error_code === 'description_unseen', 'blind full rewrite held back', blindRewrite);
     check(tiptapDocToMarkdown(await readDescription(task.id)) === md, 'description untouched by the rewrite');
 
-    // The task's own chat shows the whole description: a rewrite is allowed there.
-    const focused = await executeToolCall('update_task', { task_id: task.id, description: 'Só isso.' }, { ...buildContext({}), mode: 'task', focusedTask: task }, WEB);
+    // Clearing is an overwrite too: not without reading, even when the user asked.
+    const asked = { ...buildContext({}), latestUserMessage: 'apaga a descrição dessa tarefa', originalUserMessage: 'apaga a descrição dessa tarefa' };
+    const blindClear = await executeToolCall('update_task', { task_id: task.id, description: null, user_asked_to_remove: true }, asked, WEB);
+    check(blindClear.success === false && blindClear.error_code === 'description_unseen', 'blind clear held back', blindClear);
+    check(tiptapDocToMarkdown(await readDescription(task.id)) === md, 'description untouched by the clear');
+
+    // The task's own chat shows the whole description: a rewrite the user asked for is allowed there.
+    const rewrite = { ...buildContext({}), mode: 'task' as const, focusedTask: task, latestUserMessage: 'reescreve a descrição', originalUserMessage: 'reescreve a descrição' };
+    const focused = await executeToolCall('update_task', { task_id: task.id, description: 'Só isso.', user_asked_to_remove: true }, rewrite, WEB);
     check(focused.success === true && tiptapDocToMarkdown(await readDescription(task.id)) === 'Só isso.', 'focused task can be rewritten', focused);
+  });
+
+  await testCase('update_task/descrição mostrada cortada não conta como lida', async () => {
+    const filler = Array.from({ length: 260 }, (_, i) => `Linha ${i + 1} com um registro do que aconteceu nesta tarefa, para ela ficar bem longa.`).join('\n\n');
+    const long = `## Contexto\n\n${filler}\n\n## Próximos passos\n\n- [ ] Passo do fim`;
+    const stored = docOf(long);
+    check(tiptapDocToMarkdown(stored).length > 12_000, 'fixture is longer than what the model is shown');
+    const task = makeTask({ title: 'Tarefa longa', description: stored });
+    await seedTasksForEval([task]);
+
+    // Focused task: its prompt stops at 12k chars, so the tail was never read.
+    const focusedCtx = { ...buildContext({}), mode: 'task' as const, focusedTask: task };
+    const r = await executeToolCall('update_task', { task_id: task.id, description_edits: [{ action: 'replace_section', anchor: 'Contexto', content: 'Resumo curto.' }] }, focusedCtx, WEB);
+    check(r.success === false && r.error_code === 'description_unseen', 'section overwrite held back', r);
+    check((r.message ?? '').includes('só o começo'), 'the model is told the text is cut', (r.message ?? '').slice(0, 200));
+
+    // The retry message was cut as well: a second attempt in the same turn is still held back.
+    const again = await executeToolCall('update_task', { task_id: task.id, description: 'Resumo curto.' }, focusedCtx, WEB);
+    check(again.success === false && again.error_code === 'description_unseen', 'still unread after a cut retry message', again);
+    check((await readDescription(task.id)) === stored, 'description untouched');
+
+    // Line-level edits never needed the whole text.
+    const line = await executeToolCall('update_task', { task_id: task.id, description_edits: [{ action: 'append_to_section', anchor: 'Próximos passos', content: '- Outro passo' }] }, focusedCtx, WEB);
+    check(line.success === true && tiptapDocToMarkdown(await readDescription(task.id)).endsWith('- [ ] Passo do fim\n- [ ] Outro passo'), 'a line edit still works', line);
+  });
+
+  await testCase('update_task/edição por trecho respeita o histórico (ADR 0006)', async () => {
+    const stored = docOf(TASK_DESCRIPTION);
+    const task = makeTask({ title: 'Login novo 5', description: stored });
+    await seedTasksForEval([task]);
+    const focusedCtx = { ...buildContext({}), mode: 'task' as const, focusedTask: task };
+
+    // Nobody asked for the context to go: replacing the section keeps what it said.
+    let r = await executeToolCall('update_task', { task_id: task.id, description_edits: [{ action: 'replace_section', anchor: 'Contexto', content: 'Aguardando o time de design.' }] }, focusedCtx, WEB);
+    let md = tiptapDocToMarkdown(await readDescription(task.id));
+    check(r.success === true && md.includes('## Contexto\n\nAguardando o time de design.'), 'the edit is applied', md);
+    check(/## Histórico\n\n- Página de login nova\./.test(md), 'the line it replaced is kept in Histórico', md);
+    check(md.indexOf('## Histórico') < md.indexOf('## Próximos passos'), 'Histórico sits before Próximos passos', md);
+
+    // Próximos passos is free to change.
+    r = await executeToolCall('update_task', { task_id: task.id, description_edits: [{ action: 'delete', anchor: 'Desenhar a tela' }, { action: 'append_to_section', anchor: 'Próximos passos', content: '- [ ] Publicar' }] }, focusedCtx, WEB);
+    md = tiptapDocToMarkdown(await readDescription(task.id));
+    check(md.endsWith('## Próximos passos\n\n- [ ] Publicar') && !md.includes('Desenhar a tela'), 'a finished step leaves without going to Histórico', md);
+
+    // The user asked, in their words, and the model says so: the line goes.
+    const asked = { ...focusedCtx, latestUserMessage: 'tira o login com Google dos critérios', originalUserMessage: 'tira o login com Google dos critérios' };
+    r = await executeToolCall('update_task', { task_id: task.id, user_asked_to_remove: true, description_edits: [{ action: 'delete', anchor: 'Login com Google' }] }, asked, WEB);
+    md = tiptapDocToMarkdown(await readDescription(task.id));
+    check(r.success === true && !md.includes('Login com Google'), 'removed for good when the user asked', md);
   });
 
   await testCase('update_task/schema aceita description_edits e recusa ação desconhecida', () => {

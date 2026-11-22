@@ -1,0 +1,160 @@
+{
+  "untitled": "Nova nota",
+  "list": {
+    "title": "Notas",
+    "newNote": "Nova nota",
+    "rowHint": "Toque e segure para fixar ou excluir",
+    "groups": {
+      "pinned": "Fixadas",
+      "upcoming": "Próximas",
+      "today": "Hoje",
+      "yesterday": "Ontem",
+      "week": "Últimos 7 dias",
+      "older": "Mais antigas"
+    },
+    "empty": {
+      "title": "Nenhuma nota ainda",
+      "description": "Escreva o que está na cabeça ou grave uma conversa. A Jarvi transcreve, resume e sugere os próximos passos."
+    }
+  },
+  "menu": {
+    "pin": "Fixar no topo",
+    "unpin": "Desafixar",
+    "more": "Mais opções",
+    "askJarvi": "Perguntar à Jarvi sobre esta nota"
+  },
+  "toast": {
+    "createFailed": "Não foi possível criar a nota.",
+    "deleteFailed": "Não foi possível excluir a nota.",
+    "pinFailed": "Não foi possível fixar a nota.",
+    "unpinFailed": "Não foi possível desafixar a nota.",
+    "summaryReady": "Resumo pronto.",
+    "view": "Ver"
+  },
+  "deleteDialog": {
+    "title": "Excluir nota?",
+    "description": "As notas, o resumo e a transcrição desta nota serão apagados. Essa ação não pode ser desfeita."
+  },
+  "detail": {
+    "notFound": {
+      "title": "Nota não encontrada",
+      "description": "Ela pode ter sido excluída em outro aparelho."
+    },
+    "titleLabel": "Título da nota",
+    "saveFailed": "Não foi possível salvar. Tentaremos de novo na próxima edição.",
+    "notesLabel": "Notas",
+    "notesPlaceholder": "Escreva suas notas…",
+    "webFormatting": "Esta nota tem formatação do app web. Edite no computador para não perder a formatação."
+  },
+  "tabs": {
+    "notes": "Notas",
+    "transcript": "Transcrição",
+    "summary": "Resumo"
+  },
+  "record": {
+    "start": "Gravar",
+    "stop": "Parar",
+    "elapsedLabel": "Gravando, {{elapsed}}",
+    "startFailed": "Não foi possível começar a gravar.",
+    "denied": {
+      "title": "Microfone bloqueado",
+      "message": "Permita o acesso ao microfone nos Ajustes para gravar suas notas.",
+      "notNow": "Agora não",
+      "openSettings": "Abrir Ajustes"
+    },
+    "leave": {
+      "title": "Parar a gravação?",
+      "message": "O que já foi gravado continua sendo transcrito.",
+      "keepRecording": "Continuar gravando",
+      "stopAndLeave": "Parar e sair"
+    },
+    "interrupted": "A gravação parou por um erro. O que já foi gravado continua sendo transcrito."
+  },
+  "transcript": {
+    "transcribing": "Transcrevendo…",
+    "failed_one": "{{count}} trecho não foi transcrito.",
+    "failed_other": "{{count}} trechos não foram transcritos.",
+    "recording": "Gravando…",
+    "empty": {
+      "title": "Nenhuma transcrição",
+      "recording": "A transcrição aparece aqui a cada 30 segundos de gravação.",
+      "idle": "Comece a gravar para ver a transcrição aqui."
+    }
+  },
+  "summary": {
+    "needsSource": "Escreva algumas notas ou grave um áudio primeiro.",
+    "failed": "Não foi possível gerar o resumo.",
+    "generatedAt": "Gerado {{when}}",
+    "regenerate": "Gerar novamente",
+    "regenerateDialog": {
+      "title": "Gerar novamente?",
+      "message": "O resumo atual, com as suas edições, será substituído."
+    },
+    "empty": {
+      "title": "Nenhum resumo",
+      "description": "A Jarvi gera um resumo a partir das suas notas e da transcrição."
+    },
+    "generate": "Gerar resumo",
+    "outdated": "Há notas ou transcrição novas desde este resumo.",
+    "update": "Atualizar resumo",
+    "generating": "Gerando resumo…"
+  },
+  "nextSteps": {
+    "title": "Próximos passos",
+    "addToTasks": "Sincronizar com tarefas",
+    "openTask": "Abrir a tarefa {{title}}",
+    "taskBadge": "Tarefa",
+    "isItATask": "Já é tarefa?",
+    "saveFailed": "Não foi possível salvar o passo."
+  },
+  "tasksSync": {
+    "synced_one": "{{count}} tarefa sincronizada",
+    "synced_other": "{{count}} tarefas sincronizadas",
+    "failed": "Não foi possível criar as tarefas.",
+    "skipped_one": "Um passo mudou e não virou tarefa. Abra a nota de novo e tente outra vez.",
+    "skipped_other": "{{count}} passos mudaram e não viraram tarefas. Abra a nota de novo e tente outra vez.",
+    "title": "Sincronizar com tarefas",
+    "confirm": "Sincronizar",
+    "checking": "Conferindo se algum passo já está nas suas tarefas…",
+    "description": "Os próximos passos selecionados vão para Tarefas.",
+    "descriptionMatches": "Os passos marcados vão para Tarefas. Se um já estiver lá, a nota usa a tarefa que você já tem, sem repetir.",
+    "prepareFailed": "Não foi possível preparar os passos. Feche e tente de novo.",
+    "empty": "Nenhum próximo passo para sincronizar.",
+    "alreadyTask": "Já é tarefa",
+    "createNew": "Criar nova",
+    "useExisting": "Usar a existente",
+    "inList": "Já está nas suas tarefas",
+    "inListAs": "Já está nas suas tarefas como “{{title}}”",
+    "willCreate": "Vai virar uma tarefa nova",
+    "willUse": "Vai usar a tarefa que você já tem",
+    "willUseAs": "Vai usar a tarefa que você já tem: “{{title}}”",
+    "linked_one": "Passo ligado à tarefa que você já tinha",
+    "linked_other": "{{count}} passos ligados às tarefas que você já tinha",
+    "syncedWithExisting_one": "{{synced}} ({{count}} já existia)",
+    "syncedWithExisting_other": "{{synced}} ({{count}} já existiam)"
+  },
+  "stepReview": {
+    "title": "Já é tarefa?",
+    "message": "“{{text}}” parece com um passo que você já transformou em tarefa: “{{existing}}”. Se for o mesmo, ele fica ligado a essa tarefa. Se for outro, você pode criar uma tarefa só para ele.",
+    "existingFallback": "um passo desta nota",
+    "distinct": "É outro passo",
+    "same": "É o mesmo passo",
+    "alreadyReviewed": "Esse passo já foi revisado.",
+    "saveFailed": "Não foi possível salvar sua escolha."
+  },
+  "chat": {
+    "newConversation": "Nova conversa",
+    "emptyTitle": "Pergunte sobre esta nota",
+    "emptyDescription": "A Jarvi lê as notas, a transcrição e o resumo e pode criar tarefas a partir deles.",
+    "placeholder": "Pergunte algo sobre esta nota…",
+    "suggestions": {
+      "nextStepTasks": "Criar tarefas dos próximos passos",
+      "decisions": "Quais foram as decisões?",
+      "summarize": "Resumir em 3 tópicos",
+      "openItems": "O que ficou em aberto?"
+    }
+  },
+  "doc": {
+    "image": "[imagem]"
+  }
+}

@@ -49,6 +49,7 @@ import { addTriadSkip, getTaskById, normalizeTaskDueDate, normalizeTaskTime } fr
 import { listRemindersForTask } from '../../reminderService';
 import { formatValidationIssues, validateToolArguments } from './toolValidation';
 import { chatCompletionsSamplingParams, getConfiguredAgentModel } from './models';
+import { toModelVisible } from './toolResultForModel';
 import type {
   AgentCallbacks,
   AgentContext,
@@ -162,6 +163,17 @@ function getErrorMessage(err: unknown): string {
 export function isRequestTooLargeError(err: unknown): boolean {
   if ((err as { status?: number })?.status !== 429) return false;
   return getErrorMessage(err).toLowerCase().includes('request too large');
+}
+
+/**
+ * A 400 because the request does not fit the model's input ("Input tokens
+ * exceed the configured limit", `context_length_exceeded`). Never retried (a
+ * 400 is not retryable) and told to the user in plain words.
+ */
+export function isContextTooLargeError(err: unknown): boolean {
+  if ((err as { status?: number })?.status !== 400) return false;
+  if ((err as { code?: string })?.code === 'context_length_exceeded') return true;
+  return /tokens? exceed|context length|maximum context/i.test(getErrorMessage(err));
 }
 
 function isRetryableError(err: unknown): boolean {
@@ -647,123 +659,145 @@ export async function runAgent(
       else refGuard.push(delta);
     };
 
-    if (profile.transport === 'stream') {
-      const stream = await callWithRetry(
-        () =>
-          openai.chat.completions.create({
-            model,
-            messages,
-            tools,
-            tool_choice: toolChoice,
-            stream: true,
-            stream_options: { include_usage: true },
-            max_completion_tokens: MAX_TOKENS_STREAM,
-            ...samplingParams,
-            ...determinismParams,
-            ...buildPosthogCallParams(iteration),
-          }),
-        { channel: profile.id, userId: ctx.userId, model },
-      );
+    try {
+      if (profile.transport === 'stream') {
+        const stream = await callWithRetry(
+          () =>
+            openai.chat.completions.create({
+              model,
+              messages,
+              tools,
+              tool_choice: toolChoice,
+              stream: true,
+              stream_options: { include_usage: true },
+              max_completion_tokens: MAX_TOKENS_STREAM,
+              ...samplingParams,
+              ...determinismParams,
+              ...buildPosthogCallParams(iteration),
+            }),
+          { channel: profile.id, userId: ctx.userId, model },
+        );
 
-      const indexed = new Map<number, PendingToolCall>();
+        const indexed = new Map<number, PendingToolCall>();
 
-      for await (const chunk of stream) {
-        // The usage summary arrives as its own chunk (often with an empty
-        // `choices` array), so it must be read before the `!choice` guard.
-        if (chunk.usage) {
-          totalInputTokens += chunk.usage.prompt_tokens ?? 0;
-          totalOutputTokens += chunk.usage.completion_tokens ?? 0;
-          totalCachedTokens += chunk.usage.prompt_tokens_details?.cached_tokens ?? 0;
-        }
+        for await (const chunk of stream) {
+          // The usage summary arrives as its own chunk (often with an empty
+          // `choices` array), so it must be read before the `!choice` guard.
+          if (chunk.usage) {
+            totalInputTokens += chunk.usage.prompt_tokens ?? 0;
+            totalOutputTokens += chunk.usage.completion_tokens ?? 0;
+            totalCachedTokens += chunk.usage.prompt_tokens_details?.cached_tokens ?? 0;
+          }
 
-        const choice = chunk.choices[0];
-        if (!choice) continue;
+          const choice = chunk.choices[0];
+          if (!choice) continue;
 
-        const delta = choice.delta;
-        const reasoningDelta = (delta as { reasoning_content?: string | null } | undefined)
-          ?.reasoning_content;
-        if (reasoningDelta) {
-          callbacks.onReasoning?.(reasoningDelta);
-        }
+          const delta = choice.delta;
+          const reasoningDelta = (delta as { reasoning_content?: string | null } | undefined)
+            ?.reasoning_content;
+          if (reasoningDelta) {
+            callbacks.onReasoning?.(reasoningDelta);
+          }
 
-        if (delta?.content) {
-          textContent += delta.content;
-          pushModelText(delta.content);
-        }
+          if (delta?.content) {
+            textContent += delta.content;
+            pushModelText(delta.content);
+          }
 
-        if (delta?.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            const idx = tc.index;
-            let acc = indexed.get(idx);
-            if (!acc) {
-              acc = { id: '', name: '', args: '' };
-              indexed.set(idx, acc);
+          if (delta?.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index;
+              let acc = indexed.get(idx);
+              if (!acc) {
+                acc = { id: '', name: '', args: '' };
+                indexed.set(idx, acc);
+              }
+              if (tc.id) acc.id = tc.id;
+              if (tc.function?.name) acc.name = tc.function.name;
+              if (tc.function?.arguments) acc.args += tc.function.arguments;
             }
-            if (tc.id) acc.id = tc.id;
-            if (tc.function?.name) acc.name = tc.function.name;
-            if (tc.function?.arguments) acc.args += tc.function.arguments;
+          }
+
+          if (choice.finish_reason) {
+            finishReason = choice.finish_reason;
           }
         }
 
-        if (choice.finish_reason) {
-          finishReason = choice.finish_reason;
+        apiCalls++;
+        pendingToolCalls = Array.from(indexed.values()).filter((tc) => tc.id && tc.name);
+      } else {
+        const response = await callWithRetry(
+          () =>
+            openai.chat.completions.create({
+              model,
+              messages,
+              tools,
+              tool_choice: toolChoice,
+              max_completion_tokens: MAX_TOKENS_SINGLE,
+              ...samplingParams,
+              ...determinismParams,
+              ...buildPosthogCallParams(iteration),
+            }),
+          { channel: profile.id, userId: ctx.userId, model },
+        );
+
+        apiCalls++;
+        if (response.usage) {
+          totalInputTokens += response.usage.prompt_tokens ?? 0;
+          totalOutputTokens += response.usage.completion_tokens ?? 0;
+          totalCachedTokens += response.usage.prompt_tokens_details?.cached_tokens ?? 0;
         }
-      }
 
-      apiCalls++;
-      pendingToolCalls = Array.from(indexed.values()).filter((tc) => tc.id && tc.name);
-    } else {
-      const response = await callWithRetry(
-        () =>
-          openai.chat.completions.create({
-            model,
-            messages,
-            tools,
-            tool_choice: toolChoice,
-            max_completion_tokens: MAX_TOKENS_SINGLE,
-            ...samplingParams,
-            ...determinismParams,
-            ...buildPosthogCallParams(iteration),
-          }),
-        { channel: profile.id, userId: ctx.userId, model },
+        const choice = response.choices[0];
+        const message = choice?.message;
+        finishReason = choice?.finish_reason ?? null;
+        const reasoningContent = (message as { reasoning_content?: string | null } | undefined)
+          ?.reasoning_content;
+        if (reasoningContent) {
+          callbacks.onReasoning?.(reasoningContent);
+        }
+        textContent = message?.content?.trim() ?? '';
+        if (textContent) pushModelText(textContent);
+
+        pendingToolCalls = (message?.tool_calls ?? [])
+          .filter(
+            (tc): tc is Extract<typeof tc, { type: 'function' }> => tc.type === 'function',
+          )
+          .map((tc) => ({
+            id: tc.id,
+            name: tc.function.name,
+            args: tc.function.arguments ?? '',
+          }));
+
+        console.log(
+          '[Agent:%s] iteration=%d finish=%s tools=%s userId=%s',
+          profile.id,
+          iteration,
+          finishReason,
+          pendingToolCalls.map((tc) => `${tc.name}(${tc.args})`).join(', ') || 'none',
+          ctx.userId,
+        );
+      }
+    } catch (err) {
+      // What this turn wrote is saved and already confirmed to the user. The
+      // model's follow-up is optional: when that call fails, the turn ends on
+      // the confirmation instead of showing an error under it.
+      if (!reliable || !operations.some((op) => op.kind === 'write' && op.success)) throw err;
+      console.error(
+        '[agent_followup_failed] %s',
+        JSON.stringify({
+          event: 'agent_followup_failed',
+          channel: profile.id,
+          userId: ctx.userId,
+          model,
+          iteration,
+          status: (err as { status?: number })?.status,
+          message: getErrorMessage(err).slice(0, 500),
+        }),
       );
-
-      apiCalls++;
-      if (response.usage) {
-        totalInputTokens += response.usage.prompt_tokens ?? 0;
-        totalOutputTokens += response.usage.completion_tokens ?? 0;
-        totalCachedTokens += response.usage.prompt_tokens_details?.cached_tokens ?? 0;
-      }
-
-      const choice = response.choices[0];
-      const message = choice?.message;
-      finishReason = choice?.finish_reason ?? null;
-      const reasoningContent = (message as { reasoning_content?: string | null } | undefined)
-        ?.reasoning_content;
-      if (reasoningContent) {
-        callbacks.onReasoning?.(reasoningContent);
-      }
-      textContent = message?.content?.trim() ?? '';
-      if (textContent) pushModelText(textContent);
-
-      pendingToolCalls = (message?.tool_calls ?? [])
-        .filter(
-          (tc): tc is Extract<typeof tc, { type: 'function' }> => tc.type === 'function',
-        )
-        .map((tc) => ({
-          id: tc.id,
-          name: tc.function.name,
-          args: tc.function.arguments ?? '',
-        }));
-
-      console.log(
-        '[Agent:%s] iteration=%d finish=%s tools=%s userId=%s',
-        profile.id,
-        iteration,
-        finishReason,
-        pendingToolCalls.map((tc) => `${tc.name}(${tc.args})`).join(', ') || 'none',
-        ctx.userId,
-      );
+      refGuard.flush();
+      if (iterationVisibleText.trim()) lastModelText = iterationVisibleText;
+      break;
     }
 
     if (gate) gate.flush();
@@ -930,7 +964,8 @@ export async function runAgent(
           $ai_span_id: randomUUID(),
           $ai_span_name: tc.name,
           $ai_input_state: parsedArgs,
-          $ai_output_state: result!,
+          // Never the raw row: a stored description may carry files as base64.
+          $ai_output_state: toModelVisible(result!),
           $ai_latency: (Date.now() - toolStartedAt) / 1000,
           $ai_is_error: !result!.success,
           iteration,
@@ -943,9 +978,11 @@ export async function runAgent(
 
       // What the model sees. `entity`/`changes` are internal — the model gets
       // `data` + `message` + `notes`, same shape as before plus the notes.
+      // `data` goes through `toModelVisible`: the web reads the stored row
+      // (files included), the model reads its text.
       const modelVisible: Record<string, unknown> = {
         success: result!.success,
-        ...(result!.data ? { data: result!.data } : {}),
+        ...(result!.data ? { data: toModelVisible(result!.data) } : {}),
         ...(result!.message ? { message: result!.message } : {}),
         ...(result!.error_code ? { error_code: result!.error_code } : {}),
         ...(result!.notes?.length ? { notes: result!.notes } : {}),

@@ -1,0 +1,18 @@
+/* Watch app strings. The keys are the Portuguese text, so a missing
+   translation still shows Portuguese (the default language). Keep in sync
+   with en.lproj/Localizable.strings. */
+
+"Hoje" = "Hoje";
+"Vencidas" = "Vencidas";
+"Nova tarefa" = "Nova tarefa";
+"Nada para hoje." = "Nada para hoje.";
+"Concluída" = "Concluída";
+"Pendente" = "Pendente";
+"Não deu certo" = "Não deu certo";
+"OK" = "OK";
+"Tentar de novo" = "Tentar de novo";
+"Abra a Jarvi no iPhone para entrar." = "Abra a Jarvi no iPhone para entrar.";
+"Abra a Jarvi no iPhone para entrar de novo." = "Abra a Jarvi no iPhone para entrar de novo.";
+"Sua assinatura não está ativa. Veja na Jarvi do iPhone." = "Sua assinatura não está ativa. Veja na Jarvi do iPhone.";
+"Sem conexão. Tente de novo." = "Sem conexão. Tente de novo.";
+"Algo deu errado. Tente de novo." = "Algo deu errado. Tente de novo.";

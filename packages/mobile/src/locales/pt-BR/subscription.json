@@ -1,0 +1,22 @@
+{
+  "plan": {
+    "loading": "…",
+    "monthly": "Mensal",
+    "annual": "Anual",
+    "lifetime": "Vitalício",
+    "trialDays_one": "Teste: {{count}} dia",
+    "trialDays_other": "Teste: {{count}} dias",
+    "pastDue": "Pagamento pendente",
+    "none": "Sem plano"
+  },
+  "trialExpired": {
+    "title": "Seu teste grátis terminou",
+    "titleExtended": "Seu período de teste acabou",
+    "body": "Suas tarefas continuam salvas. Assim que sua assinatura estiver ativa, tudo volta a funcionar aqui.",
+    "extend": "Ganhar mais alguns dias",
+    "checkAgain": "Já assinei, atualizar",
+    "notActiveYet": "Ainda não encontramos uma assinatura ativa nesta conta.",
+    "extendError": "Não foi possível estender o teste.",
+    "checkError": "Não foi possível verificar sua assinatura."
+  }
+}
