@@ -24,6 +24,9 @@ const SOURCE_LABELS: Record<TaskDescriptionVersionSource, string> = {
   restore: 'Antes de restaurar outra versão',
 };
 
+/** A version kept by a restore over a description that had no text. */
+const EMPTY_VERSION_LABEL = 'A descrição estava vazia.';
+
 /** "19 Nov, 14:32" (with the year when it isn't this one) */
 function formatVersionDate(iso: string): string {
   const date = new Date(iso);
@@ -40,7 +43,7 @@ function formatVersionDate(iso: string): string {
 /** The row's second line: what this version has, or still lacks, compared with what came next. */
 function describeVersion(version: TaskDescriptionVersion): string {
   const { change } = version;
-  if (!change) return version.preview;
+  if (!change) return version.preview || EMPTY_VERSION_LABEL;
   const more = change.more > 0 ? ` (e mais ${change.more})` : '';
   return change.kind === 'had' ? `Ainda tinha: ${change.line}${more}` : `Ainda não tinha: ${change.line}${more}`;
 }
@@ -94,17 +97,21 @@ export function TaskDescriptionVersionsDialog({
             <p className={styles.description}>{SOURCE_LABELS[selected.source] ?? SOURCE_LABELS.agent_web}.</p>
           </div>
 
-          <div className={styles.preview}>
-            <RichTextEditor
-              key={selected.id}
-              content={selected.description}
-              onChange={noop}
-              readOnly
-              variant="document"
-              placeholder=""
-              ariaLabel="Versão anterior da descrição"
-            />
-          </div>
+          {selected.preview ? (
+            <div className={styles.preview}>
+              <RichTextEditor
+                key={selected.id}
+                content={selected.description}
+                onChange={noop}
+                readOnly
+                variant="document"
+                placeholder=""
+                ariaLabel="Versão anterior da descrição"
+              />
+            </div>
+          ) : (
+            <p className={styles.empty}>{EMPTY_VERSION_LABEL}</p>
+          )}
 
           <div className={styles.actions}>
             <Button variant="secondary" onClick={() => setSelectedId(null)} disabled={isRestoring}>

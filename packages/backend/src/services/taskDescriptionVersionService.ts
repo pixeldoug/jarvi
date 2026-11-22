@@ -4,8 +4,9 @@
  * Before the AI changes a description (the agent on web / WhatsApp, an MCP
  * client), the text that was there is kept here. The user can read the kept
  * versions in the task and restore one; a restore keeps the text it replaces
- * too, so it can be undone the same way. What the user types by hand is not
- * versioned: the editor autosaves, and every pause would become a version.
+ * too (even "no text"), so it can be undone the same way. What the user types
+ * by hand is not versioned: the editor autosaves, and every pause would become
+ * a version.
  *
  * A version is the stored doc WITHOUT its `_attachments` (files are base64,
  * megabytes each, and the AI can never remove them): a restore brings the
@@ -43,6 +44,10 @@ export interface TaskDescriptionVersion {
 export const TASK_DESCRIPTION_VERSIONS_MAX = 20;
 const PREVIEW_MAX_CHARS = 180;
 const CHANGE_LINE_MAX_CHARS = 140;
+/** A description that says nothing, as the editor stores it. */
+const EMPTY_DOC = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }] });
+/** Tries of a restore when the description is saved elsewhere while it runs. */
+const RESTORE_ATTEMPTS = 3;
 
 // ---------------------------------------------------------------------------
 // SQL helpers — `$N` placeholders, in order, on both drivers
@@ -57,9 +62,15 @@ async function many<T>(text: string, params: unknown[]): Promise<T[]> {
   return (await getDatabase().all<T[]>(sql(text), params)) ?? [];
 }
 
-async function exec(text: string, params: unknown[]): Promise<void> {
-  if (isPostgreSQL()) await getPool().query(text, params);
-  else await getDatabase().run(sql(text), params);
+/** Runs a write. Resolves to how many rows it changed. */
+async function exec(text: string, params: unknown[]): Promise<number> {
+  if (isPostgreSQL()) return (await getPool().query(text, params)).rowCount ?? 0;
+  return (await getDatabase().run(sql(text), params)).changes ?? 0;
+}
+
+/** `column = $n`, true for two NULLs as well. */
+function sameAs(column: string, placeholder: string): string {
+  return isPostgreSQL() ? `${column} IS NOT DISTINCT FROM ${placeholder}` : `${column} IS ${placeholder}`;
 }
 
 /** PG returns `Date` for TIMESTAMP columns holding our UTC ISO writes (see chatHistoryService). */
@@ -152,8 +163,10 @@ interface VersionRow {
 
 /**
  * Keeps `previous` (the description about to be replaced by `next`) as a
- * version of the task. Nothing is kept when the text did not change or when
- * there was no text. Returns the version's id, or null. Never throws: a failed snapshot must not fail the
+ * version of the task. Nothing is kept when the text did not change, or when
+ * there was no text (unless `keepEmpty`: a restore over an empty description
+ * keeps "it was empty", so it can be undone like any other). Returns the
+ * version's id, or null. Never throws: a failed snapshot must not fail the
  * write it protects.
  */
 export async function keepTaskDescriptionVersion(input: {
@@ -162,10 +175,11 @@ export async function keepTaskDescriptionVersion(input: {
   previous: string | null | undefined;
   next: string | null | undefined;
   source: TaskDescriptionVersionSource;
+  keepEmpty?: boolean;
 }): Promise<string | null> {
   try {
-    const previous = textOnly(input.previous);
-    if (!previous || previous === textOnly(input.next)) return null;
+    const previous = textOnly(input.previous) || (input.keepEmpty ? EMPTY_DOC : '');
+    if (!previous || previous === (textOnly(input.next) || EMPTY_DOC)) return null;
 
     // The same text kept before (a restore undone, then redone): one row, now the newest.
     await exec('DELETE FROM task_description_versions WHERE task_id = $1 AND description = $2', [
@@ -235,37 +249,45 @@ export interface RestoredTaskDescription {
  * Puts a kept version back as the task's description, with the files the task
  * has now. The text it replaces is kept as a version first. null: the task or
  * the version is not the user's.
+ *
+ * The description is only replaced while it is still the one that was read
+ * and kept: if it was saved in between (another tab, the AI), the restore
+ * starts over from that newer one, so its text is kept and its files stay.
  */
 export async function restoreTaskDescriptionVersion(
   taskId: string,
   versionId: string,
   userId: string,
 ): Promise<RestoredTaskDescription | null> {
-  const task = await ownedTask(taskId, userId);
-  if (!task) return null;
-  const [version] = await many<VersionRow>(
-    'SELECT id, description FROM task_description_versions WHERE id = $1 AND task_id = $2 AND user_id = $3',
-    [versionId, taskId, userId],
-  );
-  if (!version) return null;
+  for (let attempt = 0; attempt < RESTORE_ATTEMPTS; attempt++) {
+    const task = await ownedTask(taskId, userId);
+    if (!task) return null;
+    const [version] = await many<VersionRow>(
+      'SELECT id, description FROM task_description_versions WHERE id = $1 AND task_id = $2 AND user_id = $3',
+      [versionId, taskId, userId],
+    );
+    if (!version) return null;
 
-  const restored = withAttachmentsOf(version.description, task.description);
-  const replacedVersionId = await keepTaskDescriptionVersion({
-    taskId,
-    userId,
-    previous: task.description,
-    next: restored,
-    source: 'restore',
-  });
-  await exec('UPDATE tasks SET description = $1, updated_at = $2 WHERE id = $3 AND user_id = $4', [
-    restored,
-    new Date().toISOString(),
-    taskId,
-    userId,
-  ]);
-  // Its text is the description again: it is no longer a "previous" version.
-  await exec('DELETE FROM task_description_versions WHERE id = $1', [versionId]);
+    const restored = withAttachmentsOf(version.description, task.description);
+    const replacedVersionId = await keepTaskDescriptionVersion({
+      taskId,
+      userId,
+      previous: task.description,
+      next: restored,
+      source: 'restore',
+      keepEmpty: true,
+    });
+    const replaced = await exec(
+      `UPDATE tasks SET description = $1, updated_at = $2
+       WHERE id = $3 AND user_id = $4 AND ${sameAs('description', '$5')}`,
+      [restored, new Date().toISOString(), taskId, userId, task.description],
+    );
+    if (replaced === 0) continue;
 
-  const [row] = await many<Record<string, unknown>>('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [taskId, userId]);
-  return { task: row, replaced_version_id: replacedVersionId };
+    // Its text is the description again: it is no longer a "previous" version.
+    await exec('DELETE FROM task_description_versions WHERE id = $1', [versionId]);
+    const [row] = await many<Record<string, unknown>>('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [taskId, userId]);
+    return { task: row, replaced_version_id: replacedVersionId };
+  }
+  throw new Error(`task ${taskId}: the description kept changing while a version was being restored`);
 }

@@ -9,8 +9,9 @@
  * are free to change, since they are meant to be rewritten on every update.
  *
  * A line counts as kept when the new text still carries what it said: its
- * numbers, dates and codes all appear, and most of its words are in one line
- * (or, for a line that was split, spread over the text).
+ * numbers, dates and codes all appear (a short code in capitals, like the
+ * "OE" of an error, counts too), and most of its words are in one line (or,
+ * for a line that was split, spread over the text).
  */
 
 import { markdownToTiptapDoc, type PMNode } from '../../../utils/markdownToTiptapDoc';
@@ -41,8 +42,12 @@ interface DescriptionLine {
 
 const kids = (node: PMNode): PMNode[] => (Array.isArray(node.content) ? node.content : []);
 
+function stripAccents(value: string): string {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function normalize(value: string): string {
-  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return stripAccents(value).toLowerCase();
 }
 
 function inlineText(nodes: PMNode[]): string {
@@ -56,12 +61,30 @@ function inlineText(nodes: PMNode[]): string {
   return out.replace(/\s+/g, ' ').trim();
 }
 
-/** Words that carry what a line says. Anything with a digit always counts. */
-function wordsOf(text: string): string[] {
-  const words = normalize(text)
+/** Every token of a text, as compared: no accents, lower case. */
+function tokensOf(text: string): string[] {
+  return normalize(text)
     .split(/[^a-z0-9]+/)
-    .filter((word) => /\d/.test(word) || (word.length >= 3 && !STOPWORDS.has(word)));
-  return [...new Set(words)];
+    .filter(Boolean);
+}
+
+/**
+ * The tokens of a line that are information by themselves: a number, a date,
+ * an id, and anything written in capitals (an error code like "OE", "PIX",
+ * "CPF"). Changing one changes what the line says, however alike the rest is.
+ */
+function codesOf(text: string): string[] {
+  const codes = stripAccents(text)
+    .split(/[^A-Za-z0-9]+/)
+    .filter((token) => /\d/.test(token) || (token.length >= 2 && token === token.toUpperCase()))
+    .map((token) => token.toLowerCase());
+  return [...new Set(codes)];
+}
+
+/** Words that carry what a line says: its codes, and every word that is not filler. */
+function wordsOf(text: string): string[] {
+  const words = tokensOf(text).filter((word) => word.length >= 3 && !STOPWORDS.has(word));
+  return [...new Set([...codesOf(text), ...words])];
 }
 
 function parseDoc(raw: string | null | undefined): PMNode[] {
@@ -123,12 +146,15 @@ function collectLines(blocks: PMNode[], factsOnly: boolean): DescriptionLine[] {
   return lines;
 }
 
-/** Does the new text still say what `line` said? */
+/**
+ * Does the new text still say what `line` said? `nextLines` holds every token
+ * of each new line, `nextWords` every token of the new text.
+ */
 function isKept(line: DescriptionLine, nextLines: Set<string>[], nextWords: Set<string>): boolean {
   const words = wordsOf(line.text);
   if (words.length === 0) return true;
   // A number, date or code that is gone is information that is gone.
-  if (words.some((word) => /\d/.test(word) && !nextWords.has(word))) return false;
+  if (codesOf(line.text).some((code) => !nextWords.has(code))) return false;
 
   const share = (pool: Set<string>): number => words.filter((word) => pool.has(word)).length / words.length;
   if (nextLines.some((pool) => share(pool) >= SAME_LINE_COVERAGE)) return true;
@@ -206,7 +232,7 @@ export function keepDescriptionHistory(
   if (!nextDoc || nextDoc.type !== 'doc') return unchanged;
   const nextBlocks = Array.isArray(nextDoc.content) ? nextDoc.content : [];
 
-  const nextLines = collectLines(nextBlocks, false).map((line) => new Set(wordsOf(line.text)));
+  const nextLines = collectLines(nextBlocks, false).map((line) => new Set(tokensOf(line.text)));
   const nextWords = new Set(nextLines.flatMap((words) => [...words]));
 
   const seen = new Set<string>();

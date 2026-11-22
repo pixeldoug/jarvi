@@ -231,6 +231,22 @@ async function main(): Promise<void> {
     check(keepDescriptionHistory(before, split).preserved.length === 0, 'a line split in two: kept', keepDescriptionHistory(before, split).preserved);
   });
 
+  await testCase('guard: um código curto em maiúsculas que muda não passa (OE → UE)', async () => {
+    const before = docOf('## Contexto\nMáquina mostra código de erro OE.\nPagamento via PIX para a LG.');
+    const swapped = keepDescriptionHistory(before, docOf('## Contexto\nMáquina mostra código de erro UE.\nPagamento via PIX para a LG.'));
+    check(swapped.preserved.length === 1 && swapped.preserved[0].includes('erro OE'), 'the line with the old code is put back', swapped.preserved);
+    check(tiptapDocToMarkdown(swapped.value).includes('código de erro UE'), 'the new code stays too', tiptapDocToMarkdown(swapped.value));
+
+    const lowercased = keepDescriptionHistory(before, docOf('## Contexto\nA máquina mostra o código de erro oe.\nO pagamento é via Pix para a LG.'));
+    check(lowercased.preserved.length === 0, 'the same codes in another case: kept', lowercased.preserved);
+
+    const mentioned = keepDescriptionHistory(before, docOf('## Contexto\nO código de erro da máquina mudou de OE para UE.\nPagamento via PIX para a LG.'));
+    check(mentioned.preserved.length === 0, 'the old code still mentioned: kept', mentioned.preserved);
+
+    const onlyCode = keepDescriptionHistory(docOf('## Contexto\nOE'), docOf('## Contexto\nUE'));
+    check(onlyCode.preserved.length === 1 && onlyCode.preserved[0] === 'OE', 'a line that is only a code is protected', onlyCode.preserved);
+  });
+
   await testCase('guard: Histórico que já existe recebe as linhas; anexos e texto legado', async () => {
     const before = docOf('## Contexto\nO portão da garagem trava ao fechar desde 02/09/2026.\n\n## Histórico\n- Em 10/09/2026 o técnico trocou a placa.', [{ name: 'foto', previewData: IMAGE_DATA_URL }]);
     const next = docOf('## Contexto\nO portão voltou a funcionar.\n\n## Histórico\n- Em 10/09/2026 o técnico trocou a placa.\n\n## Próximos passos\n- [ ] Pagar o técnico.', [{ name: 'foto', previewData: IMAGE_DATA_URL }]);

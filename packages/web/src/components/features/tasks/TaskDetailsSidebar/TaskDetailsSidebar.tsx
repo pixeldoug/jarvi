@@ -286,6 +286,8 @@ export function TaskDetailsSidebar({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // The versions dialog is on top: Escape closes it, not the task.
+        if (showVersions) return;
         if (isEditingTitle) {
           e.preventDefault();
           skipTitleBlurSaveRef.current = true;
@@ -300,7 +302,7 @@ export function TaskDetailsSidebar({
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose, isEditingTitle, title, task, variant, showCloseButton]);
+  }, [isOpen, onClose, isEditingTitle, title, task, variant, showCloseButton, showVersions]);
 
   const handleTitleClick = () => {
     setIsEditingTitle(true);

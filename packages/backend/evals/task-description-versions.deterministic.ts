@@ -149,6 +149,68 @@ async function main(): Promise<void> {
     check(new Set(texts).size === texts.length && final.length === 1, 'after restore + undo: one version (the old text), none twice', final.length);
   });
 
+  await testCase('restaurar sobre uma descrição vazia também dá para desfazer', async () => {
+    const task = makeTask({ title: 'Trocar o chuveiro', description: docOf(V1, [IMAGE]) });
+    await seedTasksForEval([task]);
+    await aiUpdate(task, { description: V2, user_asked_to_remove: true });
+    const [v1] = await list(task);
+    // The user clears the text by hand (the editor's own save; the file stays).
+    const cleared = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph' }], _attachments: [IMAGE] });
+    await getDatabase().run('UPDATE tasks SET description = ? WHERE id = ?', [cleared, task.id]);
+
+    const restored = await versions.restoreTaskDescriptionVersion(task.id, v1.id, 'eval-user');
+    check((await markdownOf(task.id)) === tiptapDocToMarkdown(docOf(V1)), 'the old text is back', await markdownOf(task.id));
+    check(typeof restored?.replaced_version_id === 'string', 'the empty state was kept, so there is something to undo to', restored?.replaced_version_id);
+    const emptyVersion = (await list(task)).find((v) => v.id === restored?.replaced_version_id);
+    check(emptyVersion?.preview === '' && emptyVersion.source === 'restore', 'it is listed as an empty version', emptyVersion);
+    check(emptyVersion?.change?.kind === 'lacked', 'described by what it did not have yet', emptyVersion?.change);
+
+    const undone = await versions.restoreTaskDescriptionVersion(task.id, restored!.replaced_version_id!, 'eval-user');
+    check((await markdownOf(task.id)).trim() === '', 'undo: the description is empty again', await markdownOf(task.id));
+    check(JSON.parse((await rawOf(task.id)) ?? '{}')._attachments?.length === 1, 'the file is still there');
+    const after = await list(task);
+    check(after.some((v) => v.id === undone?.replaced_version_id && tiptapDocToMarkdown(v.description) === tiptapDocToMarkdown(docOf(V1))), 'the text the undo replaced is a version again', after.map((v) => v.preview));
+    check(!after.some((v) => v.preview === ''), 'and the empty version left the list', after.map((v) => v.preview));
+
+    // The AI writing over an empty description still keeps nothing.
+    await aiUpdate(task, { description: V3 });
+    check(!(await list(task)).some((v) => v.preview === ''), 'an AI write over an empty description keeps no empty version');
+  });
+
+  await testCase('restaurar não passa por cima de um salvamento feito no meio', async () => {
+    const task = makeTask({ title: 'Renovar o seguro', description: docOf(V1) });
+    await seedTasksForEval([task]);
+    await aiUpdate(task, { description: V2, user_asked_to_remove: true });
+    const [v1] = await list(task);
+
+    // Another tab saves (new text + a file) right after the restore read the
+    // task: the save lands when the restore keeps its first snapshot.
+    const NEWER = '## Contexto\nA apólice 7731 vence em 30/11/2026.';
+    const newer = docOf(NEWER, [IMAGE]);
+    await getDatabase().run('CREATE TABLE eval_other_tab (description TEXT)');
+    await getDatabase().run('INSERT INTO eval_other_tab VALUES (?)', [newer]);
+    await getDatabase().run(
+      `CREATE TRIGGER eval_save_in_between AFTER INSERT ON task_description_versions
+       WHEN NEW.source = 'restore' AND (SELECT COUNT(*) FROM eval_other_tab) > 0
+       BEGIN
+         UPDATE tasks SET description = (SELECT description FROM eval_other_tab) WHERE id = NEW.task_id;
+         DELETE FROM eval_other_tab;
+       END`,
+    );
+    try {
+      const restored = await versions.restoreTaskDescriptionVersion(task.id, v1.id, 'eval-user');
+      check((await markdownOf(task.id)) === tiptapDocToMarkdown(docOf(V1)), 'the restore still lands', await markdownOf(task.id));
+      check(JSON.parse((await rawOf(task.id)) ?? '{}')._attachments?.[0]?.previewData === IMAGE.previewData, 'the file added in between is on the task');
+      const after = await list(task);
+      const keptNewer = after.find((v) => v.id === restored?.replaced_version_id);
+      check(tiptapDocToMarkdown(keptNewer?.description) === tiptapDocToMarkdown(docOf(NEWER)), 'the text saved in between was kept, and is what undo goes back to', after.map((v) => v.preview));
+      check(after.some((v) => tiptapDocToMarkdown(v.description).includes('trocou a placa')), 'the text from before that save is kept too', after.map((v) => v.preview));
+    } finally {
+      await getDatabase().run('DROP TRIGGER IF EXISTS eval_save_in_between');
+      await getDatabase().run('DROP TABLE IF EXISTS eval_other_tab');
+    }
+  });
+
   await testCase('só o dono', async () => {
     const task = makeTask({ title: 'Plano de viagem', description: docOf(V1) });
     await seedTasksForEval([task]);
