@@ -1846,8 +1846,6 @@ export async function buildNoteChatContext(
 /** Markdown the chat may send in one `update_note` call (all edits together). */
 export const NOTE_CHAT_WRITE_MAX_CHARS = 20_000;
 
-/** The notes shown back to the model when an edit names a line that is not there. */
-const NOTE_CHAT_RETRY_MAX_CHARS = 6_000;
 
 export type NoteChatWriteResult =
   | {
@@ -1866,6 +1864,8 @@ export type NoteChatWriteResult =
       failures: DocEditFailure[];
       /** The notes as they are, in Markdown, for the model to try again */
       markdown: string;
+      /** The same notes as stored (doc JSON): what the model has read from here on */
+      content: string | null;
     };
 
 /** A note's notes (doc JSON) as stored; null when the note does not exist. */
@@ -1907,7 +1907,10 @@ export async function writeNoteFromChat(
         ok: false,
         code: 'anchor_not_found',
         failures: edited.failures,
-        markdown: clampMiddle(tiptapDocToMarkdown(current.content), NOTE_CHAT_RETRY_MAX_CHARS, 0.5),
+        // Cut like the notes in the chat context (buildNoteChatContext), so
+        // the model sees them again the way it read them at first.
+        markdown: clampMiddle(stripDelimiters(tiptapDocToMarkdown(current.content)), CHAT_NOTES_MAX_CHARS, 0.5),
+        content: current.content,
       };
     }
     if (Buffer.byteLength(edited.doc, 'utf8') > NOTE_BODY_MAX_BYTES) return { ok: false, code: 'too_large' };

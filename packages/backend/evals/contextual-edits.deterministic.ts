@@ -595,6 +595,19 @@ async function main(): Promise<void> {
     check((held.message ?? '').includes('enquanto você respondia') && (held.message ?? '').includes('com o jurídico'), 'the model gets the current text', held.message);
     check((await readNote())?.content === typedSince, 'what the user typed is still there');
 
+    // …and having read it, the model can redo the edit: the same section
+    // replaced over the new text now goes through (it is no longer compared
+    // with what the model had read before the user typed).
+    const sectionRace = { ...ctx, openNote: { id: 'note-1', canWrite: true, content: readByModel } };
+    const section = [{ action: 'replace_section', anchor: 'Próximos passos', content: '- [ ] Revisar o contrato com o jurídico até sexta' }];
+    const heldSection = await executeToolCall('update_note', { edits: section }, sectionRace, WEB);
+    check(heldSection.success === false && (await readNote())?.content === typedSince, 'a section the user typed in is held back first', heldSection);
+    check(sectionRace.openNote.content === typedSince, 'the model copy becomes the text it was just shown');
+    const redone = await executeToolCall('update_note', { edits: section }, sectionRace, WEB);
+    check(redone.success === true, 'the corrected retry over the same section is saved', redone);
+    check(tiptapDocToMarkdown((await readNote())?.content).includes('## Próximos passos\n\n- [ ] Revisar o contrato com o jurídico até sexta\n\n## Riscos'), 'section replaced on the second attempt', (await readNote())?.content);
+    await getDatabase().run('UPDATE notes SET content = ? WHERE id = ?', [typedSince, 'note-1']);
+
     // An edit that only adds goes through, and the model's copy follows.
     const added = await executeToolCall('update_note', { edits: [{ action: 'append_to_section', anchor: 'Riscos', content: 'Câmbio pode subir.' }] }, racing, WEB);
     check(added.success === true && tiptapDocToMarkdown((await readNote())?.content).includes('- [ ] Revisar o contrato com o jurídico'), 'adding does not touch the typed line', added);

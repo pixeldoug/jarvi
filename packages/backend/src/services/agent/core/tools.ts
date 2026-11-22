@@ -1999,6 +1999,10 @@ async function executeUpdateNote(
   });
   if (!written.ok) {
     if (written.code === 'anchor_not_found') {
+      // The message below shows the model the notes as they are now: its next
+      // attempt is compared with that text, not with what it had read before
+      // (or redoing an edit over a section the user changed would fail forever).
+      if (note.content !== undefined) note.content = written.content;
       return {
         success: false,
         error_code: 'anchor_not_found',
