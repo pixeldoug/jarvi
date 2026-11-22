@@ -57,12 +57,13 @@ import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './on
 import { parseDailySummaryTime, updateDailySummarySettings } from '../../dailySummaryService';
 import { updateWeeklyPlanningSettings } from '../../weeklyPlanningService';
 import { NOTE_CHAT_WRITE_MAX_CHARS, writeNoteFromChat } from '../../noteService';
-import { applyDocEditsToRaw, parseDocEdits, type DocEdit } from '../../../utils/docEdits';
+import { applyDocEditsToRaw, hasTooManyDocEdits, parseDocEdits, type DocEdit } from '../../../utils/docEdits';
 import { tiptapDocToMarkdown } from '../../../utils/tiptapDoc';
 import {
   anchorNotFoundMessage,
   DESCRIPTION_SHOWN_MAX_CHARS,
   docEditsToolProperty,
+  tooManyEditsMessage,
   unseenTextMessage,
 } from './contextualEdits';
 import { parseTaskDescription } from './taskDescription';
@@ -960,6 +961,17 @@ async function executeUpdateTask(
       error_code: 'not_found',
       message: 'Tarefa não encontrada',
       entity: { type: 'task', id: taskId },
+    };
+  }
+
+  // A list of edits longer than one call may carry is refused whole, before
+  // anything is written: never cut short and reported as done.
+  if (hasTooManyDocEdits(args.description_edits)) {
+    return {
+      success: false,
+      error_code: 'too_many_edits',
+      message: tooManyEditsMessage((args.description_edits as unknown[]).length),
+      entity: { type: 'task', id: taskId, title: task.title },
     };
   }
 
@@ -1956,6 +1968,15 @@ async function executeUpdateNote(
     };
   }
 
+  // A list longer than one call may carry is refused whole, never cut short.
+  if (hasTooManyDocEdits(args.edits)) {
+    return {
+      success: false,
+      error_code: 'too_many_edits',
+      message: tooManyEditsMessage((args.edits as unknown[]).length),
+      entity,
+    };
+  }
   const edits = parseDocEdits(args.edits);
   const title = typeof args.title === 'string' ? args.title.trim() : '';
   if (edits.length === 0 && !title) {
@@ -1971,7 +1992,11 @@ async function executeUpdateNote(
     };
   }
 
-  const written = await writeNoteFromChat(note.id, { edits, title });
+  const written = await writeNoteFromChat(note.id, {
+    edits,
+    title,
+    ...(note.content !== undefined ? { base: note.content } : {}),
+  });
   if (!written.ok) {
     if (written.code === 'anchor_not_found') {
       return {
@@ -1985,6 +2010,10 @@ async function executeUpdateNote(
       ? { success: false, error_code: 'too_large', message: 'a nota passou do limite de tamanho', entity }
       : { success: false, error_code: 'not_found', message: 'a nota não existe mais', entity };
   }
+
+  // What the model takes the note to be from here on: its next edits this
+  // turn are checked against it.
+  if (note.content !== undefined) note.content = written.content;
 
   const changes: Record<string, unknown> = {};
   if (written.contentChanged) changes.content = docEditsKind(edits);

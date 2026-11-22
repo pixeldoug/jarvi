@@ -7,7 +7,7 @@
  * utils/docEdits.ts.
  */
 
-import { DOC_EDIT_ACTIONS, type DocEditFailure } from '../../../utils/docEdits';
+import { DOC_EDIT_ACTIONS, DOC_EDITS_MAX, type DocEditFailure } from '../../../utils/docEdits';
 
 /**
  * How much of a description the model is shown: in the focused task's prompt,
@@ -21,7 +21,8 @@ export const DESCRIPTION_SHOWN_MAX_CHARS = 12_000;
 export function docEditsToolProperty(subject: 'nota' | 'descrição'): Record<string, unknown> {
   return {
     type: 'array',
-    description: `Edições na ${subject}, aplicadas em ordem. Cada uma diz ONDE (\`anchor\`: um trecho que já existe) e O QUE entra (\`content\`). O resto do texto fica exatamente como está.`,
+    maxItems: DOC_EDITS_MAX,
+    description: `Edições na ${subject}, aplicadas em ordem (no máximo ${DOC_EDITS_MAX} por chamada; se precisar de mais, faça outra chamada). Cada uma diz ONDE (\`anchor\`: um trecho que já existe) e O QUE entra (\`content\`). O resto do texto fica exatamente como está.`,
     items: {
       type: 'object',
       properties: {
@@ -60,6 +61,11 @@ export function contextualEditRules(subject: 'nota' | 'descrição', field: stri
   ].join('\n');
 }
 
+/** What the model reads when a call carries more edits than one call may: nothing was written. */
+export function tooManyEditsMessage(count: number): string {
+  return `São ${count} edições numa chamada só e o máximo é ${DOC_EDITS_MAX}: nada foi alterado. Mande de novo em mais de uma chamada, com até ${DOC_EDITS_MAX} edições em cada. Não diga ao usuário que deu erro: só refaça.`;
+}
+
 /**
  * What the model reads when it tried to overwrite text it never saw whole (a
  * task line shows only the start of a description): nothing was written.
@@ -86,10 +92,14 @@ export function anchorNotFoundMessage(
 ): string {
   const quote = (list: typeof failures): string =>
     list.filter((failure) => failure.anchor).map((failure) => `"${failure.anchor}"`).join(', ');
-  const missing = failures.filter((failure) => failure.reason !== 'part_not_replaceable');
   const parts = failures.filter((failure) => failure.reason === 'part_not_replaceable');
+  const changed = failures.filter((failure) => failure.reason === 'changed_meanwhile');
+  const missing = failures.filter((failure) => !parts.includes(failure) && !changed.includes(failure));
   return [
     missing.length > 0 ? `Não achei ${quote(missing) || 'o trecho'} na ${subject}: nada foi alterado.` : null,
+    changed.length > 0
+      ? `O usuário mexeu em ${quote(changed) || 'esse trecho'} enquanto você respondia, e a sua edição apagaria o que ele escreveu: nada foi alterado. Leia o texto atual abaixo e refaça a edição em cima do que está lá agora, mantendo o que ele acrescentou.`
+      : null,
     parts.length > 0
       ? `Não dá para trocar só o trecho ${quote(parts)} dentro da linha: nada foi alterado. Mande a linha inteira em \`anchor\` e a linha nova completa em \`content\`.`
       : null,

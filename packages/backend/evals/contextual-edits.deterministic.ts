@@ -18,7 +18,13 @@
 
 import 'dotenv/config';
 
-import { applyDocEditsToRaw, parseDocEdits, type DocEdit } from '../src/utils/docEdits';
+import {
+  applyDocEditsToRaw,
+  DOC_EDITS_MAX,
+  hasTooManyDocEdits,
+  parseDocEdits,
+  type DocEdit,
+} from '../src/utils/docEdits';
 import { markdownToTiptapDoc } from '../src/utils/markdownToTiptapDoc';
 import { tiptapDocSections, tiptapDocToMarkdown } from '../src/utils/tiptapDoc';
 import type { AgentOperation, ChannelProfile } from '../src/services/agent/core/types';
@@ -232,6 +238,50 @@ async function main(): Promise<void> {
     check(JSON.parse(r.doc).content[1].content.length === 2, 'sibling items untouched');
   });
 
+  await testCase('engine/não apaga o que foi digitado depois da leitura', () => {
+    // The agent read NOTE; meanwhile the user extended a step and a decision.
+    const read = docOf(NOTE);
+    const typed = docOf(NOTE.replace('- [ ] Revisar o contrato', '- [ ] Revisar o contrato com o jurídico').replace('- Preço fica igual', '- Preço fica igual até junho'));
+    const mdOf = (doc: string) => tiptapDocToMarkdown(doc);
+
+    // A replace that matches the extended line by prefix would drop the new words: skipped.
+    let r = applyDocEditsToRaw(typed, [{ action: 'replace', anchor: 'Revisar o contrato', content: '- [ ] Revisar o contrato até sexta' }], { base: read });
+    check(r.failures[0]?.reason === 'changed_meanwhile' && !r.changed, 'replace over a line typed since is skipped', r.failures);
+    check(mdOf(r.doc).includes('- [ ] Revisar o contrato com o jurídico'), 'the typing is kept', mdOf(r.doc));
+    check(mdOf(r.base ?? '').includes('- [ ] Revisar o contrato até sexta'), 'the reader copy still takes the edit', mdOf(r.base ?? ''));
+
+    // Same for delete and for a section that changed.
+    r = applyDocEditsToRaw(typed, [{ action: 'delete', anchor: 'Preço fica igual' }], { base: read });
+    check(r.failures[0]?.reason === 'changed_meanwhile' && mdOf(r.doc).includes('Preço fica igual até junho'), 'delete of a line typed since is skipped', r.failures);
+    r = applyDocEditsToRaw(typed, [{ action: 'replace_section', anchor: 'Decisões', content: '- Nada decidido' }], { base: read });
+    check(r.failures[0]?.reason === 'changed_meanwhile', 'a section typed in since is not replaced', r.failures);
+    r = applyDocEditsToRaw(typed, [{ action: 'replace_all', content: 'Outro texto.' }], { base: read });
+    check(r.failures[0]?.reason === 'changed_meanwhile', 'a note typed in since is not rewritten', r.failures);
+
+    // Lines nobody touched, and anything that only adds, go through.
+    r = applyDocEditsToRaw(typed, [
+      { action: 'replace', anchor: 'Mandar a ata', content: 'Mandar a ata para todos' },
+      { action: 'append_to_section', anchor: 'Próximos passos', content: '- Ligar para o fornecedor' },
+      { action: 'replace_section', anchor: 'Riscos', content: 'Nenhum por enquanto.' },
+    ], { base: read });
+    check(r.failures.length === 0, 'untouched targets apply', r.failures);
+    const md = mdOf(r.doc);
+    check(md.includes('- [ ] Revisar o contrato com o jurídico\n- [x] Mandar a ata para todos\n- [ ] Ligar para o fornecedor'), 'edits and typing side by side', md);
+    check(md.includes('- Preço fica igual até junho') && md.endsWith('## Riscos\n\nNenhum por enquanto.'), 'the rest as typed', md);
+
+    // Two edits on the same line in one call: the second is compared with the
+    // reader copy after the first, not with the text from before the call.
+    r = applyDocEditsToRaw(read, [
+      { action: 'replace', anchor: 'Lançar em março', content: '- Lançar em abril' },
+      { action: 'replace', anchor: 'Lançar em abril', content: '- Lançar em maio' },
+    ], { base: read });
+    check(r.failures.length === 0 && mdOf(r.doc).includes('- Lançar em maio'), 'chained edits are not mistaken for typing', r.failures);
+
+    // Without a reader copy nothing is compared (the server-only callers).
+    r = applyDocEditsToRaw(typed, [{ action: 'delete', anchor: 'Preço fica igual' }]);
+    check(r.failures.length === 0 && r.base === undefined, 'no base: applied as before');
+  });
+
   await testCase('engine/remover linha e refazer seção', () => {
     let r = edit(NOTE, [{ action: 'delete', anchor: 'Preço fica igual' }, { action: 'delete', anchor: 'Lançar em março' }]);
     check(r.md.includes('## Decisões\n\n## Próximos passos'), 'a list left empty goes', r.md);
@@ -300,6 +350,9 @@ async function main(): Promise<void> {
     const parsed = parseDocEdits([{ action: 'append', content: ' x ' }, { action: 'nope' }, 3, { action: 'replace', anchor: 'a', content: '' }]);
     check(JSON.stringify(parsed) === JSON.stringify([{ action: 'append', content: 'x' }, { action: 'replace', anchor: 'a' }]), 'unknown actions dropped, strings trimmed', parsed);
     check(parseDocEdits('nope').length === 0, 'not an array: none');
+    const many = Array.from({ length: DOC_EDITS_MAX + 1 }, (_, i) => ({ action: 'append', content: `linha ${i}` }));
+    check(hasTooManyDocEdits(many) && !hasTooManyDocEdits(many.slice(1)), 'a list past the limit is flagged, not cut');
+    check(parseDocEdits(many).length === many.length, 'parsing never drops edits silently');
   });
 
   await testCase('prompt/seções da descrição (títulos e rótulos de lista)', () => {
@@ -471,6 +524,27 @@ async function main(): Promise<void> {
     check(r.success === true && !md.includes('Login com Google'), 'removed for good when the user asked', md);
   });
 
+  await testCase('update_task/mais edições do que cabem numa chamada: nada é salvo', async () => {
+    const stored = docOf(TASK_DESCRIPTION);
+    const task = makeTask({ title: 'Login novo 6', description: stored, priority: 'low' });
+    await seedTasksForEval([task]);
+    const description_edits = Array.from({ length: DOC_EDITS_MAX + 1 }, (_, i) => ({ action: 'append_to_section', anchor: 'Critérios de aceite', content: `- Critério ${i + 1}` }));
+    const r = await executeToolCall('update_task', { task_id: task.id, priority: 'high', description_edits }, ctx, WEB);
+    check(r.success === false && r.error_code === 'too_many_edits', 'refused whole', r);
+    check((r.message ?? '').includes(String(DOC_EDITS_MAX)) && (r.message ?? '').includes('mais de uma chamada'), 'the model is told to split', r.message);
+    check((await readDescription(task.id)) === stored, 'description untouched');
+    const row = await getDatabase().get<{ priority: string }>('SELECT priority FROM tasks WHERE id = ?', [task.id]);
+    check(row?.priority === 'low', 'nothing else in the call was saved either', row);
+    const op: AgentOperation = {
+      tool: 'update_task', kind: 'write', args: {}, success: false, iteration: 0,
+      error: { code: 'too_many_edits', message: r.message ?? '' },
+    };
+    check(buildConfirmation([op], WEB) === null, 'silent for the user: the model splits and retries');
+
+    const ok = await executeToolCall('update_task', { task_id: task.id, description_edits: description_edits.slice(0, DOC_EDITS_MAX) }, ctx, WEB);
+    check(ok.success === true && tiptapDocToMarkdown(await readDescription(task.id)).includes(`- Critério ${DOC_EDITS_MAX}`), 'a full batch at the limit is applied', ok);
+  });
+
   await testCase('update_task/schema aceita description_edits e recusa ação desconhecida', () => {
     const tool = getToolDefinition('update_task', WEB);
     const ok = validateToolArguments(tool, { task_id: 't', description_edits: [{ action: 'replace', anchor: 'a', content: 'b' }] });
@@ -509,6 +583,25 @@ async function main(): Promise<void> {
     check(tiptapDocToMarkdown(saved?.content).includes('- [x] Mandar a ata\n- [ ] Ligar para o fornecedor\n\n## Riscos'), 'in "Próximos passos"', saved?.content);
     check(saved?.title === 'Reunião de produto', 'title set');
     check(r.changes?.content === 'add', 'confirmation kind', r.changes);
+
+    // The user typed in a line after the model read the note: an edit over
+    // that line is held back, and the model gets the text as it is now.
+    const readByModel = saved?.content ?? '';
+    const typedSince = docOf(tiptapDocToMarkdown(readByModel).replace('- [ ] Revisar o contrato', '- [ ] Revisar o contrato com o jurídico'));
+    await getDatabase().run('UPDATE notes SET content = ? WHERE id = ?', [typedSince, 'note-1']);
+    const racing = { ...ctx, openNote: { id: 'note-1', canWrite: true, content: readByModel } };
+    const held = await executeToolCall('update_note', { edits: [{ action: 'replace', anchor: 'Revisar o contrato', content: '- [ ] Revisar o contrato até sexta' }] }, racing, WEB);
+    check(held.success === false && held.error_code === 'anchor_not_found', 'held back for the model to redo', held);
+    check((held.message ?? '').includes('enquanto você respondia') && (held.message ?? '').includes('com o jurídico'), 'the model gets the current text', held.message);
+    check((await readNote())?.content === typedSince, 'what the user typed is still there');
+
+    // An edit that only adds goes through, and the model's copy follows.
+    const added = await executeToolCall('update_note', { edits: [{ action: 'append_to_section', anchor: 'Riscos', content: 'Câmbio pode subir.' }] }, racing, WEB);
+    check(added.success === true && tiptapDocToMarkdown((await readNote())?.content).includes('- [ ] Revisar o contrato com o jurídico'), 'adding does not touch the typed line', added);
+    check(racing.openNote.content === (await readNote())?.content, 'the model copy is the note after its edit');
+
+    const tooMany = await executeToolCall('update_note', { edits: Array.from({ length: DOC_EDITS_MAX + 1 }, () => ({ action: 'append', content: 'x' })) }, noteCtx, WEB);
+    check(tooMany.success === false && tooMany.error_code === 'too_many_edits', 'an oversized batch is refused whole', tooMany);
 
     const readOnly = await executeToolCall('update_note', { edits: [{ action: 'append', content: 'x' }] }, { ...ctx, openNote: { id: 'note-1', canWrite: false } }, WEB);
     check(readOnly.success === false && readOnly.error_code === 'read_only', 'read-only note refused', readOnly);

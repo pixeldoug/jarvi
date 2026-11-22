@@ -150,7 +150,7 @@ export interface StreamChatOptions {
    * Notas: the note open beside the chat. With `canWrite`, general mode also
    * gets `update_note`, which writes to this note and no other.
    */
-  openNote?: { id: string; canWrite: boolean };
+  openNote?: { id: string; canWrite: boolean; content?: string | null };
 }
 
 export async function streamChat(

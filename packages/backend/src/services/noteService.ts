@@ -1853,6 +1853,8 @@ export type NoteChatWriteResult =
   | {
       ok: true;
       title: string;
+      /** The notes as they are now (doc JSON) */
+      content: string | null;
       contentChanged: boolean;
       titleChanged: boolean;
     }
@@ -1866,11 +1868,18 @@ export type NoteChatWriteResult =
       markdown: string;
     };
 
+/** A note's notes (doc JSON) as stored; null when the note does not exist. */
+export async function getNoteNotesContent(noteId: string): Promise<string | null> {
+  const row = await one<{ content: string | null }>('SELECT content FROM notes WHERE id = $1', [noteId]);
+  return row ? row.content ?? '' : null;
+}
+
 /**
  * Applies the chat's edits to the note's notes (and/or sets its title). All
  * or nothing: an edit that cannot find its place leaves the note untouched,
- * so the model can try again with the right anchor. The caller has already
- * checked write access.
+ * so the model can try again with the right anchor. With `base` (the notes as
+ * the model read them), so does an edit that would replace or remove a line
+ * the user changed since. The caller has already checked write access.
  *
  * The web applies the same edits to the open editor (see
  * packages/web/src/components/features/notes/chatNoteEdits.ts), then saves
@@ -1878,7 +1887,7 @@ export type NoteChatWriteResult =
  */
 export async function writeNoteFromChat(
   noteId: string,
-  input: { edits?: DocEdit[]; title?: string },
+  input: { edits?: DocEdit[]; title?: string; base?: string | null },
 ): Promise<NoteChatWriteResult> {
   const current = await one<{ title: string | null; content: string | null }>(
     'SELECT title, content FROM notes WHERE id = $1',
@@ -1888,7 +1897,11 @@ export async function writeNoteFromChat(
 
   const patch: NotePatch = {};
   if (input.edits && input.edits.length > 0) {
-    const edited = applyDocEditsToRaw(current.content, input.edits);
+    const edited = applyDocEditsToRaw(
+      current.content,
+      input.edits,
+      input.base === undefined ? {} : { base: input.base },
+    );
     if (edited.failures.length > 0) {
       return {
         ok: false,
@@ -1912,6 +1925,7 @@ export async function writeNoteFromChat(
   return {
     ok: true,
     title: titleChanged ? title : currentTitle,
+    content: patch.content ?? current.content,
     contentChanged: patch.content !== undefined,
     titleChanged,
   };

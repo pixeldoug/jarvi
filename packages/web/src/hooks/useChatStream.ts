@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
 import type { ChatStoredMessage } from '../lib/chatsApi';
 import { stripTaskRefs } from '../lib/taskRefs';
+import { markChatNoteTurn } from '../components/features/notes/chatNoteEdits';
 import { flushNoteSaves } from '../components/features/notes/noteAutosave';
 import { chatsKeys } from './useChats';
 
@@ -449,7 +450,11 @@ export function useChatStream(
     try {
       // Note mode: the agent reads the note from the server (and may write in
       // it), so what was just typed has to be there first. Never rejects.
-      if (mode === 'note' && noteId) await flushNoteSaves(queryClient, noteId);
+      if (mode === 'note' && noteId) {
+        await flushNoteSaves(queryClient, noteId);
+        // …and the open note remembers this text: what the agent is reading.
+        markChatNoteTurn(noteId);
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
         method: 'POST',

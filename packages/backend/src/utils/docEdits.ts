@@ -57,9 +57,22 @@ export interface DocEditFailure {
    * `anchor_not_found`: no line has that text. `anchor_required`: the action
    * needs an anchor. `part_not_replaceable`: the anchor names part of a line,
    * but that part cannot be swapped on its own (it spans a file chip or a
-   * line break) — the caller has to send the whole line.
+   * line break) — the caller has to send the whole line. `changed_meanwhile`:
+   * the text the edit would replace or remove is no longer what its writer
+   * read (see `DocEditOptions.base`).
    */
-  reason: 'anchor_not_found' | 'anchor_required' | 'part_not_replaceable';
+  reason: 'anchor_not_found' | 'anchor_required' | 'part_not_replaceable' | 'changed_meanwhile';
+}
+
+export interface DocEditOptions<Doc> {
+  /**
+   * The doc as whoever wrote the edits read it. With it, an edit that replaces
+   * or removes text is applied only where that text still reads the same: a
+   * line (or section) someone changed since is left alone and reported as
+   * `changed_meanwhile`, so their words are never dropped by an edit that was
+   * written without seeing them. Edits that only add are always applied.
+   */
+  base?: Doc;
 }
 
 export interface DocEditResult {
@@ -68,23 +81,35 @@ export interface DocEditResult {
   failures: DocEditFailure[];
   /** Where the last applied edit landed */
   focus: DocEditFocus | null;
+  /** `options.base` after the same edits: what their writer now takes the doc to be */
+  base?: PMNode[];
 }
 
-export interface RawDocEditResult extends Omit<DocEditResult, 'blocks'> {
+export interface RawDocEditResult extends Omit<DocEditResult, 'blocks' | 'base'> {
   /** The doc, serialized like the editor does */
   doc: string;
+  /** `options.base` after the same edits, serialized */
+  base?: string;
   changed: boolean;
   /** No block left */
   empty: boolean;
 }
 
-const MAX_EDITS = 20;
+/**
+ * Most edits one call may carry. A longer list is refused whole by whoever
+ * receives it (see the tools): never cut short and reported as done.
+ */
+export const DOC_EDITS_MAX = 20;
+
+/** True when `value` (a tool call's edits, untrusted) has more edits than one call may carry. */
+export const hasTooManyDocEdits = (value: unknown): boolean =>
+  Array.isArray(value) && value.length > DOC_EDITS_MAX;
 
 /** Edits as a tool call sent them (untrusted): unknown actions are dropped. */
 export function parseDocEdits(value: unknown): DocEdit[] {
   if (!Array.isArray(value)) return [];
   const edits: DocEdit[] = [];
-  for (const item of value.slice(0, MAX_EDITS)) {
+  for (const item of value) {
     if (!item || typeof item !== 'object') continue;
     const { action, anchor, content } = item as Record<string, unknown>;
     if (typeof action !== 'string' || !(DOC_EDIT_ACTIONS as readonly string[]).includes(action)) continue;
@@ -547,13 +572,57 @@ function applyEdit(blocks: PMNode[], edit: DocEdit): Applied | DocEditFailure['r
     : editBlock(blocks, unit.block, edit.action, nodes);
 }
 
-/** Applies `edits` in order. One that cannot find its place is reported and skipped. */
-export function applyDocEdits(blocks: PMNode[], edits: DocEdit[]): DocEditResult {
+/** Actions that replace or remove text that is already there. */
+const DESTRUCTIVE_ACTIONS = new Set<DocEditAction>(['replace', 'replace_section', 'delete', 'replace_all']);
+
+/**
+ * The text a destructive edit would replace or remove: the line, the whole
+ * item (what is nested under it included), the section, or the whole doc.
+ * Null when its anchor matches nothing.
+ */
+function targetText(blocks: PMNode[], edit: DocEdit): string | null {
+  if (edit.action === 'replace_all') return blocks.map(nodeText).join('\n');
+  if (!edit.anchor) return null;
+  const sectionEdit = edit.action === 'replace_section';
+  const unit = findUnit(blocks, edit.anchor, sectionEdit);
+  if (!unit) return null;
+  if (unit.list !== undefined && unit.item !== undefined) return nodeText(nodeAt(blocks, [...unit.list, unit.item]));
+  if (!sectionEdit) return nodeText(blocks[unit.block]);
+  return blocks.slice(unit.block, sectionEnd(blocks, unit.block)).map(nodeText).join('\n');
+}
+
+/**
+ * Applies `edits` in order. One that cannot find its place — or, with
+ * `options.base`, would overwrite text that changed since it was read — is
+ * reported and skipped.
+ */
+export function applyDocEdits(
+  blocks: PMNode[],
+  edits: DocEdit[],
+  options: DocEditOptions<PMNode[]> = {},
+): DocEditResult {
   let current = blocks;
+  let base = options.base;
   let focus: DocEditFocus | null = null;
   const failures: DocEditFailure[] = [];
 
   edits.forEach((edit, index) => {
+    // The writer's own copy takes every edit, so the next ones are compared
+    // with what the writer expects to be there by then.
+    const baseBefore = base;
+    if (base) {
+      const onBase = applyEdit(base, edit);
+      if (typeof onBase !== 'string') base = onBase.blocks;
+    }
+    if (baseBefore && DESTRUCTIVE_ACTIONS.has(edit.action)) {
+      const read = targetText(baseBefore, edit);
+      const now = targetText(current, edit);
+      if (read !== null && now !== null && read !== now) {
+        failures.push({ index, anchor: edit.anchor ?? '', reason: 'changed_meanwhile' });
+        return;
+      }
+    }
+
     const applied = applyEdit(current, edit);
     if (typeof applied === 'string') {
       failures.push({ index, anchor: edit.anchor ?? '', reason: applied });
@@ -563,7 +632,7 @@ export function applyDocEdits(blocks: PMNode[], edits: DocEdit[]): DocEditResult
     focus = applied.focus;
   });
 
-  return { blocks: current, failures, focus };
+  return { blocks: current, failures, focus, ...(base ? { base } : {}) };
 }
 
 /** The doc's root: the editor's JSON, or text from before it (read as Markdown). */
@@ -582,15 +651,22 @@ function parseRoot(raw: string | null | undefined): Record<string, unknown> {
 }
 
 /** `applyDocEdits` on a stored doc (the editor's JSON string), keeping its other root keys. */
-export function applyDocEditsToRaw(raw: string | null | undefined, edits: DocEdit[]): RawDocEditResult {
+export function applyDocEditsToRaw(
+  raw: string | null | undefined,
+  edits: DocEdit[],
+  options: DocEditOptions<string | null> = {},
+): RawDocEditResult {
   const root = parseRoot(raw);
   const before = Array.isArray(root.content) ? (root.content as PMNode[]) : [];
-  const { blocks, failures, focus } = applyDocEdits(before, edits);
+  const baseRoot = options.base === undefined ? null : parseRoot(options.base);
+  const baseBlocks = baseRoot && Array.isArray(baseRoot.content) ? (baseRoot.content as PMNode[]) : [];
+  const { blocks, failures, focus, base } = applyDocEdits(before, edits, baseRoot ? { base: baseBlocks } : {});
   return {
     doc: JSON.stringify({ ...root, type: 'doc', content: blocks }),
     changed: JSON.stringify(before) !== JSON.stringify(blocks),
     empty: blocks.length === 0,
     failures,
     focus,
+    ...(baseRoot && base ? { base: JSON.stringify({ ...baseRoot, type: 'doc', content: base }) } : {}),
   };
 }

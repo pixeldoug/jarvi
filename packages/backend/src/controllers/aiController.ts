@@ -11,6 +11,7 @@ import {
   buildNoteChatContext,
   canWriteNote,
   getNoteAccess,
+  getNoteNotesContent,
   getUserTimezone,
 } from '../services/noteService';
 import {
@@ -165,7 +166,7 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
   // here, before the SSE headers, so a bad id is a plain JSON error.
   let noteContext: string | undefined;
   // …and, when the user can edit it, the note the chat may write in.
-  let openNote: { id: string; canWrite: boolean } | undefined;
+  let openNote: { id: string; canWrite: boolean; content?: string | null } | undefined;
   if (mode === 'note') {
     try {
       const access = await getNoteAccess(noteId as string, userId);
@@ -178,7 +179,8 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
         return;
       }
       noteContext = context;
-      openNote = { id: noteId as string, canWrite };
+      // The notes as the model reads them now: what its edits are checked against.
+      openNote = { id: noteId as string, canWrite, content: await getNoteNotesContent(noteId as string) };
     } catch (err) {
       console.error('Failed to load note for chat:', err);
       res.status(500).json({ error: 'Failed to load note' });

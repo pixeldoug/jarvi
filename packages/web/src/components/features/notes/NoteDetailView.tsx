@@ -296,21 +296,42 @@ export function NoteDetailView({
   // the autosave sends it again, together with anything typed meanwhile.
   const [chatEditSeq, redrawNotes] = useReducer((n: number) => n + 1, 0);
   const chatEditFocusRef = useRef<DocEditFocus | null>(null);
-  useChatNoteEdits(note.id, (edit) => {
-    if (!canEdit) return;
-    if (edit.title !== undefined && edit.title !== titleRef.current) handleTitleChange(edit.title);
-    if (edit.edits.length === 0) return;
-    // An edit whose line changed here meanwhile is skipped; the rest applies.
-    const { doc, changed, focus } = applyDocEditsToRaw(notesDraftRef.current, edit.edits);
-    if (!changed) return;
-    handleNotesChange(doc);
-    chatEditFocusRef.current = focus;
-    redrawNotes();
-    if (tab !== 'notas') {
-      void flush();
-      onTabChange('notas');
-    }
-  });
+  // The notes as the agent read them (the draft when the chat turn started,
+  // then after each of its edits): what its edits are checked against.
+  const chatReadNotesRef = useRef<string | null>(null);
+  useChatNoteEdits(
+    note.id,
+    (edit) => {
+      if (!canEdit) return;
+      if (edit.title !== undefined && edit.title !== titleRef.current) handleTitleChange(edit.title);
+      if (edit.edits.length === 0) return;
+      // An edit that would replace or remove a line typed over since the agent
+      // read the note is skipped (so is one whose line is gone): the typing
+      // stays, and the next save puts it back on the server too.
+      const { doc, changed, focus, failures, base } = applyDocEditsToRaw(
+        notesDraftRef.current,
+        edit.edits,
+        chatReadNotesRef.current === null ? {} : { base: chatReadNotesRef.current },
+      );
+      if (base !== undefined) chatReadNotesRef.current = base;
+      if (failures.length > 0) {
+        toast.info('Você editou a nota enquanto a Jarvi respondia. Parte da alteração dela não foi aplicada, para não apagar o que você escreveu.');
+        // The server applied it all: send this draft even if nothing else changed here.
+        schedule({ content: notesDraftRef.current }, CONTENT_SAVE_DELAY_MS);
+      }
+      if (!changed) return;
+      handleNotesChange(doc);
+      chatEditFocusRef.current = focus;
+      redrawNotes();
+      if (tab !== 'notas') {
+        void flush();
+        onTabChange('notas');
+      }
+    },
+    () => {
+      chatReadNotesRef.current = notesDraftRef.current;
+    },
+  );
 
   // Bring what the chat changed into view: it may be anywhere in the note.
   useEffect(() => {

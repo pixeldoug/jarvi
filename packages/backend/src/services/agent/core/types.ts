@@ -358,7 +358,16 @@ export interface AgentContext {
    * to this note — the model never picks a note id — and only with `canWrite`
    * (owner or write share; checked by the controller for this user).
    */
-  openNote?: { id: string; canWrite: boolean };
+  openNote?: {
+    id: string;
+    canWrite: boolean;
+    /**
+     * The notes (doc JSON) as the model read them: at the start of the turn,
+     * then after each of its own edits. An edit that would replace or remove
+     * a line the user changed since is held back (see utils/docEdits.ts).
+     */
+    content?: string | null;
+  };
   /**
    * Tasks whose whole description a tool result showed the model this turn
    * (filled by `update_task`). With the focused task and the descriptions
