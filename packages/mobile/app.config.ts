@@ -26,6 +26,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   userInterfaceStyle: 'automatic',
   ios: {
     bundleIdentifier: 'com.jarvi.app',
+    // Apple Developer team; @bacons/apple-targets signs the watch app (targets/watch) with it.
+    appleTeamId: 'Y4382T9AG4',
     supportsTablet: false,
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -78,6 +80,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }],
+    // Native targets in ./targets (the Apple Watch app), added to the Xcode project at prebuild.
+    '@bacons/apple-targets',
   ],
   experiments: {
     typedRoutes: true,

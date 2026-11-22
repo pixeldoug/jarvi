@@ -3,6 +3,7 @@ import { createContext, use, useCallback, useEffect, useState, type ReactNode } 
 
 import { ApiError, setSessionToken } from '@/api/client';
 import { authApi } from '@/api/endpoints';
+import { useWatchSession } from '@/features/watch/use-watch-session';
 import { applyUserLocale } from '@/i18n';
 import { appEvents } from '@/lib/events';
 import { STORAGE_KEYS, storage } from '@/lib/storage';
@@ -13,7 +14,7 @@ import { signOutOfGoogle } from './google';
  * `offline`: a stored session exists but the profile could not be loaded
  * (no network, backend down). The session is kept so a retry can resume it.
  */
-type AuthStatus = 'loading' | 'signedOut' | 'signedIn' | 'offline';
+export type AuthStatus = 'loading' | 'signedOut' | 'signedIn' | 'offline';
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -77,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [attempt]);
 
   useEffect(() => appEvents.on('unauthorized', () => void clearSession()), [clearSession]);
+
+  useWatchSession(status);
 
   const acceptSession = useCallback(
     async (session: AuthSession) => {

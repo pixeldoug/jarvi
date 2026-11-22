@@ -40,7 +40,20 @@ O CI (`.github/workflows/mobile.yml`) roda os mesmos passos em todo PR que toca 
 | `src/ui` | Componentes base |
 | `src/types` | Modelos da API. `recurrence.ts`/`reminder.ts` espelham `packages/shared` (mantenha em sincronia) |
 
+| `modules/jarvi-watch` | Módulo nativo local que passa a sessão do iPhone para o Apple Watch (WatchConnectivity) |
+| `targets/watch` | App do Apple Watch em SwiftUI, embutido no app do iPhone pelo `@bacons/apple-targets` |
+
 Contrato de UI: [compliance.md](compliance.md).
+
+## Apple Watch
+
+O relógio mostra as tarefas vencidas e as de hoje, marca como feita e cria tarefa para hoje por voz (o campo "Nova tarefa" abre o ditado do relógio). Ele não tem login próprio: o app do iPhone manda o token pelo WatchConnectivity a cada entrada e abertura (`src/features/watch/use-watch-session.ts`), e o relógio guarda no Keychain e fala direto com o backend. Sair no iPhone também desconecta o relógio.
+
+- Só vai junto em build nativo (EAS). No Expo Go e no Android o módulo não existe e nada acontece.
+- O `expo prebuild` cria o alvo `JarviWatch` (bundle `com.jarvi.app.watchkitapp`, watchOS 10+) e gera o ícone em `targets/watch/Assets.xcassets`, que fica fora do git.
+- O EAS pede um perfil de assinatura também para o relógio no primeiro build (`eas build` cuida disso com a conta Apple).
+- Para instalar: TestFlight no iPhone, e o app aparece no relógio pareado (ou pelo app Watch do iPhone).
+- Textos em `targets/watch/pt.lproj` e `en.lproj` (as chaves são o texto em português).
 
 ## Builds e publicação (EAS)
 
