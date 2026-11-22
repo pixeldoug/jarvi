@@ -7,22 +7,26 @@ import { useTranslation } from 'react-i18next';
 import { ApiError, errorMessage } from '@/api/client';
 import { authApi } from '@/api/endpoints';
 import { useAuth } from '@/auth/auth-provider';
-import { GoogleButton } from '@/auth/google-button';
+import { AuthBackdrop } from '@/features/auth/auth-backdrop';
 import { useLocale } from '@/i18n';
 import { WEB_APP_URL } from '@/lib/links';
+import { useTheme } from '@/theme/theme-provider';
 import { spacing } from '@/theme/tokens';
 import { Button } from '@/ui/button';
-import { Screen } from '@/ui/screen';
+import { WarningIcon } from '@/ui/icons';
+import { PillField } from '@/ui/pill-field';
 import { Text } from '@/ui/text';
-import { TextField } from '@/ui/text-field';
+import { TextLink } from '@/ui/text-link';
 
 export default function EmailSignInScreen() {
   const { acceptSession } = useAuth();
+  const { colors } = useTheme();
   const { t } = useTranslation('auth');
   const locale = useLocale();
   const passwordRef = useRef<TextInputInstance>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -47,17 +51,12 @@ export default function EmailSignInScreen() {
     }
   };
 
+  const clearError = () => {
+    if (error) setError(null);
+  };
+
   return (
-    <Screen
-      scroll
-      edges={['bottom']}
-      footer={
-        <>
-          <Button label={t('email.submit')} onPress={() => void signIn()} loading={busy} />
-          <GoogleButton />
-        </>
-      }
-    >
+    <AuthBackdrop onBack={() => router.back()}>
       <View style={styles.header}>
         <Text variant="heading-lg">{t('email.title')}</Text>
         <Text variant="body-md" color="contentSecondary">
@@ -66,11 +65,15 @@ export default function EmailSignInScreen() {
       </View>
 
       <View style={styles.form}>
-        <TextField
-          label={t('email.emailLabel')}
+        <PillField
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => {
+            setEmail(text);
+            clearError();
+          }}
+          error={!!error}
           placeholder={t('email.emailPlaceholder')}
+          accessibilityLabel={t('email.emailLabel')}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -79,29 +82,49 @@ export default function EmailSignInScreen() {
           returnKeyType="next"
           onSubmitEditing={() => passwordRef.current?.focus()}
         />
-        <TextField
+        <PillField
           ref={passwordRef}
-          label={t('email.passwordLabel')}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+            setPassword(text);
+            clearError();
+          }}
+          error={!!error}
           placeholder={t('email.passwordPlaceholder')}
-          secureTextEntry
+          accessibilityLabel={t('email.passwordLabel')}
+          secureTextEntry={!showPassword}
           textContentType="password"
           autoComplete="current-password"
           returnKeyType="go"
           onSubmitEditing={() => void signIn()}
-          error={error}
+          accessory={
+            <TextLink
+              label={showPassword ? t('email.hidePassword') : t('email.showPassword')}
+              color="contentSecondary"
+              underline={false}
+              onPress={() => setShowPassword((shown) => !shown)}
+            />
+          }
         />
-        <Button
-          label={t('email.forgotPassword')}
-          variant="ghost"
-          size="sm"
-          style={styles.forgot}
-          // `?lang=` opens the web page in the app's language (web ignores it when unknown).
-          onPress={() => void WebBrowser.openBrowserAsync(`${WEB_APP_URL}/forgot-password?lang=${locale}`)}
-        />
+        {error ? (
+          <View style={styles.error} accessibilityLiveRegion="polite">
+            <WarningIcon size={16} color={colors.contentNegative} />
+            <Text variant="body-sm" color="contentNegative" style={styles.errorText}>
+              {error}
+            </Text>
+          </View>
+        ) : null}
+        <Button label={t('email.submit')} onPress={() => void signIn()} loading={busy} style={styles.submit} />
       </View>
-    </Screen>
+
+      <TextLink
+        label={t('email.forgotPassword')}
+        role="link"
+        style={styles.forgot}
+        // `?lang=` opens the web page in the app's language (web ignores it when unknown).
+        onPress={() => void WebBrowser.openBrowserAsync(`${WEB_APP_URL}/forgot-password?lang=${locale}`)}
+      />
+    </AuthBackdrop>
   );
 }
 
@@ -110,10 +133,20 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   form: {
-    gap: spacing.lg,
+    gap: spacing.md,
+  },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  errorText: {
+    flex: 1,
+  },
+  submit: {
+    marginTop: spacing.xs,
   },
   forgot: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 0,
+    alignSelf: 'center',
   },
 });

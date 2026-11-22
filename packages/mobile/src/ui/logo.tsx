@@ -1,6 +1,8 @@
+import { View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { useTheme } from '@/theme/theme-provider';
+import { radius } from '@/theme/tokens';
 
 /** Jarvi symbol (packages/web/src/assets/logo/symbol.svg). */
 const SYMBOL_PATH =
@@ -9,6 +11,28 @@ const SYMBOL_PATH =
 interface LogoProps {
   size?: number;
   color?: string;
+}
+
+const TILE_SIZE = 56;
+
+/** The symbol on a rounded tile, like the app icon (dark tile in light mode). */
+export function LogoTile() {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        width: TILE_SIZE,
+        height: TILE_SIZE,
+        borderRadius: radius.icon,
+        borderCurve: 'continuous',
+        backgroundColor: colors.contentPrimary,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Logo size={TILE_SIZE * 0.6} color={colors.surfacePrimary} />
+    </View>
+  );
 }
 
 export function Logo({ size = 40, color }: LogoProps) {

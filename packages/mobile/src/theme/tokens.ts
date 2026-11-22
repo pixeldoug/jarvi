@@ -132,6 +132,8 @@ export const typography = {
   'body-sm': { fontFamily: fontFamily.regular, fontSize: 13, lineHeight: 18, letterSpacing: 0.15 },
   'label-md': { fontFamily: fontFamily.medium, fontSize: 15, lineHeight: 22, letterSpacing: -0.25 },
   'label-sm': { fontFamily: fontFamily.medium, fontSize: 12, lineHeight: 16, letterSpacing: -0.1 },
+  /** A flag emoji sized to overflow a 24pt circle, so the circle shows only the flag (country picker). */
+  'flag-fill': { fontSize: 32, lineHeight: 38 },
 } as const;
 export type TypographyVariant = keyof typeof typography;
 
@@ -139,6 +141,10 @@ export const radius = {
   sm: 12,
   md: 16,
   lg: 24,
+  /** App-icon tile (56pt) on the sign-in screens. */
+  icon: 20,
+  /** Top corners of the sign-in sheet over the sky. */
+  sheet: 36,
   round: 9999,
 } as const;
 

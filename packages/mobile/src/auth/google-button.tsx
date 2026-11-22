@@ -35,7 +35,7 @@ export function GoogleButton() {
   return (
     <Button
       label={t('google.button')}
-      variant="secondary"
+      variant="outline"
       icon={<GoogleLogoIcon size={18} color={colors.contentPrimary} weight="bold" />}
       loading={busy}
       onPress={() => void signIn()}
