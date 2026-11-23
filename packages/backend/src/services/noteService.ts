@@ -1857,6 +1857,8 @@ export type NoteChatWriteResult =
       titleChanged: boolean;
     }
   | { ok: false; code: 'not_found' | 'too_large' }
+  /** The notes are too long to be shown whole, and the edits would replace a part the model may not have read */
+  | { ok: false; code: 'shown_cut' }
   | {
       ok: false;
       code: 'anchor_not_found';
@@ -1897,6 +1899,13 @@ export async function writeNoteFromChat(
 
   const patch: NotePatch = {};
   if (input.edits && input.edits.length > 0) {
+    // The chat context shows long notes with their middle cut out (see
+    // buildNoteChatContext): a whole section or the whole text is only
+    // replaced when the model read the notes whole. Line edits always can.
+    const shownCut = stripDelimiters(tiptapDocToMarkdown(current.content)).length > CHAT_NOTES_MAX_CHARS;
+    if (shownCut && input.edits.some((edit) => edit.action === 'replace_section' || edit.action === 'replace_all')) {
+      return { ok: false, code: 'shown_cut' };
+    }
     const edited = applyDocEditsToRaw(
       current.content,
       input.edits,

@@ -367,6 +367,7 @@ async function main(): Promise<void> {
   const { validateToolArguments } = await import('../src/services/agent/core/toolValidation');
   const { buildConfirmation } = await import('../src/services/agent/core/confirmations');
   const { formatTaskLine } = await import('../src/services/agent/core/tasks');
+  const { notesFingerprint } = await import('../src/services/noteService');
 
   const ctx = buildContext({});
   const readDescription = async (id: string): Promise<string> => {
@@ -602,6 +603,11 @@ async function main(): Promise<void> {
     const section = [{ action: 'replace_section', anchor: 'Próximos passos', content: '- [ ] Revisar o contrato com o jurídico até sexta' }];
     const heldSection = await executeToolCall('update_note', { edits: section }, sectionRace, WEB);
     check(heldSection.success === false && (await readNote())?.content === typedSince, 'a section the user typed in is held back first', heldSection);
+    check(
+      heldSection.data?.note_id === 'note-1' && heldSection.data?.reread === notesFingerprint(typedSince),
+      'the web is told which text the model was shown (so the open note follows)',
+      heldSection.data,
+    );
     check(sectionRace.openNote.content === typedSince, 'the model copy becomes the text it was just shown');
     const redone = await executeToolCall('update_note', { edits: section }, sectionRace, WEB);
     check(redone.success === true, 'the corrected retry over the same section is saved', redone);
@@ -620,6 +626,40 @@ async function main(): Promise<void> {
     check(readOnly.success === false && readOnly.error_code === 'read_only', 'read-only note refused', readOnly);
     const none = await executeToolCall('update_note', { edits: [{ action: 'append', content: 'x' }] }, ctx, WEB);
     check(none.success === false && none.error_code === 'no_open_note', 'no open note refused', none);
+  });
+
+  await testCase('update_note/nota mostrada cortada: só edições por linha', async () => {
+    // Longer than the chat context shows: the model reads it with the middle cut out.
+    const middle = Array.from({ length: 220 }, (_, i) => `Registro ${i + 1} da conversa, só para a nota passar do que o chat mostra inteiro.`).join('\n\n');
+    const long = docOf(`## Abertura\n\nComeço da nota.\n\n## Meio\n\n${middle}\n\n## Próximos passos\n\n- [ ] Passo do fim`);
+    check(tiptapDocToMarkdown(long).length > 12_000, 'fixture is longer than what the model is shown');
+    const now = new Date().toISOString();
+    await getDatabase().run(
+      'INSERT INTO notes (id, user_id, title, content, preview, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ['note-long', 'eval-user', 'Longa', long, '', now, now],
+    );
+    const longCtx = { ...ctx, openNote: { id: 'note-long', canWrite: true, content: long } };
+    const read = async () => (await getDatabase().get<{ content: string }>('SELECT content FROM notes WHERE id = ?', ['note-long']))?.content ?? '';
+
+    const section = await executeToolCall('update_note', { edits: [{ action: 'replace_section', anchor: 'Meio', content: 'Resumo curto.' }] }, longCtx, WEB);
+    check(section.success === false && section.error_code === 'note_shown_cut', 'a whole section is not replaced', section);
+    const all = await executeToolCall('update_note', { edits: [{ action: 'replace_all', content: 'Outro texto.' }] }, longCtx, WEB);
+    check(all.success === false && all.error_code === 'note_shown_cut', 'nor the whole note', all);
+    check((await read()) === long, 'note untouched');
+    const op: AgentOperation = {
+      tool: 'update_note', kind: 'write', args: {}, success: false, iteration: 0,
+      error: { code: 'note_shown_cut', message: section.message ?? '' },
+    };
+    check(buildConfirmation([op], WEB) === null, 'silent for the user: the model redoes it line by line');
+
+    // Even after an edit was held back and the note shown again (still cut).
+    const miss = await executeToolCall('update_note', { edits: [{ action: 'replace', anchor: 'Linha fantasma', content: 'x' }] }, longCtx, WEB);
+    check(miss.success === false && miss.error_code === 'anchor_not_found', 'a miss shows the note again', miss);
+    const retry = await executeToolCall('update_note', { edits: [{ action: 'replace_all', content: 'Outro texto.' }] }, longCtx, WEB);
+    check(retry.success === false && retry.error_code === 'note_shown_cut' && (await read()) === long, 'the retry cannot rewrite what was not shown', retry);
+
+    const line = await executeToolCall('update_note', { edits: [{ action: 'append_to_section', anchor: 'Próximos passos', content: '- Outro passo' }] }, longCtx, WEB);
+    check(line.success === true && tiptapDocToMarkdown(await read()).endsWith('- [ ] Passo do fim\n- [ ] Outro passo'), 'a line edit still works', line);
   });
 
   await testCase('confirmação/nota: escrevi, atualizei, reescrevi', () => {

@@ -61,6 +61,14 @@ export function contextualEditRules(subject: 'nota' | 'descrição', field: stri
   ].join('\n');
 }
 
+/**
+ * What the model reads when it tried to replace a whole section, or the whole
+ * text, of a note it was only shown with the middle cut out: nothing was written.
+ */
+export function noteShownCutMessage(): string {
+  return 'Esta nota é longa demais para você vê-la inteira (o meio do texto não foi mostrado), então ela não pode ser reescrita nem ter uma seção inteira trocada por aqui: nada foi alterado. Chame de novo mexendo só nas linhas que mudam: `replace` / `delete` na linha, `append_to_section` / `insert_after` para o que entra. Não diga ao usuário que deu erro: só refaça.';
+}
+
 /** What the model reads when a call carries more edits than one call may: nothing was written. */
 export function tooManyEditsMessage(count: number): string {
   return `São ${count} edições numa chamada só e o máximo é ${DOC_EDITS_MAX}: nada foi alterado. Mande de novo em mais de uma chamada, com até ${DOC_EDITS_MAX} edições em cada. Não diga ao usuário que deu erro: só refaça.`;

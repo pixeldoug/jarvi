@@ -56,13 +56,14 @@ import { reconcileDueDate } from './dateExpressions';
 import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './onboardingJourney';
 import { parseDailySummaryTime, updateDailySummarySettings } from '../../dailySummaryService';
 import { updateWeeklyPlanningSettings } from '../../weeklyPlanningService';
-import { NOTE_CHAT_WRITE_MAX_CHARS, writeNoteFromChat } from '../../noteService';
+import { NOTE_CHAT_WRITE_MAX_CHARS, notesFingerprint, writeNoteFromChat } from '../../noteService';
 import { applyDocEditsToRaw, hasTooManyDocEdits, parseDocEdits, type DocEdit } from '../../../utils/docEdits';
 import { tiptapDocToMarkdown } from '../../../utils/tiptapDoc';
 import {
   anchorNotFoundMessage,
   DESCRIPTION_SHOWN_MAX_CHARS,
   docEditsToolProperty,
+  noteShownCutMessage,
   tooManyEditsMessage,
   unseenTextMessage,
 } from './contextualEdits';
@@ -2007,8 +2008,14 @@ async function executeUpdateNote(
         success: false,
         error_code: 'anchor_not_found',
         message: anchorNotFoundMessage('nota', written.failures, written.markdown),
+        // The open note does the same on its side (see chatNoteEdits.ts in the
+        // web): `reread` is the fingerprint of the text the model was shown.
+        data: { note_id: note.id, reread: notesFingerprint(written.content) },
         entity,
       };
+    }
+    if (written.code === 'shown_cut') {
+      return { success: false, error_code: 'note_shown_cut', message: noteShownCutMessage(), entity };
     }
     return written.code === 'too_large'
       ? { success: false, error_code: 'too_large', message: 'a nota passou do limite de tamanho', entity }

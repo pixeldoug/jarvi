@@ -299,9 +299,8 @@ export function NoteDetailView({
   // The notes as the agent read them (the draft when the chat turn started,
   // then after each of its edits): what its edits are checked against.
   const chatReadNotesRef = useRef<string | null>(null);
-  useChatNoteEdits(
-    note.id,
-    (edit) => {
+  useChatNoteEdits(note.id, {
+    onEdit: (edit) => {
       if (!canEdit) return;
       if (edit.title !== undefined && edit.title !== titleRef.current) handleTitleChange(edit.title);
       if (edit.edits.length === 0) return;
@@ -328,10 +327,18 @@ export function NoteDetailView({
         onTabChange('notas');
       }
     },
-    () => {
+    onTurnStart: () => {
       chatReadNotesRef.current = notesDraftRef.current;
     },
-  );
+    // The agent was shown the note again, as the server has it. When that is
+    // this draft, it has read it: its corrected edit applies here too. When
+    // something typed here is not saved yet, the older text stays the mark.
+    onReread: (fingerprint) => {
+      if (notesFingerprint(notesDraftRef.current) === fingerprint) {
+        chatReadNotesRef.current = notesDraftRef.current;
+      }
+    },
+  });
 
   // Bring what the chat changed into view: it may be anywhere in the note.
   useEffect(() => {

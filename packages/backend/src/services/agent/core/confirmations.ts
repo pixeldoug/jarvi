@@ -119,10 +119,15 @@ function notificationSentence(op: AgentOperation): string {
 /**
  * A text edit held back for the model to redo: it named a line the text does
  * not have (or one the user changed meanwhile), would overwrite a description
- * it only saw the start of, or carried more edits than one call may. Nothing
+ * it only saw part of, or carried more edits than one call may. Nothing
  * was written and the model was told how to try again.
  */
-const RETRIABLE_EDIT_ERRORS = new Set(['anchor_not_found', 'description_unseen', 'too_many_edits']);
+const RETRIABLE_EDIT_ERRORS = new Set([
+  'anchor_not_found',
+  'description_unseen',
+  'note_shown_cut',
+  'too_many_edits',
+]);
 
 /**
  * Tools whose outcome the user must be told about. Memory stays silent by

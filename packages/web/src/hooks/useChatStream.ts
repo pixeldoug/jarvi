@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
 import type { ChatStoredMessage } from '../lib/chatsApi';
 import { stripTaskRefs } from '../lib/taskRefs';
-import { markChatNoteTurn } from '../components/features/notes/chatNoteEdits';
+import { markChatNoteReread, markChatNoteTurn } from '../components/features/notes/chatNoteEdits';
 import { flushNoteSaves } from '../components/features/notes/noteAutosave';
 import { chatsKeys } from './useChats';
 
@@ -536,6 +536,19 @@ export function useChatStream(
             case 'separator':
             case 'tool_call':
               setIsWaiting(true);
+              updateAssistant((m) => applyChatStreamEvent(m, event));
+              break;
+
+            case 'tool_result':
+              // A held-back note edit: the agent was shown the note again.
+              if (
+                event.toolName === 'update_note' &&
+                event.success === false &&
+                typeof event.data?.note_id === 'string' &&
+                typeof event.data.reread === 'string'
+              ) {
+                markChatNoteReread(event.data.note_id, event.data.reread);
+              }
               updateAssistant((m) => applyChatStreamEvent(m, event));
               break;
 
