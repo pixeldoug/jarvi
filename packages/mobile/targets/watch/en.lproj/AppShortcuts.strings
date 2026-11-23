@@ -1,0 +1,4 @@
+/* Siri phrases (SpeakTaskIntent.swift). */
+"Nova tarefa no ${applicationName}" = "New task in ${applicationName}";
+"Adicionar tarefa no ${applicationName}" = "Add a task in ${applicationName}";
+"Falar tarefa no ${applicationName}" = "Speak a task in ${applicationName}";

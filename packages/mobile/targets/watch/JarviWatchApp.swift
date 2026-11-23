@@ -10,7 +10,7 @@ struct JarviWatchApp: App {
 
   var body: some Scene {
     WindowGroup {
-      TodayView()
+      RootView()
         .environmentObject(session)
     }
   }

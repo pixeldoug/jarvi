@@ -12,7 +12,7 @@ final class TasksModel: ObservableObject {
   @Published private(set) var status: Status = .loading
   /// Tasks with a toggle in flight (their button is disabled).
   @Published private(set) var busyIDs: Set<String> = []
-  /// A toggle or a new task that failed; shown as an alert.
+  /// A toggle that failed; shown as an alert.
   @Published var actionError: TaskAPIError?
 
   /// The session the state belongs to. Results of requests made with another
@@ -25,6 +25,12 @@ final class TasksModel: ObservableObject {
   private var pendingCompletion: [String: Bool] = [:]
 
   var sections: TodayTasks.Sections { TodayTasks.sections(from: tasks) }
+
+  /// Open tasks for today (the home screen's summary); nil until loaded.
+  var openToday: Int? {
+    guard status == .ready else { return nil }
+    return sections.today.filter { !$0.completed }.count
+  }
 
   /// Call when the session changes: forgets everything from the previous one.
   func switchSession(to token: String?) {
@@ -87,18 +93,6 @@ final class TasksModel: ObservableObject {
     // creates its next occurrence on the server.
     if succeeded { await load(api) }
     return succeeded
-  }
-
-  func create(title: String, dueDate: String, api: TaskAPI) async -> Bool {
-    guard api.token == sessionToken else { return false }
-    do {
-      try await api.create(title: title, dueDate: dueDate)
-    } catch {
-      if api.token == sessionToken { actionError = TaskAPIError(error) }
-      return false
-    }
-    await load(api)
-    return true
   }
 
   private func setCompleted(_ completed: Bool, for id: String) {

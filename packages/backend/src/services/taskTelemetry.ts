@@ -10,7 +10,7 @@
 
 import { captureServer } from './posthogService';
 
-export type TaskCreatedSource = 'web' | 'agent_web' | 'whatsapp' | 'gmail' | 'mcp' | 'notes';
+export type TaskCreatedSource = 'web' | 'agent_web' | 'whatsapp' | 'gmail' | 'mcp' | 'notes' | 'watch';
 
 export interface TaskCreatedTelemetryInput {
   email: string;
