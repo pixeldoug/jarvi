@@ -12,6 +12,8 @@ struct RootView: View {
   @StateObject private var model = TasksModel()
   @StateObject private var capture = VoiceCapture()
   @ObservedObject private var launch = VoiceLaunch.shared
+  @ObservedObject private var outbox = VoiceOutbox.shared
+  @StateObject private var connectivity = Connectivity()
   @Environment(\.scenePhase) private var scenePhase
   @State private var page = Page.speak
 
@@ -26,7 +28,7 @@ struct RootView: View {
         TabView(selection: $page) {
           HomeView(openToday: model.openToday, speak: { speak(api) }, showTasks: { page = .tasks })
             .tag(Page.speak)
-          TaskListView(model: model, api: api, speak: { speak(api) })
+          TaskListView(model: model, api: api, speak: { speak(api) }, refresh: { await refresh(api) })
             .tag(Page.tasks)
         }
         .tabViewStyle(.verticalPage)
@@ -60,6 +62,20 @@ struct RootView: View {
       guard phase == .active, let api else { return }
       Task { await refresh(api) }
     }
+    // Recordings kept offline go out as soon as the connection is back…
+    .onChange(of: connectivity.isOnline) { _, online in
+      guard online, scenePhase == .active, let api else { return }
+      Task { await refresh(api) }
+    }
+    // …and are retried every 20 s while the app is open and any are waiting.
+    .task(id: RetryKey(token: session.token, active: scenePhase == .active, waiting: waitingRecordings)) {
+      guard scenePhase == .active, waitingRecordings, let api else { return }
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .seconds(20))
+        guard !Task.isCancelled else { return }
+        await refresh(api)
+      }
+    }
     .onChange(of: launch.requested) { _, requested in
       if requested, let api { startIfRequested(api) }
     }
@@ -75,8 +91,15 @@ struct RootView: View {
     }
   }
 
+  /// Recordings of the signed-in account still to be sent (another account's
+  /// wait for that account to sign in again).
+  private var waitingRecordings: Bool {
+    guard let owner = api?.accountID else { return false }
+    return outbox.items.contains { $0.owner == owner }
+  }
+
   private func speak(_ api: TaskAPI) {
-    capture.start(api: api, owner: session.accountID ?? "") {
+    capture.start(api: api) {
       Task { await model.load(api) }
     }
   }
@@ -89,12 +112,19 @@ struct RootView: View {
     speak(api)
   }
 
-  /// The list, plus anything said while offline that can be sent now.
+  /// The list, plus anything said while offline that can be sent now. Each
+  /// recording goes out with its own account's session (`api.accountID`).
   private func refresh(_ api: TaskAPI) async {
     await model.load(api)
-    let created = await VoiceOutbox.shared.flush(api: api, owner: session.accountID ?? "")
+    let created = await outbox.flush(api: api)
     if created > 0 { await model.load(api) }
   }
+}
+
+private struct RetryKey: Equatable {
+  let token: String?
+  let active: Bool
+  let waiting: Bool
 }
 
 /// The first page: one big button that starts listening.

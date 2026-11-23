@@ -7,6 +7,8 @@ struct TaskListView: View {
   @ObservedObject var model: TasksModel
   let api: TaskAPI
   let speak: () -> Void
+  /// Pull to refresh: the list, and any recordings waiting to be sent.
+  let refresh: () async -> Void
 
   var body: some View {
     NavigationStack {
@@ -61,7 +63,7 @@ struct TaskListView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
       }
-      .refreshable { await model.load(api) }
+      .refreshable { await refresh() }
     } else {
       List {
         if !sections.overdue.isEmpty {
@@ -82,7 +84,7 @@ struct TaskListView: View {
           }
         }
       }
-      .refreshable { await model.load(api) }
+      .refreshable { await refresh() }
     }
   }
 

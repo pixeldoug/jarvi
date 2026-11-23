@@ -30,7 +30,7 @@ final class VoiceCapture: ObservableObject {
   var isPresented: Bool { phase != .idle }
 
   /// Starts listening right away (home button, list button, complication, Siri).
-  func start(api: TaskAPI, owner: String, onCreated: @escaping () -> Void) {
+  func start(api: TaskAPI, onCreated: @escaping () -> Void) {
     guard phase == .idle || phase == .noSpeech || phase == .micDenied || isFailed else { return }
     generation += 1
     let current = generation
@@ -63,7 +63,7 @@ final class VoiceCapture: ObservableObject {
           return
         }
         WKInterfaceDevice.current().play(.stop)
-        await send(url, api: api, owner: owner, generation: current, onCreated: onCreated)
+        await send(url, api: api, generation: current, onCreated: onCreated)
       }
     }
   }
@@ -107,12 +107,12 @@ final class VoiceCapture: ObservableObject {
     return false
   }
 
-  private func send(_ url: URL, api: TaskAPI, owner: String, generation current: Int, onCreated: @escaping () -> Void) async {
+  private func send(_ url: URL, api: TaskAPI, generation current: Int, onCreated: @escaping () -> Void) async {
     let now = Date()
     let today = TodayTasks.dateKey(now)
     let time = Self.clock(now)
     // Into the outbox first, so a failed upload keeps it for later.
-    guard let item = outbox.add(recording: url, id: UUID(), owner: owner, today: today, now: time) else {
+    guard let item = outbox.add(recording: url, id: UUID(), owner: api.accountID, today: today, now: time) else {
       phase = .failed(.server)
       return
     }

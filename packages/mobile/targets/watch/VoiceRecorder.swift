@@ -39,6 +39,9 @@ final class VoiceRecorder: NSObject, ObservableObject {
   private var quietSince: Date?
   private var startedAt = Date()
   private var cancelled = false
+  /// Bumped by every `record` and `cancel`: a `record` still waiting for the
+  /// microphone permission gives up if anything happened meanwhile.
+  private var attempt = 0
   private var continuation: CheckedContinuation<Outcome, Never>?
 
   var isRecording: Bool { recorder?.isRecording == true }
@@ -46,7 +49,13 @@ final class VoiceRecorder: NSObject, ObservableObject {
   /// Starts recording and returns when it ends: the user stops it, they pause
   /// after speaking, or it reaches `maxDuration`. Returns nil if cancelled.
   func record() async throws -> Outcome? {
+    // Reset before the permission prompt: a cancel while it is up must stop
+    // the microphone from starting once the user answers.
+    attempt += 1
+    let mine = attempt
+    cancelled = false
     guard await AVAudioApplication.requestRecordPermission() else { throw StartError.microphoneDenied }
+    guard mine == attempt, !cancelled else { return nil }
 
     let session = AVAudioSession.sharedInstance()
     do {
@@ -71,10 +80,10 @@ final class VoiceRecorder: NSObject, ObservableObject {
 
     heardSpeech = false
     quietSince = nil
-    cancelled = false
     elapsed = 0
     levels = Array(repeating: 0, count: levels.count)
     startedAt = Date()
+    guard mine == attempt, !cancelled else { return nil }
     guard recorder.record(forDuration: Self.maxDuration) else { throw StartError.failed }
     self.recorder = recorder
     startMetering()
@@ -88,11 +97,12 @@ final class VoiceRecorder: NSObject, ObservableObject {
     recorder?.stop()
   }
 
-  /// Ends the recording and throws it away.
+  /// Ends the recording and throws it away (also before it starts: while the
+  /// microphone permission is being asked).
   func cancel() {
-    guard let recorder else { return }
     cancelled = true
-    recorder.stop()
+    attempt += 1
+    recorder?.stop()
   }
 
   private func startMetering() {

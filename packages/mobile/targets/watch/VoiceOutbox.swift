@@ -28,6 +28,11 @@ final class VoiceOutbox: ObservableObject {
 
   @Published private(set) var items: [Item] = []
   private var flushing = false
+  /// Uploads in flight, by recording. A second send of the same recording
+  /// (the capture screen and a flush) waits for the first instead of
+  /// uploading again: a duplicate still transcribing after "Desfazer" would
+  /// create the task again.
+  private var inFlight: [UUID: Task<VoiceTaskResult, Error>] = [:]
 
   private let folder: URL
   private var indexURL: URL { folder.appendingPathComponent("index.json") }
@@ -69,7 +74,17 @@ final class VoiceOutbox: ObservableObject {
 
   /// One upload. Removes the recording once the server has it (or it can
   /// never become a task); keeps it when the problem is the connection.
+  /// Only for `api`'s own account.
   func send(_ item: Item, api: TaskAPI) async throws -> VoiceTaskResult {
+    if let running = inFlight[item.id] { return try await running.value }
+    guard item.owner == api.accountID else { throw TaskAPIError.signedOut }
+    let upload = Task { try await self.upload(item, api: api) }
+    inFlight[item.id] = upload
+    defer { inFlight[item.id] = nil }
+    return try await upload.value
+  }
+
+  private func upload(_ item: Item, api: TaskAPI) async throws -> VoiceTaskResult {
     guard let audio = try? Data(contentsOf: fileURL(item)) else {
       remove(item.id)
       throw TaskAPIError.server
@@ -97,17 +112,20 @@ final class VoiceOutbox: ObservableObject {
     }
   }
 
-  /// Sends what is waiting for this account, oldest first. Stops at the first
-  /// connection problem. Returns how many became tasks.
+  /// Sends what is waiting for `api`'s account, oldest first. Stops at the
+  /// first connection problem. Returns how many became tasks.
   @discardableResult
-  func flush(api: TaskAPI, owner: String) async -> Int {
+  func flush(api: TaskAPI) async -> Int {
     guard !flushing else { return 0 }
     flushing = true
     defer { flushing = false }
 
     dropExpired()
+    let owner = api.accountID
     var created = 0
     for item in items where item.owner == owner {
+      // Sent meanwhile by the capture screen.
+      guard items.contains(where: { $0.id == item.id }) else { continue }
       do {
         _ = try await send(item, api: api)
         created += 1
@@ -138,20 +156,20 @@ final class VoiceOutbox: ObservableObject {
   }
 }
 
-extension SessionStore {
-  /// The account id inside the session token (JWT `id`), to tell accounts
-  /// apart without keeping the token anywhere else.
-  var accountID: String? {
-    guard let token else { return nil }
+extension TaskAPI {
+  /// The account id inside this API's own token (JWT `id`). Taken from the
+  /// token the request is sent with, so a recording is never sent with
+  /// another account's session, even if the session changes mid-refresh.
+  var accountID: String {
     let parts = token.split(separator: ".")
-    guard parts.count == 3 else { return nil }
+    guard parts.count == 3 else { return "" }
     var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
     payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
     guard let data = Data(base64Encoded: payload),
           let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else { return nil }
+    else { return "" }
     if let id = claims["id"] as? String { return id }
     if let id = claims["id"] as? Int { return String(id) }
-    return nil
+    return ""
   }
 }
