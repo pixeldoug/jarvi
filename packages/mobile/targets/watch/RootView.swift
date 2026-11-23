@@ -215,6 +215,7 @@ extension TaskAPIError {
     case .network: "Sem conexão. Tente de novo."
     case .server: "Algo deu errado. Tente de novo."
     case .noSpeech: "Não ouvi nada."
+    case .rateLimited: "Muitas tentativas. Tente de novo em alguns minutos."
     }
   }
 
@@ -225,6 +226,7 @@ extension TaskAPIError {
     case .network: "wifi.slash"
     case .server: "exclamationmark.triangle"
     case .noSpeech: "mic.slash"
+    case .rateLimited: "hourglass"
     }
   }
 }

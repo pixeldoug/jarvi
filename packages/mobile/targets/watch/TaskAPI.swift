@@ -9,6 +9,9 @@ enum TaskAPIError: Error, Equatable {
   case server
   /// A recording with no speech in it (POST /api/tasks/voice answers 422).
   case noSpeech
+  /// HTTP 429: too many requests. `retryAfter` is how long the server asks
+  /// to wait (`Retry-After`), in seconds.
+  case rateLimited(retryAfter: TimeInterval)
 
   init(_ error: Error) {
     if let error = error as? TaskAPIError {
@@ -107,10 +110,21 @@ struct TaskAPI {
     if http.statusCode == 403 && (code == "SUBSCRIPTION_REQUIRED" || message == "subscription_required") {
       throw TaskAPIError.subscriptionRequired
     }
+    if http.statusCode == 429 {
+      throw TaskAPIError.rateLimited(retryAfter: Self.retryAfter(http))
+    }
     if http.statusCode == 422 && message == "no_speech" {
       throw TaskAPIError.noSpeech
     }
     throw TaskAPIError.server
+  }
+
+  /// Seconds the server asks to wait after a 429 (express-rate-limit sends
+  /// `Retry-After`, and `RateLimit-Reset` with its standard headers).
+  private static func retryAfter(_ response: HTTPURLResponse) -> TimeInterval {
+    let header = response.value(forHTTPHeaderField: "Retry-After") ?? response.value(forHTTPHeaderField: "RateLimit-Reset")
+    let seconds = header.flatMap { TimeInterval($0.trimmingCharacters(in: .whitespaces)) } ?? 60
+    return min(max(seconds, 5), 60 * 60)
   }
 
   /// The language the watch UI is showing.

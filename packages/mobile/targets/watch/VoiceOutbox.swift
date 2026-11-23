@@ -17,17 +17,27 @@ final class VoiceOutbox: ObservableObject {
     let now: String
     let recordedAt: Date
     var attempts: Int
+    /// After a server error, not retried before this (growing wait).
+    var nextAttemptAt: Date?
   }
 
   static let shared = VoiceOutbox()
 
-  /// Sends that failed on the server's side before giving up on a recording.
-  private static let maxAttempts = 5
+  /// Server errors before giving up on a recording. With `backoff` that is
+  /// about three hours of retries, not five quick ones in a row.
+  private static let maxAttempts = 6
+  /// Wait after the nth server error: 30 s, 2 min, 8 min, 32 min, 2 h.
+  private static func backoff(after attempts: Int) -> TimeInterval {
+    min(30 * pow(4, Double(max(attempts - 1, 0))), 2 * 60 * 60)
+  }
   /// Older recordings are dropped: "amanhã" said a week ago is wrong anyway.
   private static let maxAge: TimeInterval = 7 * 24 * 60 * 60
 
   @Published private(set) var items: [Item] = []
   private var flushing = false
+  /// After a 429, nothing is sent before this. Waiting for the server costs
+  /// no attempts: being rate-limited never makes a recording expire.
+  private var pausedUntil: Date?
   /// Uploads in flight, by recording. A second send of the same recording
   /// (the capture screen and a flush) waits for the first instead of
   /// uploading again: a duplicate still transcribing after "Desfazer" would
@@ -105,6 +115,8 @@ final class VoiceOutbox: ObservableObject {
         remove(item.id)
       case .server:
         bumpAttempts(item.id)
+      case .rateLimited(let retryAfter):
+        pausedUntil = Date().addingTimeInterval(retryAfter)
       case .network, .signedOut, .subscriptionRequired:
         break
       }
@@ -112,11 +124,13 @@ final class VoiceOutbox: ObservableObject {
     }
   }
 
-  /// Sends what is waiting for `api`'s account, oldest first. Stops at the
-  /// first connection problem. Returns how many became tasks.
+  /// Sends what is waiting for `api`'s account, oldest first, skipping the
+  /// ones still waiting after a server error. Stops at the first connection
+  /// problem or 429. Returns how many became tasks.
   @discardableResult
   func flush(api: TaskAPI) async -> Int {
     guard !flushing else { return 0 }
+    if let pausedUntil, pausedUntil > Date() { return 0 }
     flushing = true
     defer { flushing = false }
 
@@ -125,13 +139,18 @@ final class VoiceOutbox: ObservableObject {
     var created = 0
     for item in items where item.owner == owner {
       // Sent meanwhile by the capture screen.
-      guard items.contains(where: { $0.id == item.id }) else { continue }
+      guard let current = items.first(where: { $0.id == item.id }) else { continue }
+      if let next = current.nextAttemptAt, next > Date() { continue }
       do {
         _ = try await send(item, api: api)
         created += 1
       } catch {
-        let failure = TaskAPIError(error)
-        if failure == .network || failure == .signedOut || failure == .subscriptionRequired { break }
+        switch TaskAPIError(error) {
+        case .network, .signedOut, .subscriptionRequired, .rateLimited:
+          return created
+        case .server, .noSpeech:
+          continue
+        }
       }
     }
     return created
@@ -147,6 +166,7 @@ final class VoiceOutbox: ObservableObject {
   private func bumpAttempts(_ id: UUID) {
     guard let index = items.firstIndex(where: { $0.id == id }) else { return }
     items[index].attempts += 1
+    items[index].nextAttemptAt = Date().addingTimeInterval(Self.backoff(after: items[index].attempts))
     save()
   }
 

@@ -126,7 +126,7 @@ final class VoiceCapture: ObservableObject {
     } catch {
       guard current == generation else { return }
       switch TaskAPIError(error) {
-      case .network:
+      case .network, .rateLimited:
         phase = .saved
       case .noSpeech:
         phase = .noSpeech
