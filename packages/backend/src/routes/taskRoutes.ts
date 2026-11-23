@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import {
   createTask,
   getTasks,
@@ -12,6 +13,7 @@ import {
   getTaskDescriptionVersions,
   restoreTaskDescription,
 } from '../controllers/taskDescriptionVersionController';
+import { createTaskFromVoice } from '../controllers/watchVoiceController';
 import { authenticateToken } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/requireSubscription';
 import subTaskRouter from './subTaskRoutes';
@@ -19,8 +21,20 @@ import reminderRouter from './reminderRoutes';
 
 const router = Router();
 
+// Apple Watch voice tasks: one Whisper call and one small completion each.
+// Runs after authenticateToken, so `req.user` is set.
+const voiceLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: (req: Request) => req.user?.id || (req.ip ? ipKeyGenerator(req.ip) : 'unknown'),
+  message: { error: 'rate_limited' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Task routes (all require authentication + active subscription)
 router.post('/', authenticateToken, requireActiveSubscription, createTask);
+router.post('/voice', authenticateToken, requireActiveSubscription, voiceLimiter, createTaskFromVoice);
 router.get('/', authenticateToken, requireActiveSubscription, getTasks);
 router.patch('/completion', authenticateToken, requireActiveSubscription, setTasksCompletion);
 router.patch('/order', authenticateToken, requireActiveSubscription, setTasksOrder);

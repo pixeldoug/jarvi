@@ -7,6 +7,11 @@ enum TaskAPIError: Error, Equatable {
   case subscriptionRequired
   case network
   case server
+  /// A recording with no speech in it (POST /api/tasks/voice answers 422).
+  case noSpeech
+  /// HTTP 429: too many requests. `retryAfter` is how long the server asks
+  /// to wait (`Retry-After`), in seconds.
+  case rateLimited(retryAfter: TimeInterval)
 
   init(_ error: Error) {
     if let error = error as? TaskAPIError {
@@ -43,11 +48,40 @@ struct TaskAPI {
     _ = try await send("POST", "/api/tasks", body: ["title": title, "dueDate": dueDate, "important": false])
   }
 
-  private func send(_ method: String, _ path: String, body: [String: Any]? = nil) async throws -> Data {
+  /// The watch's main action: the server transcribes the recording and makes
+  /// it a task (title, day and time). `clientID` becomes the task id, so
+  /// sending the same recording again returns the task it already created.
+  /// `today`/`now` are the watch's clock, so "amanhã" is the user's tomorrow.
+  func createFromVoice(audio: Data, mimeType: String, clientID: UUID, today: String, now: String) async throws -> VoiceTaskResult {
+    let data = try await send(
+      "POST",
+      "/api/tasks/voice",
+      body: [
+        "audio": audio.base64EncodedString(),
+        "mimeType": mimeType,
+        "clientId": clientID.uuidString.lowercased(),
+        "today": today,
+        "now": now,
+      ],
+      timeout: 60
+    )
+    do {
+      return try JSONDecoder().decode(VoiceTaskResult.self, from: data)
+    } catch {
+      throw TaskAPIError.server
+    }
+  }
+
+  /// Undo of a task just created by voice.
+  func delete(id: String) async throws {
+    _ = try await send("DELETE", "/api/tasks/\(id)")
+  }
+
+  private func send(_ method: String, _ path: String, body: [String: Any]? = nil, timeout: TimeInterval = 20) async throws -> Data {
     guard let url = URL(string: path, relativeTo: baseURL) else { throw TaskAPIError.server }
     var request = URLRequest(url: url)
     request.httpMethod = method
-    request.timeoutInterval = 20
+    request.timeoutInterval = timeout
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     request.setValue(Self.localeHeader, forHTTPHeaderField: "X-Jarvi-Locale")
@@ -76,11 +110,32 @@ struct TaskAPI {
     if http.statusCode == 403 && (code == "SUBSCRIPTION_REQUIRED" || message == "subscription_required") {
       throw TaskAPIError.subscriptionRequired
     }
+    if http.statusCode == 429 {
+      throw TaskAPIError.rateLimited(retryAfter: Self.retryAfter(http))
+    }
+    if http.statusCode == 422 && message == "no_speech" {
+      throw TaskAPIError.noSpeech
+    }
     throw TaskAPIError.server
+  }
+
+  /// Seconds the server asks to wait after a 429 (express-rate-limit sends
+  /// `Retry-After`, and `RateLimit-Reset` with its standard headers).
+  private static func retryAfter(_ response: HTTPURLResponse) -> TimeInterval {
+    let header = response.value(forHTTPHeaderField: "Retry-After") ?? response.value(forHTTPHeaderField: "RateLimit-Reset")
+    let seconds = header.flatMap { TimeInterval($0.trimmingCharacters(in: .whitespaces)) } ?? 60
+    return min(max(seconds, 5), 60 * 60)
   }
 
   /// The language the watch UI is showing.
   private static var localeHeader: String {
     Bundle.main.preferredLocalizations.first == "en" ? "en-US" : "pt-BR"
   }
+}
+
+/// What POST /api/tasks/voice answers: the task, and what was heard (nil when
+/// the recording had already been sent before).
+struct VoiceTaskResult: Decodable {
+  let task: WatchTask
+  let transcript: String?
 }

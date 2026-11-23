@@ -10,5 +10,22 @@
 		<string>pt</string>
 		<string>en</string>
 	</array>
+	<!-- Speaking a task is the app's main action. Translated in
+	     pt.lproj/en.lproj InfoPlist.strings. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>A Jarvi usa o microfone para transformar o que você fala em tarefas.</string>
+	<!-- jarviwatch://speak: the complication and the Smart Stack widget
+	     (targets/watch-widget) open the app already listening. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.jarvi.app.watchkitapp</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>jarviwatch</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

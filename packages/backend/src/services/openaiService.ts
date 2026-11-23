@@ -100,7 +100,8 @@ type OpenAiSpan =
   | 'note_task_matches'
   | 'note_transcription'
   | 'text_rewrite'
-  | 'chat_title';
+  | 'chat_title'
+  | 'watch_voice_task';
 
 interface PosthogCallParams {
   posthogDistinctId?: string;
@@ -363,6 +364,10 @@ export interface TranscribeAudioOptions {
    * that returns per-segment probabilities (verbose_json).
    */
   dropNoSpeech?: boolean;
+  /** ISO-639-1 language of the speech. Defaults to Portuguese. */
+  language?: string;
+  /** PostHog span for the call. Defaults to the Notas one. */
+  span?: OpenAiSpan;
 }
 
 /** Whisper segments at or above this no_speech_prob are treated as silence. */
@@ -381,9 +386,11 @@ export const transcribeAudio = async (
   const params = {
     file,
     model,
-    language: 'pt',
+    language: options.language || 'pt',
     ...(prompt ? { prompt } : {}),
-    ...(options.telemetry ? buildPosthogParams('note_transcription', options.telemetry) : {}),
+    ...(options.telemetry
+      ? buildPosthogParams(options.span ?? 'note_transcription', options.telemetry)
+      : {}),
   };
 
   if (options.dropNoSpeech && model === 'whisper-1') {
@@ -538,6 +545,30 @@ export const createChatTitleCompletion = async (
     max_completion_tokens: CHAT_TITLE_MAX_COMPLETION_TOKENS,
     ...chatCompletionsSamplingParams(model),
     ...buildPosthogParams('chat_title', telemetry),
+  });
+  return safeJsonParse(response.choices[0]?.message?.content);
+};
+
+/**
+ * Apple Watch: one JSON-mode completion that turns what was said into one
+ * task (`{ title, due_date, time }`). The prompt and the parsing live in
+ * `watchVoiceTaskService`; this only owns the client and telemetry. Throws
+ * when the call fails.
+ */
+export const createWatchVoiceTaskCompletion = async (
+  messages: { system: string; user: string },
+  telemetry?: AiTelemetryOptions,
+): Promise<Record<string, unknown>> => {
+  const openai = getOpenAIClient();
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    response_format: { type: 'json_object' },
+    temperature: 0,
+    messages: [
+      { role: 'system', content: messages.system },
+      { role: 'user', content: messages.user },
+    ],
+    ...buildPosthogParams('watch_voice_task', telemetry),
   });
   return safeJsonParse(response.choices[0]?.message?.content);
 };

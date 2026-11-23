@@ -132,4 +132,22 @@ enum TodayTasks {
     formatter.setLocalizedDateFormatFromTemplate("dMMM")
     return formatter.string(from: date)
   }
+
+  /// "Hoje · 15:00", "Amanhã", "12 nov · 09:00": when a task is, for the
+  /// detail and the created screen. Nil for a task with no date.
+  static func whenLabel(_ task: WatchTask, now: Date = Date(), calendar: Calendar = keyCalendar) -> String? {
+    guard let key = task.dateKey else { return nil }
+    let today = dateKey(now, calendar: calendar)
+    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now).map { dateKey($0, calendar: calendar) }
+    let day: String
+    if key == today {
+      day = String(localized: "Hoje")
+    } else if key == tomorrow {
+      day = String(localized: "Amanhã")
+    } else {
+      day = shortDate(key)
+    }
+    guard let time = task.time, !time.isEmpty else { return day }
+    return "\(day) · \(time)"
+  }
 }

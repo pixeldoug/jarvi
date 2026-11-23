@@ -42,16 +42,25 @@ O CI (`.github/workflows/mobile.yml`) roda os mesmos passos em todo PR que toca 
 
 | `modules/jarvi-watch` | Módulo nativo local que passa a sessão do iPhone para o Apple Watch (WatchConnectivity) |
 | `targets/watch` | App do Apple Watch em SwiftUI, embutido no app do iPhone pelo `@bacons/apple-targets` |
+| `targets/watch-widget` | Complicação do mostrador e widget do Smart Stack (WidgetKit), embutidos no app do relógio |
 
 Contrato de UI: [compliance.md](compliance.md).
 
 ## Apple Watch
 
-O relógio mostra as tarefas vencidas e as de hoje, marca como feita e cria tarefa para hoje por voz (o campo "Nova tarefa" abre o ditado do relógio). Ele não tem login próprio: o app do iPhone manda o token pelo WatchConnectivity a cada entrada e abertura (`src/features/watch/use-watch-session.ts`), e o relógio guarda no Keychain e fala direto com o backend. Sair no iPhone também desconecta o relógio.
+O relógio é feito para falar (desenho na página "watch" do Figma). Por ordem de importância:
+
+1. **Criar por voz.** O app abre no microfone: um toque e ele grava. O áudio vai para `POST /api/tasks/voice`, que transcreve (o mesmo Whisper dos áudios do WhatsApp) e separa título, dia e hora ("amanhã às 15h"). Sem dia dito, a tarefa vai para hoje. A tela de tarefa criada tem "Desfazer". A complicação do mostrador, o widget do Smart Stack (`jarviwatch://speak`) e a Siri ("Nova tarefa no Jarvi", `SpeakTaskIntent.swift`; o botão Ação do Ultra roda pelo app Atalhos) abrem o app já ouvindo.
+2. **Ver as tarefas.** Girando a coroa: vencidas e as de hoje, na mesma ordem do iPhone.
+3. **Concluir.** Só na tela da tarefa (tocar na linha), para não concluir sem querer.
+
+Sem internet, a gravação fica guardada no relógio (`VoiceOutbox.swift`) e é enviada quando a conexão volta. Cada gravação tem um id que vira o id da tarefa, então reenviar nunca cria tarefa repetida.
+
+Ele não tem login próprio: o app do iPhone manda o token pelo WatchConnectivity a cada entrada e abertura (`src/features/watch/use-watch-session.ts`), e o relógio guarda no Keychain e fala direto com o backend. Sair no iPhone também desconecta o relógio.
 
 - Só vai junto em build nativo (EAS). No Expo Go e no Android o módulo não existe e nada acontece.
-- O `expo prebuild` cria o alvo `JarviWatch` (bundle `com.jarvi.app.watchkitapp`, watchOS 10+) e gera o ícone em `targets/watch/Assets.xcassets`, que fica fora do git.
-- O EAS pede um perfil de assinatura também para o relógio no primeiro build (`eas build` cuida disso com a conta Apple).
+- O `expo prebuild` cria os alvos `JarviWatch` (bundle `com.jarvi.app.watchkitapp`, watchOS 10+) e `JarviWatchWidget` (`com.jarvi.app.watchkitapp.widget`), e gera o ícone em `targets/watch/Assets.xcassets`, que fica fora do git.
+- O EAS pede um perfil de assinatura também para o relógio e para o widget no primeiro build (`eas build` cuida disso com a conta Apple).
 - Para instalar: TestFlight no iPhone, e o app aparece no relógio pareado (ou pelo app Watch do iPhone).
 - Textos em `targets/watch/pt.lproj` e `en.lproj` (as chaves são o texto em português).
 

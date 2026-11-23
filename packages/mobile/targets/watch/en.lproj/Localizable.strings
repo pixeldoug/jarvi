@@ -15,3 +15,30 @@
 "Sua assinatura não está ativa. Veja na Jarvi do iPhone." = "Your subscription isn't active. Check Jarvi on your iPhone.";
 "Sem conexão. Tente de novo." = "No connection. Try again.";
 "Algo deu errado. Tente de novo." = "Something went wrong. Please try again.";
+
+/* Voice first: speak, see, complete. */
+"Falar uma tarefa" = "Speak a task";
+"Toque e fale" = "Tap and speak";
+"Hoje · nada aberto" = "Today · nothing open";
+"Hoje · 1 aberta" = "Today · 1 open";
+"Hoje · %lld abertas" = "Today · %lld open";
+"Fale uma tarefa e ela aparece aqui." = "Say a task and it shows up here.";
+"Falar tarefa" = "Speak a task";
+"Concluir" = "Complete";
+"Reabrir" = "Reopen";
+"Amanhã" = "Tomorrow";
+"Ouvindo…" = "Listening…";
+"Diga a tarefa e, se quiser, o dia e a hora." = "Say the task and, if you like, the day and time.";
+"Enviar" = "Send";
+"Criando tarefa…" = "Creating task…";
+"Desfazer" = "Undo";
+"Não ouvi nada." = "I didn't hear anything.";
+"Tente de novo, mais perto do relógio." = "Try again, closer to the watch.";
+"Falar de novo" = "Speak again";
+"Guardada" = "Saved";
+"Envio assim que tiver conexão." = "I'll send it once there's a connection.";
+"Sem microfone" = "No microphone";
+"Permita o microfone para a Jarvi nos Ajustes do relógio." = "Allow Jarvi to use the microphone in the watch's Settings.";
+"Nova tarefa por voz" = "New task by voice";
+"Abre a Jarvi já ouvindo." = "Opens Jarvi already listening.";
+"Muitas tentativas. Tente de novo em alguns minutos." = "Too many tries. Try again in a few minutes.";

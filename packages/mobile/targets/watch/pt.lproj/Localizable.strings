@@ -16,3 +16,30 @@
 "Sua assinatura não está ativa. Veja na Jarvi do iPhone." = "Sua assinatura não está ativa. Veja na Jarvi do iPhone.";
 "Sem conexão. Tente de novo." = "Sem conexão. Tente de novo.";
 "Algo deu errado. Tente de novo." = "Algo deu errado. Tente de novo.";
+
+/* Voice first: speak, see, complete. */
+"Falar uma tarefa" = "Falar uma tarefa";
+"Toque e fale" = "Toque e fale";
+"Hoje · nada aberto" = "Hoje · nada aberto";
+"Hoje · 1 aberta" = "Hoje · 1 aberta";
+"Hoje · %lld abertas" = "Hoje · %lld abertas";
+"Fale uma tarefa e ela aparece aqui." = "Fale uma tarefa e ela aparece aqui.";
+"Falar tarefa" = "Falar tarefa";
+"Concluir" = "Concluir";
+"Reabrir" = "Reabrir";
+"Amanhã" = "Amanhã";
+"Ouvindo…" = "Ouvindo…";
+"Diga a tarefa e, se quiser, o dia e a hora." = "Diga a tarefa e, se quiser, o dia e a hora.";
+"Enviar" = "Enviar";
+"Criando tarefa…" = "Criando tarefa…";
+"Desfazer" = "Desfazer";
+"Não ouvi nada." = "Não ouvi nada.";
+"Tente de novo, mais perto do relógio." = "Tente de novo, mais perto do relógio.";
+"Falar de novo" = "Falar de novo";
+"Guardada" = "Guardada";
+"Envio assim que tiver conexão." = "Envio assim que tiver conexão.";
+"Sem microfone" = "Sem microfone";
+"Permita o microfone para a Jarvi nos Ajustes do relógio." = "Permita o microfone para a Jarvi nos Ajustes do relógio.";
+"Nova tarefa por voz" = "Nova tarefa por voz";
+"Abre a Jarvi já ouvindo." = "Abre a Jarvi já ouvindo.";
+"Muitas tentativas. Tente de novo em alguns minutos." = "Muitas tentativas. Tente de novo em alguns minutos.";
