@@ -26,12 +26,6 @@ final class TasksModel: ObservableObject {
 
   var sections: TodayTasks.Sections { TodayTasks.sections(from: tasks) }
 
-  /// Open tasks for today (the home screen's summary); nil until loaded.
-  var openToday: Int? {
-    guard status == .ready else { return nil }
-    return sections.today.filter { !$0.completed }.count
-  }
-
   /// Call when the session changes: forgets everything from the previous one.
   func switchSession(to token: String?) {
     guard token != sessionToken else { return }

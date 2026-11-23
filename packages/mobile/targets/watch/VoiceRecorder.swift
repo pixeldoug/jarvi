@@ -25,7 +25,7 @@ final class VoiceRecorder: NSObject, ObservableObject {
   /// Louder than this (dBFS) counts as speech.
   private static let speechLevel: Float = -38
   /// After speech, this long under `speechLevel` ends the recording.
-  private static let pauseToStop: TimeInterval = 1.6
+  private static let pauseToStop: TimeInterval = 1.2
   /// With no speech at all, give up after this long.
   private static let waitForSpeech: TimeInterval = 7
 

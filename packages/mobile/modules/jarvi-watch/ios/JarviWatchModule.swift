@@ -11,8 +11,9 @@ public class JarviWatchModule: Module {
     }
 
     /// `token` nil means signed out: the watch forgets its session.
-    Function("setSession") { (token: String?, apiUrl: String) in
-      WatchSessionBridge.shared.setSession(token: token, apiUrl: apiUrl)
+    /// `locale` is the app's language, the one the watch transcribes speech in.
+    Function("setSession") { (token: String?, apiUrl: String, locale: String?) in
+      WatchSessionBridge.shared.setSession(token: token, apiUrl: apiUrl, locale: locale)
     }
   }
 }

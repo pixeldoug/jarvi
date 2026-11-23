@@ -37,6 +37,7 @@ final class VoiceCapture: ObservableObject {
     stoppedByUser = false
     phase = .listening
     WKInterfaceDevice.current().play(.start)
+    Task { await api.warmUp() }
 
     Task {
       let outcome: VoiceRecorder.Outcome?

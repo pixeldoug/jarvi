@@ -95,6 +95,67 @@ export const parseVoiceTask = (
   return { title, dueDate, time };
 };
 
+/**
+ * Words that can carry a day or a time ("amanhã", "sexta", "às três",
+ * "dia 12", "15h", "tomorrow", "at 9"). Without any of them there is nothing
+ * for the model to split, so the title is taken straight from the text and
+ * the task goes to today: that skips a completion (about a second) for most
+ * spoken tasks. A false match only costs the completion.
+ */
+const PT_HOURS = '(?:\\d|uma|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|meio|meia)';
+const EN_HOURS = '(?:\\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight)';
+
+const DATE_OR_TIME_CUE = new RegExp(
+  [
+    // Portuguese
+    'hoje', 'amanh', 'ontem', 'segunda', 'ter[cç]a', 'quarta', 'quinta', 'sexta', 's[aá]bado',
+    'domingo', 'semana', 'm[eê]s', 'pr[oó]xim', 'daqui', 'depois', 'dia\\s+\\S', 'janeiro',
+    'fevereiro', 'mar[cç]o', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro',
+    'novembro', 'dezembro', 'hora', 'minuto', 'meio[- ]dia', 'meia[- ]noite', 'manh[aã]', 'tarde',
+    'noite', `[àa]s\\s+${PT_HOURS}`,
+    // English
+    'today', 'tonight', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
+    'saturday', 'sunday', 'next', 'week', 'month', 'noon', 'midnight', 'morning', 'afternoon',
+    'evening', "o'clock", `at\\s+${EN_HOURS}`, 'in\\s+(?:a|an|one|two|three)\\s', 'january',
+    'february', 'march', 'april', 'june', 'july', 'august', 'september', 'october', 'november',
+    'december',
+    // Any number: "dia 12", "15h", "9:30"
+    '\\d',
+  ]
+    // Unicode-aware word start (`\\b` ignores accented letters: "às").
+    .map((cue) => `(?<![\\p{L}\\p{N}])${cue}`)
+    .join('|'),
+  'iu',
+);
+
+export const mentionsDateOrTime = (transcript: string): boolean => DATE_OR_TIME_CUE.test(transcript);
+
+/** "Lembrar de comprar pão" → "comprar pão" (what the model would also drop). */
+const COMMAND_PREFIX = new RegExp(
+  '^(?:' +
+    [
+      '(?:me\\s+)?lembr(?:ar|e|a)(?:-me)?',
+      'anot(?:ar|a|e)',
+      'adicion(?:ar|a|e)',
+      'cri(?:ar|a|e)(?:\\s+uma)?\\s+tarefa',
+      'nova\\s+tarefa',
+      'tarefa',
+      'remind\\s+me',
+      'add(?:\\s+a\\s+task)?',
+      'new\\s+task',
+      'create\\s+a\\s+task',
+    ].join('|') +
+    ')\\b[\\s,:]*(?:(?:de|que|para|pra|to)\\b\\s*)?',
+  'iu',
+);
+
+/** The title when there is no day or time to split out: no command words, no final period. */
+export const quickTitle = (transcript: string): string => {
+  const trimmed = transcript.trim().replace(/[.!?…]+$/u, '').trim();
+  const stripped = trimmed.replace(COMMAND_PREFIX, '').trim();
+  return stripped.length > 0 ? stripped : trimmed;
+};
+
 export class NoSpeechError extends Error {
   constructor() {
     super('no_speech');
@@ -117,6 +178,10 @@ export const transcribeVoiceTask = async (
     })
   ).trim();
   if (!/[\p{L}\p{N}]/u.test(transcript)) throw new NoSpeechError();
+
+  if (!mentionsDateOrTime(transcript)) {
+    return { transcript, task: parseVoiceTask({ title: quickTitle(transcript) }, transcript, context) };
+  }
 
   let raw: Record<string, unknown> | null = null;
   try {

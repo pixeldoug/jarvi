@@ -6,13 +6,16 @@ import { requireOptionalNativeModule } from 'expo';
  */
 interface JarviWatchNativeModule {
   isSupported(): boolean;
-  setSession(token: string | null, apiUrl: string): void;
+  setSession(token: string | null, apiUrl: string, locale: string): void;
 }
 
 const native = requireOptionalNativeModule<JarviWatchNativeModule>('JarviWatch');
 
-/** Hands the session to the watch; `null` signs the watch out. */
-export function shareSessionWithWatch(token: string | null, apiUrl: string): void {
+/**
+ * Hands the session to the watch; `null` signs the watch out. `locale` is the
+ * app's language (`pt-BR` / `en-US`), the one the watch transcribes speech in.
+ */
+export function shareSessionWithWatch(token: string | null, apiUrl: string, locale: string): void {
   if (!native?.isSupported()) return;
-  native.setSession(token, apiUrl);
+  native.setSession(token, apiUrl, locale);
 }
