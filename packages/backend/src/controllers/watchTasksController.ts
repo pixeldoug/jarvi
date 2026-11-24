@@ -3,6 +3,8 @@ import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { isDateKey } from '../services/watchVoiceTaskService';
 import {
   shiftDateKey,
+  WATCH_SOURCE,
+  WATCH_SPOKEN_LIMIT,
   WATCH_TASK_COLUMNS,
   WATCH_UPCOMING_LIMIT,
   watchTaskList,
@@ -10,9 +12,9 @@ import {
 } from '../services/watchTasks';
 
 /**
- * GET /api/tasks/watch?today=YYYY-MM-DD — the Apple Watch list: overdue open
- * tasks, today's, and the soonest upcoming open ones (its three chips), with
- * only the fields the watch shows. `today` is the
+ * GET /api/tasks/watch?today=YYYY-MM-DD — the Apple Watch list: today's
+ * tasks, the soonest upcoming open ones, overdue open tasks and the open ones
+ * spoken on the watch (its four chips), with only the fields the watch shows. `today` is the
  * watch's local date. GET /api/tasks returns every task ever made with every
  * column, which is slow over the watch's link (often Bluetooth through the
  * iPhone).
@@ -40,9 +42,11 @@ export const getWatchTasks = async (req: Request, res: Response): Promise<void> 
     // …and the soonest open tasks after that. Starting after the first query
     // ends, today's tasks never take up the upcoming limit.
     let later: WatchTaskRow[];
+    // …and the newest open tasks spoken on the watch, whatever their date.
+    let spoken: WatchTaskRow[];
     if (isPostgreSQL()) {
       const pool = getPool();
-      [current, later] = await Promise.all([
+      [current, later, spoken] = await Promise.all([
         pool
           .query(
             `SELECT ${WATCH_TASK_COLUMNS} FROM tasks
@@ -57,6 +61,14 @@ export const getWatchTasks = async (req: Request, res: Response): Promise<void> 
              WHERE user_id = $1 AND completed = false AND due_date >= $2
              ORDER BY due_date ASC LIMIT $3`,
             [userId, until, WATCH_UPCOMING_LIMIT],
+          )
+          .then((result) => result.rows),
+        pool
+          .query(
+            `SELECT ${WATCH_TASK_COLUMNS} FROM tasks
+             WHERE user_id = $1 AND source = $2 AND completed = false
+             ORDER BY created_at DESC LIMIT $3`,
+            [userId, WATCH_SOURCE, WATCH_SPOKEN_LIMIT],
           )
           .then((result) => result.rows),
       ]);
@@ -74,8 +86,14 @@ export const getWatchTasks = async (req: Request, res: Response): Promise<void> 
          ORDER BY due_date ASC LIMIT ?`,
         [userId, until, WATCH_UPCOMING_LIMIT],
       );
+      spoken = await db.all(
+        `SELECT ${WATCH_TASK_COLUMNS} FROM tasks
+         WHERE user_id = ? AND source = ? AND completed = 0
+         ORDER BY created_at DESC LIMIT ?`,
+        [userId, WATCH_SOURCE, WATCH_SPOKEN_LIMIT],
+      );
     }
-    res.json(watchTaskList(current, later, today));
+    res.json(watchTaskList(current, later, today, spoken));
   } catch (error) {
     console.error('Error fetching watch tasks:', error);
     res.status(500).json({ error: 'Internal server error' });

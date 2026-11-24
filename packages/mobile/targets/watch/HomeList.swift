@@ -2,24 +2,26 @@ import SwiftUI
 import WatchKit
 
 /// The whole main screen, one list: the microphone on top (speak a task),
-/// then, a turn of the crown below, chips for overdue, today and upcoming
-/// tasks and the chosen ones. The rows
-/// are read-only on purpose; a tap opens the task, and completing happens
-/// there.
+/// then, a turn of the crown below, chips for today's, upcoming, overdue and
+/// spoken-here tasks, and the chosen ones. The rows are read-only on
+/// purpose; a tap opens the task, and completing happens there.
 struct HomeList: View {
-  /// The chips under the microphone, like the iPhone's sections.
+  /// The chips under the microphone, like the iPhone's sections, plus the
+  /// tasks spoken on this watch.
   enum Filter: String, CaseIterable, Identifiable {
-    case overdue
     case today
     case upcoming
+    case overdue
+    case fromWatch
 
     var id: String { rawValue }
 
     var title: LocalizedStringKey {
       switch self {
-      case .overdue: "Vencidas"
       case .today: "Hoje"
       case .upcoming: "Próximas"
+      case .overdue: "Vencidas"
+      case .fromWatch: "Do relógio"
       }
     }
   }
@@ -92,15 +94,16 @@ struct HomeList: View {
     .accessibilityLabel(Text("Falar uma tarefa"))
   }
 
+  /// No scroll view: a horizontal one takes the crown once touched, and the
+  /// crown must always scroll the tasks. The chips wrap to a second line
+  /// instead, and only a tap changes them.
   private func chips(_ sections: TodayTasks.Sections) -> some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 6) {
-        ForEach(Filter.allCases) { option in
-          chip(option, count: count(option, in: sections))
-        }
+    ChipFlow(spacing: 6) {
+      ForEach(Filter.allCases) { option in
+        chip(option, count: count(option, in: sections))
       }
-      .padding(.horizontal, 2)
     }
+    .padding(.horizontal, 2)
     .listRowBackground(Color.clear)
     .listRowInsets(EdgeInsets())
   }
@@ -135,6 +138,7 @@ struct HomeList: View {
     case .overdue: sections.overdue.count
     case .today: sections.today.filter { !$0.completed }.count
     case .upcoming: sections.upcoming.count
+    case .fromWatch: sections.fromWatch.count
     }
   }
 
@@ -174,6 +178,16 @@ struct HomeList: View {
           }
         }
       }
+    case .fromWatch:
+      if sections.fromWatch.isEmpty {
+        empty("Nada falado no relógio.", hint: "As tarefas que você fala aqui aparecem neste filtro.")
+      } else {
+        Section {
+          ForEach(sections.fromWatch) { task in
+            row(task, showDate: true)
+          }
+        }
+      }
     }
   }
 
@@ -207,6 +221,56 @@ struct HomeList: View {
     NavigationLink(value: task.id) {
       TaskRow(task: task, showDate: showDate, busy: model.busyIDs.contains(task.id))
     }
+  }
+}
+
+/// Chips side by side, wrapping to a new line when the row is full.
+private struct ChipFlow: Layout {
+  var spacing: CGFloat
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    let rows = arrange(subviews, width: proposal.width ?? .infinity)
+    let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+    let width = rows.map(\.width).max() ?? 0
+    return CGSize(width: proposal.width ?? width, height: height)
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    var y = bounds.minY
+    for row in arrange(subviews, width: bounds.width) {
+      var x = bounds.minX
+      for index in row.indices {
+        let size = subviews[index].sizeThatFits(.unspecified)
+        subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+        x += size.width + spacing
+      }
+      y += row.height + spacing
+    }
+  }
+
+  private struct Row {
+    var indices: [Int] = []
+    var width: CGFloat = 0
+    var height: CGFloat = 0
+  }
+
+  private func arrange(_ subviews: Subviews, width: CGFloat) -> [Row] {
+    var rows: [Row] = []
+    var current = Row()
+    for index in subviews.indices {
+      let size = subviews[index].sizeThatFits(.unspecified)
+      let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+      if needed > width, !current.indices.isEmpty {
+        rows.append(current)
+        current = Row(indices: [index], width: size.width, height: size.height)
+      } else {
+        current.indices.append(index)
+        current.width = needed
+        current.height = max(current.height, size.height)
+      }
+    }
+    if !current.indices.isEmpty { rows.append(current) }
+    return rows
   }
 }
 

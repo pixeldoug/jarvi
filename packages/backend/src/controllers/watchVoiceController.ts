@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getDatabase, getPool, isPostgreSQL } from '../database';
 import { recordTaskCreated } from '../services/taskTelemetry';
+import { WATCH_SOURCE } from '../services/watchTasks';
 import {
   isClockTime,
   isDateKey,
@@ -41,17 +42,18 @@ const insertTask = async (
   task: { title: string; dueDate: string; time: string | null },
 ): Promise<TaskRow | undefined> => {
   const now = new Date().toISOString();
-  const values = [id, userId, task.title, false, task.time, task.dueDate, 'none', now, now];
+  // source 'watch': the watch's "Do relógio" chip lists these.
+  const values = [id, userId, task.title, false, task.time, task.dueDate, 'none', WATCH_SOURCE, now, now];
   if (isPostgreSQL()) {
     await getPool().query(
-      `INSERT INTO tasks (id, user_id, title, important, time, due_date, recurrence_type, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO tasks (id, user_id, title, important, time, due_date, recurrence_type, source, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       values,
     );
   } else {
     await getDatabase().run(
-      `INSERT INTO tasks (id, user_id, title, important, time, due_date, recurrence_type, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, title, important, time, due_date, recurrence_type, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       values,
     );
   }

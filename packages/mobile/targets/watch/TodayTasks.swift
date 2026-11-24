@@ -11,18 +11,29 @@ struct WatchTask: Identifiable, Equatable, Codable {
   /// YYYY-MM-DD, sometimes with a time suffix.
   let dueDate: String?
   let createdAt: String
+  /// Where it was made: "watch" when spoken here, "web", "whatsapp"…
+  let source: String?
 
-  init(id: String, title: String, completed: Bool = false, time: String? = nil, dueDate: String? = nil, createdAt: String = "") {
+  init(
+    id: String,
+    title: String,
+    completed: Bool = false,
+    time: String? = nil,
+    dueDate: String? = nil,
+    createdAt: String = "",
+    source: String? = nil
+  ) {
     self.id = id
     self.title = title
     self.completed = completed
     self.time = time
     self.dueDate = dueDate
     self.createdAt = createdAt
+    self.source = source
   }
 
   private enum CodingKeys: String, CodingKey {
-    case id, title, completed, time
+    case id, title, completed, time, source
     case dueDate = "due_date"
     case createdAt = "created_at"
   }
@@ -44,6 +55,8 @@ struct WatchTask: Identifiable, Equatable, Codable {
     time = try c.decodeIfPresent(String.self, forKey: .time)
     dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
     createdAt = (try c.decodeIfPresent(String.self, forKey: .createdAt)) ?? ""
+    // Lists cached before this field existed have no source.
+    source = try? c.decodeIfPresent(String.self, forKey: .source)
   }
 
   /// Same keys as the server's JSON, so the cached list (TaskListCache)
@@ -56,6 +69,7 @@ struct WatchTask: Identifiable, Equatable, Codable {
     try c.encodeIfPresent(time, forKey: .time)
     try c.encodeIfPresent(dueDate, forKey: .dueDate)
     try c.encode(createdAt, forKey: .createdAt)
+    try c.encodeIfPresent(source, forKey: .source)
   }
 
   /// The due date as YYYY-MM-DD, or nil (`dateKeyOf` in src/lib/dates.ts).
@@ -66,6 +80,9 @@ struct WatchTask: Identifiable, Equatable, Codable {
   }
 
   var hasTime: Bool { !(time ?? "").isEmpty }
+
+  /// Spoken on the watch (POST /api/tasks/voice saves source "watch").
+  var isFromWatch: Bool { source == "watch" }
 }
 
 /// What the watch shows: the iPhone's "Atrasadas" and "Hoje" sections
@@ -78,6 +95,8 @@ enum TodayTasks {
     /// Open and due after today (the iPhone's tomorrow, this week, next week
     /// and later), soonest first.
     var upcoming: [WatchTask] = []
+    /// Open and spoken on the watch, whatever the day, newest first.
+    var fromWatch: [WatchTask] = []
   }
 
   /// Stored dates (YYYY-MM-DD) are Gregorian, as on the iPhone and the web,
@@ -108,6 +127,9 @@ enum TodayTasks {
       }
     }
     result.today += completedToday
+    result.fromWatch = tasks
+      .filter { $0.isFromWatch && !$0.completed }
+      .sorted { $0.createdAt > $1.createdAt }
     return result
   }
 

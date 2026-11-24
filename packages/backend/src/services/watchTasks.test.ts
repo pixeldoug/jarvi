@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   dueDateKey,
+  isSpokenWatchTask,
   isUpcomingWatchTask,
   isWatchTask,
   shiftDateKey,
@@ -54,13 +55,29 @@ describe('shiftDateKey', () => {
   });
 });
 
-const row = (id: string, due_date: string | null, completed = false): WatchTaskRow => ({
+const row = (
+  id: string,
+  due_date: string | null,
+  completed = false,
+  source: string | null = 'manual',
+): WatchTaskRow => ({
   id,
   title: id,
   completed,
   time: null,
   due_date,
   created_at: '2026-11-01T00:00:00.000Z',
+  source,
+});
+
+describe('isSpokenWatchTask', () => {
+  it('keeps open tasks spoken on the watch only', () => {
+    assert.ok(isSpokenWatchTask({ source: 'watch', completed: false }));
+    assert.ok(isSpokenWatchTask({ source: 'watch', completed: 0 }));
+    assert.ok(!isSpokenWatchTask({ source: 'watch', completed: true }));
+    assert.ok(!isSpokenWatchTask({ source: 'manual', completed: false }));
+    assert.ok(!isSpokenWatchTask({ source: null, completed: false }));
+  });
 });
 
 describe('isUpcomingWatchTask', () => {
@@ -103,5 +120,21 @@ describe('watchTaskList', () => {
     const result = watchTaskList(current, later, today).map((r) => r.id);
     assert.equal(result.length, 72);
     assert.deepEqual(result.slice(-2), ['tomorrow', 'nov27']);
+  });
+
+  it('adds open tasks spoken on the watch that are not in the list yet', () => {
+    const current = [row('spokenToday', today, false, 'watch')];
+    const later = [row('spokenSoon', '2026-11-28', false, 'watch')];
+    const spoken = [
+      row('spokenToday', today, false, 'watch'),
+      row('spokenSoon', '2026-11-28', false, 'watch'),
+      row('spokenFar', '2027-06-01', false, 'watch'),
+      row('spokenDone', '2027-06-02', true, 'watch'),
+      row('typed', '2027-06-03'),
+    ];
+    assert.deepEqual(
+      watchTaskList(current, later, today, spoken).map((r) => r.id),
+      ['spokenToday', 'spokenSoon', 'spokenFar'],
+    );
   });
 });
