@@ -34,15 +34,15 @@ export const getWatchTasks = async (req: Request, res: Response): Promise<void> 
 
   const from = shiftDateKey(today, -1);
   const until = shiftDateKey(today, 2);
-  // Upcoming: open from today on (margin), soonest first, a few extra for
-  // the margin rows the exact rule drops.
-  const upcomingLimit = WATCH_UPCOMING_LIMIT + 10;
   try {
+    // Everything up to tomorrow (overdue, today, and tomorrow's open tasks)…
     let current: WatchTaskRow[];
-    let upcoming: WatchTaskRow[];
+    // …and the soonest open tasks after that. Starting after the first query
+    // ends, today's tasks never take up the upcoming limit.
+    let later: WatchTaskRow[];
     if (isPostgreSQL()) {
       const pool = getPool();
-      [current, upcoming] = await Promise.all([
+      [current, later] = await Promise.all([
         pool
           .query(
             `SELECT ${WATCH_TASK_COLUMNS} FROM tasks
@@ -56,7 +56,7 @@ export const getWatchTasks = async (req: Request, res: Response): Promise<void> 
             `SELECT ${WATCH_TASK_COLUMNS} FROM tasks
              WHERE user_id = $1 AND completed = false AND due_date >= $2
              ORDER BY due_date ASC LIMIT $3`,
-            [userId, today, upcomingLimit],
+            [userId, until, WATCH_UPCOMING_LIMIT],
           )
           .then((result) => result.rows),
       ]);
@@ -68,14 +68,14 @@ export const getWatchTasks = async (req: Request, res: Response): Promise<void> 
            AND (completed = 0 OR due_date >= ?)`,
         [userId, until, from],
       );
-      upcoming = await db.all(
+      later = await db.all(
         `SELECT ${WATCH_TASK_COLUMNS} FROM tasks
          WHERE user_id = ? AND completed = 0 AND due_date >= ?
          ORDER BY due_date ASC LIMIT ?`,
-        [userId, today, upcomingLimit],
+        [userId, until, WATCH_UPCOMING_LIMIT],
       );
     }
-    res.json(watchTaskList(current, upcoming, today));
+    res.json(watchTaskList(current, later, today));
   } catch (error) {
     console.error('Error fetching watch tasks:', error);
     res.status(500).json({ error: 'Internal server error' });

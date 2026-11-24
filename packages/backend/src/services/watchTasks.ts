@@ -61,17 +61,24 @@ export const isUpcomingWatchTask = (
 
 /**
  * The response: overdue + today, then the soonest upcoming ones (by date,
- * at most `WATCH_UPCOMING_LIMIT`), each task once.
+ * at most `WATCH_UPCOMING_LIMIT`), each task once. `current` holds every
+ * task up to tomorrow (its open tomorrow ones count as upcoming); `later`
+ * holds the soonest open ones after that, so today's tasks can never use up
+ * the upcoming limit.
  */
 export const watchTaskList = (
   current: WatchTaskRow[],
-  upcomingCandidates: WatchTaskRow[],
+  later: WatchTaskRow[],
   today: string,
 ): WatchTaskRow[] => {
   const result = current.filter((row) => isWatchTask(row, today));
   const seen = new Set(result.map((row) => row.id));
-  const upcoming = upcomingCandidates
-    .filter((row) => !seen.has(row.id) && isUpcomingWatchTask(row, today))
+  const upcoming = [...current, ...later]
+    .filter((row) => {
+      if (seen.has(row.id) || !isUpcomingWatchTask(row, today)) return false;
+      seen.add(row.id);
+      return true;
+    })
     .sort((a, b) => (dueDateKey(a.due_date) ?? '').localeCompare(dueDateKey(b.due_date) ?? ''))
     .slice(0, WATCH_UPCOMING_LIMIT);
   return [...result, ...upcoming];

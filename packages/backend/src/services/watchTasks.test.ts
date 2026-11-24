@@ -91,4 +91,17 @@ describe('watchTaskList', () => {
     assert.equal(result.length, WATCH_UPCOMING_LIMIT);
     assert.equal(result[0].id, 'u0');
   });
+
+  it("never lets today's tasks hide upcoming ones", () => {
+    // The first query brings everything up to tomorrow, however many today;
+    // the second only what comes after.
+    const current = [
+      ...Array.from({ length: 70 }, (_, i) => row(`today${i}`, today)),
+      row('tomorrow', '2026-11-25'),
+    ];
+    const later = [row('nov27', '2026-11-27')];
+    const result = watchTaskList(current, later, today).map((r) => r.id);
+    assert.equal(result.length, 72);
+    assert.deepEqual(result.slice(-2), ['tomorrow', 'nov27']);
+  });
 });
