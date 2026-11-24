@@ -95,11 +95,12 @@ export const watchTaskList = (
     })
     .sort((a, b) => (dueDateKey(a.due_date) ?? '').localeCompare(dueDateKey(b.due_date) ?? ''))
     .slice(0, WATCH_UPCOMING_LIMIT);
-  for (const row of upcoming) seen.add(row.id);
+  // Only what was kept: a spoken task cut from the upcoming limit still goes in.
+  const kept = new Set([...result, ...upcoming].map((row) => row.id));
   const spokenRest = spoken
     .filter((row) => {
-      if (seen.has(row.id) || !isSpokenWatchTask(row)) return false;
-      seen.add(row.id);
+      if (kept.has(row.id) || !isSpokenWatchTask(row)) return false;
+      kept.add(row.id);
       return true;
     })
     .slice(0, WATCH_SPOKEN_LIMIT);

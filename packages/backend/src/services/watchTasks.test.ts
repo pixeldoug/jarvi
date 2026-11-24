@@ -137,4 +137,15 @@ describe('watchTaskList', () => {
       ['spokenToday', 'spokenSoon', 'spokenFar'],
     );
   });
+
+  it('keeps a spoken task the upcoming limit cut', () => {
+    const later = [
+      ...Array.from({ length: WATCH_UPCOMING_LIMIT }, (_, i) => row(`soon${i}`, '2026-11-26')),
+      row('spokenCut', '2026-11-27', false, 'watch'),
+    ];
+    const spoken = [row('spokenCut', '2026-11-27', false, 'watch')];
+    const result = watchTaskList([], later, today, spoken).map((r) => r.id);
+    assert.equal(result.length, WATCH_UPCOMING_LIMIT + 1);
+    assert.equal(result[result.length - 1], 'spokenCut');
+  });
 });
