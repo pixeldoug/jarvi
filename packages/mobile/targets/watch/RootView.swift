@@ -52,7 +52,7 @@ struct RootView: View {
     }
     .task(id: session.token) {
       // A new session (another account, or signed out) starts from an empty list.
-      model.switchSession(to: session.token)
+      model.switchSession(to: session.token, owner: api?.accountID)
       capture.close()
       if let api {
         startIfRequested(api)
@@ -115,7 +115,7 @@ struct RootView: View {
   /// The list, plus anything said while offline that can be sent now. Each
   /// recording goes out with its own account's session (`api.accountID`).
   private func refresh(_ api: TaskAPI) async {
-    await model.load(api)
+    await model.refresh(api)
     let created = await outbox.flush(api: api)
     if created > 0 { await model.load(api) }
   }

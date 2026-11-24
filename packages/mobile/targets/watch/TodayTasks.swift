@@ -2,7 +2,7 @@ import Foundation
 
 /// A task as GET /api/tasks returns it (only the fields the watch shows).
 /// Mirrors `Task` in src/types/models.ts.
-struct WatchTask: Identifiable, Equatable, Decodable {
+struct WatchTask: Identifiable, Equatable, Codable {
   let id: String
   let title: String
   var completed: Bool
@@ -44,6 +44,18 @@ struct WatchTask: Identifiable, Equatable, Decodable {
     time = try c.decodeIfPresent(String.self, forKey: .time)
     dueDate = try c.decodeIfPresent(String.self, forKey: .dueDate)
     createdAt = (try c.decodeIfPresent(String.self, forKey: .createdAt)) ?? ""
+  }
+
+  /// Same keys as the server's JSON, so the cached list (TaskListCache)
+  /// reads back with the decoder above.
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(id, forKey: .id)
+    try c.encode(title, forKey: .title)
+    try c.encode(completed, forKey: .completed)
+    try c.encodeIfPresent(time, forKey: .time)
+    try c.encodeIfPresent(dueDate, forKey: .dueDate)
+    try c.encode(createdAt, forKey: .createdAt)
   }
 
   /// The due date as YYYY-MM-DD, or nil (`dateKeyOf` in src/lib/dates.ts).
