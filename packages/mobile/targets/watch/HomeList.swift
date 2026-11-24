@@ -94,13 +94,18 @@ struct HomeList: View {
     .accessibilityLabel(Text("Falar uma tarefa"))
   }
 
-  /// No scroll view: a horizontal one takes the crown once touched, and the
-  /// crown must always scroll the tasks. The chips wrap to a second line
-  /// instead, and only a tap changes them.
+  /// Two by two, no scroll view: a horizontal one takes the crown once
+  /// touched, and the crown must always scroll the tasks. Only a tap changes
+  /// the chips.
   private func chips(_ sections: TodayTasks.Sections) -> some View {
-    ChipFlow(spacing: 6) {
-      ForEach(Filter.allCases) { option in
-        chip(option, count: count(option, in: sections))
+    let options = Filter.allCases
+    return Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+      ForEach(Array(stride(from: 0, to: options.count, by: 2)), id: \.self) { start in
+        GridRow {
+          ForEach(options[start..<min(start + 2, options.count)]) { option in
+            chip(option, count: count(option, in: sections))
+          }
+        }
       }
     }
     .padding(.horizontal, 2)
@@ -121,9 +126,12 @@ struct HomeList: View {
         }
       }
       .font(.footnote.weight(.semibold))
+      .lineLimit(1)
+      .minimumScaleFactor(0.7)
       .foregroundStyle(selected ? Color.white : Color.primary)
-      .padding(.horizontal, 10)
+      .padding(.horizontal, 8)
       .padding(.vertical, 6)
+      .frame(maxWidth: .infinity)
       .background(
         Capsule().fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.tertiary))
       )
@@ -221,56 +229,6 @@ struct HomeList: View {
     NavigationLink(value: task.id) {
       TaskRow(task: task, showDate: showDate, busy: model.busyIDs.contains(task.id))
     }
-  }
-}
-
-/// Chips side by side, wrapping to a new line when the row is full.
-private struct ChipFlow: Layout {
-  var spacing: CGFloat
-
-  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-    let rows = arrange(subviews, width: proposal.width ?? .infinity)
-    let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
-    let width = rows.map(\.width).max() ?? 0
-    return CGSize(width: proposal.width ?? width, height: height)
-  }
-
-  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-    var y = bounds.minY
-    for row in arrange(subviews, width: bounds.width) {
-      var x = bounds.minX
-      for index in row.indices {
-        let size = subviews[index].sizeThatFits(.unspecified)
-        subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-        x += size.width + spacing
-      }
-      y += row.height + spacing
-    }
-  }
-
-  private struct Row {
-    var indices: [Int] = []
-    var width: CGFloat = 0
-    var height: CGFloat = 0
-  }
-
-  private func arrange(_ subviews: Subviews, width: CGFloat) -> [Row] {
-    var rows: [Row] = []
-    var current = Row()
-    for index in subviews.indices {
-      let size = subviews[index].sizeThatFits(.unspecified)
-      let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
-      if needed > width, !current.indices.isEmpty {
-        rows.append(current)
-        current = Row(indices: [index], width: size.width, height: size.height)
-      } else {
-        current.indices.append(index)
-        current.width = needed
-        current.height = max(current.height, size.height)
-      }
-    }
-    if !current.indices.isEmpty { rows.append(current) }
-    return rows
   }
 }
 
