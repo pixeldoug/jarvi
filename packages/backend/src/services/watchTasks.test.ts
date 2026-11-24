@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { dueDateKey, isWatchTask, shiftDateKey } from './watchTasks';
+import {
+  dueDateKey,
+  isUpcomingWatchTask,
+  isWatchTask,
+  shiftDateKey,
+  WATCH_UPCOMING_LIMIT,
+  watchTaskList,
+  WatchTaskRow,
+} from './watchTasks';
 
 const today = '2026-11-24';
 
@@ -43,5 +51,44 @@ describe('shiftDateKey', () => {
     assert.equal(shiftDateKey('2026-11-30', 1), '2026-12-01');
     assert.equal(shiftDateKey('2027-01-01', -1), '2026-12-31');
     assert.equal(shiftDateKey('2028-02-28', 2), '2028-03-01');
+  });
+});
+
+const row = (id: string, due_date: string | null, completed = false): WatchTaskRow => ({
+  id,
+  title: id,
+  completed,
+  time: null,
+  due_date,
+  created_at: '2026-11-01T00:00:00.000Z',
+});
+
+describe('isUpcomingWatchTask', () => {
+  it('keeps open tasks after today only', () => {
+    assert.ok(isUpcomingWatchTask({ due_date: '2026-11-25', completed: false }, today));
+    assert.ok(isUpcomingWatchTask({ due_date: '2027-03-01T00:00:00.000Z', completed: 0 }, today));
+    assert.ok(!isUpcomingWatchTask({ due_date: '2026-11-25', completed: true }, today));
+    assert.ok(!isUpcomingWatchTask({ due_date: today, completed: false }, today));
+    assert.ok(!isUpcomingWatchTask({ due_date: null, completed: false }, today));
+  });
+});
+
+describe('watchTaskList', () => {
+  it('returns overdue + today, then upcoming by date, each task once', () => {
+    const current = [row('overdue', '2026-11-20'), row('today', today), row('tomorrow', '2026-11-25')];
+    const upcoming = [row('later', '2026-12-10'), row('tomorrow', '2026-11-25'), row('dec1', '2026-12-01')];
+    assert.deepEqual(
+      watchTaskList(current, upcoming, today).map((r) => r.id),
+      ['overdue', 'today', 'tomorrow', 'dec1', 'later'],
+    );
+  });
+
+  it('caps upcoming at the soonest WATCH_UPCOMING_LIMIT', () => {
+    const many = Array.from({ length: WATCH_UPCOMING_LIMIT + 5 }, (_, i) =>
+      row(`u${i}`, shiftDateKey(today, i + 1)),
+    );
+    const result = watchTaskList([], many.reverse(), today);
+    assert.equal(result.length, WATCH_UPCOMING_LIMIT);
+    assert.equal(result[0].id, 'u0');
   });
 });

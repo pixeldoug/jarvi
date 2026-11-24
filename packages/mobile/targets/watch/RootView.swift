@@ -13,6 +13,10 @@ struct RootView: View {
   @StateObject private var connectivity = Connectivity()
   @Environment(\.scenePhase) private var scenePhase
 
+  private var appLocale: Locale {
+    Locale(identifier: session.locale ?? AppLanguage.identifier)
+  }
+
   private var api: TaskAPI? {
     guard let token = session.token, let url = session.apiURL else { return nil }
     return TaskAPI(baseURL: url, token: token, locale: session.locale)
@@ -48,8 +52,11 @@ struct RootView: View {
           speakAgain: { speak(api) },
           onUndone: { Task { await model.load(api) } }
         )
+        .environment(\.locale, appLocale)
       }
     }
+    // The iPhone app's language, not the watch's (AppLanguage).
+    .environment(\.locale, appLocale)
     .task(id: session.token) {
       // A new session (another account, or signed out) starts from an empty list.
       model.switchSession(to: session.token, owner: api?.accountID)

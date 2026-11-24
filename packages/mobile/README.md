@@ -51,7 +51,7 @@ Contrato de UI: [compliance.md](compliance.md).
 O relógio é feito para falar (desenho na página "watch" do Figma). Por ordem de importância:
 
 1. **Criar por voz.** O app abre no microfone (topo de uma lista única): um toque e ele grava. O áudio vai para `POST /api/tasks/voice`, que transcreve (o mesmo Whisper dos áudios do WhatsApp) e separa título, dia e hora ("amanhã às 15h"; sem dia nem hora na frase, pula essa etapa e fica mais rápido). A fala é transcrita no idioma do app no iPhone, que vai junto com a sessão, e não no idioma do relógio. Sem dia dito, a tarefa vai para hoje. A tela de tarefa criada tem "Desfazer". A complicação do mostrador, o widget do Smart Stack (`jarviwatch://speak`) e a Siri ("Nova tarefa no Jarvi", `SpeakTaskIntent.swift`; o botão Ação do Ultra roda pelo app Atalhos) abrem o app já ouvindo.
-2. **Ver as tarefas.** Logo abaixo do microfone, girando a coroa: vencidas e as de hoje, na mesma ordem do iPhone. O relógio busca só essas (`GET /api/tasks/watch?today=`, só os campos que mostra) e guarda a última lista da conta, que aparece na hora ao abrir.
+2. **Ver as tarefas.** Logo abaixo do microfone, girando a coroa: chips **Vencidas**, **Hoje** e **Próximas** (abertas depois de hoje, por dia), na mesma ordem do iPhone; o chip escolhido fica salvo. O relógio busca só essas (`GET /api/tasks/watch?today=`, só os campos que mostra, até 50 próximas) e guarda a última lista da conta, que aparece na hora ao abrir.
 3. **Concluir.** Só na tela da tarefa (tocar na linha), para não concluir sem querer.
 
 Sem internet, a gravação fica guardada no relógio (`VoiceOutbox.swift`) e é enviada quando a conexão volta. Cada gravação tem um id que vira o id da tarefa, então reenviar nunca cria tarefa repetida.
@@ -62,7 +62,7 @@ Ele não tem login próprio: o app do iPhone manda o token pelo WatchConnectivit
 - O `expo prebuild` cria os alvos `JarviWatch` (bundle `com.jarvi.app.watchkitapp`, watchOS 10+) e `JarviWatchWidget` (`com.jarvi.app.watchkitapp.widget`), e gera o ícone em `targets/watch/Assets.xcassets`, que fica fora do git.
 - O EAS pede um perfil de assinatura também para o relógio e para o widget no primeiro build (`eas build` cuida disso com a conta Apple).
 - Para instalar: TestFlight no iPhone, e o app aparece no relógio pareado (ou pelo app Watch do iPhone).
-- Textos em `targets/watch/pt.lproj` e `en.lproj` (as chaves são o texto em português).
+- Textos em `targets/watch/pt.lproj` e `en.lproj` (as chaves são o texto em português). O relógio mostra o idioma escolhido no app do iPhone, que vai junto com a sessão (`AppLanguage.swift`), e não o idioma do sistema do relógio.
 
 ## Builds e publicação (EAS)
 

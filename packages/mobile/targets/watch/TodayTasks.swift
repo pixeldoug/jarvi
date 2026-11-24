@@ -75,6 +75,9 @@ enum TodayTasks {
     var overdue: [WatchTask] = []
     /// Open tasks first, then the ones completed today.
     var today: [WatchTask] = []
+    /// Open and due after today (the iPhone's tomorrow, this week, next week
+    /// and later), soonest first.
+    var upcoming: [WatchTask] = []
   }
 
   /// Stored dates (YYYY-MM-DD) are Gregorian, as on the iPhone and the web,
@@ -100,6 +103,8 @@ enum TodayTasks {
         if task.completed { completedToday.append(task) } else { result.today.append(task) }
       } else if key < todayKey, !task.completed {
         result.overdue.append(task)
+      } else if key > todayKey, !task.completed {
+        result.upcoming.append(task)
       }
     }
     result.today += completedToday
@@ -129,7 +134,7 @@ enum TodayTasks {
   /// Gregorian (`keyCalendar`) and shown in the watch's own calendar.
   static func shortDate(
     _ key: String,
-    locale: Locale = .current,
+    locale: Locale = AppLanguage.locale,
     keyCalendar: Calendar = keyCalendar,
     displayCalendar: Calendar = .current
   ) -> String {
@@ -153,13 +158,29 @@ enum TodayTasks {
     let tomorrow = calendar.date(byAdding: .day, value: 1, to: now).map { dateKey($0, calendar: calendar) }
     let day: String
     if key == today {
-      day = String(localized: "Hoje")
+      day = AppLanguage.string("Hoje")
     } else if key == tomorrow {
-      day = String(localized: "Amanhã")
+      day = AppLanguage.string("Amanhã")
     } else {
       day = shortDate(key)
     }
     guard let time = task.time, !time.isEmpty else { return day }
     return "\(day) · \(time)"
+  }
+
+  /// Header of a day in "Próximas": "Amanhã", "qua., 26 de nov." / "Wed, Nov 26".
+  static func dayLabel(_ key: String, now: Date = Date(), calendar: Calendar = keyCalendar) -> String {
+    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now).map { dateKey($0, calendar: calendar) }
+    if key == tomorrow { return AppLanguage.string("Amanhã") }
+    let parts = key.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3,
+          let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+    else { return key }
+    let formatter = DateFormatter()
+    formatter.locale = AppLanguage.locale
+    formatter.calendar = .current
+    formatter.timeZone = calendar.timeZone
+    formatter.setLocalizedDateFormatFromTemplate("EEEdMMM")
+    return formatter.string(from: date)
   }
 }

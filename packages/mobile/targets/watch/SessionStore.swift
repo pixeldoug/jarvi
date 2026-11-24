@@ -17,7 +17,6 @@ final class SessionStore: NSObject, ObservableObject, WCSessionDelegate {
   }
 
   private static let apiUrlDefaultsKey = "jarvi.apiUrl"
-  private static let localeDefaultsKey = "jarvi.locale"
 
   @Published private(set) var token: String?
   @Published private(set) var apiURL: URL?
@@ -31,7 +30,7 @@ final class SessionStore: NSObject, ObservableObject, WCSessionDelegate {
   override init() {
     token = Keychain.read()
     apiURL = UserDefaults.standard.string(forKey: Self.apiUrlDefaultsKey).flatMap(URL.init(string:))
-    locale = UserDefaults.standard.string(forKey: Self.localeDefaultsKey)
+    locale = UserDefaults.standard.string(forKey: "jarvi.locale")
     super.init()
   }
 
@@ -49,7 +48,7 @@ final class SessionStore: NSObject, ObservableObject, WCSessionDelegate {
     let newLocale = (context[Key.locale] as? String).flatMap { $0.isEmpty ? nil : $0 }
     DispatchQueue.main.async {
       if let newLocale, newLocale != self.locale {
-        UserDefaults.standard.set(newLocale, forKey: Self.localeDefaultsKey)
+        AppLanguage.set(newLocale)
         self.locale = newLocale
       }
       if newToken != self.token {

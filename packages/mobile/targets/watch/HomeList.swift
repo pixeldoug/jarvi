@@ -2,15 +2,35 @@ import SwiftUI
 import WatchKit
 
 /// The whole main screen, one list: the microphone on top (speak a task),
-/// then, a turn of the crown below, the overdue and today's tasks. The rows
+/// then, a turn of the crown below, chips for overdue, today and upcoming
+/// tasks and the chosen ones. The rows
 /// are read-only on purpose; a tap opens the task, and completing happens
 /// there.
 struct HomeList: View {
+  /// The chips under the microphone, like the iPhone's sections.
+  enum Filter: String, CaseIterable, Identifiable {
+    case overdue
+    case today
+    case upcoming
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+      switch self {
+      case .overdue: "Vencidas"
+      case .today: "Hoje"
+      case .upcoming: "Próximas"
+      }
+    }
+  }
+
   @ObservedObject var model: TasksModel
   let api: TaskAPI
   let speak: () -> Void
   /// Pull to refresh: the list, and any recordings waiting to be sent.
   let refresh: () async -> Void
+  /// The chosen chip, kept between launches.
+  @AppStorage("watch.listFilter") private var filter: Filter = .today
 
   var body: some View {
     List {
@@ -43,7 +63,11 @@ struct HomeList: View {
           }
         }
       default:
-        taskSections
+        let sections = model.sections
+        Section {
+          chips(sections)
+        }
+        taskSections(sections)
       }
     }
     .refreshable { await refresh() }
@@ -68,27 +92,112 @@ struct HomeList: View {
     .accessibilityLabel(Text("Falar uma tarefa"))
   }
 
+  private func chips(_ sections: TodayTasks.Sections) -> some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 6) {
+        ForEach(Filter.allCases) { option in
+          chip(option, count: count(option, in: sections))
+        }
+      }
+      .padding(.horizontal, 2)
+    }
+    .listRowBackground(Color.clear)
+    .listRowInsets(EdgeInsets())
+  }
+
+  private func chip(_ option: Filter, count: Int) -> some View {
+    let selected = option == filter
+    return Button {
+      filter = option
+    } label: {
+      HStack(spacing: 4) {
+        Text(option.title)
+        if count > 0 {
+          Text(count, format: .number)
+            .foregroundStyle(selected ? Color.white.opacity(0.8) : Color.secondary)
+        }
+      }
+      .font(.footnote.weight(.semibold))
+      .foregroundStyle(selected ? Color.white : Color.primary)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 6)
+      .background(
+        Capsule().fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.tertiary))
+      )
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(selected ? .isSelected : [])
+  }
+
+  /// Open tasks per chip (today's done ones don't count).
+  private func count(_ option: Filter, in sections: TodayTasks.Sections) -> Int {
+    switch option {
+    case .overdue: sections.overdue.count
+    case .today: sections.today.filter { !$0.completed }.count
+    case .upcoming: sections.upcoming.count
+    }
+  }
+
   @ViewBuilder
-  private var taskSections: some View {
-    let sections = model.sections
-    if !sections.overdue.isEmpty {
-      Section("Vencidas") {
-        ForEach(sections.overdue) { task in
-          row(task, showDate: true)
+  private func taskSections(_ sections: TodayTasks.Sections) -> some View {
+    switch filter {
+    case .overdue:
+      if sections.overdue.isEmpty {
+        empty("Nada vencido.")
+      } else {
+        Section {
+          ForEach(sections.overdue) { task in
+            row(task, showDate: true)
+          }
+        }
+      }
+    case .today:
+      if sections.today.isEmpty {
+        empty("Nada para hoje.", hint: "Fale uma tarefa e ela aparece aqui.")
+      } else {
+        Section {
+          ForEach(sections.today) { task in
+            row(task, showDate: false)
+          }
+        }
+      }
+    case .upcoming:
+      if sections.upcoming.isEmpty {
+        empty("Nada nos próximos dias.")
+      } else {
+        // One section per day, headed "Amanhã", "qua., 26 de nov."…
+        ForEach(upcomingDays(sections.upcoming), id: \.key) { day in
+          Section(TodayTasks.dayLabel(day.key)) {
+            ForEach(day.tasks) { task in
+              row(task, showDate: false)
+            }
+          }
         }
       }
     }
-    Section("Hoje") {
-      if sections.today.isEmpty {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Nada para hoje.")
-          Text("Fale uma tarefa e ela aparece aqui.")
+  }
+
+  private func upcomingDays(_ tasks: [WatchTask]) -> [(key: String, tasks: [WatchTask])] {
+    var days: [(key: String, tasks: [WatchTask])] = []
+    for task in tasks {
+      guard let key = task.dateKey else { continue }
+      if days.last?.key == key {
+        days[days.count - 1].tasks.append(task)
+      } else {
+        days.append((key, [task]))
+      }
+    }
+    return days
+  }
+
+  private func empty(_ title: LocalizedStringKey, hint: LocalizedStringKey? = nil) -> some View {
+    Section {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        if let hint {
+          Text(hint)
             .font(.footnote)
             .foregroundStyle(.secondary)
-        }
-      } else {
-        ForEach(sections.today) { task in
-          row(task, showDate: false)
         }
       }
     }

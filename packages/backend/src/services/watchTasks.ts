@@ -1,6 +1,7 @@
 /**
- * What the Apple Watch list shows: overdue open tasks and today's tasks
- * (open and completed), with only the fields the watch reads. The same rules
+ * What the Apple Watch list shows, one chip each: overdue open tasks, today's
+ * tasks (open and completed) and the next open ones, with only the fields
+ * the watch reads. The same rules
  * as targets/watch/TodayTasks.swift, so the server never drops a task the
  * watch would show; sending only these instead of every task the user ever
  * had is what makes the list fast over the watch's slow link.
@@ -38,10 +39,40 @@ export const dueDateKey = (value: unknown): string | null => {
 
 const isCompleted = (value: unknown): boolean => value === true || value === 1 || value === '1';
 
+/** How many upcoming tasks the watch gets: the soonest ones. */
+export const WATCH_UPCOMING_LIMIT = 50;
+
 /** Overdue and still open, or due today (open or done). */
 export const isWatchTask = (row: Pick<WatchTaskRow, 'completed' | 'due_date'>, today: string): boolean => {
   const key = dueDateKey(row.due_date);
   if (!key) return false;
   if (key === today) return true;
   return key < today && !isCompleted(row.completed);
+};
+
+/** Open and due after today ("Próximas", like the iPhone's later sections). */
+export const isUpcomingWatchTask = (
+  row: Pick<WatchTaskRow, 'completed' | 'due_date'>,
+  today: string,
+): boolean => {
+  const key = dueDateKey(row.due_date);
+  return !!key && key > today && !isCompleted(row.completed);
+};
+
+/**
+ * The response: overdue + today, then the soonest upcoming ones (by date,
+ * at most `WATCH_UPCOMING_LIMIT`), each task once.
+ */
+export const watchTaskList = (
+  current: WatchTaskRow[],
+  upcomingCandidates: WatchTaskRow[],
+  today: string,
+): WatchTaskRow[] => {
+  const result = current.filter((row) => isWatchTask(row, today));
+  const seen = new Set(result.map((row) => row.id));
+  const upcoming = upcomingCandidates
+    .filter((row) => !seen.has(row.id) && isUpcomingWatchTask(row, today))
+    .sort((a, b) => (dueDateKey(a.due_date) ?? '').localeCompare(dueDateKey(b.due_date) ?? ''))
+    .slice(0, WATCH_UPCOMING_LIMIT);
+  return [...result, ...upcoming];
 };
