@@ -2,24 +2,26 @@ import SwiftUI
 import WatchKit
 
 /// The whole main screen, one list: the microphone on top (speak a task),
-/// then, a turn of the crown below, chips for overdue, today and upcoming
-/// tasks and the chosen ones. The rows
-/// are read-only on purpose; a tap opens the task, and completing happens
-/// there.
+/// then, a turn of the crown below, chips for today's, upcoming, overdue and
+/// spoken-here tasks, and the chosen ones. The rows are read-only on
+/// purpose; a tap opens the task, and completing happens there.
 struct HomeList: View {
-  /// The chips under the microphone, like the iPhone's sections.
+  /// The chips under the microphone, like the iPhone's sections, plus the
+  /// tasks spoken on this watch.
   enum Filter: String, CaseIterable, Identifiable {
-    case overdue
     case today
     case upcoming
+    case overdue
+    case fromWatch
 
     var id: String { rawValue }
 
     var title: LocalizedStringKey {
       switch self {
-      case .overdue: "Vencidas"
       case .today: "Hoje"
       case .upcoming: "Próximas"
+      case .overdue: "Vencidas"
+      case .fromWatch: "Do relógio"
       }
     }
   }
@@ -92,15 +94,21 @@ struct HomeList: View {
     .accessibilityLabel(Text("Falar uma tarefa"))
   }
 
+  /// Two by two, no scroll view: a horizontal one takes the crown once
+  /// touched, and the crown must always scroll the tasks. Only a tap changes
+  /// the chips.
   private func chips(_ sections: TodayTasks.Sections) -> some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-      HStack(spacing: 6) {
-        ForEach(Filter.allCases) { option in
-          chip(option, count: count(option, in: sections))
+    let options = Filter.allCases
+    return Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+      ForEach(Array(stride(from: 0, to: options.count, by: 2)), id: \.self) { start in
+        GridRow {
+          ForEach(options[start..<min(start + 2, options.count)]) { option in
+            chip(option, count: count(option, in: sections))
+          }
         }
       }
-      .padding(.horizontal, 2)
     }
+    .padding(.horizontal, 2)
     .listRowBackground(Color.clear)
     .listRowInsets(EdgeInsets())
   }
@@ -118,9 +126,12 @@ struct HomeList: View {
         }
       }
       .font(.footnote.weight(.semibold))
+      .lineLimit(1)
+      .minimumScaleFactor(0.7)
       .foregroundStyle(selected ? Color.white : Color.primary)
-      .padding(.horizontal, 10)
+      .padding(.horizontal, 8)
       .padding(.vertical, 6)
+      .frame(maxWidth: .infinity)
       .background(
         Capsule().fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.fill.tertiary))
       )
@@ -135,6 +146,7 @@ struct HomeList: View {
     case .overdue: sections.overdue.count
     case .today: sections.today.filter { !$0.completed }.count
     case .upcoming: sections.upcoming.count
+    case .fromWatch: sections.fromWatch.count
     }
   }
 
@@ -171,6 +183,16 @@ struct HomeList: View {
             ForEach(day.tasks) { task in
               row(task, showDate: false)
             }
+          }
+        }
+      }
+    case .fromWatch:
+      if sections.fromWatch.isEmpty {
+        empty("Nada falado no relógio.", hint: "As tarefas que você fala aqui aparecem neste filtro.")
+      } else {
+        Section {
+          ForEach(sections.fromWatch) { task in
+            row(task, showDate: true)
           }
         }
       }
