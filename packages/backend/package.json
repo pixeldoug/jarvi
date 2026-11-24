@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
+    "test": "node --require ts-node/register/transpile-only --test \"src/**/*.test.ts\"",
     "stripe:listen": "stripe listen --forward-to localhost:3001/webhooks/stripe",
     "stripe:trigger:trial-end": "stripe trigger customer.subscription.trial_will_end",
     "stripe:trigger:payment-success": "stripe trigger invoice.payment_succeeded",

@@ -47,7 +47,7 @@ Dev uses SQLite (auto-created at `packages/backend/jarvi.db`). No external datab
 - **Shared must be built before web/backend**: Run `npm run build:shared` if you change code in `packages/shared`. The update script handles this.
 - **Mobile is not an npm workspace**: `packages/mobile` (Expo SDK 58, React 19) has its own `package-lock.json`, because the web is on React 18 and hoisting would mix the two. Install it with `cd packages/mobile && npm install`; add packages with `npx expo install`. Checks: `npm run check` inside `packages/mobile`. See [packages/mobile/README.md](packages/mobile/README.md).
 - **ESLint config is broken**: The `.eslintrc.js` files reference `@typescript-eslint/recommended` (v8 style) but use `@typescript-eslint/eslint-plugin` v6 which expects `plugin:@typescript-eslint/recommended`. Use `npx tsc --noEmit` for type checking instead.
-- **No automated test suites**: No `test` scripts are configured in workspace packages.
+- **Few automated tests**: `packages/backend` has `npm test` (node:test via ts-node, `src/**/*.test.ts`; not run in CI yet) and `packages/mobile` has `npm run check` (run in CI). Other workspace packages have no `test` script.
 - **Build verification**: `npx tsc --noEmit` in `packages/backend` and `packages/web` are the best static verification checks.
 
 ### Quick start for future agents

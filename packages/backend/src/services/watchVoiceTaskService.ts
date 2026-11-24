@@ -100,7 +100,9 @@ export const parseVoiceTask = (
  * "dia 12", "15h", "tomorrow", "at 9"). Without any of them there is nothing
  * for the model to split, so the title is taken straight from the text and
  * the task goes to today: that skips a completion (about a second) for most
- * spoken tasks. A false match only costs the completion.
+ * spoken tasks. A false match only costs the completion, so when in doubt a
+ * word goes in (English "may" and "first" included). Regression cases in
+ * watchVoiceTaskService.test.ts.
  */
 const PT_HOURS = '(?:\\d|uma|duas|tr[eê]s|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|meio|meia)';
 const EN_HOURS = '(?:\\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight)';
@@ -116,9 +118,13 @@ const DATE_OR_TIME_CUE = new RegExp(
     // English
     'today', 'tonight', 'tomorrow', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
     'saturday', 'sunday', 'next', 'week', 'month', 'noon', 'midnight', 'morning', 'afternoon',
-    'evening', "o'clock", `at\\s+${EN_HOURS}`, 'in\\s+(?:a|an|one|two|three)\\s', 'january',
-    'february', 'march', 'april', 'june', 'july', 'august', 'september', 'october', 'november',
-    'december',
+    'evening', "o'clock", `at\\s+${EN_HOURS}`, 'in\\s+(?:a|an|one|two|three)\\s', 'half\\s+past',
+    'quarter\\s+(?:past|to)', 'january', 'february', 'march', 'april', 'may', 'june', 'july',
+    'august', 'september', 'october', 'november', 'december',
+    // Spoken days of the month: "on May first", "the twenty-third"
+    'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
+    'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth',
+    'eighteenth', 'nineteenth', 'twentieth', 'twenty', 'thirtieth', 'thirty',
     // Any number: "dia 12", "15h", "9:30"
     '\\d',
   ]
