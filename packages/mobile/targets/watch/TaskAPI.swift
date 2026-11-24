@@ -33,8 +33,16 @@ struct TaskAPI {
   /// speech in it; nil falls back to the watch's own language.
   var locale: String? = nil
 
-  func list() async throws -> [WatchTask] {
-    let data = try await send("GET", "/api/tasks")
+  /// The watch's list: overdue open tasks and today's, only the fields it
+  /// shows (GET /api/tasks/watch). Falls back to every task (GET /api/tasks)
+  /// on a server that doesn't have that route yet.
+  func list(today: String = TodayTasks.dateKey(Date())) async throws -> [WatchTask] {
+    let data: Data
+    do {
+      data = try await send("GET", "/api/tasks/watch?today=\(today)", missingRouteThrows: true)
+    } catch is RouteMissing {
+      data = try await send("GET", "/api/tasks")
+    }
     do {
       return try JSONDecoder().decode([WatchTask].self, from: data)
     } catch {
@@ -90,7 +98,16 @@ struct TaskAPI {
     _ = try await send("DELETE", "/api/tasks/\(id)")
   }
 
-  private func send(_ method: String, _ path: String, body: [String: Any]? = nil, timeout: TimeInterval = 20) async throws -> Data {
+  /// A 404 from a route an older server doesn't have.
+  private struct RouteMissing: Error {}
+
+  private func send(
+    _ method: String,
+    _ path: String,
+    body: [String: Any]? = nil,
+    timeout: TimeInterval = 20,
+    missingRouteThrows: Bool = false
+  ) async throws -> Data {
     guard let url = URL(string: path, relativeTo: baseURL) else { throw TaskAPIError.server }
     var request = URLRequest(url: url)
     request.httpMethod = method
@@ -112,6 +129,7 @@ struct TaskAPI {
     }
     guard let http = response as? HTTPURLResponse else { throw TaskAPIError.server }
     if (200..<300).contains(http.statusCode) { return data }
+    if missingRouteThrows && http.statusCode == 404 { throw RouteMissing() }
 
     let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
     let code = payload["code"] as? String

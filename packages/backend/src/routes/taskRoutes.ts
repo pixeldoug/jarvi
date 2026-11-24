@@ -14,6 +14,7 @@ import {
   restoreTaskDescription,
 } from '../controllers/taskDescriptionVersionController';
 import { createTaskFromVoice } from '../controllers/watchVoiceController';
+import { getWatchTasks } from '../controllers/watchTasksController';
 import { authenticateToken } from '../middleware/auth';
 import { requireActiveSubscription } from '../middleware/requireSubscription';
 import subTaskRouter from './subTaskRoutes';
@@ -36,6 +37,8 @@ const voiceLimiter = rateLimit({
 router.post('/', authenticateToken, requireActiveSubscription, createTask);
 router.post('/voice', authenticateToken, requireActiveSubscription, voiceLimiter, createTaskFromVoice);
 router.get('/', authenticateToken, requireActiveSubscription, getTasks);
+// Apple Watch list: only overdue + today, only the fields it shows.
+router.get('/watch', authenticateToken, requireActiveSubscription, getWatchTasks);
 router.patch('/completion', authenticateToken, requireActiveSubscription, setTasksCompletion);
 router.patch('/order', authenticateToken, requireActiveSubscription, setTasksOrder);
 router.put('/:id', authenticateToken, requireActiveSubscription, updateTask);
