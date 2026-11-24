@@ -26,9 +26,11 @@ final class TasksModel: ObservableObject {
 
   var sections: TodayTasks.Sections { TodayTasks.sections(from: tasks) }
 
-  /// Loads in flight; `refresh` doesn't start a second one (both would
-  /// download the list over the watch's slow link at the same time).
-  private var loadsInFlight = 0
+  /// The generation of the load running now. `refresh` doesn't start a
+  /// second one for the same session (both would download the list over
+  /// the watch's slow link at once). A load from an older session or an
+  /// older generation doesn't count: its result is dropped anyway.
+  private var runningGeneration: Int?
   /// The account the list belongs to, for the cache.
   private var owner: String?
 
@@ -56,7 +58,7 @@ final class TasksModel: ObservableObject {
   /// A load unless one is already running (opening the app, coming back to
   /// it, pull to refresh).
   func refresh(_ api: TaskAPI) async {
-    guard loadsInFlight == 0 else { return }
+    guard runningGeneration != loadGeneration else { return }
     await load(api)
   }
 
@@ -66,8 +68,8 @@ final class TasksModel: ObservableObject {
     loadGeneration += 1
     let generation = loadGeneration
     if tasks.isEmpty { status = .loading }
-    loadsInFlight += 1
-    defer { loadsInFlight -= 1 }
+    runningGeneration = generation
+    defer { if runningGeneration == generation { runningGeneration = nil } }
     do {
       let fresh = try await api.list()
       guard generation == loadGeneration, api.token == sessionToken else { return }
