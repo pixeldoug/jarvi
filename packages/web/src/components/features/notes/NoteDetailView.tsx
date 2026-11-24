@@ -23,6 +23,8 @@ import { NoteSummaryTab } from './NoteSummaryTab';
 import { NoteTranscriptTab } from './NoteTranscriptTab';
 import { RecordingChip } from './RecordingChip';
 import { useNoteAutosave } from './noteAutosave';
+import { useChatNoteEdits } from './chatNoteEdits';
+import { applyDocEditsToRaw, type DocEditFocus } from '../../../utils/docEdits';
 import { generateNoteSummary, scheduleAutoSummary, useIsGeneratingSummary } from './summaryGeneration';
 import {
   AudioImportError,
@@ -55,6 +57,8 @@ import styles from './NoteDetailView.module.css';
 
 const TITLE_SAVE_DELAY_MS = 600;
 const CONTENT_SAVE_DELAY_MS = 1000;
+/** The tab slide (NOTE_TAB_TRANSITION) has to end before the new text can be scrolled to. */
+const CHAT_EDIT_SCROLL_DELAY_MS = 350;
 
 /**
  * Tab content slides like a carousel (custom = -1 | 0 | 1): the new tab comes
@@ -285,6 +289,71 @@ export function NoteDetailView({
   const handleFlush = useCallback(() => {
     void flush();
   }, [flush]);
+
+  // ── What the chat writes in this note ───────────────────────────────────────
+  // The server saved it already; the drafts here are never read back from it,
+  // so the same edit goes into them: the editor redraws with the new doc and
+  // the autosave sends it again, together with anything typed meanwhile.
+  const [chatEditSeq, redrawNotes] = useReducer((n: number) => n + 1, 0);
+  const chatEditFocusRef = useRef<DocEditFocus | null>(null);
+  // The notes as the agent read them (the draft when the chat turn started,
+  // then after each of its edits): what its edits are checked against.
+  const chatReadNotesRef = useRef<string | null>(null);
+  useChatNoteEdits(note.id, {
+    onEdit: (edit) => {
+      if (!canEdit) return;
+      if (edit.title !== undefined && edit.title !== titleRef.current) handleTitleChange(edit.title);
+      if (edit.edits.length === 0) return;
+      // An edit that would replace or remove a line typed over since the agent
+      // read the note is skipped (so is one whose line is gone): the typing
+      // stays, and the next save puts it back on the server too.
+      const { doc, changed, focus, failures, base } = applyDocEditsToRaw(
+        notesDraftRef.current,
+        edit.edits,
+        chatReadNotesRef.current === null ? {} : { base: chatReadNotesRef.current },
+      );
+      if (base !== undefined) chatReadNotesRef.current = base;
+      if (failures.length > 0) {
+        toast.info('Você editou a nota enquanto a Jarvi respondia. Parte da alteração dela não foi aplicada, para não apagar o que você escreveu.');
+        // The server applied it all: send this draft even if nothing else changed here.
+        schedule({ content: notesDraftRef.current }, CONTENT_SAVE_DELAY_MS);
+      }
+      if (!changed) return;
+      handleNotesChange(doc);
+      chatEditFocusRef.current = focus;
+      redrawNotes();
+      if (tab !== 'notas') {
+        void flush();
+        onTabChange('notas');
+      }
+    },
+    onTurnStart: () => {
+      chatReadNotesRef.current = notesDraftRef.current;
+    },
+    // The agent was shown the note again, as the server has it. When that is
+    // this draft, it has read it: its corrected edit applies here too. When
+    // something typed here is not saved yet, the older text stays the mark.
+    onReread: (fingerprint) => {
+      if (notesFingerprint(notesDraftRef.current) === fingerprint) {
+        chatReadNotesRef.current = notesDraftRef.current;
+      }
+    },
+  });
+
+  // Bring what the chat changed into view: it may be anywhere in the note.
+  useEffect(() => {
+    const focus = chatEditFocusRef.current;
+    if (focus === null || tab !== 'notas') return;
+    const timer = window.setTimeout(() => {
+      chatEditFocusRef.current = null;
+      const block = scrollerRef.current?.querySelector('.prosemirror-editor')?.children[focus.block];
+      // A list's children are its items
+      const target = (focus.item !== undefined && block?.children[focus.item]) || block;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target?.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    }, CHAT_EDIT_SCROLL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [chatEditSeq, tab]);
 
   const { setNotePinned } = useNoteMutations();
   const handleTogglePin = useCallback(() => {

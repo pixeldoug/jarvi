@@ -22,7 +22,7 @@ import {
 import { analyzeEmails } from '../../gmailAnalysisService';
 import { persistMemory } from './memory';
 import { mergeAgentDescriptionUpdate } from './taskDescriptionMerge';
-import { isRemovalRequested } from './descriptionHistory';
+import { isRemovalRequested, keepDescriptionHistory } from './descriptionHistory';
 import { keepTaskDescriptionVersion } from '../../taskDescriptionVersionService';
 import { summarizeTaskDescription } from './taskDescription';
 import { prepareDescriptionForStorage } from './prepareDescriptionForStorage';
@@ -34,6 +34,7 @@ import {
   resolveExistingCategoryName,
   safeParseCategoryNames,
   searchUserTasks,
+  TASK_LINE_DESCRIPTION_MAX_CHARS,
 } from './tasks';
 import { formatDueDateLabel } from './time';
 import {
@@ -55,6 +56,18 @@ import { reconcileDueDate } from './dateExpressions';
 import { fetchOnboardingJourneyTasks, markOnboardingJourneyComplete } from './onboardingJourney';
 import { parseDailySummaryTime, updateDailySummarySettings } from '../../dailySummaryService';
 import { updateWeeklyPlanningSettings } from '../../weeklyPlanningService';
+import { NOTE_CHAT_WRITE_MAX_CHARS, notesFingerprint, writeNoteFromChat } from '../../noteService';
+import { applyDocEditsToRaw, hasTooManyDocEdits, parseDocEdits, type DocEdit } from '../../../utils/docEdits';
+import { tiptapDocToMarkdown } from '../../../utils/tiptapDoc';
+import {
+  anchorNotFoundMessage,
+  DESCRIPTION_SHOWN_MAX_CHARS,
+  docEditsToolProperty,
+  noteShownCutMessage,
+  tooManyEditsMessage,
+  unseenTextMessage,
+} from './contextualEdits';
+import { parseTaskDescription } from './taskDescription';
 import {
   decideNextQuestion,
   dueDateQuestion,
@@ -127,13 +140,14 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
           description: {
             anyOf: [{ type: 'string' }, { type: 'null' }],
             description:
-              'Descrição completa atualizada em Markdown estruturado (## títulos, - listas, - [ ] checklists). Segunda pessoa ("você"), nunca "o usuário". Envie o documento inteiro: TODAS as linhas que já existem em Contexto, nas seções de atualização e em Histórico copiadas exatamente como estão (sem resumir, juntar ou apagar), mais as linhas novas; só Próximos passos é reavaliada para refletir as ações ainda pendentes. O que sumir do texto sem o usuário ter pedido é devolvido pelo sistema para "## Histórico". Anexos da tarefa são preservados automaticamente pelo sistema. Use datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Use null para limpar apenas quando o usuário pedir e não houver anexos.',
+              'Descrição COMPLETA em Markdown estruturado (## títulos, - listas, - [ ] checklists): substitui o texto inteiro. Use SÓ quando a tarefa ainda não tem descrição ou quando o usuário pedir para reescrever/reorganizar tudo; para acrescentar, corrigir ou tirar uma parte de uma descrição que já existe, use description_edits (nunca os dois juntos). Ao enviar o documento inteiro, TODAS as linhas que já existem em Contexto, nas seções de atualização e em Histórico vão copiadas exatamente como estão (sem resumir, juntar ou apagar), mais as linhas novas; só Próximos passos é reavaliada para refletir as ações ainda pendentes. O que sumir do texto sem o usuário ter pedido é devolvido pelo sistema para "## Histórico". Segunda pessoa ("você"), nunca "o usuário". Datas absolutas (DD/MM/AAAA), nunca "hoje"/"amanhã"/"ontem". Anexos da tarefa são preservados automaticamente pelo sistema. Use null para limpar apenas quando o usuário pedir e não houver anexos.',
           },
           user_asked_to_remove: {
             type: 'boolean',
             description:
-              'true SOMENTE quando o usuário pediu, com as palavras dele, para apagar, tirar, encurtar, corrigir ou reescrever algo que já está na descrição. Sem isso, nada do que já está registrado pode sumir.',
+              'true SOMENTE quando o usuário pediu, com as palavras dele, para apagar, tirar, encurtar, corrigir ou reescrever algo que já está na descrição — vale para description e para description_edits (replace, replace_section, delete). Sem isso, nada do que já está registrado pode sumir.',
           },
+          description_edits: docEditsToolProperty('descrição'),
           priority: {
             anyOf: [
               { type: 'string', enum: ['low', 'medium', 'high'] },
@@ -398,6 +412,28 @@ const ALL_TOOLS: Record<ToolName, ChatCompletionTool> = {
       },
     },
   },
+  // Web, note mode only: the adapter exposes it when the chat was opened beside
+  // a note the user can edit. There is no note id — it writes to `ctx.openNote`.
+  update_note: {
+    type: 'function',
+    function: {
+      name: 'update_note',
+      description:
+        'Edita a nota que o usuário está com aberta ao lado do chat (aba Notas). Use sempre que ele pedir para escrever, colocar, adicionar, anotar, montar, organizar, corrigir, tirar ou reescrever algo "na nota" / "nas notas" / "aqui": um plano, uma lista, uma pendência, um texto. A mudança aparece na nota na hora, no lugar que você indicar. NÃO crie uma tarefa no lugar disso. O sistema confirma sozinho; não repita o conteúdo no chat.',
+      parameters: {
+        type: 'object',
+        properties: {
+          edits: docEditsToolProperty('nota'),
+          title: {
+            type: 'string',
+            description:
+              'Título da nota. Envie só quando a nota está sem título (um curto, até ~60 caracteres) ou quando o usuário pedir para mudar o título.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
   // Legacy path only (reliable execution off): the web adapter does not expose
   // this tool when the backend runs the onboarding journey itself.
   complete_onboarding_journey: {
@@ -483,6 +519,7 @@ export const UPDATE_TOOL_NAMES = new Set<ToolName>([
   'update_task',
   'complete_task',
   'update_notification_settings',
+  'update_note',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -891,6 +928,22 @@ async function executeCreateTaskAsPending(
   return { success: true, data: { id: pendingId, title, pending: true } };
 }
 
+/**
+ * Did the model read this task's WHOLE description? Only then may it replace
+ * the text, a whole section of it, or clear it. It did when the description
+ * is in its prompt uncut (the focused task, up to DESCRIPTION_SHOWN_MAX_CHARS),
+ * fits a task line, or came back whole in a tool result earlier this turn.
+ * A description shown cut is not read: what lies past the cut would be lost.
+ */
+function hasSeenDescription(ctx: AgentContext, task: { id: string; description?: string | null }): boolean {
+  if (ctx.descriptionsSeen?.has(task.id)) return true;
+  if (ctx.focusedTask?.id === task.id) {
+    return tiptapDocToMarkdown(task.description).length <= DESCRIPTION_SHOWN_MAX_CHARS;
+  }
+  const text = (summarizeTaskDescription(task.description) ?? '').replace(/\s+/g, ' ').trim();
+  return text.length <= TASK_LINE_DESCRIPTION_MAX_CHARS;
+}
+
 async function executeUpdateTask(
   args: Record<string, unknown>,
   ctx: AgentContext,
@@ -909,6 +962,17 @@ async function executeUpdateTask(
       error_code: 'not_found',
       message: 'Tarefa não encontrada',
       entity: { type: 'task', id: taskId },
+    };
+  }
+
+  // A list of edits longer than one call may carry is refused whole, before
+  // anything is written: never cut short and reported as done.
+  if (hasTooManyDocEdits(args.description_edits)) {
+    return {
+      success: false,
+      error_code: 'too_many_edits',
+      message: tooManyEditsMessage((args.description_edits as unknown[]).length),
+      entity: { type: 'task', id: taskId, title: task.title },
     };
   }
 
@@ -974,13 +1038,71 @@ async function executeUpdateTask(
     changes[key] = value;
   };
 
+  // Edits to part of the description: only the nodes they touch change (the
+  // rest, files included, stays as stored). A full `description` wins.
+  let descriptionEditMiss: { code: string; message: string } | null = null;
+  const fullMarkdown = tiptapDocToMarkdown(task.description);
+  const shownMarkdown = fullMarkdown.slice(0, DESCRIPTION_SHOWN_MAX_CHARS);
+  const shownCut = fullMarkdown.length > DESCRIPTION_SHOWN_MAX_CHARS;
+  const markSeen = (): void => {
+    (ctx.descriptionsSeen ??= new Set()).add(taskId);
+  };
+  const edits = parseDocEdits(args.description_edits).map((edit) =>
+    edit.content ? { ...edit, content: prepareDescriptionForStorage(edit.content, ctx.timezone) } : edit,
+  );
+  // May what the description already says go away? (ADR 0006: only when the
+  // user asked, in their own words.)
+  const allowRemoval = isRemovalRequested(
+    args.user_asked_to_remove,
+    ctx.latestUserMessage ?? ctx.originalUserMessage,
+  );
+  // A whole new text, a whole section, or clearing it: only over a description
+  // the model read whole.
+  const overwrites =
+    args.description !== undefined ||
+    edits.some((edit) => edit.action === 'replace_section' || edit.action === 'replace_all');
+
+  if (overwrites && !hasSeenDescription(ctx, task)) {
+    descriptionEditMiss = { code: 'description_unseen', message: unseenTextMessage(shownMarkdown, shownCut) };
+    notes.push(`description NÃO alterada. ${descriptionEditMiss.message}`);
+    delete args.description;
+    // The message above carries the description: read, unless it was cut.
+    if (!shownCut) markSeen();
+  } else if (args.description_edits !== undefined && args.description !== undefined) {
+    notes.push('description_edits ignorado: description (texto completo) veio na mesma chamada.');
+  } else if (args.description_edits !== undefined) {
+    const edited = applyDocEditsToRaw(task.description, edits);
+    if (edited.failures.length > 0) {
+      // All or nothing, so the model can try again with a line that exists.
+      descriptionEditMiss = {
+        code: 'anchor_not_found',
+        message: anchorNotFoundMessage('descrição', edited.failures, shownMarkdown, shownCut),
+      };
+      notes.push(`description NÃO alterada. ${descriptionEditMiss.message}`);
+      if (!shownCut) markSeen();
+    } else if (edited.changed) {
+      // Same rule as a full rewrite: a line an edit replaced or removed goes
+      // to "## Histórico" unless the user asked for it to go.
+      const kept = allowRemoval
+        ? { value: edited.doc, preserved: [] as string[] }
+        : keepDescriptionHistory(task.description, edited.doc);
+      if (kept.preserved.length > 0) {
+        notes.push(
+          `description: ${kept.preserved.length} linha(s) que já estavam registradas e saíram com a edição foram mantidas em "## Histórico" (o usuário não pediu para apagar).`,
+        );
+      }
+      const { images, otherAttachmentLabels } = parseTaskDescription(task.description);
+      const hasFiles = images.length > 0 || otherAttachmentLabels.length > 0;
+      const isEmpty = edited.empty && kept.preserved.length === 0;
+      write('description', isEmpty && !hasFiles ? null : kept.value);
+    }
+  }
+
   for (const key of fieldKeys) {
     if (args[key] === undefined) continue;
 
     if (key === 'description') {
-      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone, {
-        allowRemoval: isRemovalRequested(args.user_asked_to_remove, ctx.latestUserMessage ?? ctx.originalUserMessage),
-      });
+      const merged = mergeAgentDescriptionUpdate(task.description, args[key], ctx.timezone, { allowRemoval });
       if (merged.skip) {
         if (merged.held === 'attachments') notes.push('description não limpa: a tarefa tem anexos protegidos.');
         if (merged.held === 'history') {
@@ -1058,6 +1180,17 @@ async function executeUpdateTask(
   }
   if (pendingQuestion) pendingQuestion = { ...pendingQuestion, taskId, taskTitle: task.title };
 
+  // Nothing else to save and the description edit was held back: a failure
+  // the model fixes by itself (see contextualEdits.ts), not "nothing changed".
+  if (descriptionEditMiss && !fields.length && args.reminders === undefined) {
+    return {
+      success: false,
+      error_code: descriptionEditMiss.code,
+      message: descriptionEditMiss.message,
+      entity: { type: 'task', id: taskId, title: task.title },
+    };
+  }
+
   if (!fields.length && args.reminders === undefined) {
     const result: ToolExecutionResult = {
       success: true,
@@ -1079,6 +1212,8 @@ async function executeUpdateTask(
 
     // The text about to be replaced stays reachable ("Versões anteriores").
     if ('description' in changes) {
+      // …and the result of this call carries the new one, whole.
+      markSeen();
       await keepTaskDescriptionVersion({
         taskId,
         userId: ctx.userId,
@@ -1806,6 +1941,117 @@ async function executeUpdateNotificationSettings(
   };
 }
 
+/**
+ * Edits the note open beside the chat (Notas). The note comes from the
+ * context, never from the model, and write access was checked for this user
+ * before the turn started. `data` stays small on purpose: the web applies the
+ * same edits (the call's `edits`) to the open editor.
+ */
+async function executeUpdateNote(
+  args: Record<string, unknown>,
+  ctx: AgentContext,
+): Promise<ToolExecutionResult> {
+  const note = ctx.openNote;
+  if (!note) {
+    return {
+      success: false,
+      error_code: 'no_open_note',
+      message: 'não há uma nota aberta nesta conversa',
+    };
+  }
+  const entity = { type: 'note' as const, id: note.id };
+  if (!note.canWrite) {
+    return {
+      success: false,
+      error_code: 'read_only',
+      message: 'você só tem acesso de leitura a ela',
+      entity,
+    };
+  }
+
+  // A list longer than one call may carry is refused whole, never cut short.
+  if (hasTooManyDocEdits(args.edits)) {
+    return {
+      success: false,
+      error_code: 'too_many_edits',
+      message: tooManyEditsMessage((args.edits as unknown[]).length),
+      entity,
+    };
+  }
+  const edits = parseDocEdits(args.edits);
+  const title = typeof args.title === 'string' ? args.title.trim() : '';
+  if (edits.length === 0 && !title) {
+    return { success: false, error_code: 'invalid_arguments', message: 'Informe edits e/ou title', entity };
+  }
+  const writtenChars = edits.reduce((total, edit) => total + (edit.content?.length ?? 0), 0);
+  if (writtenChars > NOTE_CHAT_WRITE_MAX_CHARS) {
+    return {
+      success: false,
+      error_code: 'invalid_arguments',
+      message: `o conteúdo passa de ${NOTE_CHAT_WRITE_MAX_CHARS} caracteres: divida em mais de uma chamada`,
+      entity,
+    };
+  }
+
+  const written = await writeNoteFromChat(note.id, {
+    edits,
+    title,
+    ...(note.content !== undefined ? { base: note.content } : {}),
+  });
+  if (!written.ok) {
+    if (written.code === 'anchor_not_found') {
+      // The message below shows the model the notes as they are now: its next
+      // attempt is compared with that text, not with what it had read before
+      // (or redoing an edit over a section the user changed would fail forever).
+      if (note.content !== undefined) note.content = written.content;
+      return {
+        success: false,
+        error_code: 'anchor_not_found',
+        message: anchorNotFoundMessage('nota', written.failures, written.markdown),
+        // The open note does the same on its side (see chatNoteEdits.ts in the
+        // web): `reread` is the fingerprint of the text the model was shown.
+        data: { note_id: note.id, reread: notesFingerprint(written.content) },
+        entity,
+      };
+    }
+    if (written.code === 'shown_cut') {
+      return { success: false, error_code: 'note_shown_cut', message: noteShownCutMessage(), entity };
+    }
+    return written.code === 'too_large'
+      ? { success: false, error_code: 'too_large', message: 'a nota passou do limite de tamanho', entity }
+      : { success: false, error_code: 'not_found', message: 'a nota não existe mais', entity };
+  }
+
+  // What the model takes the note to be from here on: its next edits this
+  // turn are checked against it.
+  if (note.content !== undefined) note.content = written.content;
+
+  const changes: Record<string, unknown> = {};
+  if (written.contentChanged) changes.content = docEditsKind(edits);
+  if (written.titleChanged) changes.title = written.title;
+
+  return {
+    success: true,
+    // `note_*` keys: `id` / `title` in a tool result are read as a task.
+    data: {
+      note_id: note.id,
+      note_title: written.title,
+      ...(written.contentChanged ? { content_changed: true } : {}),
+      ...(written.titleChanged ? { title_changed: true } : {}),
+    },
+    changes,
+    unchanged: Object.keys(changes).length === 0,
+    entity: { ...entity, title: written.title || undefined },
+  };
+}
+
+/** What a batch of edits did to the text, for the confirmation. */
+function docEditsKind(edits: DocEdit[]): 'rewrite' | 'add' | 'edit' {
+  if (edits.some((edit) => edit.action === 'replace_all')) return 'rewrite';
+  const adds = new Set(['append', 'append_to_section', 'insert_after', 'insert_before']);
+  return edits.some((edit) => adds.has(edit.action)) ? 'add' : 'edit';
+}
+
 /** Legacy (flag off) closure of the onboarding journey, driven by the model. */
 async function executeCompleteOnboardingJourney(
   ctx: AgentContext,
@@ -1871,6 +2117,8 @@ export async function executeToolCall(
       return executeOfferChoices(args);
     case 'update_notification_settings':
       return executeUpdateNotificationSettings(args, ctx);
+    case 'update_note':
+      return executeUpdateNote(args, ctx);
     case 'complete_onboarding_journey':
       return executeCompleteOnboardingJourney(ctx, profile);
     default:

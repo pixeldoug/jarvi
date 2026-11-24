@@ -21,4 +21,5 @@ Se a AI for **escrever UI**, o contrato do package manda. O ADR explica; não su
 | [0002](0002-backend-owned-confirmations.md) | Confirmações são do backend, não do modelo (flag `AGENT_RELIABLE_EXECUTION`) | Agente (web + WhatsApp) |
 | [0003](0003-notes-transcript-not-audio.md) | Notas guardam a transcrição, não o áudio; silêncio filtrado em duas camadas | Web (Notas) + backend |
 | [0004](0004-overdue-recap.md) | Recap das tarefas vencidas: um card por vez, uma vez por dia, série recorrente como um card | Web (Tarefas) + backend |
+| [0005](0005-contextual-ai-edits.md) | A IA edita notas e descrições de tarefa por trecho, no lugar a que a mudança pertence, sem reescrever o resto | Agente (web + WhatsApp) + web (Notas) |
 | [0006](0006-description-keeps-history.md) | A descrição de uma tarefa não perde o que já diz quando a IA atualiza; o que some volta em `## Histórico`, e cada alteração guarda a versão anterior | Agente (web + WhatsApp) + web (Tarefas) |

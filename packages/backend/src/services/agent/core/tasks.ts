@@ -8,6 +8,7 @@
  */
 
 import { getDatabase, getPool, isPostgreSQL } from '../../../database';
+import { tiptapDocSections } from '../../../utils/tiptapDoc';
 import { summarizeTaskDescription } from './taskDescription';
 import type { CategoryRow, ListRow, TaskRow } from './types';
 
@@ -113,7 +114,10 @@ export function bucketTasksByDate(tasks: TaskRow[], todayIso: string): TaskBucke
   return buckets;
 }
 
-function truncateForPrompt(value: string, maxLength = 220): string {
+/** How much of a description a task line shows (the rest is cut with "…"). */
+export const TASK_LINE_DESCRIPTION_MAX_CHARS = 220;
+
+function truncateForPrompt(value: string, maxLength = TASK_LINE_DESCRIPTION_MAX_CHARS): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, maxLength - 1)}…`;
@@ -463,6 +467,12 @@ export function formatTaskLine(
   if (t.description?.trim()) {
     const descSummary = summarizeTaskDescription(t.description);
     if (descSummary) parts.push(`desc: ${truncateForPrompt(descSummary)}`);
+    // The description is cut above; its section titles are what the model
+    // anchors an edit on (update_task.description_edits).
+    const sections = tiptapDocSections(t.description).slice(0, 8);
+    if (sections.length > 0) {
+      parts.push(`seções: ${sections.map((title) => truncateForPrompt(title, 50)).join('; ')}`);
+    }
   }
 
   if (dueDateStr && dueDateStr < todayIso) {

@@ -29,7 +29,7 @@ A IA atualiza a descrição enviando o texto inteiro de novo. O prompt pedia par
 ## Consequência
 
 - Um falso positivo (linha mantida com palavras muito diferentes, ou uma data reescrita em outro formato) deixa uma linha repetida em `## Histórico`. O erro vai para o lado seguro: sobra texto, não falta.
-- No chat geral a IA só vê o começo de uma descrição longa. Se ela reescrever a partir disso, o restante vai inteiro para `## Histórico`: nada se perde, mas o texto fica menos organizado. Edições por trecho (`description_edits`, em revisão) resolvem a causa; a trava continua valendo para elas.
+- No chat geral a IA só vê o começo de uma descrição longa. Se ela reescrever a partir disso, o restante vai inteiro para `## Histórico`: nada se perde, mas o texto fica menos organizado. As edições por trecho (`description_edits`, [0005](0005-contextual-ai-edits.md)) resolvem a causa: o modelo mexe só na linha que muda, e reescrever sem ter lido a descrição inteira é recusado. A trava continua valendo para elas.
 - O servidor MCP (`mcp/tasks.ts`) escreve por outro caminho e não passa pela trava; ele guarda a versão anterior, como os outros.
 - Uma versão guarda o texto, não os arquivos: restaurar traz o texto de volta e mantém os anexos que a tarefa tem agora.
 - Implementação: `packages/backend/src/services/agent/core/descriptionHistory.ts` (trava) e `services/taskDescriptionVersionService.ts` (versões, tabela `task_description_versions`); na web, `components/features/tasks/TaskDescriptionVersions`. Testes: `npm run eval:description-history` (e `:live`, com o modelo real) e `npm run eval:task-description-versions`.

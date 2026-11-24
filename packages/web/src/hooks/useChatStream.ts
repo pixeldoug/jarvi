@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { resolveChatChoiceArtifact } from '../lib/chatChoicePrompts';
 import type { ChatStoredMessage } from '../lib/chatsApi';
 import { stripTaskRefs } from '../lib/taskRefs';
+import { markChatNoteReread, markChatNoteTurn } from '../components/features/notes/chatNoteEdits';
+import { flushNoteSaves } from '../components/features/notes/noteAutosave';
 import { chatsKeys } from './useChats';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -446,6 +448,14 @@ export function useChatStream(
     };
 
     try {
+      // Note mode: the agent reads the note from the server (and may write in
+      // it), so what was just typed has to be there first. Never rejects.
+      if (mode === 'note' && noteId) {
+        await flushNoteSaves(queryClient, noteId);
+        // …and the open note remembers this text: what the agent is reading.
+        markChatNoteTurn(noteId);
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
         method: 'POST',
         headers: {
@@ -526,6 +536,19 @@ export function useChatStream(
             case 'separator':
             case 'tool_call':
               setIsWaiting(true);
+              updateAssistant((m) => applyChatStreamEvent(m, event));
+              break;
+
+            case 'tool_result':
+              // A held-back note edit: the agent was shown the note again.
+              if (
+                event.toolName === 'update_note' &&
+                event.success === false &&
+                typeof event.data?.note_id === 'string' &&
+                typeof event.data.reread === 'string'
+              ) {
+                markChatNoteReread(event.data.note_id, event.data.reread);
+              }
               updateAssistant((m) => applyChatStreamEvent(m, event));
               break;
 
