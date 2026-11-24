@@ -13,18 +13,25 @@ final class SessionStore: NSObject, ObservableObject, WCSessionDelegate {
   private enum Key {
     static let token = "token"
     static let apiUrl = "apiUrl"
+    static let locale = "locale"
   }
 
   private static let apiUrlDefaultsKey = "jarvi.apiUrl"
+  private static let localeDefaultsKey = "jarvi.locale"
 
   @Published private(set) var token: String?
   @Published private(set) var apiURL: URL?
+  /// The iPhone app's language (`pt-BR` / `en-US`): speech is transcribed in
+  /// it, whatever language the watch itself is set to. Nil until an iPhone
+  /// app that sends it has run.
+  @Published private(set) var locale: String?
 
   var isSignedIn: Bool { token != nil && apiURL != nil }
 
   override init() {
     token = Keychain.read()
     apiURL = UserDefaults.standard.string(forKey: Self.apiUrlDefaultsKey).flatMap(URL.init(string:))
+    locale = UserDefaults.standard.string(forKey: Self.localeDefaultsKey)
     super.init()
   }
 
@@ -39,7 +46,12 @@ final class SessionStore: NSObject, ObservableObject, WCSessionDelegate {
   private func apply(_ context: [String: Any]) {
     guard let apiUrl = context[Key.apiUrl] as? String, let url = URL(string: apiUrl) else { return }
     let newToken = (context[Key.token] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    let newLocale = (context[Key.locale] as? String).flatMap { $0.isEmpty ? nil : $0 }
     DispatchQueue.main.async {
+      if let newLocale, newLocale != self.locale {
+        UserDefaults.standard.set(newLocale, forKey: Self.localeDefaultsKey)
+        self.locale = newLocale
+      }
       if newToken != self.token {
         if let newToken { Keychain.save(newToken) } else { Keychain.delete() }
         self.token = newToken

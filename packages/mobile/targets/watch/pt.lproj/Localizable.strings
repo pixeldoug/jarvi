@@ -20,11 +20,7 @@
 /* Voice first: speak, see, complete. */
 "Falar uma tarefa" = "Falar uma tarefa";
 "Toque e fale" = "Toque e fale";
-"Hoje · nada aberto" = "Hoje · nada aberto";
-"Hoje · 1 aberta" = "Hoje · 1 aberta";
-"Hoje · %lld abertas" = "Hoje · %lld abertas";
 "Fale uma tarefa e ela aparece aqui." = "Fale uma tarefa e ela aparece aqui.";
-"Falar tarefa" = "Falar tarefa";
 "Concluir" = "Concluir";
 "Reabrir" = "Reabrir";
 "Amanhã" = "Amanhã";

@@ -1,13 +1,10 @@
 import SwiftUI
 
-/// Voice first: the app opens on the microphone (speak a task); turning the
-/// crown goes to the day's list (see tasks); a task's detail completes it.
+/// Voice first: one list that opens on the microphone (speak a task); turning
+/// the crown scrolls to the day's tasks (see them); a task's detail completes
+/// it. One plain List in one NavigationStack: nested stacks in a paged
+/// TabView rendered the second page black on a real watch.
 struct RootView: View {
-  enum Page: Hashable {
-    case speak
-    case tasks
-  }
-
   @EnvironmentObject private var session: SessionStore
   @StateObject private var model = TasksModel()
   @StateObject private var capture = VoiceCapture()
@@ -15,44 +12,48 @@ struct RootView: View {
   @ObservedObject private var outbox = VoiceOutbox.shared
   @StateObject private var connectivity = Connectivity()
   @Environment(\.scenePhase) private var scenePhase
-  @State private var page = Page.speak
 
   private var api: TaskAPI? {
     guard let token = session.token, let url = session.apiURL else { return nil }
-    return TaskAPI(baseURL: url, token: token)
+    return TaskAPI(baseURL: url, token: token, locale: session.locale)
   }
 
   var body: some View {
-    Group {
-      if let api {
-        TabView(selection: $page) {
-          HomeView(openToday: model.openToday, speak: { speak(api) }, showTasks: { page = .tasks })
-            .tag(Page.speak)
-          TaskListView(model: model, api: api, speak: { speak(api) }, refresh: { await refresh(api) })
-            .tag(Page.tasks)
-        }
-        .tabViewStyle(.verticalPage)
-        .fullScreenCover(isPresented: Binding(get: { capture.isPresented }, set: { if !$0 { capture.close() } })) {
-          CaptureView(
-            capture: capture,
-            recorder: capture.recorder,
-            api: api,
-            speakAgain: { speak(api) },
-            onUndone: { Task { await model.load(api) } }
-          )
-        }
-      } else {
-        NavigationStack {
+    NavigationStack {
+      Group {
+        if let api {
+          if case .failed(let error) = model.status, error == .signedOut || error == .subscriptionRequired {
+            // Speaking can't work either: the server refuses this session.
+            MessageView(systemImage: error.systemImage, text: error.message) {
+              Task { await refresh(api) }
+            }
+          } else {
+            HomeList(model: model, api: api, speak: { speak(api) }, refresh: { await refresh(api) })
+              .navigationDestination(for: String.self) { id in
+                TaskDetailView(model: model, api: api, taskID: id)
+              }
+          }
+        } else {
           MessageView(systemImage: "iphone", text: "Abra a Jarvi no iPhone para entrar.")
-            .navigationTitle("Jarvi")
         }
+      }
+      .navigationTitle("Jarvi")
+    }
+    .fullScreenCover(isPresented: Binding(get: { capture.isPresented }, set: { if !$0 { capture.close() } })) {
+      if let api {
+        CaptureView(
+          capture: capture,
+          recorder: capture.recorder,
+          api: api,
+          speakAgain: { speak(api) },
+          onUndone: { Task { await model.load(api) } }
+        )
       }
     }
     .task(id: session.token) {
       // A new session (another account, or signed out) starts from an empty list.
       model.switchSession(to: session.token)
       capture.close()
-      page = .speak
       if let api {
         startIfRequested(api)
         await refresh(api)
@@ -108,7 +109,6 @@ struct RootView: View {
   private func startIfRequested(_ api: TaskAPI) {
     guard launch.requested else { return }
     launch.requested = false
-    page = .speak
     speak(api)
   }
 
@@ -125,62 +125,6 @@ private struct RetryKey: Equatable {
   let token: String?
   let active: Bool
   let waiting: Bool
-}
-
-/// The first page: one big button that starts listening.
-private struct HomeView: View {
-  /// Open tasks today, nil until the list has loaded.
-  let openToday: Int?
-  let speak: () -> Void
-  let showTasks: () -> Void
-
-  var body: some View {
-    NavigationStack {
-      GeometryReader { proxy in
-        let size = min(96, proxy.size.height * 0.55)
-        VStack(spacing: 6) {
-          Spacer(minLength: 0)
-          Button(action: speak) {
-            Image(systemName: "mic.fill")
-              .font(.system(size: size * 0.42, weight: .semibold))
-              .foregroundStyle(.white)
-              .frame(width: size, height: size)
-              .background(Circle().fill(Color.accentColor))
-          }
-          .buttonStyle(.plain)
-          .accessibilityLabel(Text("Falar uma tarefa"))
-          Text("Toque e fale")
-            .font(.headline)
-          Spacer(minLength: 0)
-          if let openToday {
-            Button(action: showTasks) {
-              HStack(spacing: 4) {
-                Text(summary(openToday))
-                Image(systemName: "chevron.down")
-                  .font(.footnote.weight(.semibold))
-                  .foregroundStyle(.secondary)
-              }
-              .font(.footnote.weight(.medium))
-              .padding(.horizontal, 12)
-              .padding(.vertical, 7)
-              .background(.fill.tertiary, in: Capsule())
-            }
-            .buttonStyle(.plain)
-          }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-      }
-      .navigationTitle("Jarvi")
-    }
-  }
-
-  private func summary(_ count: Int) -> LocalizedStringKey {
-    switch count {
-    case 0: "Hoje · nada aberto"
-    case 1: "Hoje · 1 aberta"
-    default: "Hoje · \(count) abertas"
-    }
-  }
 }
 
 struct MessageView: View {

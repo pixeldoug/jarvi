@@ -16,6 +16,7 @@ final class WatchSessionBridge: NSObject, WCSessionDelegate {
   enum Key {
     static let token = "token"
     static let apiUrl = "apiUrl"
+    static let locale = "locale"
   }
 
   private let queue = DispatchQueue(label: "app.jarvi.watch-session")
@@ -25,10 +26,11 @@ final class WatchSessionBridge: NSObject, WCSessionDelegate {
 
   var isSupported: Bool { WCSession.isSupported() }
 
-  func setSession(token: String?, apiUrl: String) {
+  func setSession(token: String?, apiUrl: String, locale: String? = nil) {
     guard WCSession.isSupported() else { return }
     // An empty token is how the watch learns about a sign-out.
-    let context: [String: Any] = [Key.token: token ?? "", Key.apiUrl: apiUrl]
+    var context: [String: Any] = [Key.token: token ?? "", Key.apiUrl: apiUrl]
+    if let locale { context[Key.locale] = locale }
     queue.async {
       self.latest = context
       let session = WCSession.default

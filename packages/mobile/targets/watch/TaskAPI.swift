@@ -29,6 +29,9 @@ enum TaskAPIError: Error, Equatable {
 struct TaskAPI {
   let baseURL: URL
   let token: String
+  /// The iPhone app's language (SessionStore.locale). The server transcribes
+  /// speech in it; nil falls back to the watch's own language.
+  var locale: String? = nil
 
   func list() async throws -> [WatchTask] {
     let data = try await send("GET", "/api/tasks")
@@ -72,6 +75,16 @@ struct TaskAPI {
     }
   }
 
+  /// Opens the connection (TLS, and the hop through the iPhone) while the
+  /// user is still speaking, so the upload doesn't wait for it afterwards.
+  /// URLSession keeps the connection for the next request to the same host.
+  func warmUp() async {
+    guard let url = URL(string: "/health", relativeTo: baseURL) else { return }
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 10
+    _ = try? await URLSession.shared.data(for: request)
+  }
+
   /// Undo of a task just created by voice.
   func delete(id: String) async throws {
     _ = try await send("DELETE", "/api/tasks/\(id)")
@@ -84,7 +97,7 @@ struct TaskAPI {
     request.timeoutInterval = timeout
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    request.setValue(Self.localeHeader, forHTTPHeaderField: "X-Jarvi-Locale")
+    request.setValue(localeHeader, forHTTPHeaderField: "X-Jarvi-Locale")
     if let body {
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
       request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -127,9 +140,10 @@ struct TaskAPI {
     return min(max(seconds, 5), 60 * 60)
   }
 
-  /// The language the watch UI is showing.
-  private static var localeHeader: String {
-    Bundle.main.preferredLocalizations.first == "en" ? "en-US" : "pt-BR"
+  /// The app's language from the iPhone, else the one the watch UI shows.
+  private var localeHeader: String {
+    if let locale, locale == "pt-BR" || locale == "en-US" { return locale }
+    return Bundle.main.preferredLocalizations.first == "en" ? "en-US" : "pt-BR"
   }
 }
 

@@ -1,9 +1,11 @@
 import SwiftUI
 import WatchKit
 
-/// The second page: overdue and today's tasks. Read-only on purpose; a tap
-/// opens the task, and completing it happens there.
-struct TaskListView: View {
+/// The whole main screen, one list: the microphone on top (speak a task),
+/// then, a turn of the crown below, the overdue and today's tasks. The rows
+/// are read-only on purpose; a tap opens the task, and completing happens
+/// there.
+struct HomeList: View {
   @ObservedObject var model: TasksModel
   let api: TaskAPI
   let speak: () -> Void
@@ -11,80 +13,84 @@ struct TaskListView: View {
   let refresh: () async -> Void
 
   var body: some View {
-    NavigationStack {
-      content
-        .navigationTitle("Hoje")
-        .navigationDestination(for: String.self) { id in
-          TaskDetailView(model: model, api: api, taskID: id)
+    List {
+      Section {
+        micButton
+      }
+
+      switch model.status {
+      case .loading where model.tasks.isEmpty:
+        Section {
+          ProgressView()
+            .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
         }
-        .toolbar {
-          ToolbarItem(placement: .topBarLeading) {
-            Button(action: speak) {
-              Image(systemName: "mic.fill")
-            }
-            .tint(.accentColor)
-            .accessibilityLabel(Text("Falar uma tarefa"))
+      case .failed(let error):
+        // No list yet (no connection, server down). Speaking still works:
+        // the recording waits on the watch.
+        Section {
+          VStack(spacing: 6) {
+            Image(systemName: error.systemImage)
+              .foregroundStyle(.secondary)
+            Text(error.message)
+              .font(.footnote)
+              .multilineTextAlignment(.center)
+          }
+          .frame(maxWidth: .infinity)
+          .listRowBackground(Color.clear)
+          Button("Tentar de novo") {
+            Task { await refresh() }
           }
         }
-    }
-  }
-
-  @ViewBuilder
-  private var content: some View {
-    switch model.status {
-    case .loading where model.tasks.isEmpty:
-      ProgressView()
-    case .failed(let error):
-      MessageView(systemImage: error.systemImage, text: error.message) {
-        Task { await model.load(api) }
+      default:
+        taskSections
       }
-    default:
-      list
     }
+    .refreshable { await refresh() }
+  }
+
+  private var micButton: some View {
+    Button(action: speak) {
+      VStack(spacing: 6) {
+        Image(systemName: "mic.fill")
+          .font(.system(size: 34, weight: .semibold))
+          .foregroundStyle(.white)
+          .frame(width: 80, height: 80)
+          .background(Circle().fill(Color.accentColor))
+        Text("Toque e fale")
+          .font(.headline)
+      }
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 4)
+    }
+    .buttonStyle(.plain)
+    .listRowBackground(Color.clear)
+    .accessibilityLabel(Text("Falar uma tarefa"))
   }
 
   @ViewBuilder
-  private var list: some View {
+  private var taskSections: some View {
     let sections = model.sections
-    if sections.overdue.isEmpty && sections.today.isEmpty {
-      ScrollView {
-        VStack(spacing: 6) {
+    if !sections.overdue.isEmpty {
+      Section("Vencidas") {
+        ForEach(sections.overdue) { task in
+          row(task, showDate: true)
+        }
+      }
+    }
+    Section("Hoje") {
+      if sections.today.isEmpty {
+        VStack(alignment: .leading, spacing: 2) {
           Text("Nada para hoje.")
-            .font(.headline)
           Text("Fale uma tarefa e ela aparece aqui.")
             .font(.footnote)
             .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-          Button("Falar tarefa", action: speak)
-            .buttonStyle(.borderedProminent)
-            .tint(.accentColor)
-            .padding(.top, 8)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 12)
-      }
-      .refreshable { await refresh() }
-    } else {
-      List {
-        if !sections.overdue.isEmpty {
-          Section("Vencidas") {
-            ForEach(sections.overdue) { task in
-              row(task, showDate: true)
-            }
-          }
-        }
-        Section("Hoje") {
-          if sections.today.isEmpty {
-            Text("Nada para hoje.")
-              .foregroundStyle(.secondary)
-          } else {
-            ForEach(sections.today) { task in
-              row(task, showDate: false)
-            }
-          }
+      } else {
+        ForEach(sections.today) { task in
+          row(task, showDate: false)
         }
       }
-      .refreshable { await refresh() }
     }
   }
 
